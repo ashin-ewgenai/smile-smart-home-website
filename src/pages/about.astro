@@ -1,0 +1,193 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Navigation from '../components/Navigation.astro';
+import Footer from '../components/Footer.astro';
+import { StaggerContainer, StaggerItem } from '../components/MotionIsland';
+---
+
+<Layout title="About Us - Smile Smart Homes">
+  <Navigation />
+  
+  <main class="pt-16">
+    <!-- Hero Section -->
+    <section class="section-padding bg-gradient-to-br from-soft-gray via-white to-gray-100 dark:from-gray-900 dark:via-charcoal dark:to-gray-800">
+      <div class="container">
+        <div class="max-w-4xl mx-auto text-center reveal-on-scroll">
+          <h1 class="text-display font-bold text-charcoal dark:text-white mb-6">
+            About Smile Smart Homes
+          </h1>
+          <p class="text-body-lg text-gray-600 dark:text-gray-300 mb-8">
+            We're passionate about transforming homes with intelligent technology. Our expert team brings years of experience in smart home automation, security, and installation.
+          </p>
+        </div>
+      </div>
+    </section>
+    
+    <!-- Our Story -->
+    <section class="section-padding bg-white dark:bg-gray-900">
+      <div class="container">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div class="reveal-on-scroll">
+            <h2 class="text-heading-lg font-bold text-charcoal dark:text-white mb-6">
+              Our Mission
+            </h2>
+            <p class="text-body-lg text-gray-600 dark:text-gray-300 mb-6">
+              At Smile Smart Homes, we believe that technology should enhance your life, not complicate it. We specialize in professional installation and setup of smart home devices, making advanced home automation accessible and easy to use.
+            </p>
+            <p class="text-body-lg text-gray-600 dark:text-gray-300 mb-6">
+              Our certified technicians handle everything from initial consultation to final setup, ensuring your smart home system works perfectly from day one.
+            </p>
+            <div class="flex items-center space-x-4">
+              <div class="w-16 h-16 bg-teal/10 dark:bg-teal/20 rounded-lg flex items-center justify-center">
+                <svg class="w-8 h-8 text-teal" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-lg font-semibold text-charcoal dark:text-white">Professional Excellence</h3>
+                <p class="text-gray-600 dark:text-gray-300">Certified technicians with proven expertise</p>
+              </div>
+            </div>
+          </div>
+          
+          <div class="reveal-on-scroll">
+            <img 
+              src="https://images.pexels.com/photos/1571460/pexels-photo-1571460.jpeg?auto=compress&cs=tinysrgb&w=800" 
+              alt="Smart home technology setup"
+              class="rounded-lg shadow-lg w-full h-96 object-cover"
+              loading="lazy"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- What We Do -->
+    <section class="section-padding bg-soft-gray dark:bg-gray-800">
+      <div class="container">
+        <div class="text-center mb-16 reveal-on-scroll">
+          <h2 class="text-heading-lg font-bold text-charcoal dark:text-white mb-4">
+            What We Do
+          </h2>
+          <p class="text-body-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            We handle professional installation and setup - not device manufacturing. We work with leading brands to bring you the best smart home solutions.
+          </p>
+        </div>
+        
+        <StaggerContainer client:load className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <StaggerItem>
+            <div class="bg-white dark:bg-gray-900 rounded-lg p-6 text-center">
+              <div class="w-16 h-16 bg-teal/10 dark:bg-teal/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-teal" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path>
+                </svg>
+              </div>
+              <h3 class="text-xl font-semibold text-charcoal dark:text-white mb-2">Expert Installation</h3>
+              <p class="text-gray-600 dark:text-gray-300">Professional setup of all smart home devices with precision and care.</p>
+            </div>
+          </StaggerItem>
+          
+          <StaggerItem>
+            <div class="bg-white dark:bg-gray-900 rounded-lg p-6 text-center">
+              <div class="w-16 h-16 bg-teal/10 dark:bg-teal/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-teal" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3z"></path>
+                </svg>
+              </div>
+              <h3 class="text-xl font-semibold text-charcoal dark:text-white mb-2">System Integration</h3>
+              <p class="text-gray-600 dark:text-gray-300">Seamless connection of all devices for unified control and automation.</p>
+            </div>
+          </StaggerItem>
+          
+          <StaggerItem>
+            <div class="bg-white dark:bg-gray-900 rounded-lg p-6 text-center">
+              <div class="w-16 h-16 bg-teal/10 dark:bg-teal/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg class="w-8 h-8 text-teal" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                </svg>
+              </div>
+              <h3 class="text-xl font-semibold text-charcoal dark:text-white mb-2">Training & Support</h3>
+              <p class="text-gray-600 dark:text-gray-300">Comprehensive training and ongoing support to maximize your smart home experience.</p>
+            </div>
+          </StaggerItem>
+        </StaggerContainer>
+      </div>
+    </section>
+    
+    <!-- Company Background -->
+    <section class="section-padding bg-white dark:bg-gray-900">
+      <div class="container">
+        <div class="max-w-4xl mx-auto">
+          <div class="bg-gradient-to-r from-teal/5 to-teal/10 dark:from-teal/10 dark:to-teal/20 rounded-2xl p-8 reveal-on-scroll">
+            <div class="text-center mb-8">
+              <h2 class="text-heading-lg font-bold text-charcoal dark:text-white mb-4">
+                Backed by Innovation
+              </h2>
+              <p class="text-body-lg text-gray-600 dark:text-gray-300">
+                Smile Smart Homes is proudly backed by <strong>Expectation Walkers GenAI Research and Services Pvt Ltd</strong>, bringing cutting-edge research and development expertise to smart home automation.
+              </p>
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+              <div>
+                <div class="text-3xl font-bold text-teal mb-2">500+</div>
+                <div class="text-gray-600 dark:text-gray-300">Homes Automated</div>
+              </div>
+              <div>
+                <div class="text-3xl font-bold text-teal mb-2">98%</div>
+                <div class="text-gray-600 dark:text-gray-300">Customer Satisfaction</div>
+              </div>
+              <div>
+                <div class="text-3xl font-bold text-teal mb-2">5+</div>
+                <div class="text-gray-600 dark:text-gray-300">Years Experience</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- Important Note -->
+    <section class="section-padding bg-soft-gray dark:bg-gray-800">
+      <div class="container">
+        <div class="max-w-3xl mx-auto text-center reveal-on-scroll">
+          <div class="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-6">
+            <div class="flex items-center justify-center mb-4">
+              <svg class="w-8 h-8 text-amber-600 dark:text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-amber-800 dark:text-amber-200 mb-2">
+              Important Note
+            </h3>
+            <p class="text-amber-700 dark:text-amber-300">
+              We specialize in professional installation and setup services. All smart home devices are manufactured by their respective brands (Google, Amazon, Philips, Ring, etc.). We are authorized installers and service providers, ensuring proper setup and integration of these quality products.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+    
+    <!-- CTA Section -->
+    <section class="section-padding bg-teal text-white">
+      <div class="container text-center">
+        <h2 class="text-heading-lg font-bold mb-4 reveal-on-scroll">
+          Ready to Transform Your Home?
+        </h2>
+        <p class="text-body-lg mb-8 max-w-2xl mx-auto opacity-90 reveal-on-scroll">
+          Let our experienced team help you create the perfect smart home setup tailored to your needs and lifestyle.
+        </p>
+        <div class="flex flex-col sm:flex-row gap-4 justify-center reveal-on-scroll">
+          <a href="/contact" class="bg-white text-teal hover:bg-gray-100 px-8 py-3 rounded-lg font-medium transition-all duration-120 transform hover:scale-[1.02] btn-magnetic">
+            Get Free Consultation
+          </a>
+          <a href="/services" class="border-2 border-white text-white hover:bg-white hover:text-teal px-8 py-3 rounded-lg font-medium transition-all duration-120">
+            View Services
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+  
+  <Footer />
+</Layout>
