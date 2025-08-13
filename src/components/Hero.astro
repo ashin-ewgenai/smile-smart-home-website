@@ -2,60 +2,100 @@
 import { HeroMotion } from './MotionIsland';
 ---
 
-<section class="relative min-h-screen flex items-center justify-center overflow-hidden bg-gradient-to-br from-soft-gray via-white to-gray-50 dark:from-gray-900 dark:via-charcoal dark:to-gray-800">
-  <!-- Enhanced Background Pattern -->
+<section class="relative min-h-screen flex items-center overflow-hidden">
+  <!-- Enhanced Animated Background Layer -->
   <div class="absolute inset-0" id="hero-bg">
-    <!-- Primary gradient overlay -->
-    <div class="absolute inset-0 bg-gradient-to-br from-teal/5 via-transparent to-teal/10 dark:from-teal/10 dark:via-transparent dark:to-teal/5"></div>
-    
-    <!-- Animated gradient orbs -->
-    <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-teal/20 dark:bg-teal/30 rounded-full blur-3xl animate-pulse"></div>
-    <div class="absolute bottom-1/4 right-1/4 w-80 h-80 bg-teal/15 dark:bg-teal/25 rounded-full blur-3xl animate-pulse" style="animation-delay: 1s;"></div>
-    
-    <!-- Geometric patterns -->
-    <div class="absolute inset-0 opacity-30 dark:opacity-20">
-      <div class="absolute top-20 left-20 w-2 h-2 bg-teal rounded-full animate-ping" style="animation-delay: 0.5s;"></div>
-      <div class="absolute top-40 right-32 w-1 h-1 bg-teal rounded-full animate-ping" style="animation-delay: 1.5s;"></div>
-      <div class="absolute bottom-32 left-1/3 w-1.5 h-1.5 bg-teal rounded-full animate-ping" style="animation-delay: 2s;"></div>
-      <div class="absolute bottom-20 right-20 w-2 h-2 bg-teal rounded-full animate-ping" style="animation-delay: 2.5s;"></div>
+    <!-- Base Background with animated gradient -->
+    <div class="absolute inset-0 bg-gradient-animated overflow-hidden">
+      
+      <!-- Animated particles -->
+      <div class="particles">
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+        <div class="particle"></div>
+      </div>
+      
+      <!-- Animated floating bubbles -->
+      <div class="bubbles">
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+        <div class="bubble"></div>
+      </div>
+      
+      <!-- Animated gradient orbs with increased visibility -->
+      <div class="orb orb1"></div>
+      <div class="orb orb2"></div>
+      <div class="orb orb3"></div>
+      <div class="orb orb4"></div>
+      <div class="orb orb5"></div>
+      
+      <!-- Animated light beams -->
+      <div class="light-beam beam1"></div>
+      <div class="light-beam beam2"></div>
+      <div class="light-beam beam3"></div>
     </div>
+    
+    <!-- Dark overlay for better text readability -->
+    <div class="absolute inset-0 bg-black/40 dark:bg-black/50"></div>
   </div>
 
-  <div class="container relative z-10">
+  <div class="container relative z-10 py-28 md:py-36">
     <HeroMotion client:load>
-      <div class="max-w-5xl mx-auto">
-        <!-- Badge/Tag -->
-        <div class="flex justify-center mb-8">
-          <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full border border-gray-200/50 dark:border-gray-700/50 shadow-sm">
-            <div class="w-2 h-2 bg-teal rounded-full animate-pulse"></div>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-14 items-center">
+        <!-- Left: Content -->
+        <div class="text-center md:text-left">
+          <!-- Badge -->
+          <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full border border-gray-200/60 dark:border-gray-700/60 shadow-sm mb-6">
+            <span class="w-2 h-2 bg-teal rounded-full animate-pulse"></span>
             <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Professional Smart Home Installation</span>
           </div>
-        </div>
 
-        <!-- Main Content -->
-        <div class="text-center">
-          <h1 class="text-display font-bold text-charcoal dark:text-white mb-6 leading-tight">
-            Smarter living <span class="text-teal relative">
+          <h1 class="text-display font-bold leading-tight">
+            <span class="text-white dark:text-white">Smarter living</span>
+            <span class="text-teal relative inline-block">
               starts here
-              <div class="absolute -bottom-2 left-0 right-0 h-1 bg-gradient-to-r from-teal/40 to-teal/60 rounded-full"></div>
+              <span class="pointer-events-none absolute -bottom-2 left-0 right-0 h-1 bg-gradient-to-r from-teal/40 to-teal/70 rounded-full"></span>
             </span>
           </h1>
-          
-          <p class="text-body-lg text-gray-600 dark:text-gray-300 mb-10 max-w-3xl mx-auto leading-relaxed">
-            Professional smart device installation for safer, efficient homes. Transform 
-            your living space with cutting-edge technology and expert setup.
+
+          <p class="text-body-lg text-gray-600 dark:text-gray-300 mt-6 max-w-xl md:max-w-2xl md:mt-7 leading-relaxed mx-auto md:mx-0">
+            Transform your home with intelligent automation—enhanced security, energy efficiency, and effortless comfort. Expert setup included.
           </p>
-          
-          <!-- Enhanced CTA Section -->
-          <div class="flex flex-col sm:flex-row gap-4 justify-center items-center mb-12">
-            <a href="/contact" class="btn-primary group relative overflow-hidden">
+
+          <!-- CTAs -->
+          <div class="mt-9 flex flex-col sm:flex-row gap-4 sm:gap-5 justify-center md:justify-start items-center">
+            <a href="/contact" class="btn-primary group relative overflow-hidden btn-magnetic">
               <span class="relative z-10 flex items-center gap-2">
                 Get Free Consultation
-                <svg class="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                </svg>
+                <svg class="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
               </span>
-              <div class="absolute inset-0 bg-gradient-to-r from-teal to-teal/80 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <span class="absolute inset-0 bg-gradient-to-r from-teal to-teal/80 opacity-0 group-hover:opacity-100 transition-opacity"></span>
             </a>
             <a href="/services" class="btn-secondary group">
               <span class="flex items-center gap-2">
@@ -68,27 +108,87 @@ import { HeroMotion } from './MotionIsland';
             </a>
           </div>
 
+          <!-- Partner logos -->
+          <div class="mt-10 opacity-80">
+            <p class="text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 text-center md:text-left mb-3">Trusted by leading brands</p>
+            <div class="flex flex-wrap items-center justify-center md:justify-start gap-x-8 gap-y-4">
+              <div class="h-6 text-gray-400 dark:text-gray-500">
+                <svg class="h-6" viewBox="0 0 120 24" fill="currentColor"><rect x="0" y="6" width="120" height="12" rx="6"/></svg>
+              </div>
+              <div class="h-6 text-gray-400 dark:text-gray-500">
+                <svg class="h-6" viewBox="0 0 120 24" fill="currentColor"><rect x="0" y="6" width="120" height="12" rx="6"/></svg>
+              </div>
+              <div class="h-6 text-gray-400 dark:text-gray-500">
+                <svg class="h-6" viewBox="0 0 120 24" fill="currentColor"><rect x="0" y="6" width="120" height="12" rx="6"/></svg>
+              </div>
+            </div>
+          </div>
+
           <!-- Trust Indicators -->
-          <div class="flex flex-col sm:flex-row items-center justify-center gap-6 text-sm text-gray-500 dark:text-gray-400">
-            <div class="flex items-center gap-2">
-              <svg class="w-5 h-5 text-teal" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span>Licensed & Insured</span>
-            </div>
+          <div class="mt-8 flex flex-col sm:flex-row items-center justify-center md:justify-start gap-6 text-sm text-gray-500 dark:text-gray-400">
+            <div class="flex items-center gap-2"><svg class="w-5 h-5 text-teal" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg><span>Licensed & Insured</span></div>
             <div class="hidden sm:block w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
-            <div class="flex items-center gap-2">
-              <svg class="w-5 h-5 text-teal" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
-              </svg>
-              <span>500+ Happy Customers</span>
-            </div>
+            <div class="flex items-center gap-2"><svg class="w-5 h-5 text-teal" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path></svg><span>500+ Happy Customers</span></div>
             <div class="hidden sm:block w-px h-4 bg-gray-300 dark:bg-gray-600"></div>
-            <div class="flex items-center gap-2">
-              <svg class="w-5 h-5 text-teal" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
-              </svg>
-              <span>Lifetime Support</span>
+            <div class="flex items-center gap-2"><svg class="w-5 h-5 text-teal" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg><span>Lifetime Support</span></div>
+          </div>
+        </div>
+
+        <!-- Right: Visual -->
+        <div class="relative">
+          <div class="relative mx-auto w-full max-w-[520px] rounded-2xl border border-gray-200/60 dark:border-gray-700/60 bg-white/80 dark:bg-gray-800/70 backdrop-blur-sm shadow-xl p-5 md:p-6 transform-gpu transition-transform will-change-transform hover:rotate-[0.2deg] hover:scale-[1.01]">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-teal"></span>
+                <span class="text-sm font-medium text-gray-700 dark:text-gray-200">Home Hub</span>
+              </div>
+              <span class="text-xs text-gray-400">Online</span>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div class="rounded-xl p-4 bg-soft-gray dark:bg-gray-900/60 border border-gray-200/60 dark:border-gray-700/60">
+                <p class="text-xs text-gray-500">Temperature</p>
+                <p class="text-2xl font-semibold text-charcoal dark:text-white">22°C</p>
+                <div class="mt-3 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700">
+                  <div class="h-1.5 w-2/3 rounded-full bg-teal"></div>
+                </div>
+              </div>
+              <div class="rounded-xl p-4 bg-soft-gray dark:bg-gray-900/60 border border-gray-200/60 dark:border-gray-700/60">
+                <p class="text-xs text-gray-500">Security</p>
+                <p class="text-2xl font-semibold text-charcoal dark:text-white">Armed</p>
+                <div class="mt-3 flex items-center gap-1.5 text-teal">
+                  <span class="w-1.5 h-1.5 rounded-full bg-teal animate-pulse"></span>
+                  <span class="text-xs">Live</span>
+                </div>
+              </div>
+              <div class="rounded-xl p-4 bg-soft-gray dark:bg-gray-900/60 border border-gray-200/60 dark:border-gray-700/60 col-span-2">
+                <div class="flex items-center justify-between">
+                  <p class="text-sm text-gray-500">Lighting Scenes</p>
+                  <span class="text-xs text-gray-400">Evening</span>
+                </div>
+                <div class="mt-3 grid grid-cols-4 gap-2">
+                  <button class="px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs hover:bg-gray-50 dark:hover:bg-gray-700">Relax</button>
+                  <button class="px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs">Work</button>
+                  <button class="px-3 py-2 rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-xs">Focus</button>
+                  <button class="px-3 py-2 rounded-lg bg-teal text-white text-xs">Party</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Floating stat cards -->
+          <div class="absolute -top-6 -right-3 md:-right-6 lg:-right-10">
+            <div class="rounded-xl bg-white/90 dark:bg-gray-800/90 backdrop-blur border border-gray-200/60 dark:border-gray-700/60 shadow-md px-4 py-3">
+              <div class="text-xs text-gray-500">Average Rating</div>
+              <div class="mt-1 flex items-center gap-1 text-amber-400">
+                <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                <span class="ml-1 text-sm font-medium text-charcoal dark:text-white">4.9/5</span>
+              </div>
+            </div>
+          </div>
+          <div class="absolute -bottom-6 -left-3 md:-left-6 lg:-left-10">
+            <div class="rounded-xl bg-white/90 dark:bg-gray-800/90 backdrop-blur border border-gray-200/60 dark:border-gray-700/60 shadow-md px-4 py-3">
+              <div class="text-xs text-gray-500">Installations</div>
+              <div class="mt-1 text-sm font-semibold text-charcoal dark:text-white">500+ Homes</div>
             </div>
           </div>
         </div>
@@ -96,8 +196,8 @@ import { HeroMotion } from './MotionIsland';
     </HeroMotion>
   </div>
 
-  <!-- Modern Scroll Indicator -->
-  <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2">
+  <!-- Scroll Indicator -->
+  <div class="absolute bottom-8 left-1/2 -translate-x-1/2">
     <div class="flex flex-col items-center gap-2 animate-bounce">
       <span class="text-xs text-gray-400 dark:text-gray-500 font-medium">Scroll to explore</span>
       <div class="w-6 h-10 border-2 border-gray-300 dark:border-gray-600 rounded-full flex justify-center relative overflow-hidden">
@@ -109,10 +209,319 @@ import { HeroMotion } from './MotionIsland';
 
 <script>
   import { parallax } from '../lib/animate';
-  
-  // Initialize parallax on hero background
   const heroBackground = document.getElementById('hero-bg');
   if (heroBackground) {
     parallax(heroBackground, 0.1);
   }
 </script>
+
+<style>
+  /* Animated gradient background - more vibrant colors */
+  .bg-gradient-animated {
+    background: linear-gradient(-45deg, #0c1e44, #1e40af, #0e9488, #0d766f);
+    background-size: 400% 400%;
+    animation: gradient 12s ease infinite;
+  }
+  
+  @keyframes gradient {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  
+  /* Animated particles */
+  .particles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    overflow: hidden;
+  }
+  
+  .particle {
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    background-color: rgba(255, 255, 255, 0.7);
+    border-radius: 50%;
+    box-shadow: 0 0 10px 2px rgba(255, 255, 255, 0.3);
+    animation: twinkle 4s infinite ease-in-out;
+  }
+  
+  /* Position particles randomly across the screen */
+  .particle:nth-child(1) { top: 10%; left: 20%; animation-delay: 0s; }
+  .particle:nth-child(2) { top: 15%; left: 60%; animation-delay: 0.4s; }
+  .particle:nth-child(3) { top: 25%; left: 30%; animation-delay: 0.8s; }
+  .particle:nth-child(4) { top: 30%; left: 80%; animation-delay: 1.2s; }
+  .particle:nth-child(5) { top: 40%; left: 25%; animation-delay: 1.6s; }
+  .particle:nth-child(6) { top: 45%; left: 70%; animation-delay: 2s; }
+  .particle:nth-child(7) { top: 55%; left: 15%; animation-delay: 2.4s; }
+  .particle:nth-child(8) { top: 60%; left: 45%; animation-delay: 2.8s; }
+  .particle:nth-child(9) { top: 70%; left: 85%; animation-delay: 3.2s; }
+  .particle:nth-child(10) { top: 75%; left: 35%; animation-delay: 3.6s; }
+  .particle:nth-child(11) { top: 20%; left: 40%; animation-delay: 0.2s; }
+  .particle:nth-child(12) { top: 35%; left: 65%; animation-delay: 0.6s; }
+  .particle:nth-child(13) { top: 50%; left: 10%; animation-delay: 1s; }
+  .particle:nth-child(14) { top: 65%; left: 55%; animation-delay: 1.4s; }
+  .particle:nth-child(15) { top: 80%; left: 75%; animation-delay: 1.8s; }
+  .particle:nth-child(16) { top: 85%; left: 25%; animation-delay: 2.2s; }
+  .particle:nth-child(17) { top: 5%; left: 50%; animation-delay: 2.6s; }
+  .particle:nth-child(18) { top: 95%; left: 90%; animation-delay: 3s; }
+  .particle:nth-child(19) { top: 42%; left: 42%; animation-delay: 3.4s; }
+  .particle:nth-child(20) { top: 62%; left: 18%; animation-delay: 3.8s; }
+  
+  @keyframes twinkle {
+    0%, 100% { 
+      opacity: 0.2;
+      transform: scale(0.8);
+    }
+    50% { 
+      opacity: 1;
+      transform: scale(1.2);
+      box-shadow: 0 0 20px 4px rgba(255, 255, 255, 0.5);
+    }
+  }
+  
+  /* Floating bubbles - enhanced */
+  .bubbles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    overflow: hidden;
+  }
+  
+  .bubble {
+    position: absolute;
+    bottom: -100px;
+    background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.1) 70%);
+    border-radius: 50%;
+    opacity: 0.6;
+    animation: rise 10s infinite ease-in;
+    box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.2);
+  }
+  
+  .bubble:nth-child(1) {
+    width: 60px;
+    height: 60px;
+    left: 10%;
+    animation-duration: 8s;
+  }
+  
+  .bubble:nth-child(2) {
+    width: 30px;
+    height: 30px;
+    left: 20%;
+    animation-duration: 5s;
+    animation-delay: 1s;
+  }
+  
+  .bubble:nth-child(3) {
+    width: 70px;
+    height: 70px;
+    left: 35%;
+    animation-duration: 7s;
+    animation-delay: 2s;
+  }
+  
+  .bubble:nth-child(4) {
+    width: 100px;
+    height: 100px;
+    left: 50%;
+    animation-duration: 11s;
+    animation-delay: 0s;
+  }
+  
+  .bubble:nth-child(5) {
+    width: 45px;
+    height: 45px;
+    left: 55%;
+    animation-duration: 6s;
+    animation-delay: 1s;
+  }
+  
+  .bubble:nth-child(6) {
+    width: 55px;
+    height: 55px;
+    left: 65%;
+    animation-duration: 8s;
+    animation-delay: 3s;
+  }
+  
+  .bubble:nth-child(7) {
+    width: 35px;
+    height: 35px;
+    left: 75%;
+    animation-duration: 7s;
+    animation-delay: 2s;
+  }
+  
+  .bubble:nth-child(8) {
+    width: 90px;
+    height: 90px;
+    left: 80%;
+    animation-duration: 10s;
+    animation-delay: 1s;
+  }
+  
+  .bubble:nth-child(9) {
+    width: 25px;
+    height: 25px;
+    left: 70%;
+    animation-duration: 6s;
+    animation-delay: 0s;
+  }
+  
+  .bubble:nth-child(10) {
+    width: 65px;
+    height: 65px;
+    left: 85%;
+    animation-duration: 5s;
+    animation-delay: 3s;
+  }
+  
+  .bubble:nth-child(11) {
+    width: 40px;
+    height: 40px;
+    left: 90%;
+    animation-duration: 10s;
+    animation-delay: 4s;
+  }
+  
+  .bubble:nth-child(12) {
+    width: 50px;
+    height: 50px;
+    left: 30%;
+    animation-duration: 9s;
+    animation-delay: 2s;
+  }
+  
+  @keyframes rise {
+    0% {
+      bottom: -100px;
+      transform: translateX(0) rotate(0deg);
+    }
+    50% {
+      transform: translateX(100px) rotate(180deg);
+    }
+    100% {
+      bottom: 1080px;
+      transform: translateX(-200px) rotate(360deg);
+    }
+  }
+  
+  /* Animated orbs - more vibrant */
+  .orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    opacity: 0.6;
+    mix-blend-mode: screen;
+  }
+  
+  .orb1 {
+    top: -100px;
+    left: 30%;
+    width: 300px;
+    height: 300px;
+    background-color: rgba(56, 189, 248, 0.3);
+    animation: orbFloat 15s ease-in-out infinite;
+  }
+  
+  .orb2 {
+    bottom: 10%;
+    right: 10%;
+    width: 400px;
+    height: 400px;
+    background-color: rgba(45, 212, 191, 0.3);
+    animation: orbFloat 20s ease-in-out infinite reverse;
+  }
+  
+  .orb3 {
+    top: 40%;
+    left: 15%;
+    width: 250px;
+    height: 250px;
+    background-color: rgba(124, 58, 237, 0.25);
+    animation: orbFloat 18s ease-in-out infinite 2s;
+  }
+  
+  .orb4 {
+    top: 20%;
+    right: 25%;
+    width: 200px;
+    height: 200px;
+    background-color: rgba(236, 72, 153, 0.2);
+    animation: orbPulse 8s ease-in-out infinite;
+  }
+  
+  .orb5 {
+    bottom: 30%;
+    left: 40%;
+    width: 350px;
+    height: 350px;
+    background-color: rgba(14, 165, 233, 0.25);
+    animation: orbPulse 12s ease-in-out infinite 2s;
+  }
+  
+  @keyframes orbFloat {
+    0% { transform: translate(0, 0); }
+    50% { transform: translate(-40px, 40px); }
+    100% { transform: translate(0, 0); }
+  }
+  
+  @keyframes orbPulse {
+    0%, 100% { 
+      transform: scale(0.8); 
+      opacity: 0.4;
+    }
+    50% { 
+      transform: scale(1.1); 
+      opacity: 0.7;
+    }
+  }
+  
+  /* Light beams */
+  .light-beam {
+    position: absolute;
+    background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0) 100%);
+    transform: rotate(45deg);
+    opacity: 0.3;
+    animation: beam-move 8s infinite ease-in-out;
+  }
+  
+  .beam1 {
+    top: -100px;
+    left: 20%;
+    width: 150px;
+    height: 1000px;
+    animation-delay: 0s;
+  }
+  
+  .beam2 {
+    top: -200px;
+    right: 30%;
+    width: 100px;
+    height: 1200px;
+    animation-delay: 3s;
+  }
+  
+  .beam3 {
+    top: -150px;
+    left: 60%;
+    width: 120px;
+    height: 1100px;
+    animation-delay: 6s;
+  }
+  
+  @keyframes beam-move {
+    0%, 100% {
+      opacity: 0;
+      transform: translateY(-100px) rotate(45deg);
+    }
+    50% {
+      opacity: 0.3;
+      transform: translateY(0) rotate(45deg);
+    }
+  }
+</style>

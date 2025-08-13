@@ -1,18 +1,14 @@
----
+                                                                                                                                                                                                        ---
 import DarkModeToggle from './DarkModeToggle';
 ---
 
 <header class="fixed top-0 left-0 right-0 z-50 bg-white/90 dark:bg-charcoal/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
   <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="flex items-center justify-between h-16">
+    <div class="flex items-center justify-between h-20">
       <!-- Logo -->
-      <a href="/" class="flex items-center space-x-2 text-xl font-semibold text-charcoal dark:text-white">
-        <div class="w-8 h-8 bg-teal rounded-lg flex items-center justify-center">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-          </svg>
-        </div>
-        <span>Smile Smart Homes</span>
+      <a href="/" class="flex items-center space-x-3 text-xl font-semibold text-charcoal dark:text-white" aria-label="Smile Smart Homes home">
+        <img src="/logo-primary.png" alt="Smile Smart Homes" class="h-10 sm:h-12 w-auto brightness-0 dark:brightness-100 dark:invert filter-teal" />
+        <img src="/my-secondary.png.png" alt="Secondary logo" class="h-8 sm:h-10 w-auto hidden sm:inline-block brightness-0 dark:brightness-100 dark:invert filter-teal" />
       </a>
 
       <!-- Desktop Navigation -->
@@ -50,6 +46,18 @@ import DarkModeToggle from './DarkModeToggle';
     </div>
   </nav>
 </header>
+
+<style>
+  /* Apply teal color filter to logo */
+  .filter-teal {
+    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
+  }
+  
+  /* For dark mode */
+  .dark .filter-teal {
+    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
+  }
+</style>
 
 <script>
   // Mobile menu toggle
