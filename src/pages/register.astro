@@ -1,0 +1,136 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Navigation from '../components/Navigation.astro';
+import Footer from '../components/Footer.astro';
+---
+
+<Layout title="Register - Smile Smart Homes">
+  <Navigation />
+
+  <main>
+    <section class="section-padding bg-soft-gray dark:bg-gray-800">
+      <div class="container">
+        <div class="max-w-xl mx-auto">
+          <div class="text-center mb-8">
+            <h1 class="text-heading-lg font-bold text-charcoal dark:text-white mb-3">Create your account</h1>
+            <p class="text-body-lg text-gray-600 dark:text-gray-300">Join us to manage your smart home services.</p>
+          </div>
+
+          <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl p-6 sm:p-8">
+            <form method="POST" action="/register" class="space-y-5" id="register-form" novalidate>
+              <div>
+                <label for="fullName" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
+                <input
+                  id="fullName"
+                  name="fullName"
+                  type="text"
+                  required
+                  autocomplete="name"
+                  placeholder="John Doe"
+                  class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal"
+                />
+              </div>
+
+              <div>
+                <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email ID</label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  required
+                  autocomplete="email"
+                  placeholder="you@example.com"
+                  class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal"
+                />
+              </div>
+
+              <div>
+                <label for="password" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+                <input
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                  autocomplete="new-password"
+                  placeholder="••••••••"
+                  class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal"
+                />
+              </div>
+
+              <div>
+                <div class="flex items-center justify-between mb-1">
+                  <label for="confirmPassword" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm Password</label>
+                  <span id="pw-error" class="text-xs text-red-600 hidden">Passwords do not match</span>
+                </div>
+                <input
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  type="password"
+                  required
+                  autocomplete="new-password"
+                  placeholder="••••••••"
+                  class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal"
+                />
+              </div>
+
+              <button type="submit" class="w-full btn-primary" id="submit-btn">Create account</button>
+            </form>
+
+            <p class="mt-6 text-center text-sm text-gray-600 dark:text-gray-300">
+              Already have an account?
+              <a href="/login" class="text-blue-600 dark:text-blue-400 hover:underline">Sign in</a>
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <Footer />
+</Layout>
+
+<script>
+  const form = document.getElementById('register-form');
+  const pw = document.getElementById('password');
+  const cpw = document.getElementById('confirmPassword');
+  const err = document.getElementById('pw-error');
+  const submit = document.getElementById('submit-btn');
+
+  /**
+   * @param {HTMLInputElement | null} el
+   * @returns {string}
+   */
+  function getValue(el) {
+    return el && typeof el.value !== 'undefined' ? el.value : '';
+  }
+
+  function validateMatch() {
+    const mismatch = getValue(pw) !== getValue(cpw);
+    if (mismatch) {
+      err && err.classList.remove('hidden');
+      if (submit) {
+        submit.setAttribute('disabled', 'true');
+        submit.classList.add('opacity-60', 'cursor-not-allowed');
+      }
+    } else {
+      err && err.classList.add('hidden');
+      if (submit) {
+        submit.removeAttribute('disabled');
+        submit.classList.remove('opacity-60', 'cursor-not-allowed');
+      }
+    }
+  }
+
+  pw && pw.addEventListener('input', validateMatch);
+  cpw && cpw.addEventListener('input', validateMatch);
+  form && form.addEventListener('submit', (e) => {
+    // prevent accidental submit with mismatch
+    if (getValue(pw) !== getValue(cpw)) {
+      e.preventDefault();
+      validateMatch();
+    }
+  });
+
+  // initialize button state on load
+  validateMatch();
+</script>

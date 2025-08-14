@@ -23,6 +23,11 @@ import DarkModeToggle from './DarkModeToggle';
       <!-- Right side -->
       <div class="flex items-center space-x-4">
         <DarkModeToggle client:load />
+        <div class="hidden md:block">
+          <a href="/login" class="inline-flex items-center px-4 py-2 text-teal border border-teal rounded-lg hover:bg-teal hover:text-white transition-colors">
+            Login
+          </a>
+        </div>
         <a href="/contact" class="btn-primary btn-magnetic">Get Quote</a>
         
         <!-- Mobile menu button -->
@@ -42,6 +47,7 @@ import DarkModeToggle from './DarkModeToggle';
         <a href="/about" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">About</a>
         <a href="/gallery" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Gallery</a>
         <a href="/contact" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Contact</a>
+        <a href="/login" class="block px-3 py-2 mt-1 text-teal border border-teal rounded-lg text-center hover:bg-teal hover:text-white transition-colors">Login</a>
       </div>
     </div>
   </nav>
@@ -67,4 +73,7 @@ import DarkModeToggle from './DarkModeToggle';
   mobileMenuButton?.addEventListener('click', () => {
     mobileMenu?.classList.toggle('hidden');
   });
+
+  // Login dropdown toggle (desktop)
+  // No additional JS needed for desktop login link
 </script>
