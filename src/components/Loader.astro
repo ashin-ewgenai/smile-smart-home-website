@@ -1,0 +1,496 @@
+---
+---
+
+<div id="loader-container" class="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-white to-soft-gray dark:from-charcoal dark:to-gray-900 transition-opacity duration-500">
+  <!-- Colorful Dots Background -->
+  <div class="dots-background">
+    <span class="dot dot-1"></span>
+    <span class="dot dot-2"></span>
+    <span class="dot dot-3"></span>
+    <span class="dot dot-4"></span>
+    <span class="dot dot-5"></span>
+    <span class="dot dot-6"></span>
+    <span class="dot dot-7"></span>
+    <span class="dot dot-8"></span>
+    <span class="dot dot-9"></span>
+    <span class="dot dot-10"></span>
+    <span class="dot dot-11"></span>
+    <span class="dot dot-12"></span>
+    <span class="dot dot-13"></span>
+    <span class="dot dot-14"></span>
+    <span class="dot dot-15"></span>
+    <span class="dot dot-16"></span>
+    <span class="dot dot-17"></span>
+    <span class="dot dot-18"></span>
+    <span class="dot dot-19"></span>
+    <span class="dot dot-20"></span>
+  </div>
+  <div class="relative">
+    <!-- Smart Home Logo Container -->
+    <div class="logo-container">
+      <!-- Logo with Glow Effect -->
+      <div class="logo-icon">
+        <div class="glow-effect"></div>
+        <img src="/logo-primary.png" alt="Smile Smart Homes" class="logo-image filter-teal" width="80" height="80" />
+        
+        <!-- No smart elements as requested -->
+      </div>
+      
+      <!-- No animated waves as requested -->
+      
+      <!-- Circular Progress -->
+      <svg class="circular-progress" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <circle class="progress-background" cx="50" cy="50" r="45" />
+        <circle class="progress-circle" cx="50" cy="50" r="45" />
+      </svg>
+    </div>
+    
+    <!-- Loader Text -->
+    <div class="mt-8 text-center">
+      <h2 class="text-2xl font-medium text-charcoal dark:text-white tracking-tight">Smile Smart Homes</h2>
+      <p class="mt-3 text-sm text-gray-600 dark:text-gray-300 loading-text">
+        <span class="typing-text">Connecting your smart home</span>
+      </p>
+    </div>
+  </div>
+</div>
+
+<style>
+  /* Base Styles */
+  #loader-container {
+    opacity: 1;
+    visibility: visible;
+    overflow: hidden;
+  }
+  
+  #loader-container.hidden {
+    opacity: 0;
+    visibility: hidden;
+  }
+  
+  /* Logo Container */
+  .logo-container {
+    position: relative;
+    width: 200px;
+    height: 180px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  /* Logo Icon with Glow */
+  .logo-icon {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    animation: float 3s infinite ease-in-out;
+    z-index: 2;
+  }
+  
+  .logo-image {
+    height: 80px;
+    width: auto;
+    object-fit: contain;
+  }
+  
+  /* Apply teal color filter to logo - same as in Navigation */
+  .filter-teal {
+    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
+  }
+  
+  .glow-effect {
+    position: absolute;
+    width: 100px;
+    height: 100px;
+    background: radial-gradient(circle, rgba(0, 150, 136, 0.3) 0%, rgba(0, 150, 136, 0) 70%);
+    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    filter: blur(10px);
+    z-index: -1;
+    animation: glow 2s infinite alternate;
+  }
+  
+  /* Colorful Dots Background */
+  .dots-background {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    z-index: 0;
+  }
+  
+  .dot {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    opacity: 0.6;
+    filter: blur(1px);
+    animation: float-around 15s infinite ease-in-out;
+  }
+  
+  /* Dot colors and positions */
+  .dot-1 {
+    top: 15%;
+    left: 20%;
+    background: #FFD700; /* Gold */
+    animation-delay: 0s;
+    animation-duration: 12s;
+  }
+  
+  .dot-2 {
+    top: 25%;
+    left: 80%;
+    background: #FF5722; /* Deep Orange */
+    animation-delay: 0.5s;
+    animation-duration: 15s;
+  }
+  
+  .dot-3 {
+    top: 80%;
+    left: 15%;
+    background: #2196F3; /* Blue */
+    animation-delay: 1s;
+    animation-duration: 18s;
+  }
+  
+  .dot-4 {
+    top: 60%;
+    left: 75%;
+    background: #4CAF50; /* Green */
+    animation-delay: 1.5s;
+    animation-duration: 20s;
+  }
+  
+  .dot-5 {
+    top: 35%;
+    left: 50%;
+    background: #9C27B0; /* Purple */
+    animation-delay: 2s;
+    animation-duration: 14s;
+  }
+  
+  .dot-6 {
+    top: 70%;
+    left: 35%;
+    background: #00BCD4; /* Cyan */
+    animation-delay: 2.5s;
+    animation-duration: 16s;
+  }
+  
+  .dot-7 {
+    top: 20%;
+    left: 65%;
+    background: #CDDC39; /* Lime */
+    animation-delay: 3s;
+    animation-duration: 13s;
+  }
+  
+  .dot-8 {
+    top: 85%;
+    left: 85%;
+    background: #FF9800; /* Orange */
+    animation-delay: 3.5s;
+    animation-duration: 17s;
+  }
+  
+  .dot-9 {
+    top: 10%;
+    left: 40%;
+    background: #009688; /* Teal - brand color */
+    animation-delay: 4s;
+    animation-duration: 19s;
+  }
+  
+  .dot-10 {
+    top: 50%;
+    left: 10%;
+    background: #E91E63; /* Pink */
+    animation-delay: 4.5s;
+    animation-duration: 15s;
+  }
+  
+  .dot-11 {
+    top: 40%;
+    left: 90%;
+    background: #3F51B5; /* Indigo */
+    animation-delay: 5s;
+    animation-duration: 14s;
+  }
+  
+  .dot-12 {
+    top: 90%;
+    left: 60%;
+    background: #FFC107; /* Amber */
+    animation-delay: 5.5s;
+    animation-duration: 16s;
+  }
+  
+  .dot-13 {
+    top: 30%;
+    left: 30%;
+    background: #8BC34A; /* Light Green */
+    animation-delay: 6s;
+    animation-duration: 18s;
+  }
+  
+  .dot-14 {
+    top: 75%;
+    left: 25%;
+    background: #03A9F4; /* Light Blue */
+    animation-delay: 6.5s;
+    animation-duration: 13s;
+  }
+  
+  .dot-15 {
+    top: 55%;
+    left: 55%;
+    background: #FF5252; /* Red Accent */
+    animation-delay: 7s;
+    animation-duration: 17s;
+  }
+  
+  .dot-16 {
+    top: 15%;
+    left: 85%;
+    background: #009688; /* Teal - brand color */
+    animation-delay: 7.5s;
+    animation-duration: 15s;
+  }
+  
+  .dot-17 {
+    top: 65%;
+    left: 15%;
+    background: #673AB7; /* Deep Purple */
+    animation-delay: 8s;
+    animation-duration: 19s;
+  }
+  
+  .dot-18 {
+    top: 45%;
+    left: 70%;
+    background: #00BCD4; /* Cyan */
+    animation-delay: 8.5s;
+    animation-duration: 14s;
+  }
+  
+  .dot-19 {
+    top: 85%;
+    left: 45%;
+    background: #FFEB3B; /* Yellow */
+    animation-delay: 9s;
+    animation-duration: 16s;
+  }
+  
+  .dot-20 {
+    top: 25%;
+    left: 5%;
+    background: #009688; /* Teal - brand color */
+    animation-delay: 9.5s;
+    animation-duration: 18s;
+  }
+  
+  /* WiFi Wave Animation removed as requested */
+  
+  /* Circular Progress */
+  .circular-progress {
+    position: absolute;
+    width: 160px;
+    height: 160px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-90deg);
+    z-index: 0;
+    animation: rotate 2s linear infinite;
+  }
+  
+  .progress-background {
+    fill: none;
+    stroke: rgba(0, 150, 136, 0.1);
+    stroke-width: 3;
+  }
+  
+  .progress-circle {
+    fill: none;
+    stroke: #009688;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-dasharray: 283;
+    stroke-dashoffset: 70; /* Fixed offset to show most of the circle */
+  }
+  
+  /* Typing Text Animation */
+  .typing-text {
+    display: inline-block;
+    overflow: hidden;
+    border-right: 2px solid #009688;
+    white-space: nowrap;
+    margin: 0 auto;
+    animation: typing 3.5s steps(30, end) infinite,
+               blink-caret 0.75s step-end infinite,
+               dots-animation 1.4s infinite;
+  }
+  
+  /* Dots Animation - Now applied to the typing text */
+  @keyframes dots-animation {
+    0%, 20% {
+      content: '';
+    }
+    40% {
+      content: '.';
+    }
+    60% {
+      content: '..';
+    }
+    80%, 100% {
+      content: '...';
+    }
+  }
+  
+  .typing-text::after {
+    content: '';
+    animation: dots-animation 1.4s infinite;
+  }
+  
+  /* Keyframes */
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-10px);
+    }
+  }
+  
+  @keyframes glow {
+    0% {
+      opacity: 0.5;
+      transform: translate(-50%, -50%) scale(0.8);
+    }
+    100% {
+      opacity: 0.8;
+      transform: translate(-50%, -50%) scale(1.2);
+    }
+  }
+  
+  @keyframes float-around {
+    0%, 100% {
+      transform: translate(0, 0);
+    }
+    25% {
+      transform: translate(20px, 15px);
+    }
+    50% {
+      transform: translate(-15px, 25px);
+    }
+    75% {
+      transform: translate(-25px, -10px);
+    }
+  }
+  
+  /* Waves animation removed as requested */
+  
+  @keyframes rotate {
+    0% {
+      transform: translate(-50%, -50%) rotate(-90deg);
+    }
+    100% {
+      transform: translate(-50%, -50%) rotate(270deg);
+    }
+  }
+  
+  @keyframes typing {
+    0%, 100% {
+      width: 0;
+    }
+    50%, 90% {
+      width: 100%;
+    }
+  }
+  
+  @keyframes blink-caret {
+    from, to { border-color: transparent }
+    50% { border-color: #009688 }
+  }
+  
+  /* Removed dots animation keyframes as they're now handled by dots-animation */
+  
+  /* Dark Mode Adjustments */
+  
+  :global(.dark) .glow-effect {
+    background: radial-gradient(circle, rgba(0, 188, 212, 0.3) 0%, rgba(0, 188, 212, 0) 70%);
+  }
+  
+  :global(.dark) .progress-background {
+    stroke: rgba(0, 188, 212, 0.1);
+  }
+  
+  :global(.dark) .progress-circle {
+    stroke: #00bcd4;
+  }
+  
+  :global(.dark) .typing-text {
+    border-right-color: #00bcd4;
+  }
+</style>
+
+<script>
+  // Hide loader when page is fully loaded
+  document.addEventListener('DOMContentLoaded', () => {
+    // Respect reduced motion preference
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    
+    // Prevent scrolling while loader is active but keep scrollbar space
+    document.documentElement.style.overflowY = 'hidden';
+    document.documentElement.style.scrollbarGutter = 'stable';
+    document.body.style.overflowY = 'hidden';
+    
+    // Prevent scrolling while loader is active but keep scrollbar space
+    
+    // Array of loading messages to cycle through
+    const loadingMessages = [
+      'Connecting your smart home',
+      'Optimizing your experience',
+      'Preparing smart controls',
+      'Setting up automation'
+    ];
+    
+    // Change loading message every few seconds
+    if (!prefersReducedMotion) {
+      let messageIndex = 0;
+      const typingText = document.querySelector('.typing-text');
+      
+      const messageInterval = setInterval(() => {
+        messageIndex = (messageIndex + 1) % loadingMessages.length;
+        if (typingText) {
+          typingText.textContent = loadingMessages[messageIndex];
+        }
+      }, 3500);
+      
+      // Clear interval when loader is removed
+      setTimeout(() => clearInterval(messageInterval), 2500);
+    }
+    
+    // Wait a minimum time to avoid flash
+    setTimeout(() => {
+      const loader = document.getElementById('loader-container');
+      if (loader) {
+        loader.classList.add('hidden');
+        
+        // Remove loader from DOM after transition completes and restore scrolling
+        setTimeout(() => {
+          // Re-enable scrolling
+          document.documentElement.style.overflowY = '';
+          document.documentElement.style.scrollbarGutter = '';
+          document.body.style.overflowY = '';
+          
+          // Re-enable scrolling complete
+          
+          loader.remove();
+        }, 500);
+      }
+    }, prefersReducedMotion ? 0 : 2500);
+  });
+</script>
