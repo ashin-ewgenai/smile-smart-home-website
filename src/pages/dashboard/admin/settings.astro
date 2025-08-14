@@ -1,0 +1,25 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { DashboardLayout } from '../../../components/dashboard/shared/DashboardLayout';
+import AdminSettings from '../../../components/dashboard/Admin/AdminSettings';
+---
+
+<Layout title="Admin Settings - Smile Smart Homes">
+  <DashboardLayout userType="admin" userName="Admin" client:load>
+    <AdminSettings client:load />
+  </DashboardLayout>
+</Layout>
+
+<script>
+  // Check if user is logged in and is an admin
+  document.addEventListener('DOMContentLoaded', () => {
+    // This is a simple check - in a real app, you would use Firebase Auth or similar
+    const userEmail = localStorage.getItem('userEmail');
+    const isAdmin = userEmail === 'admin@smilesmarthome.in';
+    
+    if (!userEmail || !isAdmin) {
+      // Redirect to login if not logged in or not an admin
+      window.location.href = '/login';
+    }
+  });
+</script>

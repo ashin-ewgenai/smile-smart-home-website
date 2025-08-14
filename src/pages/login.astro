@@ -17,7 +17,7 @@ import Footer from '../components/Footer.astro';
         </div>
 
         <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-xl p-6 sm:p-8">
-          <form method="POST" action="/login" class="space-y-5" novalidate>
+          <form id="loginForm" class="space-y-5" novalidate>
             <div>
               <label for="email" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email ID</label>
               <input
@@ -54,7 +54,7 @@ import Footer from '../components/Footer.astro';
               </label>
             </div>
 
-            <button type="submit" class="w-full btn-primary">Sign in</button>
+            <button type="submit" id="loginButton" class="w-full btn-primary">Sign in</button>
           </form>
 
           <p class="mt-6 text-center text-sm text-gray-600 dark:text-gray-300">
@@ -69,3 +69,50 @@ import Footer from '../components/Footer.astro';
   
   <Footer />
 </Layout>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const loginForm = document.getElementById('loginForm');
+    const emailInput = document.getElementById('email') as HTMLInputElement;
+    const passwordInput = document.getElementById('password') as HTMLInputElement;
+    
+    // Check if user is already logged in
+    const userEmail = localStorage.getItem('userEmail');
+    if (userEmail) {
+      // Redirect to appropriate dashboard
+      if (userEmail === 'admin@smilesmarthome.in') {
+        window.location.href = '/dashboard/admin';
+      } else {
+        window.location.href = '/dashboard/user';
+      }
+    }
+    
+    if (loginForm) {
+      loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const email = emailInput?.value || '';
+        const password = passwordInput?.value || '';
+        
+        // Admin credentials
+        if (email === 'admin@smilesmarthome.in' && password === '789') {
+          localStorage.setItem('userEmail', email);
+          localStorage.setItem('userRole', 'admin');
+          window.location.href = '/dashboard/admin';
+        }
+        // User credentials
+        else if (email === 'user@smilesmarthome.in' && password === '123') {
+          localStorage.setItem('userEmail', email);
+          localStorage.setItem('userRole', 'user');
+          window.location.href = '/dashboard/user';
+        }
+        // Invalid credentials
+        else {
+          alert('Invalid email or password. Please try again.');
+        }
+      });
+    } else {
+      console.error('Login form not found in the DOM');
+    }
+  });
+</script>

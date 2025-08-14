@@ -1,0 +1,24 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { DashboardLayout } from '../../../components/dashboard/shared/DashboardLayout';
+import UserSettings from '../../../components/dashboard/User/UserSettings';
+---
+
+<Layout title="User Settings - Smile Smart Homes">
+  <DashboardLayout userType="user" userName="User" client:load>
+    <UserSettings client:load />
+  </DashboardLayout>
+</Layout>
+
+<script>
+  // Check if user is logged in
+  document.addEventListener('DOMContentLoaded', () => {
+    // This is a simple check - in a real app, you would use Firebase Auth or similar
+    const userEmail = localStorage.getItem('userEmail');
+    
+    if (!userEmail) {
+      // Redirect to login if not logged in
+      window.location.href = '/login';
+    }
+  });
+</script>
