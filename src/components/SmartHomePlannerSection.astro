@@ -1,0 +1,20 @@
+---
+import SmartHomePlanner from './SmartHomePlanner';
+---
+
+<section class="section-padding bg-soft-gray dark:bg-gray-800">
+  <div class="container">
+    <div class="text-center mb-12 reveal-on-scroll">
+      <h2 class="text-heading-lg font-bold text-charcoal dark:text-white mb-4">
+        Plan Your Smart Home
+      </h2>
+      <p class="text-body-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+        Answer a few questions to get a personalized smart home automation plan tailored to your needs.
+      </p>
+    </div>
+    
+    <div class="max-w-2xl mx-auto reveal-on-scroll">
+      <SmartHomePlanner client:visible />
+    </div>
+  </div>
+</section>

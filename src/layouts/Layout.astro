@@ -1,5 +1,6 @@
 ---
 import Loader from '../components/Loader.astro';
+import ConsultationPopup from '../components/ConsultationPopup';
 
 export interface Props {
   title: string;
@@ -87,7 +88,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <!-- Loader component -->
     <Loader />
     <slot />
-    
+    <ConsultationPopup client:load />
     <script type="module">
       // Initialize smooth scrolling with Lenis
       import Lenis from 'lenis';
