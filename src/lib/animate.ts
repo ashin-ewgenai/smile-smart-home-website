@@ -45,9 +45,17 @@ export function inViewReveal(
 
   Array.from(elements).forEach((el) => {
     const element = el as HTMLElement;
+    element.classList.add('waiting-to-reveal');
     element.style.opacity = '0';
     element.style.transform = `translateY(${translateY}px)`;
     observer.observe(element);
+    
+    setTimeout(() => {
+      if (element.style.opacity === '0') {
+        element.style.opacity = '1';
+        element.style.transform = 'translateY(0)';
+      }
+    }, 1000);
   });
 
   return observer;
