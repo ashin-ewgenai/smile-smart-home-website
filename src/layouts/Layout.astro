@@ -1,5 +1,4 @@
 ---
-import Loader from '../components/Loader.astro';
 import ConsultationPopup from '../components/ConsultationPopup';
 
 export interface Props {
@@ -85,8 +84,6 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     </script>
   </head>
   <body>
-    <!-- Loader component -->
-    <Loader />
     <slot />
     <ConsultationPopup client:load />
     <script type="module">
