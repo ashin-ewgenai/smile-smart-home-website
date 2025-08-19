@@ -7,11 +7,7 @@
       <!-- Company Info -->
       <div>
         <div class="flex items-center space-x-2 mb-4">
-          <div class="w-8 h-8 bg-teal rounded-lg flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-            </svg>
-          </div>
+          <img src="/logo-primary.png" alt="Smile Smart Homes logo" class="h-10 sm:h-12 w-auto brightness-0 dark:brightness-100 dark:invert filter-teal" />
           <span class="text-xl font-semibold">Smile Smart Homes</span>
         </div>
         <p class="text-gray-300 mb-4">
@@ -83,3 +79,15 @@
     </div>
   </div>
 </footer>
+
+<style>
+  /* Apply teal color filter to logo (match header styling) */
+  .filter-teal {
+    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
+  }
+
+  /* For dark mode */
+  .dark .filter-teal {
+    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
+  }
+</style>
