@@ -55,7 +55,7 @@ export default function BeforeAfterSlider({
   return (
     <div 
       ref={containerRef}
-      className="relative w-full h-96 overflow-hidden rounded-lg cursor-col-resize"
+      className="relative w-full h-96 overflow-hidden rounded-lg cursor-col-resize select-none"
       tabIndex={0}
       onKeyDown={handleKeyDown}
       role="slider"
@@ -69,6 +69,8 @@ export default function BeforeAfterSlider({
         src={afterImage} 
         alt={afterLabel}
         className="absolute inset-0 w-full h-full object-cover"
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
       />
       
       {/* Before Image */}
@@ -80,6 +82,8 @@ export default function BeforeAfterSlider({
           src={beforeImage} 
           alt={beforeLabel}
           className="absolute inset-0 w-full h-full object-cover"
+          draggable={false}
+          onDragStart={(e) => e.preventDefault()}
         />
       </div>
 
