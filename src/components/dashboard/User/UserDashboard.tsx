@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Home, Settings, Bell, Calendar, HelpCircle, Battery, Thermometer, Lock } from 'lucide-react';
+import TicketCenter from './TicketCenter';
 
 interface DeviceStats {
   totalDevices: number;
@@ -217,6 +218,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                 </table>
               </div>
             </div>
+          </div>
+
+          {/* Support Tickets */}
+          <div className="mt-6">
+            <TicketCenter />
           </div>
         </>
       )}

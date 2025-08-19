@@ -1,6 +1,7 @@
 import React from 'react';
 import DashboardNavbar from './DashboardNavbar';
 import DashboardFooter from './DashboardFooter';
+import SupportChat from '../../supportChat/SupportChat';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -16,6 +17,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
         {children}
       </main>
       <DashboardFooter />
+      {userType === 'user' && <SupportChat />}
     </div>
   );
 };
