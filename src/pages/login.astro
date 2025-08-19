@@ -495,83 +495,74 @@ import Footer from '../components/Footer.astro';
   }
 </style>
 
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const loginForm = document.getElementById('loginForm');
-    const emailInput = document.getElementById('email') as HTMLInputElement;
-    const passwordInput = document.getElementById('password') as HTMLInputElement;
-    const loginLoader = document.getElementById('login-loader');
-    const loginButton = document.getElementById('loginButton');
-    
-    // Check if user is already logged in
-    const userEmail = localStorage.getItem('userEmail');
-    if (userEmail) {
-      // Redirect to appropriate dashboard
-      if (userEmail === 'admin@smilesmarthome.in') {
-        window.location.href = '/dashboard/admin';
-      } else {
-        window.location.href = '/dashboard/user';
-      }
-    }
-    
-    if (loginForm) {
-      loginForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        
-        const email = emailInput?.value || '';
-        const password = passwordInput?.value || '';
-        
-        // Show loader when login button is clicked
-        if (loginLoader) {
-          loginLoader.classList.add('visible');
-          
-          // Prevent scrolling while loader is active
-          document.documentElement.style.overflowY = 'hidden';
-          document.body.style.overflowY = 'hidden';
-          
-          // Disable the login button to prevent multiple submissions
-          if (loginButton) {
-            loginButton.setAttribute('disabled', 'true');
-            loginButton.textContent = 'Signing in...';
-          }
-        }
-        
-        // Simulate a short delay for authentication
-        setTimeout(() => {
-          // Admin credentials
-          if (email === 'admin@smilesmarthome.in' && password === '789') {
-            localStorage.setItem('userEmail', email);
-            localStorage.setItem('userRole', 'admin');
-            window.location.href = '/dashboard/admin';
-          }
-          // User credentials
-          else if (email === 'user@smilesmarthome.in' && password === '123') {
-            localStorage.setItem('userEmail', email);
-            localStorage.setItem('userRole', 'user');
-            window.location.href = '/dashboard/user';
-          }
-          // Invalid credentials
-          else {
-            // Hide loader if credentials are invalid
-            if (loginLoader) {
-              loginLoader.classList.remove('visible');
-              
-              // Re-enable scrolling
-              document.documentElement.style.overflowY = '';
-              document.body.style.overflowY = '';
-              
-              // Re-enable the login button
-              if (loginButton) {
-                loginButton.removeAttribute('disabled');
-                loginButton.textContent = 'Sign in';
-              }
-            }
-            alert('Invalid email or password. Please try again.');
-          }
-        }, 1500); // 1.5 second delay for better user experience
-      });
-    } else {
-      console.error('Login form not found in the DOM');
+<script type="module">
+  import { auth } from '../lib/firebase';
+  import { onAuthStateChanged, signInWithEmailAndPassword } from 'firebase/auth';
+
+  const ADMIN_EMAIL = 'admin@smilesmarthome.in';
+
+  const loginForm = document.getElementById('loginForm');
+  const emailInput = document.getElementById('email');
+  const passwordInput = document.getElementById('password');
+  const loginLoader = document.getElementById('login-loader');
+  const loginButton = document.getElementById('loginButton');
+
+  // If already signed in, redirect
+  onAuthStateChanged(auth, (user) => {
+    if (user && user.email) {
+      localStorage.setItem('userEmail', user.email);
+      const role = user.email === ADMIN_EMAIL ? 'admin' : 'user';
+      localStorage.setItem('userRole', role);
+      window.location.href = role === 'admin' ? '/dashboard/admin' : '/dashboard/user';
     }
   });
+
+  function showLoader() {
+    if (loginLoader) {
+      loginLoader.classList.add('visible');
+      document.documentElement.style.overflowY = 'hidden';
+      document.body.style.overflowY = 'hidden';
+      if (loginButton) {
+        loginButton.setAttribute('disabled', 'true');
+        loginButton.textContent = 'Signing in...';
+      }
+    }
+  }
+
+  function hideLoader() {
+    if (loginLoader) {
+      loginLoader.classList.remove('visible');
+      document.documentElement.style.overflowY = '';
+      document.body.style.overflowY = '';
+      if (loginButton) {
+        loginButton.removeAttribute('disabled');
+        loginButton.textContent = 'Sign in';
+      }
+    }
+  }
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = /** @type {HTMLInputElement|null} */ (emailInput)?.value || '';
+      const password = /** @type {HTMLInputElement|null} */ (passwordInput)?.value || '';
+      try {
+        showLoader();
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        const user = cred.user;
+        if (user && user.email) {
+          localStorage.setItem('userEmail', user.email);
+          const role = user.email === ADMIN_EMAIL ? 'admin' : 'user';
+          localStorage.setItem('userRole', role);
+          window.location.href = role === 'admin' ? '/dashboard/admin' : '/dashboard/user';
+        }
+      } catch (err) {
+        console.error('Login failed', err);
+        alert('Invalid email or password. Please try again.');
+        hideLoader();
+      }
+    });
+  } else {
+    console.error('Login form not found in the DOM');
+  }
 </script>

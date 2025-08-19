@@ -91,16 +91,18 @@ import Footer from '../components/Footer.astro';
 
 <script>
   const form = document.getElementById('register-form');
-  const pw = document.getElementById('password');
-  const cpw = document.getElementById('confirmPassword');
+  const pw = document.getElementById('password') as HTMLInputElement | null;
+  const cpw = document.getElementById('confirmPassword') as HTMLInputElement | null;
   const err = document.getElementById('pw-error');
-  const submit = document.getElementById('submit-btn');
+  const submit = document.getElementById('submit-btn') as HTMLButtonElement | null;
+  const fullNameEl = document.getElementById('fullName') as HTMLInputElement | null;
+  const emailEl = document.getElementById('email') as HTMLInputElement | null;
 
   /**
    * @param {HTMLInputElement | null} el
    * @returns {string}
    */
-  function getValue(el) {
+  function getValue(el: HTMLInputElement | null): string {
     return el && typeof el.value !== 'undefined' ? el.value : '';
   }
 
@@ -124,13 +126,67 @@ import Footer from '../components/Footer.astro';
   pw && pw.addEventListener('input', validateMatch);
   cpw && cpw.addEventListener('input', validateMatch);
   form && form.addEventListener('submit', (e) => {
-    // prevent accidental submit with mismatch
+    // we handle submission in the module script
+    e.preventDefault();
     if (getValue(pw) !== getValue(cpw)) {
-      e.preventDefault();
       validateMatch();
+      return;
     }
   });
 
   // initialize button state on load
   validateMatch();
+</script>
+
+<script type="module">
+  import { auth } from '../lib/firebase';
+  import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+
+  const ADMIN_EMAIL = 'admin@smilesmarthome.in';
+
+  const form = document.getElementById('register-form');
+  const fullNameEl = document.getElementById('fullName');
+  const emailEl = document.getElementById('email');
+  const pwEl = document.getElementById('password');
+  const submitBtn = document.getElementById('submit-btn');
+
+  function setLoading(loading) {
+    if (!submitBtn) return;
+    if (loading) {
+      submitBtn.setAttribute('disabled', 'true');
+      submitBtn.classList.add('opacity-60', 'cursor-not-allowed');
+      submitBtn.textContent = 'Creating account...';
+    } else {
+      submitBtn.removeAttribute('disabled');
+      submitBtn.classList.remove('opacity-60', 'cursor-not-allowed');
+      submitBtn.textContent = 'Create account';
+    }
+  }
+
+  form?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fullName = /** @type {HTMLInputElement|null} */ (fullNameEl)?.value || '';
+    const email = /** @type {HTMLInputElement|null} */ (emailEl)?.value || '';
+    const password = /** @type {HTMLInputElement|null} */ (pwEl)?.value || '';
+    try {
+      setLoading(true);
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      if (fullName) {
+        await updateProfile(cred.user, { displayName: fullName });
+      }
+      // Maintain compatibility with existing dashboard checks
+      if (cred.user.email) {
+        localStorage.setItem('userEmail', cred.user.email);
+        const role = cred.user.email === ADMIN_EMAIL ? 'admin' : 'user';
+        localStorage.setItem('userRole', role);
+        window.location.href = role === 'admin' ? '/dashboard/admin' : '/dashboard/user';
+      } else {
+        window.location.href = '/dashboard/user';
+      }
+    } catch (err) {
+      console.error('Registration failed', err);
+      alert('Could not create account. This email may already be in use or the password is weak.');
+      setLoading(false);
+    }
+  });
 </script>
