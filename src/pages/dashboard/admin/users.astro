@@ -1,0 +1,200 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { DashboardLayout } from '../../../components/dashboard/shared/DashboardLayout';
+---
+
+<Layout title="Users - Admin">
+  <DashboardLayout userType="admin" userName="Admin" client:load>
+    <section class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Customers</h1>
+        <div class="flex gap-2">
+          <button id="addCustomerBtn" class="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">Add Customer</button>
+          <a href="/dashboard/admin/estimates" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">New Estimate</a>
+        </div>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
+              <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700" id="usersBody">
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </DashboardLayout>
+</Layout>
+
+<!-- Add/Edit Customer Modal -->
+<div id="customerModal" class="fixed inset-0 z-50 hidden items-center justify-center">
+  <div class="absolute inset-0 bg-black/50"></div>
+  <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-lg mx-4 p-6 border border-gray-200 dark:border-gray-700">
+    <h2 id="modalTitle" class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add Customer</h2>
+    <form id="customerForm" class="space-y-4">
+      <input type="hidden" id="editIndex" value="" />
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
+        <input id="custName" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500" required />
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+        <input id="custEmail" type="email" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500" required />
+      </div>
+      <div class="flex items-center justify-end gap-2 pt-2">
+        <button type="button" id="cancelModal" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">Cancel</button>
+        <button type="submit" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">Save</button>
+      </div>
+    </form>
+  </div>
+  
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Admin guard
+    const userEmail = localStorage.getItem('userEmail');
+    const isAdmin = userEmail === 'admin@smilesmarthome.in';
+    if (!userEmail || !isAdmin) {
+      window.location.href = '/login';
+      return;
+    }
+
+    const STORAGE_KEY = 'adminUsers';
+    const tbody = document.getElementById('usersBody');
+    const modal = document.getElementById('customerModal');
+    const addBtn = document.getElementById('addCustomerBtn');
+    const cancelBtn = document.getElementById('cancelModal');
+    const form = document.getElementById('customerForm');
+    const modalTitle = document.getElementById('modalTitle');
+    const editIndexInput = document.getElementById('editIndex');
+    const nameInput = document.getElementById('custName');
+    const emailInput = document.getElementById('custEmail');
+
+    const defaultUsers = [
+      { name: 'John Doe', email: 'john@example.com' },
+      { name: 'Jane Smith', email: 'jane@example.com' },
+      { name: 'Robert Johnson', email: 'robert@example.com' },
+      { name: 'Emily Davis', email: 'emily@example.com' },
+      { name: 'Michael Wilson', email: 'michael@example.com' },
+    ];
+
+    function loadUsers() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return defaultUsers;
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+        return defaultUsers;
+      } catch (e) {
+        return defaultUsers;
+      }
+    }
+
+    function saveUsers(users) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
+    }
+
+    function openModal(mode, index = null, user = { name: '', email: '' }) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      modalTitle.textContent = mode === 'add' ? 'Add Customer' : 'Edit Customer';
+      editIndexInput.value = index !== null ? String(index) : '';
+      nameInput.value = user.name || '';
+      emailInput.value = user.email || '';
+    }
+
+    function closeModal() {
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      form.reset();
+      editIndexInput.value = '';
+    }
+
+    function render() {
+      const users = loadUsers();
+      if (!tbody) return;
+      tbody.innerHTML = users.map((u, idx) => `
+        <tr>
+          <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-gray-900 dark:text-white">${u.name}</div></td>
+          <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-500 dark:text-gray-400">${u.email}</div></td>
+          <td class="px-6 py-4 whitespace-nowrap text-right">
+            <div class="flex items-center gap-2 justify-end">
+              <a href="/dashboard/admin/estimates?userName=${encodeURIComponent(u.name)}&userEmail=${encodeURIComponent(u.email)}" class="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded">Estimate</a>
+              <button data-action="edit" data-index="${idx}" class="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">Edit</button>
+              <button data-action="delete" data-index="${idx}" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded">Delete</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Event bindings
+    addBtn.addEventListener('click', () => openModal('add'));
+    cancelBtn.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+    // Create/Update submit
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = nameInput.value.trim();
+      const email = emailInput.value.trim();
+      if (!name || !email) return;
+
+      const users = loadUsers();
+      const editIdx = editIndexInput.value !== '' ? Number(editIndexInput.value) : null;
+
+      // Prevent duplicate email for different user
+      const duplicate = users.some((u, i) => u.email.toLowerCase() === email.toLowerCase() && i !== editIdx);
+      if (duplicate) {
+        alert('A customer with this email already exists.');
+        return;
+      }
+
+      if (editIdx === null) {
+        users.push({ name, email });
+      } else {
+        users[editIdx] = { name, email };
+      }
+
+      saveUsers(users);
+      closeModal();
+      render();
+    });
+
+    // Row actions: edit/delete
+    if (tbody) {
+      tbody.addEventListener('click', (e) => {
+        const target = e.target;
+        if (!(target instanceof HTMLElement)) return;
+        const btn = target.closest('button');
+        if (!btn) return;
+        const action = btn.getAttribute('data-action');
+        const idxStr = btn.getAttribute('data-index');
+        if (!action || idxStr === null) return;
+        const index = Number(idxStr);
+        const users = loadUsers();
+
+        if (action === 'edit') {
+          openModal('edit', index, users[index]);
+        } else if (action === 'delete') {
+          if (confirm('Delete this customer?')) {
+            users.splice(index, 1);
+            saveUsers(users);
+            render();
+          }
+        }
+      });
+    }
+
+    // Initial render; seed storage if empty
+    if (!localStorage.getItem(STORAGE_KEY)) {
+      saveUsers(defaultUsers);
+    }
+    render();
+  });
+</script>

@@ -1,0 +1,13 @@
+# Node
+node_modules/
+dist/
+
+# Env
+.env
+
+# IDE
+.vscode/
+.DS_Store
+
+# Service account files (do NOT commit real keys)
+service-account.json

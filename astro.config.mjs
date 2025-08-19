@@ -13,5 +13,16 @@ export default defineConfig({
   output: 'static',
   build: {
     inlineStylesheets: 'always'
+  },
+  vite: {
+    server: {
+      proxy: {
+        '/api': {
+          target: 'http://localhost:4000',
+          changeOrigin: true,
+          // keep path as-is so /api/* reaches the backend route
+        }
+      }
+    }
   }
 });

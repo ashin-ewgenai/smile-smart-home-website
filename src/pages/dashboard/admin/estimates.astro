@@ -1,0 +1,22 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { DashboardLayout } from '../../../components/dashboard/shared/DashboardLayout';
+import EstimationTool from '../../../components/dashboard/Admin/EstimationTool';
+---
+
+<Layout title="Create Quote - Admin">
+  <DashboardLayout userType="admin" userName="Admin" client:load>
+    <EstimationTool client:load />
+  </DashboardLayout>
+</Layout>
+
+<script>
+  // Admin guard
+  document.addEventListener('DOMContentLoaded', () => {
+    const userEmail = localStorage.getItem('userEmail');
+    const isAdmin = userEmail === 'admin@smilesmarthome.in';
+    if (!userEmail || !isAdmin) {
+      window.location.href = '/login';
+    }
+  });
+</script>

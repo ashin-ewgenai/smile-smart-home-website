@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle } from 'lucide-react';
+import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText } from 'lucide-react';
 
 interface UserStats {
   totalUsers: number;
@@ -160,6 +160,14 @@ const AdminDashboard: React.FC = () => {
                 <a href="/dashboard/admin/settings" className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
                   <Settings className="h-6 w-6 text-teal-500 mb-2" />
                   <span className="text-sm font-medium text-gray-900 dark:text-white">Settings</span>
+                </a>
+                <a href="/dashboard/admin/users" className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                  <Users className="h-6 w-6 text-teal-500 mb-2" />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">Customers</span>
+                </a>
+                <a href="/dashboard/admin/estimates" className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                  <FileText className="h-6 w-6 text-teal-500 mb-2" />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">Create Quote</span>
                 </a>
               </div>
             </div>
