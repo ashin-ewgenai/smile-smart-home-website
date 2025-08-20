@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Home, Settings, Bell, Calendar, HelpCircle, Battery, Thermometer, Lock, ShieldCheck, Receipt, Wrench } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Home, Settings, Bell, Calendar, HelpCircle, Battery, Thermometer, Lock, ShieldCheck, Receipt, Wrench, X } from 'lucide-react';
 import TicketCenter from './TicketCenter';
 
 interface DeviceStats {
@@ -15,6 +15,8 @@ interface UserDashboardProps {
 const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   // Get actual user name from localStorage
   const [actualUserName, setActualUserName] = useState(userName);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const myDevicesRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     const email = localStorage.getItem('userEmail');
@@ -55,6 +57,22 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     { id: 5, name: 'Garage Door', type: 'Door Sensor', status: 'offline', lastActivity: '2 days ago' },
   ];
   
+  // Warranty helpers
+  const formatDate = (d: Date) => d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
+  const addDays = (d: Date, days: number) => {
+    const nd = new Date(d);
+    nd.setDate(nd.getDate() + days);
+    return nd;
+  };
+  const remainingText = (end: Date) => {
+    const now = new Date();
+    const diffMs = end.getTime() - now.getTime();
+    const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (days <= 0) return 'Expired';
+    if (days > 365) return `${(days / 365).toFixed(1)} years`;
+    return `${days} days`;
+  };
+  
   const recentActivities = [
     { id: 1, device: 'Front Door Lock', action: 'Unlocked', time: '10:23 AM', date: 'Today', user: 'You' },
     { id: 2, device: 'Living Room Camera', action: 'Motion Detected', time: '09:45 AM', date: 'Today', user: 'System' },
@@ -64,10 +82,22 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   ];
   
   return (
+    <>
     <div>
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome, {actualUserName}</h1>
-        <p className="text-gray-600 dark:text-gray-400">Here's what's happening in your smart home</p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome, {actualUserName}</h1>
+          <p className="text-gray-600 dark:text-gray-400">Here's what's happening in your smart home</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setHelpOpen(true)}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-teal-600 text-teal-600 hover:bg-teal-50 dark:hover:bg-gray-700"
+          aria-label="Help: Open Support Tickets"
+        >
+          <HelpCircle className="h-4 w-4" />
+          <span className="text-sm font-medium">Help</span>
+        </button>
       </div>
       
       {isLoading ? (
@@ -133,55 +163,83 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* My Devices */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div ref={myDevicesRef} className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 lg:col-span-2">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Devices</h2>
                 <a href="/dashboard/user/devices" className="text-sm text-teal-600 dark:text-teal-400 hover:underline">View All</a>
               </div>
-              <div className="overflow-x-auto">
+              <div>
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Device Name</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Last Activity</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Warranty Start</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Warranty End</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Remaining</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Renewal Date</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {userDevices.map((device) => (
-                      <tr key={device.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{device.name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">{device.type}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                            ${device.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 
-                              'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'}`}>
-                            {device.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {device.lastActivity}
-                        </td>
-                      </tr>
-                    ))}
+                    {userDevices.map((device) => {
+                      // Demo start date per device; replace with real warranty start if available
+                      const start = addDays(new Date('2024-08-01'), device.id * 30);
+                      let end = addDays(start, 365);
+                      let renewal = end;
+                      // Override for specific device (id 4) to show 2030 as requested
+                      if (device.id === 4) {
+                        end = new Date('2030-11-29');
+                        renewal = end;
+                      }
+                      return (
+                        <tr key={device.id}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">{device.name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">{device.type}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{formatDate(start)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{formatDate(end)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{remainingText(end)}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{formatDate(renewal)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
             </div>
           </div>
 
-          {/* Support Tickets */}
-          <div className="mt-6">
-            <TicketCenter />
-          </div>
+          
         </>
       )}
     </div>
+
+    {helpOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Support Tickets">
+        <div className="relative w-full max-w-6xl">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Support Tickets</h2>
+              <button
+                onClick={() => setHelpOpen(false)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 transition"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+                <span className="text-sm font-medium">Close</span>
+              </button>
+            </div>
+            <div className="max-h-[80vh] overflow-auto p-4">
+              <TicketCenter />
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 
