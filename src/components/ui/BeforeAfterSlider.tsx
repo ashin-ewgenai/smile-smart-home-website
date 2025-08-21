@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useReducedMotion } from '../lib/hooks';
+import { useReducedMotion } from '../../lib/hooks';
 
 interface BeforeAfterSliderProps {
   beforeImage: string;

@@ -1,0 +1,104 @@
+---
+import DarkModeToggle from '../components/ui/DarkModeToggle';
+import AuthModal from '../components/home/AuthModal';
+---
+
+<header class="fixed top-0 left-0 right-0 z-50 bg-white/90 dark:bg-charcoal/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
+  <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="flex items-center justify-between h-16 md:h-20">
+      <!-- Logo -->
+      <a href="/" class="flex items-center space-x-3 text-lg md:text-xl font-semibold text-charcoal dark:text-white" aria-label="Smile Smart Homes home">
+        <img src="/logo-primary.png" alt="Smile Smart Homes" class="h-8 md:h-10 w-auto brightness-0 dark:brightness-100 dark:invert filter-teal" />
+        <img src="/my-secondary.png.png" alt="Secondary logo" class="h-9 md:h-11 lg:h-12 w-auto hidden sm:inline-block brightness-0 dark:brightness-100 dark:invert filter-teal" />
+      </a>
+
+      <!-- Desktop Navigation (visible only above 910px) -->
+      <div class="hidden min-[911px]:flex items-center space-x-2 lg:space-x-4 xl:space-x-6">
+        <a href="/" class="px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-md font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal focus-visible:text-teal hover:bg-teal/10 dark:hover:bg-white/5 focus-visible:bg-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal transition-colors duration-150">Home</a>
+        <a href="/services" class="px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-md font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal focus-visible:text-teal hover:bg-teal/10 dark:hover:bg-white/5 focus-visible:bg-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal transition-colors duration-150">Services</a>
+        <a href="/about" class="px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-md font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal focus-visible:text-teal hover:bg-teal/10 dark:hover:bg-white/5 focus-visible:bg-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal transition-colors duration-150">About</a>
+        <a href="/gallery" class="px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-md font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal focus-visible:text-teal hover:bg-teal/10 dark:hover:bg-white/5 focus-visible:bg-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal transition-colors duration-150">Gallery</a>
+        <a href="/contact" class="px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-md font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal focus-visible:text-teal hover:bg-teal/10 dark:hover:bg-white/5 focus-visible:bg-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal transition-colors duration-150">Contact</a>
+      </div>
+
+      <!-- Right side -->
+      <div class="flex items-center space-x-2 md:space-x-4">
+        <DarkModeToggle client:load />
+        <div class="hidden md:block">
+          <a href="/login" data-open-auth="login" class="inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base text-teal border border-teal rounded-lg hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">
+            Sign In
+          </a>
+        </div>
+        <a href="/register" data-open-auth="register" class="hidden md:inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base text-teal border border-teal rounded-lg hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">Sign Up</a>
+        
+        <!-- Mobile menu button (show up to 910px) -->
+        <button class="hidden max-[910px]:inline-flex p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" id="mobile-menu-button">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Navigation -->
+    <div class="hidden min-[911px]:hidden max-[910px]:block" id="mobile-menu">
+      <div class="px-2 pt-2 pb-3 space-y-1 bg-white dark:bg-charcoal border-t border-gray-200 dark:border-gray-700">
+        <a href="/" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Home</a>
+        <a href="/services" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Services</a>
+        <a href="/about" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">About</a>
+        <a href="/gallery" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Gallery</a>
+        <a href="/contact" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Contact</a>
+        <a href="/login" data-open-auth="login" class="block px-3 py-2 mt-1 text-teal border border-teal rounded-lg text-center hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">Sign In</a>
+        <a href="/register" data-open-auth="register" class="block px-3 py-2 text-teal border border-teal rounded-lg text-center hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">Sign Up</a>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<!-- Inline React Auth Modal -->
+<AuthModal client:load />
+
+<script is:inline>
+  // Wire nav buttons to open the inline React modal
+  document.addEventListener('click', (e) => {
+    const t = e.target;
+    if (!(t instanceof Element)) return;
+    const trigger = t.closest('[data-open-auth]');
+    if (trigger) {
+      const type = trigger.getAttribute('data-open-auth');
+      if (type === 'login' || type === 'register') {
+        e.preventDefault();
+        if (window.__authOpen) window.__authOpen(type);
+      }
+    }
+  });
+  // Escape to close
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && window.__authClose) window.__authClose();
+  });
+</script>
+
+<style>
+  /* Apply teal color filter to logo */
+  .filter-teal {
+    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
+  }
+  
+  /* For dark mode */
+  .dark .filter-teal {
+    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
+  }
+</style>
+
+<script>
+  // Mobile menu toggle
+  const mobileMenuButton = document.getElementById('mobile-menu-button');
+  const mobileMenu = document.getElementById('mobile-menu');
+
+  mobileMenuButton?.addEventListener('click', () => {
+    mobileMenu?.classList.toggle('hidden');
+  });
+
+  // Login dropdown toggle (desktop)
+  // No additional JS needed for desktop login link
+</script>

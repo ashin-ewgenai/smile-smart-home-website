@@ -1,6 +1,6 @@
 import React from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useReducedMotion } from '../lib/hooks';
+import { motion, AnimatePresence, cubicBezier } from 'framer-motion';
+import { useReducedMotion } from '../../lib/hooks';
 
 interface MotionIslandProps {
   children: React.ReactNode;
@@ -36,7 +36,7 @@ export default function MotionIsland({
       transition: {
         duration: prefersReducedMotion ? 0.01 : 0.28,
         delay: prefersReducedMotion ? 0 : delay,
-        ease: [0.16, 1, 0.3, 1]
+        ease: cubicBezier(0.16, 1, 0.3, 1)
       }
     }
   };
@@ -62,7 +62,7 @@ export function HeroMotion({ children }: { children: React.ReactNode }) {
       animate={{ opacity: 1, y: 0 }}
       transition={{
         duration: prefersReducedMotion ? 0.01 : 0.32,
-        ease: [0.16, 1, 0.3, 1]
+        ease: cubicBezier(0.16, 1, 0.3, 1)
       }}
     >
       {children}
@@ -113,7 +113,7 @@ export function StaggerItem({ children, className = '' }: {
       y: 0,
       transition: {
         duration: prefersReducedMotion ? 0.01 : 0.24,
-        ease: [0.16, 1, 0.3, 1]
+        ease: cubicBezier(0.16, 1, 0.3, 1)
       }
     }
   };

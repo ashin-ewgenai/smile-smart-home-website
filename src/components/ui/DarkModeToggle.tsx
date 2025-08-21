@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Moon, Sun } from 'lucide-react';
-import { useDarkMode, useReducedMotion } from '../lib/hooks';
+import { useDarkMode, useReducedMotion } from '../../lib/hooks';
 
 export default function DarkModeToggle() {
   const { isDark, toggleDarkMode } = useDarkMode();
