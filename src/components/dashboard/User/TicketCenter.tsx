@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
 // Firebase
-import { db, storage } from '../../../lib/firebase';
+import { auth, db, storage } from '../../../lib/firebase';
 import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { onAuthStateChanged } from 'firebase/auth';
 
 // Self-contained Support Ticket Center component
 // No external state or libraries; safe to drop into the dashboard
 
-// Default dummy user id as per requirement (used if app doesn't store one)
-const FALLBACK_USER_ID = 12345;
+// Using Firebase Auth UID as the unique user identifier
 
 // Types
 type TicketStatus = 'Pending' | 'In Progress' | 'Resolved';
@@ -42,17 +42,15 @@ const TicketCenter: React.FC = () => {
 
   // Auth presence and dynamic user id
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [userId, setUserId] = useState<number>(FALLBACK_USER_ID);
+  const [userUid, setUserUid] = useState<string | null>(null);
 
-  // Determine login state and user id from localStorage
+  // Determine login state and user UID via Firebase Auth
   useEffect(() => {
-    const email = localStorage.getItem('userEmail');
-    setIsLoggedIn(!!email);
-
-    // If your app stores a userId in localStorage, use it; otherwise fallback
-    const storedUserId = localStorage.getItem('userId');
-    const parsed = storedUserId ? parseInt(storedUserId, 10) : NaN;
-    setUserId(Number.isFinite(parsed) ? parsed : FALLBACK_USER_ID);
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setIsLoggedIn(!!u);
+      setUserUid(u?.uid ?? null);
+    });
+    return () => unsub();
   }, []);
 
   // Derived: sorted tickets (most recent first)
@@ -81,8 +79,8 @@ const TicketCenter: React.FC = () => {
   useEffect(() => {
     setFetchError('');
     setLoading(true);
-    // Only subscribe if logged in
-    if (!isLoggedIn) {
+    // Only subscribe if logged in and we have a UID
+    if (!isLoggedIn || !userUid) {
       setTickets([]);
       setLoading(false);
       return;
@@ -91,7 +89,7 @@ const TicketCenter: React.FC = () => {
     const ticketsCol = collection(db, 'tickets');
     const q = query(
       ticketsCol,
-      where('userId', '==', userId),
+      where('userUid', '==', userUid),
       orderBy('createdAt', 'desc')
     );
 
@@ -124,7 +122,7 @@ const TicketCenter: React.FC = () => {
     return () => {
       unsub();
     };
-  }, [isLoggedIn, userId]);
+  }, [isLoggedIn, userUid]);
 
   // Basic client-side validation
   const validate = () => {
@@ -145,7 +143,7 @@ const TicketCenter: React.FC = () => {
       // Optional image upload to Firebase Storage
       let uploadedImageUrl: string | undefined;
       if (imageFile) {
-        const path = `tickets/${userId}/${Date.now()}_${imageFile.name}`;
+        const path = `tickets/${userUid}/${Date.now()}_${imageFile.name}`;
         const ref = storageRef(storage, path);
         await uploadBytes(ref, imageFile);
         uploadedImageUrl = await getDownloadURL(ref);
@@ -156,7 +154,7 @@ const TicketCenter: React.FC = () => {
         subject: subject.trim(),
         category,
         description: description.trim(),
-        userId,
+        userUid,
         status: 'Pending',
         createdAt: serverTimestamp(),
         imageUrl: uploadedImageUrl || null,
@@ -177,8 +175,8 @@ const TicketCenter: React.FC = () => {
     }
   };
 
-  // If not logged in, render nothing (keeps dashboard clean for guests)
-  if (!isLoggedIn) return null;
+  // If not logged in or no UID, render nothing (keeps dashboard clean for guests)
+  if (!isLoggedIn || !userUid) return null;
 
   return (
     <section className="dashboard-card bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
@@ -258,11 +256,11 @@ const TicketCenter: React.FC = () => {
             />
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 flex justify-end">
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex items-center px-5 py-2 rounded bg-teal-600 hover:bg-teal-700 disabled:opacity-60 text-white font-medium"
+              className="inline-flex items-center px-5 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white font-medium border-2 border-teal-700 hover:border-teal-800 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
               {submitting ? 'Submitting…' : 'Raise Ticket'}
             </button>

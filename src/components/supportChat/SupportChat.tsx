@@ -204,16 +204,6 @@ const SupportChat: React.FC = () => {
         >
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">Support</div>
-            <button
-              onClick={() => setOpen(false)}
-              className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800"
-              aria-label="Close support chat"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
           </div>
 
           <div ref={scrollRef} className="max-h-80 overflow-y-auto px-4 py-3 space-y-2">
