@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, User, LogOut, Settings, Bell } from 'lucide-react';
-import { handleLogout } from './LogoutHandler';
+import { handleLogout } from '../User/LogoutHandler';
 
 interface DashboardNavbarProps {
   userType: 'admin' | 'user';
