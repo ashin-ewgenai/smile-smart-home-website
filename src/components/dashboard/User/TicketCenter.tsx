@@ -1,5 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 
+// Firebase
+import { db, storage } from '../../../lib/firebase';
+import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+
 // Self-contained Support Ticket Center component
 // No external state or libraries; safe to drop into the dashboard
 
@@ -74,25 +79,50 @@ const TicketCenter: React.FC = () => {
 
   // Fetch existing tickets for the user
   useEffect(() => {
-    let cancelled = false;
-    const fetchTickets = async () => {
-      setLoading(true);
-      setFetchError('');
-      try {
-        const res = await fetch(`/api/tickets?userId=${userId}`);
-        if (!res.ok) throw new Error(`Failed to fetch tickets (${res.status})`);
-        const data: Ticket[] = await res.json();
-        if (!cancelled) setTickets(Array.isArray(data) ? data : []);
-      } catch (e: any) {
-        if (!cancelled) setFetchError(e?.message || 'Unable to load tickets');
-      } finally {
-        if (!cancelled) setLoading(false);
+    setFetchError('');
+    setLoading(true);
+    // Only subscribe if logged in
+    if (!isLoggedIn) {
+      setTickets([]);
+      setLoading(false);
+      return;
+    }
+
+    const ticketsCol = collection(db, 'tickets');
+    const q = query(
+      ticketsCol,
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const list: Ticket[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+          const ts = data.createdAt as Timestamp | undefined;
+          return {
+            id: d.id,
+            subject: data.subject,
+            category: data.category,
+            description: data.description,
+            status: (data.status as TicketStatus) ?? 'Pending',
+            createdAt: ts ? ts.toDate().toISOString() : new Date().toISOString(),
+            imageUrl: data.imageUrl,
+          } as Ticket;
+        });
+        setTickets(list);
+        setLoading(false);
+      },
+      (error) => {
+        console.error(error);
+        setFetchError(error?.message || 'Unable to load tickets');
+        setLoading(false);
       }
-    };
-    // Only fetch if logged in; otherwise keep list empty
-    if (isLoggedIn) fetchTickets();
+    );
+
     return () => {
-      cancelled = true;
+      unsub();
     };
   }, [isLoggedIn, userId]);
 
@@ -112,37 +142,25 @@ const TicketCenter: React.FC = () => {
 
     setSubmitting(true);
     try {
-      const form = new FormData();
-      form.append('subject', subject.trim());
-      form.append('category', category);
-      form.append('description', description.trim());
-      form.append('userId', String(userId));
-      // Timestamp at submission per requirement
-      const ts = new Date().toISOString();
-      form.append('timestamp', ts);
-      if (imageFile) form.append('image', imageFile);
+      // Optional image upload to Firebase Storage
+      let uploadedImageUrl: string | undefined;
+      if (imageFile) {
+        const path = `tickets/${userId}/${Date.now()}_${imageFile.name}`;
+        const ref = storageRef(storage, path);
+        await uploadBytes(ref, imageFile);
+        uploadedImageUrl = await getDownloadURL(ref);
+      }
 
-      const res = await fetch('/api/tickets', {
-        method: 'POST',
-        body: form,
+      // Create the ticket document in Firestore
+      await addDoc(collection(db, 'tickets'), {
+        subject: subject.trim(),
+        category,
+        description: description.trim(),
+        userId,
+        status: 'Pending',
+        createdAt: serverTimestamp(),
+        imageUrl: uploadedImageUrl || null,
       });
-
-      if (!res.ok) throw new Error(`Failed to submit ticket (${res.status})`);
-
-      // Expect API to return created ticket; if not, compose a minimal local echo
-      const created: Partial<Ticket> = await res.json().catch(() => ({} as Partial<Ticket>));
-      const newTicket: Ticket = {
-        id: created.id ?? `${Date.now()}`,
-        subject: created.subject ?? subject.trim(),
-        category: (created.category as Ticket['category']) ?? category,
-        description: created.description ?? description.trim(),
-        status: (created.status as TicketStatus) ?? 'Pending',
-        createdAt: created.createdAt ?? ts,
-        imageUrl: created.imageUrl,
-      };
-
-      // Prepend to local list
-      setTickets((prev) => [newTicket, ...prev]);
 
       // Clear form
       setSubject('');
