@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText } from 'lucide-react';
+import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText, ChevronDown, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 
 interface UserStats {
   totalUsers: number;
@@ -12,6 +12,39 @@ interface SystemStats {
   activeDevices: number;
   alertsToday: number;
 }
+
+// Lightweight inline sparkline component (no external deps)
+const Sparkline: React.FC<{ data: number[]; width?: number; height?: number; stroke?: string }> = ({
+  data,
+  width = 120,
+  height = 32,
+  stroke = '#14b8a6',
+}) => {
+  if (!data || data.length === 0) return null;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const step = width / (data.length - 1);
+  const points = data
+    .map((d, i) => {
+      const x = i * step;
+      const y = height - ((d - min) / range) * height;
+      return `${x},${y}`;
+    })
+    .join(' ');
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
+      <polyline
+        fill="none"
+        stroke={stroke}
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        points={points}
+      />
+    </svg>
+  );
+};
 
 const AdminDashboard: React.FC = () => {
   const [userStats, setUserStats] = useState<UserStats>({
@@ -27,6 +60,38 @@ const AdminDashboard: React.FC = () => {
   });
   
   const [isLoading, setIsLoading] = useState(true);
+  const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
+
+  // Mock KPI & trend data (could be fetched based on dateRange)
+  const kpis = [
+    {
+      key: 'users',
+      label: 'Total Users',
+      value: 156,
+      delta: +12,
+      icon: Users,
+      color: 'text-teal-500',
+      data: [6, 8, 7, 9, 12, 11, 15, 14, 16, 15, 16, 18],
+    },
+    {
+      key: 'active',
+      label: 'Total Devices',
+      value: 298,
+      delta: +5,
+      icon: Activity,
+      color: 'text-blue-500',
+      data: [270, 272, 274, 276, 278, 279, 281, 283, 286, 289, 295, 298],
+    },
+    {
+      key: 'alerts',
+      label: 'Alerts Today',
+      value: 5,
+      delta: -2,
+      icon: Bell,
+      color: 'text-red-500',
+      data: [9, 10, 8, 7, 6, 7, 6, 5, 6, 5, 5, 5],
+    },
+  ];
   
   // Simulate fetching data
   useEffect(() => {
@@ -64,11 +129,43 @@ const AdminDashboard: React.FC = () => {
     { id: 5, device: 'Basement Water Sensor', type: 'Water Detected', time: '11:50 PM', date: 'Yesterday' },
   ];
   
+  
+  
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400">Welcome to your admin dashboard</p>
+        <div className="flex items-center justify-between">
+          <p className="text-gray-600 dark:text-gray-400">Welcome to your admin dashboard</p>
+          <div className="relative inline-block">
+            <button
+              type="button"
+              onClick={() => setIsQuickActionsOpen((v) => !v)}
+              id="quick-actions-button"
+              aria-haspopup="menu"
+              aria-expanded={isQuickActionsOpen}
+              aria-controls="quick-actions-menu"
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            >
+              Quick Actions
+              <ChevronDown className={`h-4 w-4 transition-transform ${isQuickActionsOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {isQuickActionsOpen && (
+              <div
+                id="quick-actions-menu"
+                role="menu"
+                aria-labelledby="quick-actions-button"
+                className="absolute right-0 top-full mt-2 w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl ring-1 ring-black/10 dark:ring-white/10 border border-gray-200/70 dark:border-gray-700/60 z-30 overflow-hidden"
+              >
+                <div className="p-0 divide-y divide-gray-100 dark:divide-gray-700">
+                  <a href="/dashboard/admin/users/add" role="menuitem" className="block px-3 py-2 text-sm leading-6 text-gray-900 dark:text-white hover:bg-teal-50 hover:text-teal-700 dark:hover:bg-gray-700 dark:hover:text-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">Add User</a>
+                  <a href="/dashboard/admin/devices/add" role="menuitem" className="block px-3 py-2 text-sm leading-6 text-gray-900 dark:text-white hover:bg-teal-50 hover:text-teal-700 dark:hover:bg-gray-700 dark:hover:text-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">Add Device</a>
+                  <a href="/dashboard/admin/estimates" role="menuitem" className="block px-3 py-2 text-sm leading-6 text-gray-900 dark:text-white hover:bg-teal-50 hover:text-teal-700 dark:hover:bg-gray-700 dark:hover:text-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">Create Quote</a>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
       
       {isLoading ? (
@@ -77,103 +174,58 @@ const AdminDashboard: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-            {/* User Stats Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">User Statistics</h2>
-                <Users className="h-6 w-6 text-teal-500" />
-              </div>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">Total Users</span>
-                  <span className="text-xl font-bold text-gray-900 dark:text-white">{userStats.totalUsers}</span>
+          {/* KPI Summary */
+          }
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-fr gap-4 mb-6">
+            {kpis.map((kpi) => {
+              const Icon = kpi.icon as any;
+              const isUp = kpi.delta >= 0;
+              const cardInner = (
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 h-full flex flex-col">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-gray-600 dark:text-gray-400">{kpi.label}</span>
+                      <div className="mt-1 flex items-end gap-2">
+                        <span className="text-2xl font-bold text-gray-900 dark:text-white">{kpi.value}</span>
+                        <span className={`text-xs font-medium flex items-center ${isUp ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {isUp ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
+                          {isUp ? '+' : ''}{kpi.delta}
+                        </span>
+                      </div>
+                    </div>
+                    <div className={`p-2 rounded-md ${kpi.color.replace('text-', 'bg-').replace('-500', '-100')} dark:bg-gray-700`}>
+                      <Icon className={`h-5 w-5 ${kpi.color}`} />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <Sparkline data={kpi.data} />
+                  </div>
+                  {(kpi.key === 'users' || kpi.key === 'active') && (
+                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
+                      <a href={kpi.key === 'users' ? "/dashboard/admin/users" : "/dashboard/admin/devices"} className="text-teal-600 dark:text-teal-400 hover:underline text-sm font-medium flex items-center">
+                        {kpi.key === 'users' ? 'View All Users' : 'View All Devices'}
+                        <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
+                        </svg>
+                      </a>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">Active Users</span>
-                  <span className="text-xl font-bold text-teal-500">{userStats.activeUsers}</span>
+              );
+              return kpi.key === 'alerts' ? (
+                <a key={kpi.key} href="#recent-alerts" className="block h-full focus:outline-none focus:ring-2 focus:ring-teal-500 rounded-lg cursor-pointer">
+                  {cardInner}
+                </a>
+              ) : (
+                <div key={kpi.key} className="h-full">
+                  {cardInner}
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">New Users (This Week)</span>
-                  <span className="text-xl font-bold text-blue-500">{userStats.newUsers}</span>
-                </div>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <a href="/dashboard/admin/users" className="text-teal-600 dark:text-teal-400 hover:underline text-sm font-medium flex items-center">
-                  View All Users
-                  <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
-                  </svg>
-                </a>
-              </div>
-            </div>
-            
-            {/* System Stats Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">System Statistics</h2>
-                <Home className="h-6 w-6 text-teal-500" />
-              </div>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">Total Devices</span>
-                  <span className="text-xl font-bold text-gray-900 dark:text-white">{systemStats.totalDevices}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">Active Devices</span>
-                  <span className="text-xl font-bold text-teal-500">{systemStats.activeDevices}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">Alerts Today</span>
-                  <span className="text-xl font-bold text-red-500">{systemStats.alertsToday}</span>
-                </div>
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <a href="/dashboard/admin/devices" className="text-teal-600 dark:text-teal-400 hover:underline text-sm font-medium flex items-center">
-                  View All Devices
-                  <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
-                  </svg>
-                </a>
-              </div>
-            </div>
-            
-            {/* Quick Actions Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Quick Actions</h2>
-                <Settings className="h-6 w-6 text-teal-500" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <a href="/dashboard/admin/users/add" className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                  <Users className="h-6 w-6 text-teal-500 mb-2" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">Add User</span>
-                </a>
-                <a href="/dashboard/admin/devices/add" className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                  <Home className="h-6 w-6 text-teal-500 mb-2" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">Add Device</span>
-                </a>
-                <a href="/dashboard/admin/reports" className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                  <BarChart2 className="h-6 w-6 text-teal-500 mb-2" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">Reports</span>
-                </a>
-                <a href="/dashboard/admin/settings" className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                  <Settings className="h-6 w-6 text-teal-500 mb-2" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">Settings</span>
-                </a>
-                <a href="/dashboard/admin/users" className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                  <Users className="h-6 w-6 text-teal-500 mb-2" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">Customers</span>
-                </a>
-                <a href="/dashboard/admin/estimates" className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
-                  <FileText className="h-6 w-6 text-teal-500 mb-2" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">Create Quote</span>
-                </a>
-              </div>
-            </div>
+              );
+            })}
           </div>
           
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          
+          <div className="grid grid-cols-1 gap-6">
             {/* Recent Users */}
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
@@ -218,7 +270,7 @@ const AdminDashboard: React.FC = () => {
             </div>
             
             {/* Recent Alerts */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div id="recent-alerts" className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Alerts</h2>
                 <a href="/dashboard/admin/alerts" className="text-sm text-teal-600 dark:text-teal-400 hover:underline">View All</a>
