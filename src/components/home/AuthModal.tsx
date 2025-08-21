@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { auth } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
   signOut,
 } from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 type View = 'login' | 'register' | null;
 
@@ -48,15 +49,33 @@ export default function AuthModal() {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const user = cred.user;
       if (user && user.email) {
-        const ADMIN_EMAIL = 'admin@smilesmarthome.in';
-        const role = user.email === ADMIN_EMAIL ? 'admin' : 'user';
+        // Ensure a user profile exists in Firestore
+        try {
+          const userRef = doc(db, 'users', user.uid);
+          const snap = await getDoc(userRef);
+          if (!snap.exists()) {
+            await setDoc(userRef, {
+              uid: user.uid,
+              email: user.email,
+              displayName: user.displayName || '',
+              role: 'user',
+              createdAt: serverTimestamp(),
+              lastLoginAt: serverTimestamp(),
+            });
+          } else {
+            // Optionally update last login time
+            await setDoc(userRef, { lastLoginAt: serverTimestamp() }, { merge: true });
+          }
+        } catch (e) {
+          // Non-blocking: continue login even if profile write fails
+          console.warn('User profile write skipped:', (e as any)?.message);
+        }
         // Persist session metadata used by dashboards/guards
         try {
           localStorage.setItem('userEmail', user.email);
-          localStorage.setItem('userRole', role);
         } catch {}
         // Redirect based on role
-        window.location.href = role === 'admin' ? '/dashboard/admin' : '/dashboard/user';
+        window.location.href = '/dashboard/user';
         return;
       }
       // Fallback: close modal if no user object (shouldn't happen when signIn succeeds)
@@ -79,6 +98,20 @@ export default function AuthModal() {
       setLoading(true);
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       if (fullName) await updateProfile(cred.user, { displayName: fullName });
+      // Create user profile document in Firestore
+      try {
+        const user = cred.user;
+        await setDoc(doc(db, 'users', user.uid), {
+          uid: user.uid,
+          email: user.email,
+          displayName: fullName || user.displayName || '',
+          role: 'user',
+          createdAt: serverTimestamp(),
+          lastLoginAt: null,
+        });
+      } catch (e) {
+        console.warn('User profile create failed:', (e as any)?.message);
+      }
       try { await signOut(auth); } catch {}
       setOpen('login');
     } catch (err: any) {

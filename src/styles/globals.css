@@ -147,4 +147,12 @@
     opacity: 1;
     transform: translateY(0);
   }
+
+  /* Global teal logo filter to match btn-primary/bg-teal (#009688) */
+  .filter-teal {
+    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
+  }
+  .dark .filter-teal {
+    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
+  }
 }

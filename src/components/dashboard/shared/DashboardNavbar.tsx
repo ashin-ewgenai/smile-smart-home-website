@@ -39,13 +39,25 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <a href="/" className="flex items-center">
-                <span className="text-xl font-bold text-teal-600 dark:text-teal-400">
-                  Smile Smart Home
-                </span>
+              <a
+                href="/"
+                className="flex items-center space-x-3 text-xl font-semibold text-charcoal dark:text-white"
+                aria-label="Smile Smart Homes home"
+              >
+                <img
+                  src="/logo-primary.png"
+                  alt="Smile Smart Homes"
+                  className="h-10 sm:h-12 w-auto filter-teal"
+                />
+                <img
+                  src="/my-secondary.png.png"
+                  alt="Secondary logo"
+                  className="h-8 sm:h-10 w-auto hidden sm:inline-block filter-teal"
+                />
               </a>
             </div>
-            <div className="hidden md:ml-6 md:flex md:space-x-4">
+          </div>
+          <div className="hidden md:flex flex-1 justify-center space-x-6">
               <a 
                 href={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
                 className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
@@ -66,7 +78,24 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               >
                 Settings
               </a>
-            </div>
+              <a
+                href={`/dashboard/${userType}/quote-portal`}
+                className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                Quote Portal
+              </a>
+              <a
+                href={`/dashboard/${userType}/about-device`}
+                className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                About Device
+              </a>
+              <a
+                href={`/dashboard/${userType}/bill`}
+                className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                Bill
+              </a>
           </div>
           <div className="flex items-center">
             <button 
@@ -176,6 +205,24 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               Settings
+            </a>
+            <a
+              href={`/dashboard/${userType}/quote-portal`}
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              Quote Portal
+            </a>
+            <a
+              href={`/dashboard/${userType}/about-device`}
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              About Device
+            </a>
+            <a
+              href={`/dashboard/${userType}/bill`}
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              Bill
             </a>
           </div>
           <div className="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
