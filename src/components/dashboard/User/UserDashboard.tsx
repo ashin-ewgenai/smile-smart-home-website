@@ -16,6 +16,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   // Get actual user name from localStorage
   const [actualUserName, setActualUserName] = useState(userName);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [warrantyOpen, setWarrantyOpen] = useState(false);
   const myDevicesRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
@@ -137,7 +138,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 gap-3">
                 {/* Warranty Status */}
-                <button className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors">
+                <button
+                  onClick={() => setWarrantyOpen(true)}
+                  className="flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  aria-label="Open Warranty Details"
+                >
                   <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mb-2">
                     <ShieldCheck className="h-5 w-5 text-blue-600 dark:text-blue-300" />
                   </div>
@@ -234,6 +239,86 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
             </div>
             <div className="max-h-[80vh] overflow-auto p-4">
               <TicketCenter />
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {warrantyOpen && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Warranty Details">
+        <div className="relative w-full max-w-5xl">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Warranty Details</h2>
+              <button
+                onClick={() => setWarrantyOpen(false)}
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 transition"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+                <span className="text-sm font-medium">Close</span>
+              </button>
+            </div>
+            <div className="max-h-[80vh] overflow-auto">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700">
+                  <tr>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Device Name</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Warranty Start</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Warranty End</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Remaining</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Extend</th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Bill</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                  {userDevices.map((device) => {
+                    const start = addDays(new Date('2024-08-01'), device.id * 30);
+                    let end = addDays(start, 365);
+                    let renewal = end;
+                    if (device.id === 4) {
+                      end = new Date('2030-11-29');
+                      renewal = end;
+                    }
+                    return (
+                      <tr key={device.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{device.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{device.type}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{formatDate(start)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{formatDate(end)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{remainingText(end)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <button
+                            onClick={() => alert(`Request to extend warranty for ${device.name} submitted`)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-teal-600 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-gray-700"
+                          >
+                            Extend
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <button
+                            onClick={() => alert(`Opening warranty bill for ${device.name}: INV-${String(device.id).padStart(4, '0')}`)}
+                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            View Bill
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                <button
+                  onClick={() => setWarrantyOpen(false)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700"
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         </div>
