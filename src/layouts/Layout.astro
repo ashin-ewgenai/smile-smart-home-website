@@ -85,51 +85,55 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   </head>
   <body>
     <slot />
-    {(!Astro.url.pathname.startsWith('/dashboard')) && <ConsultationPopup client:load />}
+    {(!Astro.url.pathname.startsWith('/dashboard')) && <ConsultationPopup client:idle />}
     <script type="module">
-      // Initialize smooth scrolling with Lenis
-      import Lenis from 'lenis';
+      const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const isTouchDevice = matchMedia('(pointer: coarse)').matches;
       
-      const lenis = new Lenis({
-        duration: 1.2,
-        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-        direction: 'vertical',
-        gestureDirection: 'vertical',
-        smooth: true,
-        smoothTouch: false,
-        touchMultiplier: 2,
-        infinite: false,
-      });
+      // Simple rIC polyfill (no TS syntax in client code)
+      const ric = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
       
-      function raf(time) {
-        lenis.raf(time);
-        requestAnimationFrame(raf);
-      }
-      
-      requestAnimationFrame(raf);
-      
-      // Initialize animations
-      import { inViewReveal, scrollProgress, magneticButton } from '../lib/animate';
-      
-      document.addEventListener('DOMContentLoaded', () => {
-        // Initialize scroll progress
-        scrollProgress();
+      ric(async () => {
+        // Skip heavy effects for users who prefer reduced motion
+        if (prefersReducedMotion) return;
         
-        // Initialize reveal animations
-        const revealElements = document.querySelectorAll('.reveal-on-scroll');
-        if (revealElements.length > 0) {
-          inViewReveal(revealElements);
-        }
+        // Dynamically load Lenis only when idle
+        try {
+          const { default: Lenis } = await import('lenis');
+          const lenis = new Lenis({
+            duration: 1.1,
+            easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+            direction: 'vertical',
+            gestureDirection: 'vertical',
+            smooth: !isTouchDevice,
+            smoothTouch: false,
+            touchMultiplier: 2,
+            infinite: false,
+          });
+          function raf(time) {
+            lenis.raf(time);
+            requestAnimationFrame(raf);
+          }
+          requestAnimationFrame(raf);
+          
+          // Tear down on reduced motion toggle at runtime
+          try {
+            const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+            mq.addEventListener?.('change', (e) => { if (e.matches) lenis.destroy(); });
+          } catch {}
+        } catch {}
         
-        // Initialize magnetic buttons
-        const magneticButtons = document.querySelectorAll('.btn-magnetic');
-        magneticButtons.forEach(button => magneticButton(button));
-        
-        // Respect reduced motion preference
-        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (prefersReducedMotion) {
-          lenis.destroy();
-        }
+        // Lazy-load animation helpers after Lenis
+        try {
+          const { inViewReveal, scrollProgress, magneticButton } = await import('../lib/animate');
+          // Initialize scroll progress
+          scrollProgress();
+          // Reveal elements
+          const revealElements = document.querySelectorAll('.reveal-on-scroll');
+          if (revealElements.length > 0) inViewReveal(revealElements);
+          // Magnetic buttons
+          document.querySelectorAll('.btn-magnetic').forEach((btn) => magneticButton(btn));
+        } catch {}
       });
     </script>
   </body>

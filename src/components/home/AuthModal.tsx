@@ -1,12 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { auth, db } from '../../lib/firebase';
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  signOut,
-} from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+// Firebase modules are lazy-loaded on demand to keep them out of the initial bundle
 
 type View = 'login' | 'register' | null;
 
@@ -46,6 +39,16 @@ export default function AuthModal() {
     resetError();
     try {
       setLoading(true);
+      // Lazy-load Firebase pieces only when needed
+      const [firebaseClient, authMod, fsMod] = await Promise.all([
+        import('../../lib/firebase'),
+        import('firebase/auth'),
+        import('firebase/firestore'),
+      ]);
+      const { auth, db } = firebaseClient;
+      const { signInWithEmailAndPassword } = authMod;
+      const { doc, getDoc, setDoc, serverTimestamp } = fsMod;
+
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const user = cred.user;
       if (user && user.email) {
@@ -96,6 +99,15 @@ export default function AuthModal() {
         return;
       }
       setLoading(true);
+      const [firebaseClient, authMod, fsMod] = await Promise.all([
+        import('../../lib/firebase'),
+        import('firebase/auth'),
+        import('firebase/firestore'),
+      ]);
+      const { auth, db } = firebaseClient;
+      const { createUserWithEmailAndPassword, updateProfile, signOut } = authMod;
+      const { doc, setDoc, serverTimestamp } = fsMod;
+
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       if (fullName) await updateProfile(cred.user, { displayName: fullName });
       // Create user profile document in Firestore

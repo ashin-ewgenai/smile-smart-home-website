@@ -5,7 +5,7 @@ import AuthModal from '../components/home/AuthModal';
 
 <header class="fixed top-0 left-0 right-0 z-50 bg-white/90 dark:bg-charcoal/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
   <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
-    <div class="flex items-center justify-between h-16 md:h-20">
+    <div class="flex items-center justify-between h-16 md:h-20 relative">
       <!-- Logo -->
       <a href="/" class="flex items-center space-x-3 text-lg md:text-xl font-semibold text-charcoal dark:text-white" aria-label="Smile Smart Homes home">
         <img src="/logo-primary.png" alt="Smile Smart Homes" class="h-8 md:h-10 w-auto brightness-0 dark:brightness-100 dark:invert filter-teal" />
@@ -21,18 +21,30 @@ import AuthModal from '../components/home/AuthModal';
         <a href="/contact" class="px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-md font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal focus-visible:text-teal hover:bg-teal/10 dark:hover:bg-white/5 focus-visible:bg-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal transition-colors duration-150">Contact</a>
       </div>
 
+      <!-- Center title (only <=600px) -->
+      <div class="hidden max-[600px]:block absolute left-1/2 -translate-x-1/2 text-center pointer-events-none">
+        <div class="text-[16px] leading-tight font-semibold text-charcoal dark:text-white drop-shadow-sm">Smile Smart Home</div>
+        <div class="text-[10px] leading-tight text-charcoal/80 dark:text-gray-300">Expectation Walkers GenAi Reserch & Services Pvt Ltd</div>
+      </div>
+
       <!-- Right side -->
       <div class="flex items-center space-x-2 md:space-x-4">
-        <DarkModeToggle client:load />
-        <div class="hidden md:block">
+        <DarkModeToggle client:idle />
+        <div class="hidden min-[601px]:block">
           <a href="/login" data-open-auth="login" class="inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base text-teal border border-teal rounded-lg hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">
             Sign In
           </a>
         </div>
-        <a href="/register" data-open-auth="register" class="hidden md:inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base text-teal border border-teal rounded-lg hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">Sign Up</a>
+        <a href="/register" data-open-auth="register" class="hidden min-[601px]:inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base text-teal border border-teal rounded-lg hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">Sign Up</a>
         
         <!-- Mobile menu button (show up to 910px) -->
-        <button class="hidden max-[910px]:inline-flex p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" id="mobile-menu-button">
+        <button
+          class="hidden max-[910px]:inline-flex p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+          id="mobile-menu-button"
+          aria-controls="mobile-menu"
+          aria-expanded="false"
+          aria-label="Toggle navigation menu"
+        >
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
           </svg>
@@ -41,22 +53,24 @@ import AuthModal from '../components/home/AuthModal';
     </div>
 
     <!-- Mobile Navigation -->
-    <div class="hidden min-[911px]:hidden max-[910px]:block" id="mobile-menu">
-      <div class="px-2 pt-2 pb-3 space-y-1 bg-white dark:bg-charcoal border-t border-gray-200 dark:border-gray-700">
-        <a href="/" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Home</a>
-        <a href="/services" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Services</a>
-        <a href="/about" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">About</a>
-        <a href="/gallery" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Gallery</a>
-        <a href="/contact" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Contact</a>
-        <a href="/login" data-open-auth="login" class="block px-3 py-2 mt-1 text-teal border border-teal rounded-lg text-center hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">Sign In</a>
-        <a href="/register" data-open-auth="register" class="block px-3 py-2 text-teal border border-teal rounded-lg text-center hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">Sign Up</a>
+    <div class="hidden absolute left-0 right-0 top-16 md:top-20 z-50 min-[911px]:hidden max-[910px]:block px-2" id="mobile-menu">
+      <div class="px-2 pt-3 pb-4 space-y-1 backdrop-blur-md rounded-xl ring-1 ring-white/20 dark:ring-white/10 shadow-lg" style="background-color:#1f2937cc;">
+        <a href="/" class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-800 dark:text-gray-200 hover:text-teal hover:bg-white/10 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 transition-colors">Home</a>
+        <a href="/services" class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-800 dark:text-gray-200 hover:text-teal hover:bg-white/10 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 transition-colors">Services</a>
+        <a href="/about" class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-800 dark:text-gray-200 hover:text-teal hover:bg-white/10 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 transition-colors">About</a>
+        <a href="/gallery" class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-800 dark:text-gray-200 hover:text-teal hover:bg-white/10 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 transition-colors">Gallery</a>
+        <a href="/contact" class="block px-3 py-2 rounded-lg text-sm font-medium text-gray-800 dark:text-gray-200 hover:text-teal hover:bg-white/10 dark:hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 transition-colors">Contact</a>
+        <div class="mt-2 space-y-2">
+          <a href="/login" data-open-auth="login" class="hidden max-[600px]:block w-full px-3 py-2 text-sm font-semibold text-teal border border-teal/80 rounded-lg text-center hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 active:scale-[0.98] transition-all duration-150">Sign In</a>
+          <a href="/register" data-open-auth="register" class="hidden max-[600px]:block w-full px-3 py-2 text-sm font-semibold text-white bg-teal rounded-lg text-center hover:bg-teal/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 active:scale-[0.98] transition-all duration-150 shadow-sm">Sign Up</a>
+        </div>
       </div>
     </div>
   </nav>
 </header>
 
 <!-- Inline React Auth Modal -->
-<AuthModal client:load />
+<AuthModal client:idle />
 
 <script is:inline>
   // Wire nav buttons to open the inline React modal
@@ -91,13 +105,78 @@ import AuthModal from '../components/home/AuthModal';
 </style>
 
 <script>
-  // Mobile menu toggle
+  // Mobile menu toggle with accessibility and robust behavior
   const mobileMenuButton = document.getElementById('mobile-menu-button');
   const mobileMenu = document.getElementById('mobile-menu');
+  const isDesktop = window.matchMedia('(min-width: 911px)');
+  const isMobile = window.matchMedia('(max-width: 910px)');
 
-  mobileMenuButton?.addEventListener('click', () => {
-    mobileMenu?.classList.toggle('hidden');
+  function closeMenu() {
+    if (!mobileMenu) return;
+    // Use inline style to avoid responsive class conflicts
+    mobileMenu.style.display = 'none';
+    mobileMenu.classList.add('hidden');
+    mobileMenuButton?.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleMenu() {
+    if (!mobileMenu) return;
+    const willOpen = mobileMenu.style.display === 'none' || mobileMenu.classList.contains('hidden');
+    if (willOpen) {
+      mobileMenu.classList.remove('hidden');
+      mobileMenu.style.display = 'block';
+    } else {
+      mobileMenu.classList.add('hidden');
+      mobileMenu.style.display = 'none';
+    }
+    mobileMenuButton?.setAttribute('aria-expanded', String(willOpen));
+  }
+
+  mobileMenuButton?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleMenu();
   });
+
+  // Close on nav link click (delegation inside mobile menu)
+  mobileMenu?.addEventListener('click', (e) => {
+    const t = e.target as Element | null;
+    if (t && t.closest('a')) closeMenu();
+  });
+
+  // Close when clicking outside
+  document.addEventListener('click', (e) => {
+    const t = e.target as Element | null;
+    if (!t) return;
+    const clickedButton = t.closest('#mobile-menu-button');
+    const clickedMenu = t.closest('#mobile-menu');
+    if (!clickedButton && !clickedMenu) closeMenu();
+  });
+
+  // Close if resized to desktop
+  isDesktop.addEventListener?.('change', (e) => {
+    if (e.matches) {
+      // On desktop, ensure menu is closed
+      closeMenu();
+    }
+  });
+
+  // When moving back to mobile, ensure hidden by default
+  isMobile.addEventListener?.('change', (e) => {
+    if (e.matches) {
+      mobileMenu && (mobileMenu.style.display = 'none');
+      mobileMenu?.classList.add('hidden');
+      mobileMenuButton?.setAttribute('aria-expanded', 'false');
+    }
+  });
+
+  // Initialize state on load for current viewport
+  if (isMobile.matches) {
+    mobileMenu && (mobileMenu.style.display = 'none');
+    mobileMenu?.classList.add('hidden');
+    mobileMenuButton?.setAttribute('aria-expanded', 'false');
+  } else {
+    mobileMenu && (mobileMenu.style.display = 'none');
+  }
 
   // Login dropdown toggle (desktop)
   // No additional JS needed for desktop login link

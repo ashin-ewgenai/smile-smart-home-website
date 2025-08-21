@@ -66,7 +66,7 @@ import { HeroMotion } from '../ui/MotionIsland';
   </div>
 
   <div class="container relative z-10 py-20 md:py-24">
-    <HeroMotion client:load>
+    <HeroMotion client:visible>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-14 items-center">
         <!-- Left: Content -->
         <div class="text-center md:text-left">
@@ -208,11 +208,16 @@ import { HeroMotion } from '../ui/MotionIsland';
 </section>
 
 <script>
-  import { parallax } from '../../lib/animate';
-  const heroBackground = document.getElementById('hero-bg');
-  if (heroBackground) {
-    parallax(heroBackground, 0.1);
-  }
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ric = window.requestIdleCallback || ((cb) => setTimeout(cb, 1));
+  ric(async () => {
+    if (prefersReducedMotion) return;
+    try {
+      const { parallax } = await import('../../lib/animate');
+      const heroBackground = document.getElementById('hero-bg');
+      if (heroBackground) parallax(heroBackground, 0.1);
+    } catch {}
+  });
 </script>
 
 <style>
@@ -523,5 +528,11 @@ import { HeroMotion } from '../ui/MotionIsland';
       opacity: 0.3;
       transform: translateY(0) rotate(45deg);
     }
+  }
+  
+  /* Respect reduced motion: disable heavy animations */
+  @media (prefers-reduced-motion: reduce) {
+    .bg-gradient-animated { animation: none !important; }
+    .particle, .bubble, .orb, .light-beam { animation: none !important; }
   }
 </style>
