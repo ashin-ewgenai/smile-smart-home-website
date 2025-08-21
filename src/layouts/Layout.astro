@@ -85,7 +85,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   </head>
   <body>
     <slot />
-    <ConsultationPopup client:load />
+    {(!Astro.url.pathname.startsWith('/dashboard')) && <ConsultationPopup client:load />}
     <script type="module">
       // Initialize smooth scrolling with Lenis
       import Lenis from 'lenis';
