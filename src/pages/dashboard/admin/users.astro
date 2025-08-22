@@ -7,10 +7,14 @@ import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLa
   <DashboardLayout userType="admin" userName="Admin" client:load>
     <section class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
       <div class="flex items-center justify-between mb-4">
-        <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Customers</h1>
+        <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Users</h1>
         <div class="flex gap-2">
-          <button id="addCustomerBtn" class="px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">Add Customer</button>
-          <a href="/dashboard/admin/estimates" class="px-3 py-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">New Estimate</a>
+          <button id="addUserBtn" class="inline-flex items-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            <span>Add User</span>
+          </button>
         </div>
       </div>
       <div class="overflow-x-auto">
@@ -30,20 +34,20 @@ import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLa
   </DashboardLayout>
 </Layout>
 
-<!-- Add/Edit Customer Modal -->
-<div id="customerModal" class="fixed inset-0 z-50 hidden items-center justify-center">
+<!-- Add/Edit User Modal -->
+<div id="userModal" class="fixed inset-0 z-50 hidden items-center justify-center">
   <div class="absolute inset-0 bg-black/50"></div>
   <div class="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-lg mx-4 p-6 border border-gray-200 dark:border-gray-700">
-    <h2 id="modalTitle" class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add Customer</h2>
-    <form id="customerForm" class="space-y-4">
+    <h2 id="modalTitle" class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Add User</h2>
+    <form id="userForm" class="space-y-4">
       <input type="hidden" id="editIndex" value="" />
       <div>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-        <input id="custName" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500" required />
+        <input id="userName" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500" required />
       </div>
       <div>
         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-        <input id="custEmail" type="email" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500" required />
+        <input id="userEmail" type="email" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500" required />
       </div>
       <div class="flex items-center justify-end gap-2 pt-2">
         <button type="button" id="cancelModal" class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">Cancel</button>
@@ -64,18 +68,19 @@ import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLa
       return;
     }
 
+    type User = { name: string; email: string };
     const STORAGE_KEY = 'adminUsers';
-    const tbody = document.getElementById('usersBody');
-    const modal = document.getElementById('customerModal');
-    const addBtn = document.getElementById('addCustomerBtn');
-    const cancelBtn = document.getElementById('cancelModal');
-    const form = document.getElementById('customerForm');
-    const modalTitle = document.getElementById('modalTitle');
-    const editIndexInput = document.getElementById('editIndex');
-    const nameInput = document.getElementById('custName');
-    const emailInput = document.getElementById('custEmail');
+    const tbody = document.getElementById('usersBody') as HTMLTableSectionElement | null;
+    const modal = document.getElementById('userModal') as HTMLDivElement | null;
+    const addBtn = document.getElementById('addUserBtn') as HTMLButtonElement | null;
+    const cancelBtn = document.getElementById('cancelModal') as HTMLButtonElement | null;
+    const form = document.getElementById('userForm') as HTMLFormElement | null;
+    const modalTitle = document.getElementById('modalTitle') as HTMLElement | null;
+    const editIndexInput = document.getElementById('editIndex') as HTMLInputElement | null;
+    const nameInput = document.getElementById('userName') as HTMLInputElement | null;
+    const emailInput = document.getElementById('userEmail') as HTMLInputElement | null;
 
-    const defaultUsers = [
+    const defaultUsers: User[] = [
       { name: 'John Doe', email: 'john@example.com' },
       { name: 'Jane Smith', email: 'jane@example.com' },
       { name: 'Robert Johnson', email: 'robert@example.com' },
@@ -83,32 +88,34 @@ import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLa
       { name: 'Michael Wilson', email: 'michael@example.com' },
     ];
 
-    function loadUsers() {
+    function loadUsers(): User[] {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return defaultUsers;
         const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) return parsed as User[];
         return defaultUsers;
       } catch (e) {
         return defaultUsers;
       }
     }
 
-    function saveUsers(users) {
+    function saveUsers(users: User[]) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
     }
 
-    function openModal(mode, index = null, user = { name: '', email: '' }) {
+    function openModal(mode: 'add' | 'edit', index: number | null = null, user: User = { name: '', email: '' }) {
+      if (!modal || !modalTitle || !editIndexInput || !nameInput || !emailInput) return;
       modal.classList.remove('hidden');
       modal.classList.add('flex');
-      modalTitle.textContent = mode === 'add' ? 'Add Customer' : 'Edit Customer';
+      modalTitle.textContent = mode === 'add' ? 'Add User' : 'Edit User';
       editIndexInput.value = index !== null ? String(index) : '';
       nameInput.value = user.name || '';
       emailInput.value = user.email || '';
     }
 
     function closeModal() {
+      if (!modal || !form || !editIndexInput) return;
       modal.classList.add('hidden');
       modal.classList.remove('flex');
       form.reset();
@@ -118,7 +125,7 @@ import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLa
     function render() {
       const users = loadUsers();
       if (!tbody) return;
-      tbody.innerHTML = users.map((u, idx) => `
+      tbody.innerHTML = users.map((u: User, idx: number) => `
         <tr>
           <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-gray-900 dark:text-white">${u.name}</div></td>
           <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-500 dark:text-gray-400">${u.email}</div></td>
@@ -134,13 +141,14 @@ import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLa
     }
 
     // Event bindings
-    addBtn.addEventListener('click', () => openModal('add'));
-    cancelBtn.addEventListener('click', closeModal);
-    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+    addBtn?.addEventListener('click', () => openModal('add'));
+    cancelBtn?.addEventListener('click', closeModal);
+    modal?.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
     // Create/Update submit
-    form.addEventListener('submit', (e) => {
+    form?.addEventListener('submit', (e) => {
       e.preventDefault();
+      if (!nameInput || !emailInput || !editIndexInput) return;
       const name = nameInput.value.trim();
       const email = emailInput.value.trim();
       if (!name || !email) return;
@@ -151,7 +159,7 @@ import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLa
       // Prevent duplicate email for different user
       const duplicate = users.some((u, i) => u.email.toLowerCase() === email.toLowerCase() && i !== editIdx);
       if (duplicate) {
-        alert('A customer with this email already exists.');
+        alert('A user with this email already exists.');
         return;
       }
 
@@ -182,7 +190,7 @@ import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLa
         if (action === 'edit') {
           openModal('edit', index, users[index]);
         } else if (action === 'delete') {
-          if (confirm('Delete this customer?')) {
+          if (confirm('Delete this user?')) {
             users.splice(index, 1);
             saveUsers(users);
             render();

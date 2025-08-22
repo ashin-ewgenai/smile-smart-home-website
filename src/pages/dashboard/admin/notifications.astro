@@ -1,0 +1,41 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLayout';
+---
+
+<Layout title="Notifications - Admin">
+  <DashboardLayout userType="admin" userName="Admin" client:load>
+    <section class="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+      <div class="flex items-center justify-between mb-4">
+        <h1 class="text-xl font-semibold text-gray-900 dark:text-white">Notifications</h1>
+        <div class="text-sm text-gray-600 dark:text-gray-300" id="summary"></div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Submitted</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">User</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Service</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Device</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Preferred</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Priority</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+              <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="rows" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+        </table>
+      </div>
+
+      <div id="emptyState" class="hidden">
+        <div class="min-h-[50vh] flex items-center justify-center text-center text-gray-600 dark:text-gray-300">
+          <p class="text-sm">No service requests yet.</p>
+        </div>
+      </div>
+    </section>
+  </DashboardLayout>
+</Layout>
+
+<script type="module" src="/src/pages/dashboard/admin/notifications.client.ts"></script>
