@@ -78,12 +78,24 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
             </div>
           </div>
           <div className="flex items-center">
-            <button 
-              type="button" 
-              className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none"
-            >
-              <Bell className="h-5 w-5" />
-            </button>
+            {userType === 'admin' ? (
+              <a
+                href="/dashboard/admin/notifications"
+                aria-label="Notifications"
+                className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none"
+              >
+                <Bell className="h-5 w-5" />
+              </a>
+            ) : (
+              <button
+                type="button"
+                className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none"
+                disabled
+                aria-disabled="true"
+              >
+                <Bell className="h-5 w-5 opacity-50" />
+              </button>
+            )}
             <div className="ml-3 relative">
               <div>
                 <button 

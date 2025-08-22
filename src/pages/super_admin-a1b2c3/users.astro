@@ -1,0 +1,22 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SuperAdminLayout from '../../components/superadmin/SuperAdminLayout';
+import UsersList from '../../components/superadmin/UsersList';
+---
+
+<Layout title="Users - Super Admin">
+  <SuperAdminLayout client:load>
+    <UsersList client:load />
+  </SuperAdminLayout>
+</Layout>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      const role = localStorage.getItem('userRole');
+      if (role !== 'Super Admin') {
+        window.location.href = '/super_admin_login';
+      }
+    } catch {}
+  });
+</script>

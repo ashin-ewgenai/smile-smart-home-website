@@ -13,8 +13,8 @@ export const handleLogout = () => {
           // Clear user data from local storage (compatibility with existing checks)
           localStorage.removeItem('userEmail');
           localStorage.removeItem('userRole');
-          // Redirect to home page
-          window.location.href = '/';
+          // Redirect to login page
+          window.location.href = '/login';
         });
     });
   });

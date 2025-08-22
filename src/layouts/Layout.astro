@@ -85,7 +85,52 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   </head>
   <body>
     <slot />
-    {(!Astro.url.pathname.startsWith('/dashboard')) && <ConsultationPopup client:idle />}
-    <script type="module" src="/src/scripts/layout-animate-client.ts"></script>
+    {(!Astro.url.pathname.startsWith('/dashboard')) && <ConsultationPopup client:load />}
+    <script type="module">
+      // Initialize smooth scrolling with Lenis
+      import Lenis from 'lenis';
+      
+      const lenis = new Lenis({
+        duration: 1.2,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        direction: 'vertical',
+        gestureDirection: 'vertical',
+        smooth: true,
+        smoothTouch: false,
+        touchMultiplier: 2,
+        infinite: false,
+      });
+      
+      function raf(time) {
+        lenis.raf(time);
+        requestAnimationFrame(raf);
+      }
+      
+      requestAnimationFrame(raf);
+      
+      // Initialize animations
+      import { inViewReveal, scrollProgress, magneticButton } from '../lib/animate';
+      
+      document.addEventListener('DOMContentLoaded', () => {
+        // Initialize scroll progress
+        scrollProgress();
+        
+        // Initialize reveal animations
+        const revealElements = document.querySelectorAll('.reveal-on-scroll');
+        if (revealElements.length > 0) {
+          inViewReveal(revealElements);
+        }
+        
+        // Initialize magnetic buttons
+        const magneticButtons = document.querySelectorAll('.btn-magnetic');
+        magneticButtons.forEach(button => magneticButton(button));
+        
+        // Respect reduced motion preference
+        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (prefersReducedMotion) {
+          lenis.destroy();
+        }
+      });
+    </script>
   </body>
 </html>

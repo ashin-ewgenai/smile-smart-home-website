@@ -55,7 +55,7 @@ const RequestStatusModal: React.FC<Props> = ({ open, onClose, myRequests, reqLis
                 <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-teal-500"></div>
               </div>
             ) : myRequests.length === 0 ? (
-              <div className="px-6 py-10 text-center">
+              <div className="min-h-[50vh] flex flex-col items-center justify-end pb-6 px-6 text-center">
                 <div className="mx-auto w-12 h-12 rounded-full bg-teal-100 dark:bg-teal-900/40 flex items-center justify-center mb-3">
                   <Wrench className="h-6 w-6 text-teal-600 dark:text-teal-300" />
                 </div>

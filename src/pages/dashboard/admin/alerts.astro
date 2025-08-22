@@ -1,0 +1,104 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLayout';
+---
+
+<Layout title="Alerts - Admin">
+  <DashboardLayout userType="admin" userName="Admin" client:load>
+    <div id="recent-alerts" class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
+      <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent Alerts</h2>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead class="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Device</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Alert Type</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Time</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
+            </tr>
+          </thead>
+          <tbody id="rows" class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700"></tbody>
+        </table>
+      </div>
+    </div>
+  </DashboardLayout>
+</Layout>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    // Admin guard
+    const userEmail = localStorage.getItem('userEmail');
+    const isAdmin = userEmail === 'admin@smilesmarthome.in';
+    if (!userEmail || !isAdmin) {
+      window.location.href = '/login';
+      return;
+    }
+
+    const rows = document.getElementById('rows');
+
+    function toTime(ts: any) {
+      try {
+        if (!ts) return '';
+        const d = ts.seconds ? new Date(ts.seconds * 1000) : (ts instanceof Date ? ts : new Date(ts));
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } catch { return ''; }
+    }
+
+    function toDateLabel(ts: any) {
+      try {
+        if (!ts) return '';
+        const d = ts.seconds ? new Date(ts.seconds * 1000) : (ts instanceof Date ? ts : new Date(ts));
+        const today = new Date();
+        const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const startOfGiven = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        const diffDays = Math.round((startOfToday.getTime() - startOfGiven.getTime()) / (1000*60*60*24));
+        if (diffDays === 0) return 'Today';
+        if (diffDays === 1) return 'Yesterday';
+        return d.toLocaleDateString();
+      } catch { return ''; }
+    }
+
+    function render(list: any[]) {
+      if (!rows) return;
+      rows.innerHTML = (list || []).map((item: any) => {
+        const device = item.device || item.source || '-';
+        const type = item.type || item.alertType || item.severity || '-';
+        const createdAt = item.createdAt || item.ts || null;
+        return `
+          <tr>
+            <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-gray-900 dark:text-white">${device}</div></td>
+            <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-500 dark:text-gray-400">${type}</div></td>
+            <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-500 dark:text-gray-400">${toTime(createdAt)}</div></td>
+            <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-500 dark:text-gray-400">${toDateLabel(createdAt)}</div></td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    let unsubscribe: (() => void) | null = null;
+
+    (async () => {
+      try {
+        const [{ db }, { collection, query, orderBy, onSnapshot } ] = await Promise.all([
+          import('../../../lib/firebase'),
+          import('firebase/firestore')
+        ]);
+
+        const q = query(collection(db, 'alerts'), orderBy('createdAt', 'desc'));
+        unsubscribe = onSnapshot(q, (snap) => {
+          const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          render(list);
+        }, (err) => {
+          console.warn('Alerts listener failed:', err?.message);
+          render([]);
+        });
+      } catch (e) {
+        render([]);
+      }
+    })();
+
+    window.addEventListener('beforeunload', () => { if (typeof unsubscribe === 'function') unsubscribe(); });
+  });
+</script>
