@@ -1,7 +1,8 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Navigation from './Navigation.astro';
-import ContactForm from '../components/contact/ContactForm.astro';
+import ContactForm from '../components/contact/ContactForm';
+
 import Footer from './Footer.astro';
 ---
 
@@ -114,7 +115,8 @@ import Footer from './Footer.astro';
               <h2 class="text-2xl font-bold text-charcoal dark:text-white mb-6">
                 Send us a Message
               </h2>
-              <ContactForm />
+              <ContactForm client:load />
+
             </div>
           </div>
         </div>
