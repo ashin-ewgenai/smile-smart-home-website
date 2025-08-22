@@ -36,7 +36,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
   return (
     <nav className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+        <div className="flex justify-between h-16 relative">
           <div className="flex items-center">
             <div className="flex-shrink-0">
               <a
@@ -57,7 +57,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               </a>
             </div>
           </div>
-          <div className="hidden md:flex flex-1 justify-center space-x-6">
+          <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center space-x-6 z-10">
               <a 
                 href={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
                 className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
