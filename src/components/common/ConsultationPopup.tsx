@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { auth } from '../../lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 
 const ConsultationPopup = () => {
   const [isVisible, setIsVisible] = useState(false);
@@ -6,18 +8,50 @@ const ConsultationPopup = () => {
   useEffect(() => {
     // Check if popup has already been shown in this session
     const hasPopupShown = sessionStorage.getItem('consultationPopupShown');
-    
-    if (!hasPopupShown) {
-      // Set a timeout to show the popup after 60 seconds
-      const timer = setTimeout(() => {
-        setIsVisible(true);
-        // Mark popup as shown for this session
-        sessionStorage.setItem('consultationPopupShown', 'true');
-      }, 60000); // 60 seconds
-      
-      // Clean up the timeout on component unmount
-      return () => clearTimeout(timer);
-    }
+
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    // Helper to decide showing only for guests
+    const scheduleForGuest = () => {
+      // Determine auth using Firebase and fallback localStorage used elsewhere in the app
+      const isAuthed = !!auth.currentUser || !!(() => {
+        try { return localStorage.getItem('userEmail'); } catch { return null; }
+      })();
+      if (!hasPopupShown && !isAuthed) {
+        // Set a timeout to show the popup after 60 seconds
+        timer = setTimeout(() => {
+          // Double-check auth right before showing
+          const authedNow = !!auth.currentUser || !!(() => {
+            try { return localStorage.getItem('userEmail'); } catch { return null; }
+          })();
+          if (!authedNow) {
+            setIsVisible(true);
+            // Mark popup as shown for this session
+            sessionStorage.setItem('consultationPopupShown', 'true');
+          }
+        }, 60000); // 60 seconds
+      }
+    };
+
+    // Initial schedule decision
+    scheduleForGuest();
+
+    // Listen for auth state changes: if user logs in, ensure popup stays hidden and cancel timer
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        if (timer) clearTimeout(timer);
+        setIsVisible(false);
+      } else {
+        // If user logged out and popup not yet shown this session, consider scheduling
+        if (!hasPopupShown && !timer && !isVisible) scheduleForGuest();
+      }
+    });
+
+    // Clean up the timeout and listener on component unmount
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsub();
+    };
   }, []);
   
   const handleClose = () => {
