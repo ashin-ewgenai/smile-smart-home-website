@@ -1,7 +1,7 @@
 // Firebase client initialization for the Astro app
 // Uses PUBLIC_ env vars so they are exposed to the browser as per Astro conventions.
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -20,5 +20,9 @@ const firebaseConfig = {
 // Initialize only once in the browser
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
+// Keep the user signed in across reloads (no-op on server)
+try {
+  setPersistence(auth, browserLocalPersistence).catch(() => {});
+} catch {}
 export const db = getFirestore(firebaseApp);
 export const storage = getStorage(firebaseApp);
