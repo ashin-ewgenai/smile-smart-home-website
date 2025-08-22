@@ -77,8 +77,15 @@ export default function AuthModal() {
         try {
           localStorage.setItem('userEmail', user.email);
         } catch {}
-        // Redirect based on role
+        // Home modal should always redirect to user dashboard
+        try {
+          const { doc, getDoc } = await import('firebase/firestore');
+          const snap = await getDoc(doc(db, 'users', user.uid));
+          const role = snap.exists() ? (snap.data() as any)?.role : 'user';
+          try { localStorage.setItem('userRole', role); } catch {}
+        } catch {}
         window.location.href = '/dashboard/user';
+        return;
         return;
       }
       // Fallback: close modal if no user object (shouldn't happen when signIn succeeds)

@@ -2,8 +2,15 @@ import React, { useState } from 'react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
+import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
 
-export default function AdminLogin() {
+type Role = 'admin' | 'Super Admin';
+
+interface AdminLoginProps {
+  requiredRole?: Role; // default 'admin'; when 'Super Admin', enforce super admin access
+}
+
+export default function AdminLogin({ requiredRole }: AdminLoginProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -21,18 +28,52 @@ export default function AdminLogin() {
       const userCredential = await signInWithEmailAndPassword(auth, emailTrimmed, passwordTrimmed);
       const user = userCredential.user;
 
-      // Verify admin role in Firestore: users/{uid}.role === 'admin'
+      // Verify role in Firestore: users/{uid}.role
       const userDoc = await getDoc(doc(db, 'users', user.uid));
 
-      if (!userDoc.exists() || userDoc.data()?.role !== 'admin') {
+      const role = userDoc.exists() ? (userDoc.data() as any)?.role : undefined;
+
+      // If a specific role is required (e.g., Super Admin login page), enforce it
+      if (requiredRole) {
+        if (role !== requiredRole) {
+          await signOut(auth);
+          setError(
+            requiredRole === 'Super Admin'
+              ? 'Access denied. This portal is for Super Administrators only.'
+              : 'Access denied. This portal is for administrators only.'
+          );
+          setIsLoading(false);
+          return;
+        }
+      } else {
+        // Single admin login page handling both roles
+        if (role !== 'Super Admin' && role !== 'admin') {
+          await signOut(auth);
+          setError('This ID is invalid for the admin portal.');
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      // Persist simple session metadata
+      try {
+        if (user.email) localStorage.setItem('userEmail', user.email);
+        if (role) localStorage.setItem('userRole', role);
+      } catch {}
+
+      // Redirect based on role
+      const finalRole = role as Role | undefined;
+      if (finalRole === 'Super Admin') {
+        window.location.href = `${SUPER_ADMIN_BASE_PATH}/dashboard`;
+      } else if (finalRole === 'admin') {
+        window.location.href = '/dashboard/admin';
+      } else {
+        // Fallback (should not hit due to checks above)
         await signOut(auth);
-        setError('Access denied. This portal is for administrators only.');
+        setError('This ID is invalid for the admin portal.');
         setIsLoading(false);
         return;
       }
-
-      // Redirect to existing admin dashboard page
-      window.location.href = '/dashboard/admin';
     } catch (err: any) {
       console.error('Admin login error:', err);
       const code = err?.code || '';
