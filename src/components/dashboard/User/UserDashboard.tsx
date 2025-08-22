@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Home, Settings, Bell, Calendar, HelpCircle, Battery, Thermometer, Lock, ShieldCheck, Receipt, Wrench, X, ChevronRight } from 'lucide-react';
+import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, ShieldCheck, Receipt, Wrench, X, ChevronRight } from 'lucide-react';
 import TicketCenter from './TicketCenter';
 import RequestServiceModal from './RequestServiceModal';
 import PaymentHistoryModal from './PaymentHistoryModal';
@@ -69,6 +69,13 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
   }, [helpOpen]);
+
+  // Listen for navbar-triggered Help open event
+  useEffect(() => {
+    const handler = () => setHelpOpen(true);
+    window.addEventListener('open-help', handler as EventListener);
+    return () => window.removeEventListener('open-help', handler as EventListener);
+  }, []);
 
   // Reset success/error banner each time the Request Service modal opens
   useEffect(() => {
@@ -195,15 +202,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome, {actualUserName}</h1>
           <p className="text-gray-600 dark:text-gray-400">Here's what's happening in your smart home</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setHelpOpen(true)}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-teal-600 text-teal-600 hover:bg-teal-50 dark:hover:bg-gray-700"
-          aria-label="Help: Open Support Tickets"
-        >
-          <HelpCircle className="h-4 w-4" />
-          <span className="text-sm font-medium">Help</span>
-        </button>
+        {/* Help button moved to navbar; retained space for layout consistency */}
       </div>
       
       {isLoading ? (

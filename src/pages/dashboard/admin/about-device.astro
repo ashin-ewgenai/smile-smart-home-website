@@ -15,6 +15,8 @@ import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLa
 <script>
   document.addEventListener('DOMContentLoaded', () => {
     const userEmail = localStorage.getItem('userEmail');
-    if (!userEmail) window.location.href = '/login';
+    const userRole = localStorage.getItem('userRole');
+    const isAdmin = userRole === 'admin';
+    if (!userEmail || !isAdmin) window.location.href = '/admin_login';
   });
 </script>

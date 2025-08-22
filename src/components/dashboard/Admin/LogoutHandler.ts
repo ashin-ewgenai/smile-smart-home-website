@@ -14,7 +14,7 @@ export const handleLogout = () => {
           localStorage.removeItem('userEmail');
           localStorage.removeItem('userRole');
           // Redirect to login page
-          window.location.href = '/login';
+          window.location.href = '/admin_login';
         });
     });
   });

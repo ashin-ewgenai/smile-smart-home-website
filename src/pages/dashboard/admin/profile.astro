@@ -15,11 +15,12 @@ import AdminProfile from '../../../components/dashboard/Admin/AdminProfile';
   document.addEventListener('DOMContentLoaded', () => {
     // This is a simple check - in a real app, you would use Firebase Auth or similar
     const userEmail = localStorage.getItem('userEmail');
-    const isAdmin = userEmail === 'admin@smilesmarthome.in';
-    
+    const userRole = localStorage.getItem('userRole');
+    const isAdmin = userRole === 'admin';
+
     if (!userEmail || !isAdmin) {
-      // Redirect to login if not logged in or not an admin
-      window.location.href = '/login';
+      // Redirect to admin login if not logged in or not an admin
+      window.location.href = '/admin_login';
     }
   });
 </script>

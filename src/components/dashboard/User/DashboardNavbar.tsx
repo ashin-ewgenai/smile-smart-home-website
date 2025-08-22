@@ -104,6 +104,22 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
             >
               <Bell className="h-5 w-5" />
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                // Notify dashboard to open Help modal
+                window.dispatchEvent(new CustomEvent('open-help'));
+              }}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-teal-600 text-teal-600 hover:bg-teal-50 dark:hover:bg-gray-700 ml-3"
+              aria-label="Help: Open Support Tickets"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-circle-question-mark h-4 w-4" aria-hidden="true">
+                <circle cx="12" cy="12" r="10"></circle>
+                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                <path d="M12 17h.01"></path>
+              </svg>
+              <span className="text-sm font-medium">Help</span>
+            </button>
             <div className="ml-3 relative">
               <div>
                 <button 

@@ -88,9 +88,10 @@ import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLa
   // Same auth guard pattern as other admin pages
   document.addEventListener('DOMContentLoaded', () => {
     const userEmail = localStorage.getItem('userEmail');
-    const isAdmin = userEmail === 'admin@smilesmarthome.in';
+    const userRole = localStorage.getItem('userRole');
+    const isAdmin = userRole === 'admin';
     if (!userEmail || !isAdmin) {
-      window.location.href = '/login';
+      window.location.href = '/admin_login';
     }
   });
 </script>

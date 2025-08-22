@@ -97,9 +97,9 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 px-4 py-10">
-      <div className="w-full max-w-md rounded-lg border bg-white/80 backdrop-blur-md shadow-sm dark:bg-zinc-900/60 dark:border-zinc-800">
-        <div className="p-6 border-b dark:border-zinc-800 text-center">
+    <div className="w-full flex items-center justify-center px-4 py-10">
+      <div className="w-full max-w-md rounded-xl border border-zinc-200/60 bg-white/95 backdrop-blur shadow-xl dark:bg-zinc-900/90 dark:border-zinc-700/60">
+        <div className="p-6 border-b border-zinc-100/60 dark:border-zinc-800/60 text-center">
           <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-yellow-400/20 flex items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-6 w-6 text-yellow-500"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c0 3-3 5-3 5h6s-3-2-3-5m0-7a4 4 0 00-4 4v1a4 4 0 004 4 4 4 0 004-4V8a4 4 0 00-4-4z"/></svg>
           </div>
@@ -114,7 +114,7 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
           )}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">Email</label>
+              <label htmlFor="email" className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Email</label>
               <input
                 id="email"
                 type="email"
@@ -123,11 +123,11 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
-                className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-yellow-500 dark:bg-zinc-900 dark:border-zinc-800"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">Password</label>
+              <label htmlFor="password" className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Password</label>
               <input
                 id="password"
                 type="password"
@@ -135,13 +135,13 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
-                className="w-full rounded-md border px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-yellow-500 dark:bg-zinc-900 dark:border-zinc-800"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
               />
             </div>
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full inline-flex items-center justify-center rounded-md bg-yellow-400 text-black font-medium py-2 hover:bg-yellow-400/90 disabled:opacity-50"
+              className="w-full inline-flex items-center justify-center rounded-md bg-yellow-400 text-black font-medium py-2.5 shadow-sm hover:bg-yellow-400/90 hover:shadow disabled:opacity-50"
             >
               {isLoading ? (
                 <>

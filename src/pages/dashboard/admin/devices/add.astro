@@ -65,16 +65,18 @@ import { DashboardLayout } from '../../../../components/dashboard/Admin/Dashboar
   // Simple auth guard mirroring admin.astro
   document.addEventListener('DOMContentLoaded', () => {
     const userEmail = localStorage.getItem('userEmail');
-    const isAdmin = userEmail === 'admin@smilesmarthome.in';
+    const userRole = localStorage.getItem('userRole');
+    const isAdmin = userRole === 'admin';
     if (!userEmail || !isAdmin) {
-      window.location.href = '/login';
+      window.location.href = '/admin_login';
       return;
     }
 
-    const form = document.getElementById('add-device-form');
+    const form = document.getElementById('add-device-form') as HTMLFormElement | null;
     form?.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const data = Object.fromEntries(new FormData(form));
+      const formEl = e.currentTarget as HTMLFormElement;
+      const data = Object.fromEntries(new FormData(formEl));
       console.log('Submitting device:', data);
       // TODO: POST to your backend API when available
       // await fetch('/api/devices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });

@@ -1,9 +1,10 @@
 document.addEventListener('DOMContentLoaded', () => {
   // Admin guard
   const userEmail = localStorage.getItem('userEmail');
-  const isAdmin = userEmail === 'admin@smilesmarthome.in';
+  const userRole = localStorage.getItem('userRole');
+  const isAdmin = userRole === 'admin';
   if (!userEmail || !isAdmin) {
-    window.location.href = '/login';
+    window.location.href = '/admin_login';
     return;
   }
 
