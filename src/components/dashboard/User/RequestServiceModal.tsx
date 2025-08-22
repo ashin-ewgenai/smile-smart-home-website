@@ -35,6 +35,7 @@ const RequestServiceModal: React.FC<Props> = ({ open, onClose, deviceOptions }) 
   };
 
   const clearReqFeedback = () => { setReqSuccess(''); setReqError(''); };
+  const touchStartYRef = useRef<number>(0);
 
   useEffect(() => { if (open) clearReqFeedback(); }, [open]);
 
@@ -170,7 +171,29 @@ const RequestServiceModal: React.FC<Props> = ({ open, onClose, deviceOptions }) 
                     {reqTime ? toLabel(reqTime) : 'Select a time'}
                   </button>
                   {timeOpen && (
-                    <div className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 shadow-lg max-h-48 overflow-y-auto">
+                    <div
+                      className="absolute z-10 mt-1 w-full rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700 shadow-lg max-h-48 overflow-y-auto overscroll-contain touch-pan-y"
+                      onWheel={(e) => {
+                        e.stopPropagation();
+                      }}
+                      onTouchStart={(e) => {
+                        if (e.touches && e.touches.length > 0) {
+                          touchStartYRef.current = e.touches[0].clientY;
+                        }
+                      }}
+                      onTouchMove={(e) => {
+                        const el = e.currentTarget as HTMLDivElement;
+                        if (e.touches && e.touches.length > 0) {
+                          const currentY = e.touches[0].clientY;
+                          const deltaY = touchStartYRef.current - currentY; // positive = scroll down
+                          touchStartYRef.current = currentY;
+                          const prev = el.scrollTop;
+                          el.scrollTop += deltaY;
+                          // Stop bubbling so background doesn't scroll
+                          e.stopPropagation();
+                        }
+                      }}
+                    >
                       <ul role="listbox" aria-label="Available times" className="py-1">
                         {timeSlots.map((t) => (
                           <li key={t} role="option" aria-selected={reqTime === t}>

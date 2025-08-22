@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Home, Settings, Bell, Calendar, HelpCircle, Battery, Thermometer, Lock, ShieldCheck, Receipt, Wrench, X, ChevronRight } from 'lucide-react';
 import TicketCenter from './TicketCenter';
 import RequestServiceModal from './RequestServiceModal';
@@ -60,6 +61,14 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
       setActualUserName(name.charAt(0).toUpperCase() + name.slice(1));
     }
   }, []);
+
+  // Lock body scroll when Support Tickets (help) modal is open
+  useEffect(() => {
+    if (!helpOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [helpOpen]);
 
   // Reset success/error banner each time the Request Service modal opens
   useEffect(() => {
@@ -439,7 +448,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     />
     </div>
 
-    {helpOpen && (
+    {helpOpen && createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Support Tickets">
         <div className="relative w-full max-w-6xl">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700">
@@ -454,12 +463,17 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                 <span className="text-sm font-medium">Close</span>
               </button>
             </div>
-            <div className="max-h-[80vh] overflow-auto p-4">
+            <div
+              className="max-h-[80vh] overflow-y-auto overscroll-contain touch-pan-y p-4"
+              onWheel={(e) => { e.stopPropagation(); }}
+              onTouchMove={(e) => { e.stopPropagation(); }}
+            >
               <TicketCenter />
             </div>
           </div>
         </div>
-      </div>
+      </div>,
+      document.body
     )}
 
     <PaymentHistoryModal open={paymentOpen} onClose={() => setPaymentOpen(false)} />

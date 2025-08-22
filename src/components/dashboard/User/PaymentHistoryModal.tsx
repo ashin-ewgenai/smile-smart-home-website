@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface Props {
@@ -30,7 +31,13 @@ const PaymentHistoryModal: React.FC<Props> = ({ open, onClose }) => {
 
   const deviceOptions = useMemo(() => Array.from(new Set(payments.map(p => p.device))), []);
 
-  if (!open) return null;
+  // Lock background/body scroll when modal is open
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
 
   const filtered = payments
     .filter(p => paymentFilter === 'all' ? true : p.plan === paymentFilter)
@@ -52,7 +59,7 @@ const PaymentHistoryModal: React.FC<Props> = ({ open, onClose }) => {
       return dateSort === 'asc' ? da - db : db - da;
     });
 
-  return (
+  return open ? createPortal(
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Payment History">
       <div className="relative w-full max-w-5xl">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700">
@@ -106,7 +113,11 @@ const PaymentHistoryModal: React.FC<Props> = ({ open, onClose }) => {
               )}
             </div>
           </div>
-          <div className="max-h-[70vh] overflow-auto">
+          <div
+            className="max-h-[70vh] overflow-y-auto overscroll-contain touch-pan-y"
+            onWheel={(e) => { e.stopPropagation(); }}
+            onTouchMove={(e) => { e.stopPropagation(); }}
+          >
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
@@ -140,8 +151,9 @@ const PaymentHistoryModal: React.FC<Props> = ({ open, onClose }) => {
           </div>
         </div>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) : null;
 };
 
 export default PaymentHistoryModal;
