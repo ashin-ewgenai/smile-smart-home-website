@@ -12,8 +12,21 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 ---
 
 <!DOCTYPE html>
-<html lang="en" class="scroll-smooth dark">
+<html lang="en" class="scroll-smooth">
   <head>
+    <!-- Prevent theme flash: set dark class before paint based on saved preference or OS -->
+    <script>
+      (function() {
+        try {
+          var saved = localStorage.getItem('theme');
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = saved ? saved === 'dark' : prefersDark;
+          var root = document.documentElement;
+          if (isDark) root.classList.add('dark');
+          else root.classList.remove('dark');
+        } catch (e) {}
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { auth } from '../../lib/firebase';
+import { auth, db } from '../../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 
 function setText(el: Element | null, text: string) {
   if (el) (el as HTMLElement).textContent = text && text.trim() ? text : 'Dashboard';
@@ -58,45 +59,71 @@ export default function AuthNavClient() {
       mLogout: document.querySelector('[data-auth="logout-mobile"]'),
     } as const;
 
-    function updateUI(user: any) {
+    async function resolveRole(user: any): Promise<string | undefined> {
+      // Priority: localStorage -> Firestore -> undefined
+      try {
+        const lsRole = localStorage.getItem('userRole');
+        if (lsRole) return lsRole.toString();
+      } catch {}
+      try {
+        if (user?.uid) {
+          const snap = await getDoc(doc(db, 'users', user.uid));
+          const role = (snap.exists() ? (snap.data() as any)?.role : undefined) as string | undefined;
+          return role;
+        }
+      } catch {}
+      return undefined;
+    }
+
+    async function updateUI(user: any) {
       const isAuthed = !!user;
+      let role: string | undefined;
+      if (isAuthed) role = await resolveRole(user);
+      const normRole = (role || '').toString().toLowerCase();
+      const isUserRole = isAuthed && normRole === 'user';
+
       // Desktop
-      show(els.signIn, !isAuthed);
-      show(els.signUp, !isAuthed);
-      show(els.userText, isAuthed);
-      show(els.userMenu, isAuthed);
-      setText(els.userText, usernameFrom(user));
+      show(els.signIn, !isUserRole);
+      show(els.signUp, !isUserRole);
+      show(els.userText, isUserRole);
+      show(els.userMenu, isUserRole);
+      if (isUserRole) setText(els.userText, usernameFrom(user));
       // Mobile
-      show(els.mSignIn, !isAuthed);
-      show(els.mSignUp, !isAuthed);
-      show(els.mUserBtn, isAuthed);
-      show(els.mLogout, isAuthed);
-      setText(els.mUserBtn, usernameFrom(user));
+      show(els.mSignIn, !isUserRole);
+      show(els.mSignUp, !isUserRole);
+      show(els.mUserBtn, isUserRole);
+      show(els.mLogout, isUserRole);
+      if (isUserRole) setText(els.mUserBtn, usernameFrom(user));
     }
 
     try {
-      updateUI(auth.currentUser);
+      // Initial paint
+      void updateUI(auth.currentUser);
       // Fallback immediate username from localStorage if present
       if (!auth.currentUser) {
         const email = localStorage.getItem('userEmail');
+        const role = (localStorage.getItem('userRole') || '').toString().toLowerCase();
         if (email) {
+          const isUserRole = role === 'user';
           const name = `Hi ${firstFromEmail(email) || 'there'}`;
-          show(els.signIn, false);
-          show(els.signUp, false);
-          show(els.userText, true);
-          show(els.userMenu, true);
-          setText(els.userText, name);
-          show(els.mSignIn, false);
-          show(els.mSignUp, false);
-          show(els.mUserBtn, true);
-          show(els.mLogout, true);
-          setText(els.mUserBtn, name);
+          // Desktop based on role from localStorage
+          show(els.signIn, !isUserRole);
+          show(els.signUp, !isUserRole);
+          show(els.userText, isUserRole);
+          show(els.userMenu, isUserRole);
+          if (isUserRole) setText(els.userText, name);
+          // Mobile
+          show(els.mSignIn, !isUserRole);
+          show(els.mSignUp, !isUserRole);
+          show(els.mUserBtn, isUserRole);
+          show(els.mLogout, isUserRole);
+          if (isUserRole) setText(els.mUserBtn, name);
         }
       }
     } catch {}
 
     const unsub = onAuthStateChanged(auth, (user) => {
-      updateUI(user);
+      void updateUI(user);
       // Close dropdown on sign-out
       if (!user && els.userMenuDropdown) (els.userMenuDropdown as HTMLElement).classList.add('hidden');
     });

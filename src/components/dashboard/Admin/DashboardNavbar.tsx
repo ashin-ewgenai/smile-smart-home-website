@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, User, LogOut, Settings, Bell } from 'lucide-react';
+import { Menu, X, User, LogOut, Settings, Bell, ArrowLeft } from 'lucide-react';
 import { handleLogout } from '../User/LogoutHandler';
 
 interface DashboardNavbarProps {
@@ -38,6 +38,22 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 relative">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() => {
+                try {
+                  if (window.history.length > 1) window.history.back();
+                  else window.location.href = userType === 'admin' ? '/dashboard/admin' : '/dashboard/user';
+                } catch {
+                  window.location.href = userType === 'admin' ? '/dashboard/admin' : '/dashboard/user';
+                }
+              }}
+              aria-label="Go back"
+              title="Go back"
+              className="mr-3 p-2 rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
             <div className="flex-shrink-0">
               <a href="/" className="flex items-center">
                 <span className="text-xl font-bold text-teal-600 dark:text-teal-400">

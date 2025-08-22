@@ -12,6 +12,7 @@ export default function UserEdit({ uid }: Props) {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('user');
+  const [initialRole, setInitialRole] = useState<string>('user');
   const [createdAt, setCreatedAt] = useState<any>(null);
   const [lastLoginAt, setLastLoginAt] = useState<any>(null);
 
@@ -50,7 +51,9 @@ export default function UserEdit({ uid }: Props) {
         const data: any = snap.data();
         setDisplayName(data.displayName || '');
         setEmail(data.email || '');
-        setRole(data.role || 'user');
+        const loadedRole = data.role || 'user';
+        setRole(loadedRole);
+        setInitialRole(loadedRole);
         setCreatedAt(data.createdAt || null);
         setLastLoginAt(data.lastLoginAt || null);
       } catch (e: any) {
@@ -65,6 +68,10 @@ export default function UserEdit({ uid }: Props) {
     setSaving(true);
     setError(null);
     try {
+      // Guard: prevent creating/promoting Super Admin via this page
+      if (role === 'Super Admin' && initialRole !== 'Super Admin') {
+        throw new Error('Changing role to "Super Admin" is not permitted from this page.');
+      }
       const ref = doc(db, 'users', uid);
       await setDoc(ref, { displayName, email, role, lastLoginAt: serverTimestamp() }, { merge: true });
       alert('Saved');
@@ -128,17 +135,31 @@ export default function UserEdit({ uid }: Props) {
         </div>
         <div>
           <label className="block text-sm font-medium">Role</label>
-          <select className="mt-1 w-full rounded-md border px-3 py-2 dark:bg-gray-900 dark:border-gray-700" value={role} onChange={(e)=>setRole(e.target.value)}>
-            <option value="user">user</option>
-            <option value="admin">admin</option>
-            <option value="Super Admin">Super Admin</option>
-          </select>
+          {initialRole === 'Super Admin' ? (
+            <input
+              className="mt-1 w-full rounded-md border px-3 py-2 dark:bg-gray-900 dark:border-gray-700 bg-gray-100 dark:bg-gray-800"
+              value={role}
+              disabled
+              readOnly
+            />
+          ) : (
+            <select
+              className="mt-1 w-full rounded-md border px-3 py-2 dark:bg-gray-900 dark:border-gray-700"
+              value={role}
+              onChange={(e)=>setRole(e.target.value)}
+            >
+              <option value="user">user</option>
+              <option value="admin">admin</option>
+            </select>
+          )}
+          {initialRole === 'Super Admin' && (
+            <p className="mt-1 text-xs text-gray-500">Super Admin role cannot be changed here.</p>
+          )}
         </div>
       </div>
 
       <div className="flex gap-3">
         <button onClick={save} disabled={saving} className="px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50">{saving ? 'Saving…' : 'Save'}</button>
-        <a href="javascript:history.back()" className="px-4 py-2 rounded-md border">Back</a>
       </div>
     </div>
   );
