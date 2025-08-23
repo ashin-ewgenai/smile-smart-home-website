@@ -8,7 +8,7 @@ import { DashboardLayout } from '../../../components/dashboard/User/DashboardLay
     <section class="p-6">
       <div class="mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
-          <h1 class="text-2xl font-semibold text-charcoal dark:text-white">Devices</h1>
+          <h1 class="text-2xl font-semibold text-charcoal dark:text-white">my devices</h1>
           <p class="text-sm text-gray-600 dark:text-gray-400">Informational-only view of your smart devices</p>
         </div>
         <div class="flex flex-wrap items-center gap-3">
@@ -41,6 +41,13 @@ import { DashboardLayout } from '../../../components/dashboard/User/DashboardLay
       <!-- Devices list -->
       <div id="devicesContainer" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
 
+      <!-- Add More Devices -->
+      <div class="mt-10">
+        <h2 class="text-xl font-semibold text-charcoal dark:text-white">Add More Devices</h2>
+        <p class="text-sm text-gray-600 dark:text-gray-400">Explore and add new smart devices available for your home.</p>
+        <div id="availableDevices" class="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"></div>
+      </div>
+
       <!-- Details Modal -->
       <div id="detailsBackdrop" class="hidden fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center">
         <div class="relative w-full max-w-2xl">
@@ -57,7 +64,7 @@ import { DashboardLayout } from '../../../components/dashboard/User/DashboardLay
   </DashboardLayout>
 </Layout>
 
-<script>
+<script type="module">
   // Simple, self-contained devices UI with client-side state
   document.addEventListener('DOMContentLoaded', () => {
     // Auth gate
@@ -90,6 +97,14 @@ import { DashboardLayout } from '../../../components/dashboard/User/DashboardLay
       { id: 'd3', name: 'Bedroom Light', type: 'Smart Bulb', brand: 'BrightLite', room: 'Bedroom', status: 'maintenance', lastSeen: '3 hrs ago', model: 'BL-Color', installedAt: '2024-11-20', fw: '1.0.9', mac: '00:1A:7D:9B:00:03', ip: '192.168.1.45', protocol: 'Zigbee', linked: 'Google Home', serial: 'BL-C-9902', notes: '', support: '#', manual: '#', faq: '#' },
       { id: 'd4', name: 'Kitchen Thermostat', type: 'Thermostat', brand: 'ThermoMax', room: 'Kitchen', status: 'installed', lastSeen: '—', model: 'TX-10', installedAt: '2025-01-05', fw: '3.4.2', mac: '00:1A:7D:9B:00:04', ip: '192.168.1.52', protocol: 'Wi‑Fi', linked: 'IFTTT', serial: 'TX10-A1', notes: 'Schedule @ 7am/7pm', support: '#', manual: '#', faq: '#' },
       { id: 'd5', name: 'Garage Door Sensor', type: 'Sensor', brand: 'SenseIt', room: 'Garage', status: 'pending', lastSeen: '—', model: 'SEN-M', installedAt: '2024-10-01', fw: '0.9.2', mac: '00:1A:7D:9B:00:05', ip: '192.168.1.88', protocol: 'BLE', linked: '-', serial: 'SNS-009', notes: 'Pending pairing', support: '#', manual: '#', faq: '#' },
+    ];
+
+    // Available devices from admin side (not yet installed)
+    let available = [
+      { id: 'a1', name: 'Outdoor Camera', type: 'Camera', model: 'Cam-Outdoor X', desc: 'Weatherproof camera with night vision and motion alerts.' },
+      { id: 'a2', name: 'Smart Plug', type: 'Outlet', model: 'Plug Mini', desc: 'Control any appliance remotely and monitor energy usage.' },
+      { id: 'a3', name: 'Air Quality Sensor', type: 'Sensor', model: 'AQ-200', desc: 'Tracks PM2.5, CO₂ and humidity with realtime alerts.' },
+      { id: 'a4', name: 'Smart Doorbell', type: 'Doorbell', model: 'Ring-X', desc: 'HD video doorbell with two-way audio and motion detection.' }
     ];
 
     const typeIcon = (t) => ({
@@ -170,6 +185,22 @@ import { DashboardLayout } from '../../../components/dashboard/User/DashboardLay
       </div>`;
     }
 
+    function availableCard(d) {
+      return `
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-3 hover:shadow-lg transition-shadow">
+        <div class="flex items-start justify-between">
+          <div>
+            <div class="text-sm font-semibold text-gray-900 dark:text-white">${d.name}</div>
+            <div class="text-xs text-gray-600 dark:text-gray-400">${d.type} • Model: ${d.model}</div>
+          </div>
+        </div>
+        <p class="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">${d.desc}</p>
+        <div class="mt-1 flex items-center gap-2">
+          <button data-action="add" data-id="${d.id}" class="px-3 py-1.5 text-sm rounded-md border border-teal-500 bg-teal-600 text-white hover:bg-teal-700 focus:ring-2 focus:ring-teal-500">Add Device</button>
+        </div>
+      </div>`;
+    }
+
     function matches(d, query, room, type, status) {
       const q = query.trim().toLowerCase();
       const text = `${d.name} ${d.type} ${d.brand} ${d.model} ${d.room}`.toLowerCase();
@@ -204,6 +235,12 @@ import { DashboardLayout } from '../../../components/dashboard/User/DashboardLay
           </div>
         `).join('');
       }
+    }
+
+    function renderAvailable() {
+      const wrap = document.getElementById('availableDevices');
+      if (!wrap) return;
+      wrap.innerHTML = available.map(availableCard).join('');
     }
 
     function openDetails(d) {
@@ -276,8 +313,23 @@ import { DashboardLayout } from '../../../components/dashboard/User/DashboardLay
       }
     });
 
+    // Handle Add Device buttons
+    document.getElementById('availableDevices').addEventListener('click', (e) => {
+      const btn = e.target.closest('button');
+      if (!btn) return;
+      const id = btn.getAttribute('data-id');
+      const d = available.find(x => x.id === id);
+      if (!d) return;
+      // For demo: move from available -> devices as pending
+      available = available.filter(x => x.id !== id);
+      devices.push({ id: `new-${id}`, name: d.name, type: d.type, brand: '-', room: '-', status: 'pending', lastSeen: '—', model: d.model, fw: '-', mac: '-', ip: '-', protocol: '-', linked: '-', serial: '-', notes: d.desc });
+      render();
+      renderAvailable();
+    });
+
     // Init
     populateFilters();
     render();
+    renderAvailable();
   });
 </script>

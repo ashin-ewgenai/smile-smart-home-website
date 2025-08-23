@@ -1,7 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, ShieldCheck, Receipt, Wrench, X, ChevronRight } from 'lucide-react';
-import TicketCenter from './TicketCenter';
+import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, ShieldCheck, Receipt, Wrench, ChevronRight } from 'lucide-react';
 import RequestServiceModal from './RequestServiceModal';
 import PaymentHistoryModal from './PaymentHistoryModal';
 import WarrantyDetailsModal from './WarrantyDetailsModal';
@@ -22,7 +20,6 @@ interface UserDashboardProps {
 const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   // Get actual user name from Firestore or localStorage
   const [actualUserName, setActualUserName] = useState(userName);
-  const [helpOpen, setHelpOpen] = useState(false);
   const [warrantyOpen, setWarrantyOpen] = useState(false);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [serviceRequestOpen, setServiceRequestOpen] = useState(false);
@@ -98,20 +95,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     return () => { cancelled = true; };
   }, []);
 
-  // Lock body scroll when Support Tickets (help) modal is open
-  useEffect(() => {
-    if (!helpOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, [helpOpen]);
-
-  // Listen for navbar-triggered Help open event
-  useEffect(() => {
-    const handler = () => setHelpOpen(true);
-    window.addEventListener('open-help', handler as EventListener);
-    return () => window.removeEventListener('open-help', handler as EventListener);
-  }, []);
+  // Help/TicketCenter modal is now globally managed in DashboardLayout
 
   // Reset success/error banner each time the Request Service modal opens
   useEffect(() => {
@@ -422,20 +406,20 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* My Devices */}
-            <div ref={myDevicesRef} className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 lg:col-span-2">
+            <div ref={myDevicesRef} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 lg:col-span-2 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Devices</h2>
               </div>
-              <div>
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
+              <div className="overflow-x-auto">
+                <table className="min-w-full table-auto divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-slate-100/80 dark:bg-slate-700/80 backdrop-blur supports-backdrop-blur:backdrop-blur sticky top-0 z-10">
                     <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Device Name</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Warranty Start</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Warranty End</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Remaining</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Renewal Date</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Device Name</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Type</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Warranty Start</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Warranty End</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Remaining</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Renewal Date</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -450,7 +434,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                         renewal = end;
                       }
                       return (
-                        <tr key={device.id}>
+                        <tr key={device.id} className="odd:bg-transparent even:bg-gray-50 dark:even:bg-gray-800/60 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900 dark:text-white">{device.name}</div>
                           </td>
@@ -482,34 +466,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
       reqListError={reqListError}
     />
     </div>
-
-    {helpOpen && createPortal(
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Support Tickets">
-        <div className="relative w-full max-w-6xl">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Support Tickets</h2>
-              <button
-                onClick={() => setHelpOpen(false)}
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 transition"
-                aria-label="Close"
-              >
-                <X className="h-4 w-4" />
-                <span className="text-sm font-medium">Close</span>
-              </button>
-            </div>
-            <div
-              className="max-h-[80vh] overflow-y-auto overscroll-contain touch-pan-y p-4"
-              onWheel={(e) => { e.stopPropagation(); }}
-              onTouchMove={(e) => { e.stopPropagation(); }}
-            >
-              <TicketCenter />
-            </div>
-          </div>
-        </div>
-      </div>,
-      document.body
-    )}
+    {/* Support Tickets modal removed here; now rendered globally in DashboardLayout */}
 
     <PaymentHistoryModal open={paymentOpen} onClose={() => setPaymentOpen(false)} />
 
