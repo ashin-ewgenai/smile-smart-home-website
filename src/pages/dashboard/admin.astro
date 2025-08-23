@@ -1,13 +1,10 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { DashboardLayout } from '../../components/dashboard/Admin/DashboardLayout';
-import AdminDashboard from '../../components/dashboard/Admin/AdminDashboard';
+import AdminApp from '../../components/dashboard/Admin/AdminApp';
 ---
 
 <Layout title="Admin Dashboard - Smile Smart Homes">
-  <DashboardLayout userType="admin" userName="Admin" client:load>
-    <AdminDashboard client:load />
-  </DashboardLayout>
+  <AdminApp client:only="react" />
 </Layout>
 
 <script>

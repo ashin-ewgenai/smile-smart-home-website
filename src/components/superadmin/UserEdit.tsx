@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 
@@ -8,6 +10,7 @@ export default function UserEdit({ uid }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -28,6 +31,13 @@ export default function UserEdit({ uid }: Props) {
     } catch {}
     return '—';
   }, [lastLoginAt]);
+
+  // Auto-hide success toast
+  useEffect(() => {
+    if (!saved) return;
+    const t = setTimeout(() => setSaved(false), 2000);
+    return () => clearTimeout(t);
+  }, [saved]);
 
   useEffect(() => {
     try {
@@ -83,7 +93,7 @@ export default function UserEdit({ uid }: Props) {
         },
         { merge: true }
       );
-      alert('Saved');
+      setSaved(true);
     } catch (e: any) {
       setError(e?.message || 'Save failed');
     } finally {
@@ -96,10 +106,22 @@ export default function UserEdit({ uid }: Props) {
 
   return (
     <div className="space-y-6">
-      <div>
+      {/* Top actions and breadcrumb */}
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          to={`${SUPER_ADMIN_BASE_PATH}/users`}
+          className="inline-flex items-center px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-sm"
+        >
+          ← Back to Users
+        </Link>
         <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Edit User</h1>
-        <p className="text-sm text-gray-600 dark:text-gray-400">UID: {uid}</p>
       </div>
+      {saved && (
+        <div className="rounded-md bg-teal-50 border border-teal-200 text-teal-800 dark:bg-teal-900/30 dark:border-teal-800 dark:text-teal-200 px-4 py-2 text-sm">
+          Changes saved
+        </div>
+      )}
+      <p className="text-sm text-gray-600 dark:text-gray-400">UID: {uid}</p>
 
       {/* Details card showing fields as stored in Firestore */}
       <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">

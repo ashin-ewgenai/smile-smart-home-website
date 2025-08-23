@@ -1,26 +1,17 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLayout';
-import AdminProfile from '../../../components/dashboard/Admin/AdminProfile';
+import AdminApp from '../../../components/dashboard/Admin/AdminApp';
 ---
 
 <Layout title="Admin Profile - Smile Smart Homes">
-  <DashboardLayout userType="admin" userName="Admin" client:load>
-    <AdminProfile client:load />
-  </DashboardLayout>
+  <AdminApp client:only="react" />
 </Layout>
 
 <script>
-  // Check if user is logged in and is an admin
   document.addEventListener('DOMContentLoaded', () => {
-    // This is a simple check - in a real app, you would use Firebase Auth or similar
     const userEmail = localStorage.getItem('userEmail');
     const userRole = localStorage.getItem('userRole');
     const isAdmin = userRole === 'admin';
-
-    if (!userEmail || !isAdmin) {
-      // Redirect to admin login if not logged in or not an admin
-      window.location.href = '/admin_login';
-    }
+    if (!userEmail || !isAdmin) window.location.href = '/admin_login';
   });
 </script>

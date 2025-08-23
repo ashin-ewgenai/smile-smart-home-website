@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, User, LogOut, Settings, Bell, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { handleLogout } from '../User/LogoutHandler';
 
 interface DashboardNavbarProps {
@@ -55,53 +56,53 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               <ArrowLeft className="h-5 w-5" />
             </button>
             <div className="flex-shrink-0">
-              <a href="/" className="flex items-center">
+              <Link to="/" className="flex items-center">
                 <span className="text-xl font-bold text-teal-600 dark:text-teal-400">
                   Smile Smart Home
                 </span>
-              </a>
+              </Link>
             </div>
             <div className="hidden">
-              <a 
-                href={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
+              <Link 
+                to={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
                 className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
               >
                 Dashboard
-              </a>
+              </Link>
               {userType === 'admin' ? (
                 <>
-                  <a 
-                    href="/dashboard/admin/users" 
+                  <Link 
+                    to="/dashboard/admin/users" 
                     className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
                   >
                     Manage Users
-                  </a>
-                  <a 
-                    href="/dashboard/admin/settings" 
+                  </Link>
+                  <Link 
+                    to="/dashboard/admin/settings" 
                     className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
                   >
                     Settings
-                  </a>
+                  </Link>
                 </>
               ) : (
-                <a 
-                  href={`/dashboard/${userType}/settings`} 
+                <Link 
+                  to={`/dashboard/${userType}/settings`} 
                   className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
                 >
                   Settings
-                </a>
+                </Link>
               )}
             </div>
           </div>
           <div className="flex items-center">
             {userType === 'admin' ? (
-              <a
-                href="/dashboard/admin/notifications"
+              <Link
+                to="/dashboard/admin/notifications"
                 aria-label="Notifications"
                 className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none"
               >
                 <Bell className="h-5 w-5" />
-              </a>
+              </Link>
             ) : (
               <button
                 type="button"
@@ -160,8 +161,8 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                 <p className="font-medium">{actualUserName}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{userType}</p>
               </div>
-              <a 
-                href={`/dashboard/${userType}/profile`} 
+              <Link 
+                to={`/dashboard/${userType}/profile`} 
                 className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" 
                 role="menuitem"
               >
@@ -169,9 +170,9 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                   <User className="mr-2 h-4 w-4" />
                   Profile
                 </div>
-              </a>
-              <a 
-                href={`/dashboard/${userType}/settings`} 
+              </Link>
+              <Link 
+                to={`/dashboard/${userType}/settings`} 
                 className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" 
                 role="menuitem"
               >
@@ -179,7 +180,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                   <Settings className="mr-2 h-4 w-4" />
                   Settings
                 </div>
-              </a>
+              </Link>
               <button 
                 onClick={handleLogout}
                 className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" 
@@ -203,18 +204,18 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               <p className="font-medium">{actualUserName}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{userType}</p>
             </div>
-            <a 
-              href={`/dashboard/${userType}/profile`} 
+            <Link 
+              to={`/dashboard/${userType}/profile`} 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               Profile
-            </a>
-            <a 
-              href={`/dashboard/${userType}/settings`} 
+            </Link>
+            <Link 
+              to={`/dashboard/${userType}/settings`} 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               Settings
-            </a>
+            </Link>
             <button 
               onClick={handleLogout}
               className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -228,58 +229,58 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
       {isMobileMenuOpen && (
         <div className="md:hidden">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <a 
-              href={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
+            <Link 
+              to={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               Dashboard
-            </a>
+            </Link>
             {userType === 'admin' ? (
               <>
-                <a 
-                  href="/dashboard/admin/users" 
+                <Link 
+                  to="/dashboard/admin/users" 
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Manage Users
-                </a>
-                <a 
-                  href="/dashboard/admin/devices/add" 
+                </Link>
+                <Link 
+                  to="/dashboard/admin/devices/add" 
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Add Device
-                </a>
-                <a 
-                  href="/dashboard/admin/reports" 
+                </Link>
+                <Link 
+                  to="/dashboard/admin/reports" 
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Reports
-                </a>
-                <a 
-                  href="/dashboard/admin/settings" 
+                </Link>
+                <Link 
+                  to="/dashboard/admin/settings" 
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Settings
-                </a>
-                <a 
-                  href="/dashboard/admin/users" 
+                </Link>
+                <Link 
+                  to="/dashboard/admin/users" 
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Customers
-                </a>
-                <a 
-                  href="/dashboard/admin/estimates" 
+                </Link>
+                <Link 
+                  to="/dashboard/admin/estimates" 
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Create Quote
-                </a>
+                </Link>
               </>
             ) : (
-              <a 
-                href={`/dashboard/${userType}/settings`} 
+              <Link 
+                to={`/dashboard/${userType}/settings`} 
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 Settings
-              </a>
+              </Link>
             )}
           </div>
           {/* Account header and links removed on small screens per request */}

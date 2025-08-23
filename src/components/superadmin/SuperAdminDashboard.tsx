@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { collection, getDocs, orderBy, limit, query, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
@@ -111,7 +112,7 @@ export default function SuperAdminDashboard() {
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800">
           <div className="text-sm text-gray-500 dark:text-gray-400">Manage</div>
           <div className="mt-1">
-            <a href={`${SUPER_ADMIN_BASE_PATH}/users`} className="inline-flex items-center px-3 py-1.5 rounded-md bg-teal-600 text-white hover:bg-teal-700 text-sm">Users</a>
+            <Link to={`${SUPER_ADMIN_BASE_PATH}/users`} className="inline-flex items-center px-3 py-1.5 rounded-md bg-teal-600 text-white hover:bg-teal-700 text-sm">Users</Link>
           </div>
         </div>
       </div>

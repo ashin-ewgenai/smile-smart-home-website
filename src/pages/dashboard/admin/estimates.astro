@@ -1,23 +1,17 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLayout';
-import EstimationTool from '../../../components/dashboard/Admin/EstimationTool';
+import AdminApp from '../../../components/dashboard/Admin/AdminApp';
 ---
 
 <Layout title="Create Quote - Admin">
-  <DashboardLayout userType="admin" userName="Admin" client:load>
-    <EstimationTool client:load />
-  </DashboardLayout>
+  <AdminApp client:only="react" />
 </Layout>
 
 <script>
-  // Admin guard
   document.addEventListener('DOMContentLoaded', () => {
     const userEmail = localStorage.getItem('userEmail');
     const userRole = localStorage.getItem('userRole');
     const isAdmin = userRole === 'admin';
-    if (!userEmail || !isAdmin) {
-      window.location.href = '/admin_login';
-    }
+    if (!userEmail || !isAdmin) window.location.href = '/admin_login';
   });
 </script>

@@ -1,3 +1,5 @@
+import { showToast } from '../../../lib/toast';
+
 document.addEventListener('DOMContentLoaded', () => {
   // Admin guard
   const userEmail = localStorage.getItem('userEmail');
@@ -371,7 +373,7 @@ document.addEventListener('DOMContentLoaded', () => {
     list.push(bill);
     saveBills(list);
     closeBillModal();
-    alert('Bill saved.');
+    showToast('Bill saved.', 'success');
   });
 
   cancelBill?.addEventListener('click', closeBillModal);
@@ -398,10 +400,7 @@ document.addEventListener('DOMContentLoaded', () => {
   sendBillBtn?.addEventListener('click', async () => {
     if (!currentDetailsCustomer || !currentBillDevice) return;
     const img = loadBillImage(currentDetailsCustomer.name, currentBillDevice);
-    if (!img) {
-      alert('No bill image found. Please upload an image first.');
-      return;
-    }
+    if (!img) { showToast('No bill image found. Please upload an image first.', 'warn'); return; }
     const blob = dataURLToBlob(img);
     const customerEmail = currentDetailsCustomer.email || '';
     try {
@@ -431,7 +430,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const subject = encodeURIComponent(`Bill for ${currentBillDevice}`);
     const body = encodeURIComponent(`Hi,\n\nPlease find the bill for ${currentBillDevice}.\n\nRegards,\nSmile Smart Home`);
     const mailto = `mailto:${encodeURIComponent(customerEmail)}?subject=${subject}&body=${body}`;
-    window.location.href = mailto;
+    try { window.open(mailto, '_blank'); showToast('Opening email client…', 'info'); } catch { window.location.href = mailto; }
   });
 
   // Note: Removing rows is disabled intentionally (no remove buttons rendered).

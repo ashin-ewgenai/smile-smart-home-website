@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
 import { createUserWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export default function CreateUserModal({ open, onClose }: Props) {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,7 +83,7 @@ export default function CreateUserModal({ open, onClose }: Props) {
       // Ensure guard still passes: keep any existing localStorage role; optionally reassert role
       try { if (!localStorage.getItem('userRole')) localStorage.setItem('userRole', 'Super Admin'); } catch {}
       alert('Account created successfully. Returning to Super Admin dashboard.');
-      window.location.href = `${SUPER_ADMIN_BASE_PATH}/dashboard`;
+      navigate(`${SUPER_ADMIN_BASE_PATH}/dashboard`);
     } catch (err: any) {
       const code = err?.code || '';
       let msg = err?.message || 'Create failed';

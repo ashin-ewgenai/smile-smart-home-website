@@ -1,13 +1,10 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import { DashboardLayout } from '../../../components/dashboard/User/DashboardLayout';
-import UserProfile from '../../../components/dashboard/User/UserProfile';
+import DashboardApp from '../../../components/dashboard/User/DashboardApp';
 ---
 
 <Layout title="User Profile - Smile Smart Homes">
-  <DashboardLayout userType="user" userName="User" client:load>
-    <UserProfile client:load />
-  </DashboardLayout>
+  <DashboardApp client:only="react" />
 </Layout>
 
 <script>

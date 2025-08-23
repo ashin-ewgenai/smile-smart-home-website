@@ -1,5 +1,6 @@
 ---
 import ConsultationPopup from '../components/common/ConsultationPopup';
+import { ViewTransitions } from 'astro:transitions';
 
 export interface Props {
   title: string;
@@ -97,6 +98,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     </script>
   </head>
   <body>
+    <ViewTransitions />
     <slot />
     {(
       !Astro.url.pathname.startsWith('/dashboard') &&

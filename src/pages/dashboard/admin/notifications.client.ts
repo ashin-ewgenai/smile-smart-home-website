@@ -1,4 +1,5 @@
 // Admin guard and notifications logic extracted from notifications.astro
+import { showToast } from '../../../lib/toast';
 
 document.addEventListener('DOMContentLoaded', () => {
   const userEmail = localStorage.getItem('userEmail');
@@ -8,6 +9,8 @@ document.addEventListener('DOMContentLoaded', () => {
     window.location.href = '/admin_login';
     return;
   }
+
+  // Using shared toast utility from src/lib/toast
 
   const rows = document.getElementById('rows');
   const empty = document.getElementById('emptyState');
@@ -200,6 +203,7 @@ document.addEventListener('DOMContentLoaded', () => {
         render(list);
       }, (err) => {
         console.warn('Firestore listener failed:', err instanceof Error ? err.message : String(err));
+        showToast('Realtime updates unavailable. Using local data.', 'warn');
         tryLocal();
       });
 
@@ -216,12 +220,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!id) return;
         try {
           await updateDoc(doc(db, 'service_requests', id), { status: action === 'ack' ? 'ack' : 'done' });
+          showToast(action === 'ack' ? 'Request acknowledged' : 'Request marked done', 'success');
         } catch (err) {
           console.warn('Update failed:', err instanceof Error ? err.message : String(err));
+          showToast('Update failed. Please retry.', 'error');
         }
       });
     } catch (e) {
       // If Firebase isn't configured, fallback to localStorage to avoid breaking the page
+      showToast('Using local data (no Firebase config).', 'warn');
       tryLocal();
     }
   })();
@@ -234,12 +241,14 @@ document.addEventListener('DOMContentLoaded', () => {
           const arr = JSON.parse(raw);
           if (Array.isArray(arr)) {
             render(arr);
+            showToast('Loaded local requests.', 'info');
             return;
           }
         }
       } catch {}
     }
     render([]);
+    showToast('No requests found.', 'info');
   }
 
   // Cleanup on navigation

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link, useLocation, useInRouterContext } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import TicketCenter from './TicketCenter';
 import DashboardNavbar from './DashboardNavbar';
@@ -39,11 +40,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
   }, [helpOpen]);
-  // Compute path only after mount so SSR and first client render match
-  const [currentPath, setCurrentPath] = useState('');
-  useEffect(() => {
-    setCurrentPath(window.location.pathname);
-  }, []);
+  // Support both SPA (with Router) and non-SPA usage
+  const inRouter = useInRouterContext();
+  const location = inRouter ? useLocation() : (null as unknown as ReturnType<typeof useLocation>);
 
   const base = `/dashboard/${userType}`;
   const items = [
@@ -103,25 +102,27 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
     },
   ];
 
-  const LinkItem = ({ href, label, active, title, icon }: { href: string; label: string; active: boolean; title: string; icon: React.ReactNode }) => (
-    <a
-      href={href}
-      title={title}
-      className={
-        `group relative flex items-center ${collapsed ? 'justify-center' : 'justify-start'} gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ` +
-        `${active
-          ? 'text-white bg-gray-800/70 ring-1 ring-emerald-400/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
-          : 'text-gray-300 hover:text-white hover:bg-gray-800/60'} ` +
-        `${collapsed ? 'w-12 mx-auto' : 'w-full pl-2'} `
-      }
-    >
-      {active && (
-        <span aria-hidden className="absolute left-0 top-0 bottom-0 w-0.5 bg-emerald-400/90 shadow-[0_0_10px_2px_rgba(16,185,129,0.55)] rounded-r" />
-      )}
-      <span className="shrink-0 text-gray-400 group-hover:text-white">{icon}</span>
-      {!collapsed && <span className="truncate">{label}</span>}
-    </a>
-  );
+  const LinkItem = ({ href, label, active, title, icon }: { href: string; label: string; active: boolean; title: string; icon: React.ReactNode }) => {
+    const common = `group relative flex items-center ${collapsed ? 'justify-center' : 'justify-start'} gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ` +
+      `${active
+        ? 'text-white bg-gray-800/70 ring-1 ring-emerald-400/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
+        : 'text-gray-300 hover:text-white hover:bg-gray-800/60'} ` +
+      `${collapsed ? 'w-12 mx-auto' : 'w-full pl-2'} `;
+    const children = (
+      <>
+        {active && (
+          <span aria-hidden className="absolute left-0 top-0 bottom-0 w-0.5 bg-emerald-400/90 shadow-[0_0_10px_2px_rgba(16,185,129,0.55)] rounded-r" />
+        )}
+        <span className="shrink-0 text-gray-400 group-hover:text-white">{icon}</span>
+        {!collapsed && <span className="truncate">{label}</span>}
+      </>
+    );
+    return inRouter ? (
+      <Link to={href} title={title} className={common}>{children}</Link>
+    ) : (
+      <a href={href} title={title} className={common}>{children}</a>
+    );
+  };
 
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 pt-16">
@@ -173,13 +174,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
                 label={it.label}
                 title={it.title}
                 // Only mark active after mount to avoid SSR/client mismatch
-                active={
-                  mounted && !!currentPath && (
-                    it.key === 'dashboard'
-                      ? currentPath === it.match // dashboard only on exact base path
-                      : currentPath.startsWith(it.match) // section pages allow nested
-                  )
-                }
+                active={(() => {
+                  if (!mounted) return false;
+                  const path = inRouter ? location?.pathname : window.location.pathname;
+                  if (!path) return false;
+                  return it.key === 'dashboard' ? path === it.match : path.startsWith(it.match);
+                })()}
                 icon={it.icon}
               />
             ))}

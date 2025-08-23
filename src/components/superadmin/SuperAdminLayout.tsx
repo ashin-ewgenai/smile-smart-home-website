@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { handleLogout as adminLogout } from '../dashboard/Admin/LogoutHandler';
 import { ArrowLeft, UserCircle, Sun, Moon } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
@@ -9,6 +10,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 interface Props { children: React.ReactNode; }
 
 export default function SuperAdminLayout({ children }: Props) {
+  const navigate = useNavigate();
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
       const saved = localStorage.getItem('theme');
@@ -113,10 +115,11 @@ export default function SuperAdminLayout({ children }: Props) {
               type="button"
               onClick={() => {
                 try {
-                  if (window.history.length > 1) window.history.back();
-                  else window.location.href = `${SUPER_ADMIN_BASE_PATH}/dashboard`;
+                  // Prefer SPA navigation
+                  if (window.history.length > 1) navigate(-1);
+                  else navigate(`${SUPER_ADMIN_BASE_PATH}/dashboard`);
                 } catch {
-                  window.location.href = `${SUPER_ADMIN_BASE_PATH}/dashboard`;
+                  navigate(`${SUPER_ADMIN_BASE_PATH}/dashboard`);
                 }
               }}
               aria-label="Go back"
@@ -125,7 +128,7 @@ export default function SuperAdminLayout({ children }: Props) {
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <a href={`${SUPER_ADMIN_BASE_PATH}/dashboard`} className="font-semibold">Smile Smart Homes</a>
+            <Link to={`${SUPER_ADMIN_BASE_PATH}/dashboard`} className="font-semibold">Smile Smart Homes</Link>
           </div>
           <nav className="flex items-center gap-2 sm:gap-4 text-sm relative">
             <button
@@ -199,12 +202,12 @@ export default function SuperAdminLayout({ children }: Props) {
                       )}
                       <div className="pt-3 border-t border-gray-200 dark:border-gray-700 mt-2" />
                       <div className="pt-2 flex items-center justify-between gap-2">
-                        <a
-                          href={`${SUPER_ADMIN_BASE_PATH}/user/${encodeURIComponent(auth.currentUser!.uid)}`}
+                        <Link
+                          to={`${SUPER_ADMIN_BASE_PATH}/user/${encodeURIComponent(auth.currentUser!.uid)}`}
                           className="px-3 py-1.5 rounded-md bg-teal-600 text-white hover:bg-teal-700 text-sm"
                         >
                           Edit profile
-                        </a>
+                        </Link>
                         <button
                           onClick={adminLogout}
                           className="px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700 text-sm"

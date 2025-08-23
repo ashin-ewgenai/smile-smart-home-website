@@ -1,15 +1,10 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import { DashboardLayout } from '../../../components/dashboard/User/DashboardLayout';
-import QuoteForm from '../../../components/dashboard/User/QuoteForm';
+import DashboardApp from '../../../components/dashboard/User/DashboardApp';
 ---
 
 <Layout title="Quote Portal - Smile Smart Homes">
-  <DashboardLayout userType="user" userName="User" client:load>
-    <section class="p-6">
-      <QuoteForm client:load />
-    </section>
-  </DashboardLayout>
+  <DashboardApp client:only="react" />
 </Layout>
 
-<!-- Script removed: handled by React component -->
+<!-- Navigation and content handled by React Router SPA -->

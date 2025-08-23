@@ -1,21 +1,18 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLayout';
-import AdminSettings from '../../../components/dashboard/Admin/AdminSettings';
+import AdminApp from '../../../components/dashboard/Admin/AdminApp';
 ---
 
-<Layout title="Admin Settings - Smile Smart Homes">
-  <DashboardLayout userType="admin" userName="Admin" client:load>
-    <AdminSettings client:load />
-  </DashboardLayout>
+<Layout title="Settings (Admin) - Smile Smart Homes">
+  <AdminApp client:only="react" />
 </Layout>
 
 <script>
   // Check if user is logged in and is an admin
   document.addEventListener('DOMContentLoaded', () => {
-    const role = localStorage.getItem('userRole');
-    if (role !== 'admin') {
-      window.location.href = '/admin_login';
-    }
+    const userEmail = localStorage.getItem('userEmail');
+    const userRole = localStorage.getItem('userRole');
+    const isAdmin = userRole === 'admin';
+    if (!userEmail || !isAdmin) window.location.href = '/admin_login';
   });
 </script>

@@ -1,13 +1,10 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import SuperAdminLayout from '../../components/superadmin/SuperAdminLayout';
-import UsersList from '../../components/superadmin/UsersList';
+import SuperAdminApp from '../../components/superadmin/SuperAdminApp';
 ---
 
 <Layout title="Users - Super Admin">
-  <SuperAdminLayout client:load>
-    <UsersList client:load />
-  </SuperAdminLayout>
+  <SuperAdminApp client:only="react" />
 </Layout>
 
 <script>

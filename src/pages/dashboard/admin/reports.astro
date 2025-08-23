@@ -1,97 +1,17 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import { DashboardLayout } from '../../../components/dashboard/Admin/DashboardLayout';
+import AdminApp from '../../../components/dashboard/Admin/AdminApp';
 ---
 
 <Layout title="Reports - Admin Dashboard | Smile Smart Homes">
-  <DashboardLayout userType="admin" userName="Admin" client:load>
-    <div class="mb-6">
-      <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Reports</h1>
-      <p class="text-gray-600 dark:text-gray-400">View and export system and user activity reports.</p>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div class="lg:col-span-2 space-y-6">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 min-h-40 flex flex-col">
-          <div class="flex flex-col sm:flex-row sm:items-end gap-4">
-            <div class="flex-1">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Date Range</label>
-              <div class="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input type="date" class="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500" />
-                <input type="date" class="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500" />
-              </div>
-            </div>
-            <div class="flex gap-2">
-              <button class="px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500">Apply</button>
-              <button class="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Reset</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-          <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Activity Summary</h2>
-            <div class="flex gap-2">
-              <button class="px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Export CSV</button>
-              <button class="px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-700 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Export PDF</button>
-            </div>
-          </div>
-          <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead class="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Metric</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Value</th>
-                  <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Change</th>
-                </tr>
-              </thead>
-              <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                <tr>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">New Users</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">42</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-emerald-500">+8%</td>
-                </tr>
-                <tr>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">Active Devices</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">298</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-emerald-500">+2%</td>
-                </tr>
-                <tr>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">Alerts Triggered</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">17</td>
-                  <td class="px-6 py-4 whitespace-nowrap text-sm text-red-500">-5%</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <div class="space-y-6">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-6 min-h-40 flex flex-col">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white mb-4">Quick Filters</h3>
-          <div class="flex flex-wrap gap-2">
-            <button class="px-3 py-1.5 rounded-full text-sm border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Today</button>
-            <button class="px-3 py-1.5 rounded-full text-sm border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Last 7 Days</button>
-            <button class="px-3 py-1.5 rounded-full text-sm border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Last 30 Days</button>
-            <button class="px-3 py-1.5 rounded-full text-sm border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">This Year</button>
-          </div>
-        </div>
-
-        <!-- Notes card removed per request -->
-      </div>
-    </div>
-  </DashboardLayout>
+  <AdminApp client:only="react" />
 </Layout>
 
 <script>
-  // Same auth guard pattern as other admin pages
   document.addEventListener('DOMContentLoaded', () => {
     const userEmail = localStorage.getItem('userEmail');
     const userRole = localStorage.getItem('userRole');
     const isAdmin = userRole === 'admin';
-    if (!userEmail || !isAdmin) {
-      window.location.href = '/admin_login';
-    }
+    if (!userEmail || !isAdmin) window.location.href = '/admin_login';
   });
 </script>

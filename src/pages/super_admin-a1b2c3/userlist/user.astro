@@ -1,23 +1,11 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import SuperAdminLayout from '../../../components/superadmin/SuperAdminLayout';
-import UserEdit from '../../../components/superadmin/UserEdit';
-
-// Read UID from query string, e.g. /super_admin-a1b2c3/userlist/user?uid=ABC
-const uid = Astro.url.searchParams.get('uid') as string | null;
+import SuperAdminApp from '../../../components/superadmin/SuperAdminApp';
 export const prerender = false;
 ---
 
 <Layout title="Edit User - Super Admin">
-  <SuperAdminLayout client:load>
-    {uid ? (
-      <UserEdit uid={uid} client:load />
-    ) : (
-      <div class="p-6 text-sm text-red-600 dark:text-red-400">
-        Missing user id. Open with ?uid=USER_ID
-      </div>
-    )}
-  </SuperAdminLayout>
+  <SuperAdminApp client:only="react" />
 </Layout>
 
 <script>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { collection, getDocs, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
 import { auth, db, functions } from '../../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -177,12 +178,12 @@ export default function UsersList() {
                         <td className="px-4 py-2">{u.role || 'user'}</td>
                         <td className="px-4 py-2">
                           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <a
-                              href={`${SUPER_ADMIN_BASE_PATH}/userlist/user?uid=${encodeURIComponent(u.uid)}`}
+                            <Link
+                              to={`${SUPER_ADMIN_BASE_PATH}/user/${encodeURIComponent(u.uid)}`}
                               className="inline-flex items-center px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700"
                             >
                               Edit
-                            </a>
+                            </Link>
                             <button
                               onClick={() => openConfirm(u.uid)}
                               disabled={deletingUid === u.uid}
