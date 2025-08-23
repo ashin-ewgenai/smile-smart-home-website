@@ -120,6 +120,11 @@ export default function AuthModal() {
           // Persist a few items
           try { localStorage.setItem('userEmail', user.email); } catch {}
           try { localStorage.setItem('userRole', 'user'); } catch {}
+          // Cache user's name for quick greeting fallback
+          try {
+            const cachedName = (data?.name || data?.displayName || user.displayName || '').toString();
+            if (cachedName) localStorage.setItem('userName', cachedName);
+          } catch {}
           // Redirect to user dashboard
           window.location.href = '/dashboard/user';
           return;
@@ -178,6 +183,8 @@ export default function AuthModal() {
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           email: user.email,
+          // Persist both for compatibility: `name` and `displayName`
+          name: fullName || user.displayName || '',
           displayName: fullName || user.displayName || '',
           role: 'user',
           createdAt: serverTimestamp(),

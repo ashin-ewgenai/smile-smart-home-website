@@ -64,6 +64,11 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
       // Redirect based on role
       const finalRole = role as Role | undefined;
       if (finalRole === 'Super Admin') {
+        // Set a lightweight cookie so server middleware recognizes the session
+        try {
+          const maxAgeSeconds = 60 * 60 * 8; // 8 hours
+          document.cookie = `super_admin_session=1; path=/; max-age=${maxAgeSeconds}; samesite=lax`;
+        } catch {}
         window.location.href = `${SUPER_ADMIN_BASE_PATH}/dashboard`;
       } else if (finalRole === 'admin') {
         window.location.href = '/dashboard/admin';

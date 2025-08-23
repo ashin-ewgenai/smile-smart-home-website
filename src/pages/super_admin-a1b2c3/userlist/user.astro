@@ -3,14 +3,20 @@ import Layout from '../../../layouts/Layout.astro';
 import SuperAdminLayout from '../../../components/superadmin/SuperAdminLayout';
 import UserEdit from '../../../components/superadmin/UserEdit';
 
-// Type assert to satisfy TS: Astro.params values may be undefined at type-level
-const { uid } = Astro.params as { uid: string };
+// Read UID from query string, e.g. /super_admin-a1b2c3/userlist/user?uid=ABC
+const uid = Astro.url.searchParams.get('uid') as string | null;
 export const prerender = false;
 ---
 
 <Layout title="Edit User - Super Admin">
   <SuperAdminLayout client:load>
-    <UserEdit uid={uid} client:load />
+    {uid ? (
+      <UserEdit uid={uid} client:load />
+    ) : (
+      <div class="p-6 text-sm text-red-600 dark:text-red-400">
+        Missing user id. Open with ?uid=USER_ID
+      </div>
+    )}
   </SuperAdminLayout>
 </Layout>
 

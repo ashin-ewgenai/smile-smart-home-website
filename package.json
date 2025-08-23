@@ -3,11 +3,18 @@
   "type": "module",
   "version": "0.0.1",
   "private": true,
+  "workspaces": [
+    "functions"
+  ],
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
+    "start": "node ./dist/server/entry.mjs",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "functions:serve": "npm run -w functions serve",
+    "functions:deploy": "npm run -w functions deploy",
+    "functions:logs": "npm run -w functions logs"
   },
   "dependencies": {
     "@astrojs/react": "^4.3.0",
@@ -23,5 +30,8 @@
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tailwindcss": "^3.4.3"
+  },
+  "devDependencies": {
+    "@astrojs/node": "^9.0.0"
   }
 }

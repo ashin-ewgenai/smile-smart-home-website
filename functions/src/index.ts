@@ -179,3 +179,61 @@ export const superAdminListUserIds = onCall(async (request) => {
     throw new HttpsError("internal", err?.message || "List failed");
   }
 });
+
+// Callable: Update a user's Auth record (email/displayName) and Firestore doc
+// request.data: { uid: string, email?: string, displayName?: string }
+export const superAdminUpdateUser = onCall(async (request) => {
+  const authCtx = request.auth;
+  if (!authCtx) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const uid = request.data?.uid as string | undefined;
+  const email = request.data?.email as string | undefined;
+  const displayName = request.data?.displayName as string | undefined;
+  if (!uid || typeof uid !== "string") {
+    throw new HttpsError("invalid-argument", "uid is required");
+  }
+
+  await assertSuperAdmin(authCtx.uid);
+
+  try {
+    // Load target to check role (to avoid modifying Super Admin accounts silently)
+    const targetRef = db.collection("users").doc(uid);
+    const targetSnap = await targetRef.get();
+    const targetRole = targetSnap.exists ? (targetSnap.data()?.role as string | undefined) : undefined;
+    if (targetRole === "Super Admin") {
+      throw new HttpsError("failed-precondition", "Cannot modify Super Admin via this endpoint.");
+    }
+
+    // Build update payload for Auth
+    const update: { email?: string; displayName?: string } = {};
+    if (typeof email === "string" && email.trim()) update.email = email.trim();
+    if (typeof displayName === "string") update.displayName = displayName || null as unknown as string; // allow empty to clear
+
+    if (Object.keys(update).length > 0) {
+      await adminAuth.updateUser(uid, update);
+    }
+
+    // Sync Firestore fields to keep consistent
+    const fsUpdate: Record<string, unknown> = {};
+    if (typeof email === "string" && email.trim()) fsUpdate.email = email.trim();
+    if (typeof displayName === "string") {
+      fsUpdate.displayName = displayName || "";
+      fsUpdate.name = displayName || ""; // keep `name` in sync for UI greeting
+    }
+    if (Object.keys(fsUpdate).length > 0) {
+      await targetRef.set(fsUpdate, { merge: true });
+    }
+
+    return { status: "ok" };
+  } catch (e) {
+    const err = e as { message?: string; code?: string };
+    // Map common Auth errors to https error
+    if ((err.code || "").includes("auth/")) {
+      throw new HttpsError("failed-precondition", err.message || "Auth update failed");
+    }
+    throw new HttpsError("internal", err?.message || "Update failed");
+  }
+});
+

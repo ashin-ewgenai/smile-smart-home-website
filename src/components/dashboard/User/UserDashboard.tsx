@@ -7,7 +7,7 @@ import PaymentHistoryModal from './PaymentHistoryModal';
 import WarrantyDetailsModal from './WarrantyDetailsModal';
 import RequestStatusModal from './RequestStatusModal';
 import { db, auth } from '../../../lib/firebase';
-import { addDoc, collection, serverTimestamp, getDocs, query, where, orderBy, limit } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, getDocs, query, where, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 
 interface DeviceStats {
   totalDevices: number;
@@ -20,7 +20,7 @@ interface UserDashboardProps {
 }
 
 const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
-  // Get actual user name from localStorage
+  // Get actual user name from Firestore or localStorage
   const [actualUserName, setActualUserName] = useState(userName);
   const [helpOpen, setHelpOpen] = useState(false);
   const [warrantyOpen, setWarrantyOpen] = useState(false);
@@ -51,15 +51,51 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     setReqSuccess('');
     setReqError('');
   };
-  
+
   useEffect(() => {
-    const email = localStorage.getItem('userEmail');
-    if (email) {
-      // Extract name from email (simple approach)
-      const name = email.split('@')[0];
-      // Capitalize first letter
-      setActualUserName(name.charAt(0).toUpperCase() + name.slice(1));
+    let cancelled = false;
+    async function loadUserName() {
+      try {
+        const user = auth.currentUser;
+        // Prefer Firestore users/{uid}.name, then auth.displayName, then localStorage fallback, then email local-part
+        if (user?.uid) {
+          try {
+            const snap = await getDoc(doc(db, 'users', user.uid));
+            const name = (snap.exists() ? (snap.data() as any)?.name : undefined) as string | undefined;
+            const display = (name && name.trim()) || user.displayName || localStorage.getItem('userName') || '';
+            if (!cancelled) {
+              if (display && display.trim()) {
+                setActualUserName(display.trim());
+                return;
+              }
+              const email = user.email || localStorage.getItem('userEmail') || '';
+              const local = (email.split('@')[0] || '').trim();
+              const fallback = local ? local.charAt(0).toUpperCase() + local.slice(1) : 'there';
+              setActualUserName(fallback);
+            }
+          } catch {
+            // Firestore failed; try displayName/email/localStorage
+            if (!cancelled) {
+              const display = user.displayName || localStorage.getItem('userName') || '';
+              if (display) {
+                setActualUserName(display);
+                return;
+              }
+              const email = user.email || localStorage.getItem('userEmail') || '';
+              const local = (email.split('@')[0] || '').trim();
+              const fallback = local ? local.charAt(0).toUpperCase() + local.slice(1) : 'there';
+              setActualUserName(fallback);
+            }
+          }
+        } else {
+          // Not signed in yet; attempt localStorage cached name
+          const cached = localStorage.getItem('userName');
+          if (!cancelled && cached) setActualUserName(cached);
+        }
+      } catch {}
     }
+    void loadUserName();
+    return () => { cancelled = true; };
   }, []);
 
   // Lock body scroll when Support Tickets (help) modal is open
