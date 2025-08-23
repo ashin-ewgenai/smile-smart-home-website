@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db, functions } from '../../lib/firebase';
-import { httpsCallable } from 'firebase/functions';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 interface Props { uid: string; }
 
@@ -73,19 +72,17 @@ export default function UserEdit({ uid }: Props) {
       if (role === 'Super Admin' && initialRole !== 'Super Admin') {
         throw new Error('Changing role to "Super Admin" is not permitted from this page.');
       }
-      // 1) Update Auth email/displayName via callable (also syncs Firestore name/displayName/email)
-      try {
-        const updateUser = httpsCallable(functions, 'superAdminUpdateUser');
-        await updateUser({ uid, email, displayName });
-      } catch (e: any) {
-        // Surface meaningful error
-        const msg = e?.message || 'Failed to update authentication profile';
-        throw new Error(msg);
-      }
-
-      // 2) Merge remaining Firestore-only fields (role, lastLoginAt)
+      // Update Firestore user document directly (no Auth updates)
       const ref = doc(db, 'users', uid);
-      await setDoc(ref, { role, lastLoginAt: serverTimestamp() }, { merge: true });
+      await setDoc(
+        ref,
+        {
+          displayName: displayName || '',
+          email: email || '',
+          role,
+        },
+        { merge: true }
+      );
       alert('Saved');
     } catch (e: any) {
       setError(e?.message || 'Save failed');

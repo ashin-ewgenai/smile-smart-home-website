@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, increment } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
 
@@ -59,6 +59,14 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
       try {
         if (user.email) localStorage.setItem('userEmail', user.email);
         if (role) localStorage.setItem('userRole', role);
+      } catch {}
+
+      // Update login metadata in Firestore
+      try {
+        await setDoc(doc(db, 'users', user.uid), {
+          lastLoginAt: serverTimestamp(),
+          loginCount: increment(1),
+        }, { merge: true });
       } catch {}
 
       // Redirect based on role
