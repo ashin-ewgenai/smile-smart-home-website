@@ -1,4 +1,4 @@
-import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {onCall, HttpsError, CallableRequest} from "firebase-functions/v2/https";
 import {setGlobalOptions} from "firebase-functions/v2/options";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
@@ -6,6 +6,92 @@ import {getFirestore} from "firebase-admin/firestore";
 
 // Configure global options (tune as needed)
 setGlobalOptions({maxInstances: 10});
+
+// Callable: Fetch basic product preview metadata (avoids iframe embedding issues)
+// request.data: { url: string }
+export const fetchProductPreview = onCall(async (request: CallableRequest) => {
+  const authCtx = request.auth;
+  if (!authCtx) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const url = (request.data?.url as string | undefined)?.trim();
+  if (!url) throw new HttpsError("invalid-argument", "url is required");
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    throw new HttpsError("invalid-argument", "Invalid URL");
+  }
+  // Restrict to well-known shopping domains to reduce SSRF risk
+  if (!(/amazon\./i.test(u.hostname) || /flipkart\./i.test(u.hostname))) {
+    throw new HttpsError("permission-denied", "Domain not allowed");
+  }
+
+  try {
+    const resp = await fetch(url, {
+      method: "GET",
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+      },
+    } as RequestInit);
+    if (!resp.ok) {
+      throw new HttpsError("unavailable", `Fetch failed: ${resp.status}`);
+    }
+    const html = await resp.text();
+
+    // Minimal meta extraction without external deps
+    const getMeta = (name: string) => {
+      const re = new RegExp(`<meta[^>]+(?:property|name)=[\"']${name}[\"'][^>]*content=[\"']([^\"']+)[\"'][^>]*>`, "i");
+      const m = html.match(re);
+      return m?.[1] ?? null;
+    };
+
+    // Try OpenGraph first
+    const ogTitle = getMeta("og:title") || getMeta("twitter:title");
+    const ogImage = getMeta("og:image") || getMeta("twitter:image");
+    const ogUrl = getMeta("og:url");
+    const ogDesc = getMeta("og:description") || getMeta("description");
+
+    // Try to parse JSON-LD for price/rating (best-effort)
+    let price: string | null = null;
+    let rating: string | null = null;
+    try {
+      const ldMatch = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
+      if (ldMatch) {
+        const json = JSON.parse(ldMatch[1].trim());
+        const obj = Array.isArray(json) ? json.find((x) => x && typeof x === 'object') : json;
+        const offers = obj?.offers || (obj?.["@graph"]?.find((x: any) => x.offers)?.offers);
+        if (offers) {
+          const priceVal = offers.price || offers[0]?.price;
+          const currency = offers.priceCurrency || offers[0]?.priceCurrency || '';
+          if (priceVal) price = currency ? `${currency} ${priceVal}` : String(priceVal);
+        }
+        const agg = obj?.aggregateRating || (obj?.["@graph"]?.find((x: any) => x.aggregateRating)?.aggregateRating);
+        if (agg?.ratingValue) {
+          rating = String(agg.ratingValue);
+        }
+      }
+    } catch {}
+
+    const site = /amazon\./i.test(u.hostname) ? "Amazon" : (/flipkart\./i.test(u.hostname) ? "Flipkart" : u.hostname);
+
+    return {
+      url,
+      site,
+      title: ogTitle,
+      image: ogImage,
+      description: ogDesc,
+      price,
+      rating,
+      canonical: ogUrl,
+    };
+  } catch (e) {
+    const err = e as { message?: string };
+    throw new HttpsError("internal", err?.message || "Preview fetch failed");
+  }
+});
 
 // Initialize Admin SDK once
 if (!getApps().length) {
