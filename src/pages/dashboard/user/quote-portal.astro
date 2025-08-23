@@ -1,6 +1,7 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
 import { DashboardLayout } from '../../../components/dashboard/User/DashboardLayout';
+import QuoteForm from '../../../components/dashboard/User/QuoteForm';
 ---
 
 <Layout title="Quote Portal - Smile Smart Homes">
@@ -9,70 +10,9 @@ import { DashboardLayout } from '../../../components/dashboard/User/DashboardLay
       <h1 class="text-2xl font-semibold text-charcoal dark:text-white mb-2">Quote Portal</h1>
       <p class="text-gray-700 dark:text-gray-300 mb-6">Fill the form to request a quote.</p>
 
-      <form id="quote-form" class="space-y-4 max-w-xl">
-        <div>
-          <label for="location" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Your Location</label>
-          <input id="location" type="text" required placeholder="e.g., Chennai" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal" />
-        </div>
-
-        <div>
-          <label for="sqft" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Write your sqft?</label>
-          <input id="sqft" type="number" min="1" step="1" required placeholder="e.g., 1200" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal" />
-        </div>
-
-        <div>
-          <label for="locationType" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Where do you want to automate?</label>
-          <select id="locationType" required class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal">
-            <option value="" disabled selected>Select a location</option>
-            <!-- options will be populated automatically by script -->
-          </select>
-        </div>
-
-        <div>
-          <label for="details" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Details</label>
-          <textarea id="details" rows="4" placeholder="Describe your requirement" class="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal"></textarea>
-        </div>
-
-        <button type="submit" class="btn-primary" id="submit-quote">Submit Request</button>
-        <p id="quote-success" class="text-green-600 mt-2 hidden">Request submitted! We'll get back to you shortly.</p>
-      </form>
+      <QuoteForm client:load />
     </section>
   </DashboardLayout>
 </Layout>
 
-<script>
-  document.addEventListener('DOMContentLoaded', () => {
-    const userEmail = localStorage.getItem('userEmail');
-    if (!userEmail) window.location.href = '/login';
-
-    // Populate dropdown automatically
-    const options = ['Hall', 'Room', 'House', 'Office', 'Garden', 'Other'];
-    const select = document.getElementById('locationType');
-    if (select) {
-      options.forEach((label) => {
-        const opt = document.createElement('option');
-        opt.value = label.toLowerCase();
-        opt.textContent = label;
-        select.appendChild(opt);
-      });
-    }
-
-    // Simple submit handler
-    const form = document.getElementById('quote-form');
-    const successEl = document.getElementById('quote-success');
-    form?.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const location = (document.getElementById('location') as HTMLInputElement | null)?.value ?? '';
-      const sqft = (document.getElementById('sqft') as HTMLInputElement | null)?.value ?? '';
-      const loc = (document.getElementById('locationType') as HTMLSelectElement | null)?.value ?? '';
-      const details = (document.getElementById('details') as HTMLTextAreaElement | null)?.value ?? '';
-
-      console.log('Quote request:', { locationText: location, sqft, area: loc, details });
-      if (successEl) {
-        successEl.classList.remove('hidden');
-        setTimeout(() => successEl.classList.add('hidden'), 2500);
-      }
-      (form as HTMLFormElement).reset();
-    });
-  });
-</script>
+<!-- Script removed: handled by React component -->

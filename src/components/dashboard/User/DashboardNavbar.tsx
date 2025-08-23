@@ -34,7 +34,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
 
 
   return (
-    <nav className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+    <nav className="fixed top-0 inset-x-0 z-50 w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 relative">
           <div className="flex items-center">
@@ -50,7 +50,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               }}
               aria-label="Go back"
               title="Go back"
-              className="mr-3 p-2 rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+              className="mr-3 p-2 rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 md:hidden"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
@@ -73,46 +73,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               </a>
             </div>
           </div>
-          <div className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 items-center space-x-6 z-10">
-              <a 
-                href={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
-                className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                Dashboard
-              </a>
-              {userType === 'admin' && (
-                <a 
-                  href="/dashboard/admin/users" 
-                  className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  Manage Users
-                </a>
-              )}
-              <a 
-                href={`/dashboard/${userType}/settings`} 
-                className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                Settings
-              </a>
-              <a
-                href={`/dashboard/${userType}/quote-portal`}
-                className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                Quote Portal
-              </a>
-              <a
-                href={`/dashboard/${userType}/about-device`}
-                className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                About Device
-              </a>
-              <a
-                href={`/dashboard/${userType}/bill`}
-                className="px-3 py-2 text-sm font-medium text-gray-900 dark:text-white rounded-md hover:bg-gray-100 dark:hover:bg-gray-800"
-              >
-                Bill
-              </a>
-          </div>
+          {/* Centered desktop nav removed; sidebar will handle navigation */}
           <div className="flex items-center">
             <button 
               type="button" 
