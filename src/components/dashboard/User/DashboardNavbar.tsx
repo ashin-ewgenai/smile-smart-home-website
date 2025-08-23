@@ -75,19 +75,13 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
           </div>
           {/* Centered desktop nav removed; sidebar will handle navigation */}
           <div className="flex items-center">
-            <button 
-              type="button" 
-              className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none"
-            >
-              <Bell className="h-5 w-5" />
-            </button>
             <button
               type="button"
               onClick={() => {
                 // Notify dashboard to open Help modal
                 window.dispatchEvent(new CustomEvent('open-help'));
               }}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-teal-600 text-teal-600 hover:bg-teal-50 dark:hover:bg-gray-700 ml-3"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-teal-600 text-teal-600 hover:bg-teal-50 dark:hover:bg-gray-700"
               aria-label="Help: Open Support Tickets"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-circle-question-mark h-4 w-4" aria-hidden="true">
@@ -96,6 +90,12 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                 <path d="M12 17h.01"></path>
               </svg>
               <span className="text-sm font-medium">Help</span>
+            </button>
+            <button 
+              type="button" 
+              className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none ml-3"
+            >
+              <Bell className="h-5 w-5" />
             </button>
             <div className="ml-3 relative">
               <div>
