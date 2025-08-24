@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, User, LogOut, Settings, Bell, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { handleLogout } from '../User/LogoutHandler';
+import { handleLogout } from './LogoutHandler';
 
 interface DashboardNavbarProps {
   userType: 'admin' | 'user';

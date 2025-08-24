@@ -27,4 +27,5 @@ try {
 } catch {}
 export const db = getFirestore(firebaseApp);
 export const storage = getStorage(firebaseApp);
-export const functions = getFunctions(firebaseApp);
+// Explicit region to match deployed Cloud Functions
+export const functions = getFunctions(firebaseApp, 'us-central1');

@@ -65,6 +65,10 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
       try {
         await setDoc(doc(db, 'users', user.uid), {
           lastLoginAt: serverTimestamp(),
+          // Human-readable client-side timestamp for convenience (ISO)
+          lastLoginAtText: new Date().toISOString(),
+          // Lightweight client info for auditing
+          lastLoginUserAgent: (typeof navigator !== 'undefined' ? navigator.userAgent : ''),
           loginCount: increment(1),
         }, { merge: true });
       } catch {}

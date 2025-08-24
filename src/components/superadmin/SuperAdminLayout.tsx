@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { handleLogout as adminLogout } from '../dashboard/Admin/LogoutHandler';
-import { ArrowLeft, UserCircle, Sun, Moon } from 'lucide-react';
+import { UserCircle, Sun, Moon } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
 import { doc, getDoc } from 'firebase/firestore';
@@ -10,7 +10,9 @@ import { onAuthStateChanged } from 'firebase/auth';
 interface Props { children: React.ReactNode; }
 
 export default function SuperAdminLayout({ children }: Props) {
-  const navigate = useNavigate();
+  const location = useLocation();
+  const [viewRole, setViewRole] = useState<string | null>(null);
+  const [viewRoleLoading, setViewRoleLoading] = useState<boolean>(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
       const saved = localStorage.getItem('theme');
@@ -85,6 +87,33 @@ export default function SuperAdminLayout({ children }: Props) {
     };
   }, [profileOpen]);
 
+  // Load role for the user being viewed so we can show Admin/User Details in navbar
+  useEffect(() => {
+    const { pathname } = location;
+    const base = SUPER_ADMIN_BASE_PATH;
+    const prefix = `${base}/user/`;
+    if (pathname.startsWith(prefix)) {
+      const uid = pathname.slice(prefix.length);
+      if (!uid) { setViewRole(null); setViewRoleLoading(false); return; }
+      (async () => {
+        try {
+          setViewRoleLoading(true);
+          const ref = doc(db, 'users', uid);
+          const snap = await getDoc(ref);
+          const role = (snap.data() as any)?.role || null;
+          setViewRole(role);
+        } catch {
+          setViewRole(null);
+        } finally {
+          setViewRoleLoading(false);
+        }
+      })();
+    } else {
+      setViewRole(null);
+      setViewRoleLoading(false);
+    }
+  }, [location]);
+
   async function openProfileDropdown() {
     if (!auth?.currentUser?.uid) return;
     setProfileOpen((o) => {
@@ -107,27 +136,41 @@ export default function SuperAdminLayout({ children }: Props) {
     }
   }
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
-      <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-x-hidden">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between relative">
+          {/* Centered dynamic title */}
+          {(() => {
+            const { pathname } = location;
+            const title = (() => {
+              if (
+                pathname.startsWith(`${SUPER_ADMIN_BASE_PATH}/user/`) ||
+                pathname.startsWith(`${SUPER_ADMIN_BASE_PATH}/userlist/user`)
+              ) {
+                if (viewRoleLoading) return '';
+                return (String(viewRole || '').toLowerCase() === 'admin') ? 'Admin Details' : 'User Details';
+              }
+              if (pathname === `${SUPER_ADMIN_BASE_PATH}/users`) {
+                const seg = new URLSearchParams(location.search).get('seg');
+                const s = String(seg).toLowerCase();
+                if (s === 'admins') return 'Admins';
+                if (s === 'users') return 'Users';
+                if (s === 'peak') return 'Peak Weekly Signups';
+                if (s === 'lastweek') return 'Last Week Signups';
+                if (s === 'admins24h') return 'Recent Admins (24h)';
+                if (s === 'users24h') return 'Recent Users (24h)';
+                return 'All Members';
+              }
+              if (pathname === `${SUPER_ADMIN_BASE_PATH}/dashboard`) return 'Dashboard';
+              return '';
+            })();
+            return title ? (
+              <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
+                <span className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white">{title}</span>
+              </div>
+            ) : null;
+          })()}
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                try {
-                  // Prefer SPA navigation
-                  if (window.history.length > 1) navigate(-1);
-                  else navigate(`${SUPER_ADMIN_BASE_PATH}/dashboard`);
-                } catch {
-                  navigate(`${SUPER_ADMIN_BASE_PATH}/dashboard`);
-                }
-              }}
-              aria-label="Go back"
-              title="Go back"
-              className="p-2 rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
             <Link to={`${SUPER_ADMIN_BASE_PATH}/dashboard`} className="font-semibold">Smile Smart Homes</Link>
           </div>
           <nav className="flex items-center gap-2 sm:gap-4 text-sm relative">
@@ -229,7 +272,7 @@ export default function SuperAdminLayout({ children }: Props) {
           </nav>
         </div>
       </header>
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-6 overflow-y-auto">
         {children}
       </main>
     </div>
