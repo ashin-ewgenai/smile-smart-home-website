@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 // Firebase
 import { auth, db, storage } from '../../../lib/firebase';
-import { collection, addDoc, serverTimestamp, query, where, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -75,7 +75,7 @@ const TicketCenter: React.FC = () => {
     }
   };
 
-  // Fetch existing tickets for the user
+  // Fetch existing tickets for the user from tickets/{uid}/ticket subcollection
   useEffect(() => {
     setFetchError('');
     setLoading(true);
@@ -86,12 +86,8 @@ const TicketCenter: React.FC = () => {
       return;
     }
 
-    const ticketsCol = collection(db, 'tickets');
-    const q = query(
-      ticketsCol,
-      where('userUid', '==', userUid),
-      orderBy('createdAt', 'desc')
-    );
+    const ticketsCol = collection(db, 'supportTickets', userUid, 'ticket');
+    const q = query(ticketsCol, orderBy('createdAt', 'desc'));
 
     const unsub = onSnapshot(
       q,
@@ -143,18 +139,17 @@ const TicketCenter: React.FC = () => {
       // Optional image upload to Firebase Storage
       let uploadedImageUrl: string | undefined;
       if (imageFile) {
-        const path = `tickets/${userUid}/${Date.now()}_${imageFile.name}`;
+        const path = `supportTickets/${userUid}/${Date.now()}_${imageFile.name}`;
         const ref = storageRef(storage, path);
         await uploadBytes(ref, imageFile);
         uploadedImageUrl = await getDownloadURL(ref);
       }
 
       // Create the ticket document in Firestore
-      await addDoc(collection(db, 'tickets'), {
+      await addDoc(collection(db, 'supportTickets', userUid, 'ticket'), {
         subject: subject.trim(),
         category,
         description: description.trim(),
-        userUid,
         status: 'Pending',
         createdAt: serverTimestamp(),
         imageUrl: uploadedImageUrl || null,

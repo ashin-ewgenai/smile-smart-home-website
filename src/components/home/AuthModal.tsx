@@ -6,7 +6,7 @@ import {
   updateProfile,
   signOut,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp, increment, getDocs, collection, where, limit, query } from 'firebase/firestore';
 
 type View = 'login' | 'register' | null;
 
@@ -111,9 +111,19 @@ export default function AuthModal() {
         const role = (data?.role || '').toString().toLowerCase();
 
         if (role === 'user') {
-          // Update lastLoginAt only (do not create new docs here)
+          // Update lastLoginAt and metadata (do not create new docs here)
           try {
-            await setDoc(userRef, { lastLoginAt: serverTimestamp() }, { merge: true });
+            await setDoc(
+              userRef,
+              {
+                lastLoginAt: serverTimestamp(),
+                lastLoginAtText: new Date().toISOString(),
+                loginCount: increment(1),
+                status: 'online',
+                statusUpdatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            );
           } catch (e) {
             console.warn('lastLoginAt update failed:', (e as any)?.message);
           }
@@ -122,7 +132,7 @@ export default function AuthModal() {
           try { localStorage.setItem('userRole', 'user'); } catch {}
           // Cache user's name for quick greeting fallback
           try {
-            const cachedName = (data?.name || data?.displayName || user.displayName || '').toString();
+            const cachedName = (data?.fullName || data?.displayName || data?.name || user.displayName || '').toString();
             if (cachedName) localStorage.setItem('userName', cachedName);
           } catch {}
           // Redirect to user dashboard
@@ -180,15 +190,28 @@ export default function AuthModal() {
       // Create user profile document in Firestore
       try {
         const user = cred.user;
+        // lookup consultationId from contactmessages by email
+        let consultationId: string | null = null;
+        try {
+          if (user.email) {
+            const q = query(collection(db, 'contactmessages'), where('email', '==', user.email), limit(1));
+            const res = await getDocs(q);
+            if (!res.empty) consultationId = res.docs[0].id;
+          }
+        } catch {}
+
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           email: user.email,
-          // Persist both for compatibility: `name` and `displayName`
-          name: fullName || user.displayName || '',
-          displayName: fullName || user.displayName || '',
+          fullName: fullName || user.displayName || '',
           role: 'user',
           createdAt: serverTimestamp(),
           lastLoginAt: null,
+          lastLoginAtText: '',
+          loginCount: 0,
+          status: 'offline',
+          statusUpdatedAt: serverTimestamp(),
+          consultationId: consultationId,
         });
       } catch (e) {
         console.warn('User profile create failed:', (e as any)?.message);

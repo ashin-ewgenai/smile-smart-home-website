@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../../../../lib/firebase';
-import { collection, doc, onSnapshot, orderBy, query, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collectionGroup, doc, onSnapshot, orderBy, query, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 // Admin complaints table (Recharts removed per request)
 
 type Ticket = {
@@ -30,10 +30,12 @@ const Reports: React.FC = () => {
     let unsub: undefined | (() => void);
     setLoading(true);
     try {
-      const qRef = query(collection(db, 'tickets'), orderBy('createdAt', 'desc'));
+      // Read all user tickets via collection group query over supportTickets/{uid}/ticket
+      const qRef = query(collectionGroup(db, 'ticket'), orderBy('createdAt', 'desc'));
       unsub = onSnapshot(qRef, async (snap) => {
         const arr: Ticket[] = snap.docs.map((d) => {
           const data = d.data() as any;
+          const parentUid = d.ref.parent.parent?.id; // supportTickets/{uid}/ticket/{ticketId}
           return {
             id: d.id,
             subject: data.subject || '',
@@ -41,7 +43,7 @@ const Reports: React.FC = () => {
             description: data.description || '',
             status: data.status || 'Pending',
             createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || null),
-            userUid: data.userUid,
+            userUid: parentUid,
             imageUrl: data.imageUrl ?? null,
             adminReply: data.adminReply || '',
           };
@@ -125,7 +127,8 @@ const Reports: React.FC = () => {
   const saveReply = async (t: Ticket) => {
     try {
       const reply = replyMap[t.id] || '';
-      await updateDoc(doc(db, 'tickets', t.id), {
+      if (!t.userUid) throw new Error('Missing user UID on ticket.');
+      await updateDoc(doc(db, 'supportTickets', t.userUid, 'ticket', t.id), {
         adminReply: reply,
         adminRepliedAt: serverTimestamp(),
         status: reply ? (t.status === 'Resolved' ? 'Resolved' : 'In Progress') : t.status,

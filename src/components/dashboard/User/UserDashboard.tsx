@@ -127,20 +127,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     setReqListError('');
     setReqListLoading(true);
     try {
-      // Avoid composite index; limit results to speed up initial load
+      // Read from nested subcollection: serviceRequests/{uid}/requests
       const qRef = query(
-        collection(db, 'serviceRequests'),
-        where('uid', '==', user.uid),
+        collection(db, 'serviceRequests', user.uid, 'requests'),
+        orderBy('createdAt', 'desc'),
         limit(50)
       );
       const snap = await getDocs(qRef);
       const list = snap.docs
-        .map(d => ({ id: d.id, ...(d.data() as any) }))
-        .sort((a: any, b: any) => {
-          const ta = a.createdAt?.toMillis ? a.createdAt.toMillis() : a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0;
-          const tb = b.createdAt?.toMillis ? b.createdAt.toMillis() : b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0;
-          return tb - ta;
-        });
+        .map(d => ({ id: d.id, ...(d.data() as any) }));
       setMyRequests(list as any);
       setReqCacheAt(Date.now());
     } catch (err: any) {

@@ -47,12 +47,8 @@ export default function ContactForm() {
         const payload = {
           ...values,
           createdAt: serverTimestamp(),
-          status: 'new',
-          uid: auth?.currentUser?.uid ?? null,
-          userEmail: auth?.currentUser?.email ?? null,
-          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
         };
-        await addDoc(collection(db, 'contactMessages'), payload);
+        await addDoc(collection(db, 'contactmessages'), payload);
         alert("Thank you! Your message has been sent. We'll get back to you soon.");
         setValues(initialState);
       } catch (err) {

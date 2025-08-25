@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { db } from '../../../lib/firebase';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '../../../lib/firebase';
+import { addDoc, collection, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 
 export type QuoteFormProps = {
   userEmail?: string | null;
@@ -37,21 +37,33 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     setMessage(null);
     setError(null);
 
-    if (!userEmail) {
+    const user = auth.currentUser;
+    if (!user) {
       setError('You must be logged in to submit a quote.');
       return;
     }
 
     try {
       setSubmitting(true);
-      const docRef = await addDoc(collection(db, 'quotes'), {
-        userEmail,
+      // 1) Ensure parent doc exists at quotes/{uid}
+      const parentRef = doc(db, 'quotes', user.uid);
+      await setDoc(
+        parentRef,
+        { uid: user.uid, userEmail: user.email ?? userEmail ?? null, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+
+      // 2) Add a quote into subcollection 'quote'
+      const docRef = await addDoc(collection(parentRef, 'quote'), {
+        uid: user.uid,
+        userEmail: user.email ?? userEmail ?? null,
         location,
         sqft: sqft ? Number(sqft) : null,
         area,
         details,
         status: 'submitted',
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
       setMessage("Request submitted! We'll get back to you shortly.");
       setLocation('');
@@ -66,7 +78,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     } finally {
       setSubmitting(false);
     }
-  }, [userEmail, location, sqft, area, details, onSubmitted]);
+  }, [location, sqft, area, details, onSubmitted, userEmail]);
 
   return (
     <form
