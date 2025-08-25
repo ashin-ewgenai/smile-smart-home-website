@@ -1,0 +1,18 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import AdminApp from '../../../components/dashboard/Admin/AdminApp';
+---
+
+<Layout title="Plan Leads - Admin Dashboard | Smile Smart Homes">
+  <AdminApp client:only="react" />
+</Layout>
+
+<script>
+  // Admin auth guard, consistent with other admin pages
+  document.addEventListener('DOMContentLoaded', () => {
+    const userEmail = localStorage.getItem('userEmail');
+    const userRole = localStorage.getItem('userRole');
+    const isAdmin = userRole === 'admin';
+    if (!userEmail || !isAdmin) window.location.href = '/admin_login';
+  });
+</script>

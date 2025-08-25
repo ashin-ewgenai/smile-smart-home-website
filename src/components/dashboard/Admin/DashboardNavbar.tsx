@@ -256,6 +256,12 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                   Reports
                 </Link>
                 <Link 
+                  to="/dashboard/admin/plan-leads" 
+                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  Plan Leads
+                </Link>
+                <Link 
                   to="/dashboard/admin/settings" 
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >

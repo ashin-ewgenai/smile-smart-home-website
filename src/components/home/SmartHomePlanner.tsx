@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { db } from '../../lib/firebase';
+import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
 type SpaceType = 'Home' | 'Apartment' | 'Office' | '';
 type RoomCount = '1-2' | '3-5' | '6+' | '';
@@ -27,6 +29,9 @@ const SmartHomePlanner = () => {
     budget: '',
     email: ''
   });
+  // Capture the final plan DOM and avoid duplicate saves
+  const planRef = useRef<HTMLDivElement | null>(null);
+  const [hasSavedPlan, setHasSavedPlan] = useState(false);
   
   const totalSteps = 7; // Including summary step
   
@@ -94,6 +99,54 @@ const SmartHomePlanner = () => {
     // Move to summary step regardless of submission
     setCurrentStep(totalSteps);
   };
+
+  // Persist a concise plain-text summary to Firestore when we reach step 7 and have an email
+  useEffect(() => {
+    const persistPlan = async () => {
+      if (!formData.email || hasSavedPlan) return;
+      try {
+        const emailKey = formData.email.trim().toLowerCase();
+        // Build a compact, human-readable summary
+        const complexity = getComplexityRecommendation();
+        const areas = getRecommendedAreas();
+        const lines: string[] = [
+          'Your Smart Home Plan',
+          `Recommended Setup: ${complexity}`,
+          '',
+          'Recommended Automation Areas:',
+          ...areas.map(a => `- ${a}`),
+          '',
+          'Your Preferences:',
+          `- Space Type: ${formData.spaceType}`,
+          `- Size: ${formData.roomCount} rooms`,
+          `- Budget Range: ${formData.budget}`,
+        ];
+        if (formData.existingDevices === 'Yes' && formData.deviceDetails) {
+          lines.push(`- Existing Devices: ${formData.deviceDetails}`);
+        }
+        const planText = lines.join('\n');
+        await setDoc(
+          doc(db, 'planner_leads', emailKey),
+          {
+            email: formData.email.trim(),
+            planText,
+            formData,
+            complexity,
+            recommendedAreas: areas,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        setHasSavedPlan(true);
+      } catch (err) {
+        console.error('Error saving plan to Firestore:', err);
+      }
+    };
+    if (currentStep === 7) {
+      void persistPlan();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
   
   const handleBookConsultation = () => {
     // Navigate to contact page
@@ -334,7 +387,7 @@ const SmartHomePlanner = () => {
         const recommendedAreas = getRecommendedAreas();
         
         return (
-          <div className="space-y-6">
+          <div ref={planRef} className="space-y-6">
             <h3 className="text-xl font-medium text-gray-900 dark:text-white">Your Smart Home Plan</h3>
             
             <div className="bg-teal/10 dark:bg-teal/20 p-4 rounded-lg">

@@ -15,6 +15,7 @@ type Message = {
 
 const HISTORY_KEY = 'smile-chat-history';
 const OPEN_KEY = 'smile-chat-open';
+const MAX_MESSAGE_WORDS = 40; // limit of words per message
 
 function now() {
   return Date.now();
@@ -31,6 +32,12 @@ function formatTime(ts: number) {
 
 function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+function truncateToWordLimit(text: string, maxWords = MAX_MESSAGE_WORDS): string {
+  const words = text.trim().split(/\s+/);
+  if (words.filter(Boolean).length <= maxWords) return text;
+  return words.slice(0, maxWords).join(' ');
 }
 
 function inferIntent(input: string): string {
@@ -142,7 +149,7 @@ const SupportChat: React.FC = () => {
   }, [open]);
 
   const send = () => {
-    const trimmed = input.trim();
+    const trimmed = truncateToWordLimit(input).trim();
     if (!trimmed || typing) return;
     const userMsg: Message = { id: generateId(), from: 'user', text: trimmed, ts: now() };
     setMessages(prev => [...prev, userMsg]);
@@ -170,6 +177,15 @@ const SupportChat: React.FC = () => {
   const toggleOpen = () => setOpen(v => !v);
 
   const ariaLabel = open ? 'Close support chat' : 'Open support chat';
+
+  const handleClear = () => {
+    setMessages([]);
+    try {
+      localStorage.removeItem(HISTORY_KEY);
+    } catch {}
+    setInput('');
+    setTyping(false);
+  };
 
   return (
     <div className="fixed bottom-6 right-6 z-[60]">
@@ -204,6 +220,14 @@ const SupportChat: React.FC = () => {
         >
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
             <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">Support</div>
+            <button
+              type="button"
+              onClick={handleClear}
+              className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+              title="Clear this conversation"
+            >
+              Clear
+            </button>
           </div>
 
           <div ref={scrollRef} className="max-h-80 overflow-y-auto px-4 py-3 space-y-2">
@@ -250,8 +274,12 @@ const SupportChat: React.FC = () => {
               ref={inputRef}
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type your message..."
+              onChange={(e) => {
+                const val = e.target.value;
+                const limited = truncateToWordLimit(val);
+                setInput(limited);
+              }}
+              placeholder={`Type your message (max ${MAX_MESSAGE_WORDS} words)`}
               className="flex-1 bg-white dark:bg-charcoal text-gray-800 dark:text-gray-200 placeholder-gray-400 outline-none px-3 py-2 rounded border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal"
             />
             <button

@@ -15,6 +15,7 @@ import Bill from './pages/Bill';
 import QuotePortal from './pages/QuotePortal';
 import AboutDevice from './pages/AboutDevice';
 import Alerts from './pages/Alerts';
+import UserPlanLeads from '../User/PlanLeads.tsx';
 
 const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [ready, setReady] = useState(false);
@@ -59,6 +60,7 @@ const AdminApp: React.FC = () => {
             <Route path="/dashboard/admin/reports" element={<Reports />} />
             <Route path="/dashboard/admin/notifications" element={<Notifications />} />
             <Route path="/dashboard/admin/alerts" element={<Alerts />} />
+            <Route path="/dashboard/admin/plan-leads" element={<UserPlanLeads />} />
             <Route path="/dashboard/admin/bill" element={<Bill />} />
             <Route path="/dashboard/admin/quote-portal" element={<QuotePortal />} />
             <Route path="/dashboard/admin/about-device" element={<AboutDevice />} />

@@ -50,6 +50,12 @@ const AdminSidebar: React.FC = () => {
           Customers
         </span>
       </Item>
+      <Item href="/dashboard/admin/plan-leads">
+        <span className="inline-flex items-center gap-2">
+          <FilePlus className="h-4 w-4" />
+          Plan Leads
+        </span>
+      </Item>
       <Item href="/dashboard/admin/reports">
         <span className="inline-flex items-center gap-2">
           <BarChart2 className="h-4 w-4" />
