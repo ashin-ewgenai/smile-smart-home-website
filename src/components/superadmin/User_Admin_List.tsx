@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { collection, getDocs, query, orderBy, deleteDoc, doc } from 'firebase/firestore';
+import { getDocs, query, orderBy, deleteDoc } from 'firebase/firestore';
 import { auth, db, functions } from '../../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
 import CreateUserModal from './CreateUserModal';
 import { Trash2, Plus, AlertTriangle } from 'lucide-react';
+import { accountsCollection, accountDoc } from '../../models/Collections';
 
 interface UserDoc {
   uid: string;
@@ -55,9 +56,19 @@ export default function User_Admin_List() {
     (async () => {
       setLoading(true);
       try {
-        const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
+        const q = query(accountsCollection(db), orderBy('CreatedAt', 'desc'));
         const snap = await getDocs(q);
-        const list: UserDoc[] = snap.docs.map((d) => ({ uid: d.id, ...(d.data() as any) }));
+        const list: UserDoc[] = snap.docs.map((d) => {
+          const data: any = d.data();
+          return {
+            uid: d.id,
+            email: data?.Email,
+            displayName: data?.FullName,
+            role: data?.Role,
+            createdAt: data?.CreatedAt,
+            lastLoginAt: data?.LastLoginAt,
+          };
+        });
         setUsers(list);
       } catch (e: any) {
         setError(e?.message || 'Failed to load users');
@@ -127,7 +138,7 @@ export default function User_Admin_List() {
           // If it's another error from function, surface it to user
           throw fnErr;
         }
-        await deleteDoc(doc(db, 'users', uid));
+        await deleteDoc(accountDoc(db, uid));
         setUsers(prev => prev.filter(u => u.uid !== uid));
         closeConfirm();
       }

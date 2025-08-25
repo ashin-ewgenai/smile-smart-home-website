@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { db, auth } from '../../../lib/firebase';
-import { addDoc, collection, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { quotesParentDoc, quotesCollection } from '../../../models/Collections';
 
 export type QuoteFormProps = {
   userEmail?: string | null;
@@ -46,7 +47,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     try {
       setSubmitting(true);
       // 1) Ensure parent doc exists at quotes/{uid}
-      const parentRef = doc(db, 'quotes', user.uid);
+      const parentRef = quotesParentDoc(db, user.uid);
       await setDoc(
         parentRef,
         { uid: user.uid, userEmail: user.email ?? userEmail ?? null, updatedAt: serverTimestamp() },
@@ -54,7 +55,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       );
 
       // 2) Add a quote into subcollection 'quote'
-      const docRef = await addDoc(collection(parentRef, 'quote'), {
+      const docRef = await addDoc(quotesCollection(db, user.uid), {
         uid: user.uid,
         userEmail: user.email ?? userEmail ?? null,
         location,

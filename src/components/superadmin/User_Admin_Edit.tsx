@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PenLine, Check, X, Copy } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import { accountDoc } from '../../models/Collections';
 
 interface Props { uid: string; }
 
@@ -137,7 +138,7 @@ export default function User_Admin_Edit({ uid }: Props) {
     (async () => {
       setLoading(true);
       try {
-        const ref = doc(db, 'users', uid);
+        const ref = accountDoc(db, uid);
         const snap = await getDoc(ref);
         if (!snap.exists()) {
           setError('User document not found');
@@ -145,18 +146,18 @@ export default function User_Admin_Edit({ uid }: Props) {
           return;
         }
         const data: any = snap.data();
-        const loadedDisplayName = data.displayName || '';
+        const loadedDisplayName = data.FullName || '';
         setDisplayName(loadedDisplayName);
         setInitialDisplayName(loadedDisplayName);
-        setEmail(data.email || '');
-        const loadedRole = data.role || 'user';
+        setEmail(data.Email || '');
+        const loadedRole = data.Role || 'user';
         setRole(loadedRole);
         setInitialRole(loadedRole);
-        setCreatedAt(data.createdAt || null);
-        setLastLoginAt(data.lastLoginAt || null);
-        setLastLoginAtText((data.lastLoginAtText || '').toString());
-        setLastLoginUserAgent((data.lastLoginUserAgent || '').toString());
-        setLoginCount(typeof data.loginCount === 'number' ? data.loginCount : null);
+        setCreatedAt(data.CreatedAt || null);
+        setLastLoginAt(data.LastLoginAt || null);
+        setLastLoginAtText('');
+        setLastLoginUserAgent('');
+        setLoginCount(typeof data.LoginCount === 'number' ? data.LoginCount : null);
       } catch (e: any) {
         setError(e?.message || 'Failed to load user');
       } finally {
@@ -171,8 +172,8 @@ export default function User_Admin_Edit({ uid }: Props) {
     setSaving(true);
     setError(null);
     try {
-      const ref = doc(db, 'users', uid);
-      await setDoc(ref, { displayName: displayName || '' }, { merge: true });
+      const ref = accountDoc(db, uid);
+      await setDoc(ref, { FullName: displayName || '' }, { merge: true });
       setInitialDisplayName(displayName || '');
       setSaved(true);
       setEditName(false);
@@ -197,8 +198,8 @@ export default function User_Admin_Edit({ uid }: Props) {
       if (role === 'Super Admin' && initialRole !== 'Super Admin') {
         throw new Error('Changing role to "Super Admin" is not permitted from this page.');
       }
-      const ref = doc(db, 'users', uid);
-      await setDoc(ref, { role }, { merge: true });
+      const ref = accountDoc(db, uid);
+      await setDoc(ref, { Role: role }, { merge: true });
       setInitialRole(role);
       setSaved(true);
       setEditRole(false);
@@ -226,13 +227,13 @@ export default function User_Admin_Edit({ uid }: Props) {
         return;
       }
       // Update Firestore user document directly (no Auth updates)
-      const ref = doc(db, 'users', uid);
+      const ref = accountDoc(db, uid);
       await setDoc(
         ref,
         {
           // Only allow editing of display name and role
-          displayName: displayName || '',
-          role,
+          FullName: displayName || '',
+          Role: role,
         },
         { merge: true }
       );

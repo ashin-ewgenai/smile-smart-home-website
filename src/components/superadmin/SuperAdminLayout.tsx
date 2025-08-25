@@ -4,7 +4,8 @@ import { handleLogout as adminLogout } from '../dashboard/Admin/LogoutHandler';
 import { UserCircle, Sun, Moon } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
-import { doc, getDoc } from 'firebase/firestore';
+import { getDoc } from 'firebase/firestore';
+import { accountDoc } from '../../models/Collections';
 import { onAuthStateChanged } from 'firebase/auth';
 
 interface Props { children: React.ReactNode; }
@@ -52,10 +53,16 @@ export default function SuperAdminLayout({ children }: Props) {
       // Seed profile with auth info for immediate initials
       setProfile((prev) => prev ?? { displayName: user.displayName || undefined, email: user.email || undefined });
       try {
-        const ref = doc(db, 'users', user.uid);
+        const ref = accountDoc(db, user.uid);
         const snap = await getDoc(ref);
         if (snap.exists()) {
-          setProfile(snap.data() as any);
+          const d: any = snap.data();
+          setProfile({
+            displayName: d?.FullName || undefined,
+            email: d?.Email || undefined,
+            role: d?.Role || undefined,
+            lastLoginAt: d?.LastLoginAt || undefined,
+          });
         }
       } catch {}
     });
@@ -98,9 +105,9 @@ export default function SuperAdminLayout({ children }: Props) {
       (async () => {
         try {
           setViewRoleLoading(true);
-          const ref = doc(db, 'users', uid);
+          const ref = accountDoc(db, uid);
           const snap = await getDoc(ref);
-          const role = (snap.data() as any)?.role || null;
+          const role = (snap.data() as any)?.Role || null;
           setViewRole(role);
         } catch {
           setViewRole(null);
@@ -125,9 +132,15 @@ export default function SuperAdminLayout({ children }: Props) {
       try {
         setProfileLoading(true);
         setProfileError(null);
-        const ref = doc(db, 'users', auth.currentUser.uid);
+        const ref = accountDoc(db, auth.currentUser.uid);
         const snap = await getDoc(ref);
-        setProfile((snap.data() as any) || null);
+        const d: any = snap.data();
+        setProfile(snap.exists() ? {
+          displayName: d?.FullName || undefined,
+          email: d?.Email || undefined,
+          role: d?.Role || undefined,
+          lastLoginAt: d?.LastLoginAt || undefined,
+        } : null);
       } catch (e: any) {
         setProfileError(e?.message || 'Failed to load profile');
       } finally {

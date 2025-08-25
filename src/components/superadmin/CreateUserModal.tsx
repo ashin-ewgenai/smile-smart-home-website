@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { auth, db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
 import { createUserWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp, getDocs, collection, where, limit, query } from 'firebase/firestore';
+import { createAccountProfileWithLookup } from '../../models';
 
 interface Props {
   open: boolean;
@@ -69,28 +69,11 @@ export default function CreateUserModal({ open, onClose }: Props) {
       const newUser = cred.user;
       if (fullName) await updateProfile(newUser, { displayName: fullName });
 
-      // lookup consultationId from contactmessages by email
-      let consultationId: string | null = null;
-      try {
-        if (newUser.email) {
-          const q = query(collection(db, 'contactmessages'), where('email', '==', newUser.email), limit(1));
-          const res = await getDocs(q);
-          if (!res.empty) consultationId = res.docs[0].id;
-        }
-      } catch {}
-
-      await setDoc(doc(db, 'users', newUser.uid), {
+      await createAccountProfileWithLookup(db, {
         uid: newUser.uid,
         email: newUser.email,
         fullName: fullName || newUser.displayName || '',
         role: role,
-        createdAt: serverTimestamp(),
-        lastLoginAt: null,
-        lastLoginAtText: '',
-        loginCount: 0,
-        status: 'offline',
-        statusUpdatedAt: serverTimestamp(),
-        consultationId: consultationId,
       });
 
       // Immediately sign out the newly created user and return to Super Admin dashboard

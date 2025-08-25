@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, getDocs, orderBy, limit, query, where } from 'firebase/firestore';
+import { getDocs, orderBy, limit, query, where } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
+import { accountsCollection } from '../../models/Collections';
 
 type SimpleUser = {
   uid: string;
@@ -119,9 +120,19 @@ export default function SuperAdminDashboard() {
     (async () => {
       setLoading(true);
       try {
-        // Load all users ordered by createdAt for aggregation
-        const usersSnap = await getDocs(query(collection(db, 'users'), orderBy('createdAt', 'asc')));
-        const all: SimpleUser[] = usersSnap.docs.map(d => ({ uid: d.id, ...(d.data() as any) }));
+        // Load all accounts ordered by CreatedAt for aggregation
+        const usersSnap = await getDocs(query(accountsCollection(db), orderBy('CreatedAt', 'asc')));
+        const all: SimpleUser[] = usersSnap.docs.map(d => {
+          const data: any = d.data();
+          return {
+            uid: d.id,
+            email: data?.Email,
+            displayName: data?.FullName,
+            role: data?.Role,
+            createdAt: data?.CreatedAt,
+            lastLoginAt: data?.LastLoginAt,
+          };
+        });
         setAllUsers(all);
 
         // Normalize role string to account for variants like "Super Admin", "super_admin", etc.
@@ -229,23 +240,43 @@ export default function SuperAdminDashboard() {
         // Recent logins (admins and users separately)
         const adminsSnap = await getDocs(
           query(
-            collection(db, 'users'),
-            where('role', '==', 'admin'),
-            orderBy('lastLoginAt', 'desc'),
+            accountsCollection(db),
+            where('Role', '==', 'admin'),
+            orderBy('LastLoginAt', 'desc'),
             limit(5)
           )
         );
-        setRecentAdmins(adminsSnap.docs.map(d => ({ uid: d.id, ...(d.data() as any) })));
+        setRecentAdmins(adminsSnap.docs.map(d => {
+          const data: any = d.data();
+          return {
+            uid: d.id,
+            email: data?.Email,
+            displayName: data?.FullName,
+            role: data?.Role,
+            createdAt: data?.CreatedAt,
+            lastLoginAt: data?.LastLoginAt,
+          };
+        }));
 
         const usersSnapRecent = await getDocs(
           query(
-            collection(db, 'users'),
-            where('role', 'in', ['user', 'User']),
-            orderBy('lastLoginAt', 'desc'),
+            accountsCollection(db),
+            where('Role', 'in', ['user', 'User']),
+            orderBy('LastLoginAt', 'desc'),
             limit(5)
           )
         );
-        setRecentUsers(usersSnapRecent.docs.map(d => ({ uid: d.id, ...(d.data() as any) })));
+        setRecentUsers(usersSnapRecent.docs.map(d => {
+          const data: any = d.data();
+          return {
+            uid: d.id,
+            email: data?.Email,
+            displayName: data?.FullName,
+            role: data?.Role,
+            createdAt: data?.CreatedAt,
+            lastLoginAt: data?.LastLoginAt,
+          };
+        }));
       } catch {
         // keep silent but show empty state
       } finally {

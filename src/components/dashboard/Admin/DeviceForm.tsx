@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { db, auth, functions as firebaseFunctions, storage } from '../../../lib/firebase';
-import { addDoc, collection, serverTimestamp, onSnapshot, query, orderBy, doc, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
+import { addDoc, serverTimestamp, onSnapshot, query, orderBy, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
+import { devicesCollection, deviceDoc } from '../../../models/Collections';
 import { httpsCallable } from 'firebase/functions';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
@@ -106,7 +107,7 @@ export default function DeviceForm() {
 
   // Subscribe to all devices (newest first)
   useEffect(() => {
-    const q = query(collection(db, 'devices'), orderBy('createdAt', 'desc'));
+    const q = query(devicesCollection(db), orderBy('createdAt', 'desc'));
     const unsub = onSnapshot(q, (snap) => {
       const list: DeviceDoc[] = snap.docs.map((d) => {
         const data = d.data() as any;
@@ -276,7 +277,7 @@ export default function DeviceForm() {
         if (!payload.serial) delete payload.serial;
         if (!payload.modelNumber) delete payload.modelNumber;
         if (!payload.brand) delete payload.brand;
-        await addDoc(collection(db, 'devices'), payload);
+        await addDoc(devicesCollection(db), payload);
         alert('Device added successfully.');
         setValues((v) => ({ ...initialState, assignedToEmail: v.assignedToEmail }));
         setImageFile(null);
@@ -311,7 +312,7 @@ export default function DeviceForm() {
 
   const saveEdit = useCallback(async () => {
     if (!editing) return;
-    const ref = doc(db, 'devices', editing.id);
+    const ref = deviceDoc(db, editing.id);
     const nm = (editValues.name ?? '').toString().trim();
     const md = (editValues.serial ?? '').toString().trim();
     const email = (editValues.assignedToEmail ?? '').toString().trim();
@@ -338,7 +339,7 @@ export default function DeviceForm() {
 
   const removeDevice = useCallback(async (id: string) => {
     if (!confirm('Delete this device? This action cannot be undone.')) return;
-    await deleteDoc(doc(db, 'devices', id));
+    await deleteDoc(deviceDoc(db, id));
   }, []);
 
   return (

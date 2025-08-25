@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { db } from '../../lib/firebase';
-import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { serverTimestamp, setDoc } from 'firebase/firestore';
+import { plannerLeadDoc } from '../../models/Collections';
 
 type SpaceType = 'Home' | 'Apartment' | 'Office' | '';
 type RoomCount = '1-2' | '3-5' | '6+' | '';
@@ -126,7 +127,7 @@ const SmartHomePlanner = () => {
         }
         const planText = lines.join('\n');
         await setDoc(
-          doc(db, 'planner_leads', emailKey),
+          plannerLeadDoc(db, emailKey),
           {
             email: formData.email.trim(),
             planText,

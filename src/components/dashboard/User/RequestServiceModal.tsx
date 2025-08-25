@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { X } from 'lucide-react';
 import { db, auth } from '../../../lib/firebase';
-import { addDoc, collection, serverTimestamp, doc, setDoc } from 'firebase/firestore';
+import { addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { userServiceRequestsParentDoc, userServiceRequestsCollection } from '../../../models/Collections';
 
 interface Props {
   open: boolean;
@@ -103,7 +104,7 @@ const RequestServiceModal: React.FC<Props> = ({ open, onClose, deviceOptions }) 
               };
               try {
                 // Ensure parent doc exists at serviceRequests/{uid}
-                const parentRef = doc(db, 'serviceRequests', user.uid);
+                const parentRef = userServiceRequestsParentDoc(db, user.uid);
                 await setDoc(
                   parentRef,
                   { uid: user.uid, updatedAt: serverTimestamp() },
@@ -111,7 +112,7 @@ const RequestServiceModal: React.FC<Props> = ({ open, onClose, deviceOptions }) 
                 );
 
                 // Add the request into subcollection 'requests'
-                await addDoc(collection(parentRef, 'requests'), {
+                await addDoc(userServiceRequestsCollection(db, user.uid), {
                   ...payload,
                   updatedAt: serverTimestamp(),
                 });

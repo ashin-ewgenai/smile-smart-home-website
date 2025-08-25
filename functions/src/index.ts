@@ -101,7 +101,7 @@ if (!getApps().length) {
 const db = getFirestore();
 const adminAuth = getAuth();
 
-// Callable function to delete both Auth user and Firestore user doc
+// Callable function to delete both Auth user and Firestore account doc
 export const superAdminDeleteUser = onCall(async (request) => {
   const authCtx = request.auth;
   if (!authCtx) {
@@ -121,9 +121,9 @@ export const superAdminDeleteUser = onCall(async (request) => {
   }
 
   // Verify caller is Super Admin
-  const callerSnap = await db.collection("users").doc(callerUid).get();
+  const callerSnap = await db.collection("Accounts").doc(callerUid).get();
   const callerRole = callerSnap.exists ?
-    (callerSnap.data()?.role as string) :
+    (callerSnap.data()?.Role as string) :
     undefined;
   if (callerRole !== "Super Admin") {
     throw new HttpsError(
@@ -133,10 +133,10 @@ export const superAdminDeleteUser = onCall(async (request) => {
   }
 
   // Block deleting Super Admins
-  const targetRef = db.collection("users").doc(targetUid);
+  const targetRef = db.collection("Accounts").doc(targetUid);
   const targetSnap = await targetRef.get();
   const targetRole = targetSnap.exists ?
-    (targetSnap.data()?.role as string) :
+    (targetSnap.data()?.Role as string) :
     undefined;
   if (targetRole === "Super Admin") {
     throw new HttpsError(
@@ -167,8 +167,8 @@ export const superAdminDeleteUser = onCall(async (request) => {
 
 // Helper to ensure caller is Super Admin
 async function assertSuperAdmin(callerUid: string) {
-  const snap = await db.collection("users").doc(callerUid).get();
-  const role = snap.exists ? (snap.data()?.role as string) : undefined;
+  const snap = await db.collection("Accounts").doc(callerUid).get();
+  const role = snap.exists ? (snap.data()?.Role as string) : undefined;
   if (role !== "Super Admin") {
     throw new HttpsError(
       "permission-denied",
@@ -177,7 +177,6 @@ async function assertSuperAdmin(callerUid: string) {
   }
 }
 
-// Callable: Get a single user's Auth record and Firestore doc by UID
 export const superAdminGetUser = onCall(async (request) => {
   const authCtx = request.auth;
   if (!authCtx) {
@@ -222,8 +221,8 @@ export const superAdminGetUser = onCall(async (request) => {
       if (err?.code !== "auth/user-not-found") throw e;
     }
 
-    // Firestore user doc (null if not found)
-    const userDocSnap = await db.collection("users").doc(uid).get();
+    // Firestore account doc (null if not found)
+    const userDocSnap = await db.collection("Accounts").doc(uid).get();
     const fsUser = userDocSnap.exists ? { id: userDocSnap.id, ...userDocSnap.data() } : null;
 
     return { authUser, fsUser };
@@ -252,8 +251,8 @@ export const superAdminListUserIds = onCall(async (request) => {
     const listRes = await adminAuth.listUsers(maxResults, pageToken);
     const authIds = listRes.users.map((u) => u.uid);
 
-    // Firestore IDs (all in collection) — keep light by not returning entire docs
-    const fsSnap = await db.collection("users").select().get();
+    // Firestore IDs (all in Accounts) — keep light by not returning entire docs
+    const fsSnap = await db.collection("Accounts").select().get();
     const fsIds = fsSnap.docs.map((d) => d.id);
 
     return {
@@ -266,7 +265,7 @@ export const superAdminListUserIds = onCall(async (request) => {
   }
 });
 
-// Callable: Update a user's Auth record (email/displayName) and Firestore doc
+// Callable: Update a user's Auth record (email/displayName) and Firestore account doc
 // request.data: { uid: string, email?: string, displayName?: string }
 export const superAdminUpdateUser = onCall(async (request) => {
   const authCtx = request.auth;
@@ -285,9 +284,9 @@ export const superAdminUpdateUser = onCall(async (request) => {
 
   try {
     // Load target to check role (to avoid modifying Super Admin accounts silently)
-    const targetRef = db.collection("users").doc(uid);
+    const targetRef = db.collection("Accounts").doc(uid);
     const targetSnap = await targetRef.get();
-    const targetRole = targetSnap.exists ? (targetSnap.data()?.role as string | undefined) : undefined;
+    const targetRole = targetSnap.exists ? (targetSnap.data()?.Role as string | undefined) : undefined;
     if (targetRole === "Super Admin") {
       throw new HttpsError("failed-precondition", "Cannot modify Super Admin via this endpoint.");
     }
@@ -301,12 +300,11 @@ export const superAdminUpdateUser = onCall(async (request) => {
       await adminAuth.updateUser(uid, update);
     }
 
-    // Sync Firestore fields to keep consistent
+    // Sync Firestore fields to keep consistent (Accounts schema)
     const fsUpdate: Record<string, unknown> = {};
-    if (typeof email === "string" && email.trim()) fsUpdate.email = email.trim();
+    if (typeof email === "string" && email.trim()) fsUpdate.Email = email.trim();
     if (typeof displayName === "string") {
-      fsUpdate.displayName = displayName || "";
-      fsUpdate.name = displayName || ""; // keep `name` in sync for UI greeting
+      fsUpdate.FullName = displayName || "";
     }
     if (Object.keys(fsUpdate).length > 0) {
       await targetRef.set(fsUpdate, { merge: true });

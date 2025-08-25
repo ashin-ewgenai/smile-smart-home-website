@@ -1,12 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { auth, db } from '../../lib/firebase';
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  signOut,
-} from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, increment, getDocs, collection, where, limit, query } from 'firebase/firestore';
+import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getDoc, setDoc } from 'firebase/firestore';
+import { accountDoc, accountLoginMergePayload, createAccountProfileWithLookup, registerUserWithProfile } from '../../models';
 
 type View = 'login' | 'register' | null;
 
@@ -96,8 +92,8 @@ export default function AuthModal() {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const user = cred.user;
       if (user && user.email) {
-        // Fetch role from Firestore without creating a user document here
-        const userRef = doc(db, 'users', user.uid);
+        // Fetch role from Firestore in Accounts collection
+        const userRef = accountDoc(db, user.uid);
         const snap = await getDoc(userRef);
 
         if (!snap.exists()) {
@@ -108,22 +104,12 @@ export default function AuthModal() {
         }
 
         const data = snap.data() as any;
-        const role = (data?.role || '').toString().toLowerCase();
+        const role = (data?.Role || data?.role || '').toString().toLowerCase();
 
         if (role === 'user') {
-          // Update lastLoginAt and metadata (do not create new docs here)
+          // Update LastLoginAt and metadata (do not create new docs here)
           try {
-            await setDoc(
-              userRef,
-              {
-                lastLoginAt: serverTimestamp(),
-                lastLoginAtText: new Date().toISOString(),
-                loginCount: increment(1),
-                status: 'online',
-                statusUpdatedAt: serverTimestamp(),
-              },
-              { merge: true }
-            );
+            await setDoc(userRef, accountLoginMergePayload(), { merge: true });
           } catch (e) {
             console.warn('lastLoginAt update failed:', (e as any)?.message);
           }
@@ -132,7 +118,7 @@ export default function AuthModal() {
           try { localStorage.setItem('userRole', 'user'); } catch {}
           // Cache user's name for quick greeting fallback
           try {
-            const cachedName = (data?.fullName || data?.displayName || data?.name || user.displayName || '').toString();
+            const cachedName = (data?.FullName || data?.fullName || data?.displayName || data?.name || user.displayName || '').toString();
             if (cachedName) localStorage.setItem('userName', cachedName);
           } catch {}
           // Redirect to user dashboard
@@ -185,37 +171,7 @@ export default function AuthModal() {
         return;
       }
       setLoading(true);
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-      if (fullName) await updateProfile(cred.user, { displayName: fullName });
-      // Create user profile document in Firestore
-      try {
-        const user = cred.user;
-        // lookup consultationId from contactmessages by email
-        let consultationId: string | null = null;
-        try {
-          if (user.email) {
-            const q = query(collection(db, 'contactmessages'), where('email', '==', user.email), limit(1));
-            const res = await getDocs(q);
-            if (!res.empty) consultationId = res.docs[0].id;
-          }
-        } catch {}
-
-        await setDoc(doc(db, 'users', user.uid), {
-          uid: user.uid,
-          email: user.email,
-          fullName: fullName || user.displayName || '',
-          role: 'user',
-          createdAt: serverTimestamp(),
-          lastLoginAt: null,
-          lastLoginAtText: '',
-          loginCount: 0,
-          status: 'offline',
-          statusUpdatedAt: serverTimestamp(),
-          consultationId: consultationId,
-        });
-      } catch (e) {
-        console.warn('User profile create failed:', (e as any)?.message);
-      }
+      const cred = await registerUserWithProfile(auth, db, { email, password, fullName, role: 'user' });
       try { await signOut(auth); } catch {}
       setOpen('login');
     } catch (err: any) {

@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 // Firebase
 import { auth, db, storage } from '../../../lib/firebase';
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+import { addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
+import { supportTicketsCollection } from '../../../models/Collections';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -86,7 +87,7 @@ const TicketCenter: React.FC = () => {
       return;
     }
 
-    const ticketsCol = collection(db, 'supportTickets', userUid, 'ticket');
+    const ticketsCol = supportTicketsCollection(db, userUid);
     const q = query(ticketsCol, orderBy('createdAt', 'desc'));
 
     const unsub = onSnapshot(
@@ -136,6 +137,10 @@ const TicketCenter: React.FC = () => {
 
     setSubmitting(true);
     try {
+      if (!userUid) {
+        setFetchError('You must be logged in to raise a ticket.');
+        return;
+      }
       // Optional image upload to Firebase Storage
       let uploadedImageUrl: string | undefined;
       if (imageFile) {
@@ -146,14 +151,15 @@ const TicketCenter: React.FC = () => {
       }
 
       // Create the ticket document in Firestore
-      await addDoc(collection(db, 'supportTickets', userUid, 'ticket'), {
+      const payload: any = {
         subject: subject.trim(),
         category,
         description: description.trim(),
         status: 'Pending',
         createdAt: serverTimestamp(),
-        imageUrl: uploadedImageUrl || null,
-      });
+      };
+      if (uploadedImageUrl) payload.imageUrl = uploadedImageUrl;
+      await addDoc(supportTicketsCollection(db, userUid), payload);
 
       // Clear form
       setSubject('');

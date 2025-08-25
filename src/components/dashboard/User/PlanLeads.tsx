@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../../../lib/firebase';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { getDocs, orderBy, query } from 'firebase/firestore';
+import { plannerLeadsCollection } from '../../../models/Collections';
 
 type Lead = {
   id: string;
@@ -18,7 +19,7 @@ const PlanLeads: React.FC = () => {
     let cancelled = false;
     (async () => {
       try {
-        const q = query(collection(db, 'planner_leads'), orderBy('updatedAt', 'desc'));
+        const q = query(plannerLeadsCollection(db), orderBy('updatedAt', 'desc'));
         const snap = await getDocs(q);
         if (cancelled) return;
         const list: Lead[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));

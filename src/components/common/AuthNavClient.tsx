@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { auth, db } from '../../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
+import { accountDoc } from '../../models/Collections';
 
 function setText(el: Element | null, text: string) {
   if (el) (el as HTMLElement).textContent = text && text.trim() ? text : 'Dashboard';
@@ -67,8 +68,8 @@ export default function AuthNavClient() {
       } catch {}
       try {
         if (user?.uid) {
-          const snap = await getDoc(doc(db, 'users', user.uid));
-          const role = (snap.exists() ? (snap.data() as any)?.role : undefined) as string | undefined;
+          const snap = await getDoc(accountDoc(db, user.uid));
+          const role = (snap.exists() ? (snap.data() as any)?.Role : undefined) as string | undefined;
           return role;
         }
       } catch {}

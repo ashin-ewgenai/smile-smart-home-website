@@ -63,12 +63,13 @@ import AdminApp from '../../../components/dashboard/Admin/AdminApp';
 
     (async () => {
       try {
-        const [{ db }, { collection, query, orderBy, onSnapshot } ] = await Promise.all([
+        const [{ db }, { query, orderBy, onSnapshot }, { alertsCollection } ] = await Promise.all([
           import('../../../lib/firebase'),
-          import('firebase/firestore')
+          import('firebase/firestore'),
+          import('../../../models/Collections')
         ]);
 
-        const q = query(collection(db, 'alerts'), orderBy('createdAt', 'desc'));
+        const q = query(alertsCollection(db), orderBy('createdAt', 'desc'));
         unsubscribe = onSnapshot(q, (snap) => {
           const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           render(list);

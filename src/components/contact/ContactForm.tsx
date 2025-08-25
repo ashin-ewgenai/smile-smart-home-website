@@ -1,16 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { db, auth } from '../../lib/firebase';
-import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { contactMessagesCollection, contactMessagePayload } from '../../models';
+import type { ContactMessageInput } from '../../models';
+import { db } from '../../lib/firebase';
+import { addDoc } from 'firebase/firestore';
 
-type FormState = {
-  name: string;
-  email: string;
-  phone: string;
-  service: string;
-  message: string;
-};
-
-const initialState: FormState = {
+const initialState: ContactMessageInput = {
   name: '',
   email: '',
   phone: '',
@@ -19,7 +13,7 @@ const initialState: FormState = {
 };
 
 export default function ContactForm() {
-  const [values, setValues] = useState<FormState>(initialState);
+  const [values, setValues] = useState<ContactMessageInput>(initialState);
   const [submitting, setSubmitting] = useState(false);
 
   const canSubmit = useMemo(() => {
@@ -44,11 +38,7 @@ export default function ContactForm() {
       if (!canSubmit || submitting) return;
       setSubmitting(true);
       try {
-        const payload = {
-          ...values,
-          createdAt: serverTimestamp(),
-        };
-        await addDoc(collection(db, 'contactmessages'), payload);
+        await addDoc(contactMessagesCollection(db), contactMessagePayload(values));
         alert("Thank you! Your message has been sent. We'll get back to you soon.");
         setValues(initialState);
       } catch (err) {

@@ -5,7 +5,8 @@ import PaymentHistoryModal from './PaymentHistoryModal';
 import WarrantyDetailsModal from './WarrantyDetailsModal';
 import RequestStatusModal from './RequestStatusModal';
 import { db, auth } from '../../../lib/firebase';
-import { addDoc, collection, serverTimestamp, getDocs, query, where, orderBy, limit, doc, getDoc } from 'firebase/firestore';
+import { getDocs, query, orderBy, limit, getDoc } from 'firebase/firestore';
+import { userServiceRequestsCollection, userDoc } from '../../../models/Collections';
 
 interface DeviceStats {
   totalDevices: number;
@@ -57,7 +58,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
         // Prefer Firestore users/{uid}.name, then auth.displayName, then localStorage fallback, then email local-part
         if (user?.uid) {
           try {
-            const snap = await getDoc(doc(db, 'users', user.uid));
+            const snap = await getDoc(userDoc(db, user.uid));
             const name = (snap.exists() ? (snap.data() as any)?.name : undefined) as string | undefined;
             const display = (name && name.trim()) || user.displayName || localStorage.getItem('userName') || '';
             if (!cancelled) {
@@ -129,7 +130,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     try {
       // Read from nested subcollection: serviceRequests/{uid}/requests
       const qRef = query(
-        collection(db, 'serviceRequests', user.uid, 'requests'),
+        userServiceRequestsCollection(db, user.uid),
         orderBy('createdAt', 'desc'),
         limit(50)
       );

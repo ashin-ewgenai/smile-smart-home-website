@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../../../../lib/firebase';
-import { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, getDocs, where } from 'firebase/firestore';
+import { query, orderBy, onSnapshot, updateDoc, getDoc, getDocs, where } from 'firebase/firestore';
+import { serviceRequestsCollection, serviceRequestDoc, usersCollection, userDoc } from '../../../../models/Collections';
 import { showToast } from '../../../../lib/toast';
 
 type Priority = 'High' | 'Normal' | 'Low' | string;
@@ -78,7 +79,7 @@ const Notifications: React.FC = () => {
           if (!userCache.has(uid)) {
             fetches.push((async () => {
               try {
-                const snap = await getDoc(doc(db, 'users', uid));
+                const snap = await getDoc(userDoc(db, uid));
                 if (snap.exists()) {
                   const data: any = snap.data();
                   userCache.set(uid, { displayName: data.displayName || data.name || '', email: data.email || '' });
@@ -99,7 +100,7 @@ const Notifications: React.FC = () => {
           if (!emailCache.has(email)) {
             fetches.push((async () => {
               try {
-                const q = query(collection(db, 'users'), where('email', '==', email));
+                const q = query(usersCollection(db), where('email', '==', email));
                 const snaps = await getDocs(q);
                 const docSnap = snaps.docs[0];
                 if (docSnap) {
@@ -131,7 +132,7 @@ const Notifications: React.FC = () => {
 
     (async () => {
       try {
-        const q = query(collection(db, 'service_requests'), orderBy('createdAt', 'desc'));
+        const q = query(serviceRequestsCollection(db), orderBy('createdAt', 'desc'));
         unsub = onSnapshot(q, async (snap) => {
           const raw = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
           const list = await enrichWithUsers(raw);
@@ -160,7 +161,7 @@ const Notifications: React.FC = () => {
 
   const handleUpdate = async (id: string, action: 'ack' | 'done') => {
     try {
-      await updateDoc(doc(db, 'service_requests', id), { status: action === 'ack' ? 'ack' : 'done' });
+      await updateDoc(serviceRequestDoc(db, id), { status: action === 'ack' ? 'ack' : 'done' });
       showToast(action === 'ack' ? 'Request acknowledged' : 'Request marked done', 'success');
     } catch {
       showToast('Update failed. Please retry.', 'error');

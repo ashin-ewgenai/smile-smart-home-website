@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp, increment } from 'firebase/firestore';
+import { getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
+import { accountDoc, accountLoginMergePayload } from '../../models';
 
 type Role = 'admin' | 'Super Admin';
 
@@ -23,15 +24,16 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
 
     try {
       const emailTrimmed = email.trim();
+      console.log(emailTrimmed);
       const passwordTrimmed = password.trim();
 
       const userCredential = await signInWithEmailAndPassword(auth, emailTrimmed, passwordTrimmed);
       const user = userCredential.user;
 
-      // Verify role in Firestore: users/{uid}.role
-      const userDoc = await getDoc(doc(db, 'users', user.uid));
-
-      const role = userDoc.exists() ? (userDoc.data() as any)?.role : undefined;
+      // Verify role in Firestore: Accounts/{uid}
+      const snap = await getDoc(accountDoc(db, user.uid));
+      const data = snap.exists() ? (snap.data() as any) : undefined;
+      const role = data?.Role as string | undefined;
 
       // If a specific role is required (e.g., Super Admin login page), enforce it
       if (requiredRole) {
@@ -61,16 +63,9 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
         if (role) localStorage.setItem('userRole', role);
       } catch {}
 
-      // Update login metadata in Firestore
+      // Update login metadata in Firestore using centralized payload (schema-only fields)
       try {
-        await setDoc(doc(db, 'users', user.uid), {
-          lastLoginAt: serverTimestamp(),
-          // Human-readable client-side timestamp for convenience (ISO)
-          lastLoginAtText: new Date().toISOString(),
-          // Lightweight client info for auditing
-          lastLoginUserAgent: (typeof navigator !== 'undefined' ? navigator.userAgent : ''),
-          loginCount: increment(1),
-        }, { merge: true });
+        await setDoc(accountDoc(db, user.uid), accountLoginMergePayload(), { merge: true });
       } catch {}
 
       // Redirect based on role
