@@ -1,181 +1,208 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../../../../lib/firebase';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-  Legend,
-} from 'recharts';
+import { collection, doc, onSnapshot, orderBy, query, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+// Admin complaints table (Recharts removed per request)
 
-type ServiceRequest = {
+type Ticket = {
   id: string;
+  subject: string;
+  category: string;
+  description: string;
+  status: 'Pending' | 'In Progress' | 'Resolved' | string;
   createdAt?: any;
-  status?: string;
-  type?: string;
+  userUid?: string;
+  imageUrl?: string | null;
+  adminReply?: string;
 };
 
-const COLORS = ['#10b981', '#60a5fa', '#f59e0b', '#ef4444', '#a78bfa', '#34d399'];
+// (Removed COLORS used by the pie chart)
 
 const Reports: React.FC = () => {
   const [loading, setLoading] = useState(true);
-  const [requests, setRequests] = useState<ServiceRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [replyMap, setReplyMap] = useState<Record<string, string>>({});
+  const [userCache, setUserCache] = useState<Record<string, { email?: string; displayName?: string; role?: string }>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   // Load data from Firestore with localStorage fallback
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const q = query(collection(db, 'service_requests'), orderBy('createdAt', 'desc'));
-        const snap = await getDocs(q);
-        if (cancelled) return;
-        const list: ServiceRequest[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-        setRequests(list);
-        try { localStorage.setItem('service_requests', JSON.stringify(list)); } catch {}
-      } catch (e) {
-        try {
-          const raw = localStorage.getItem('service_requests');
-          const list = raw ? JSON.parse(raw) : [];
-          setRequests(Array.isArray(list) ? list : []);
-          setError('Live data unavailable; showing cached data.');
-        } catch {
-          setRequests([]);
-          setError('No data available.');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
+    let unsub: undefined | (() => void);
+    setLoading(true);
+    try {
+      const qRef = query(collection(db, 'tickets'), orderBy('createdAt', 'desc'));
+      unsub = onSnapshot(qRef, async (snap) => {
+        const arr: Ticket[] = snap.docs.map((d) => {
+          const data = d.data() as any;
+          return {
+            id: d.id,
+            subject: data.subject || '',
+            category: data.category || 'Other',
+            description: data.description || '',
+            status: data.status || 'Pending',
+            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || null),
+            userUid: data.userUid,
+            imageUrl: data.imageUrl ?? null,
+            adminReply: data.adminReply || '',
+          };
+        });
+        setTickets(arr);
+        // seed reply inputs with existing replies
+        const seed: Record<string, string> = {};
+        arr.forEach(t => { if (t.adminReply) seed[t.id] = t.adminReply; });
+        setReplyMap(seed);
+        setLoading(false);
+      }, (err) => {
+        console.error(err);
+        setError('Unable to load complaints.');
+        setLoading(false);
+      });
+    } catch (e) {
+      console.error(e);
+      setError('Unable to connect to Firebase.');
+      setLoading(false);
+    }
+    return () => { if (typeof unsub === 'function') unsub(); };
   }, []);
 
-  // Helpers
-  const toDateKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const toDate = (v: any): Date | null => {
-    if (!v) return null;
-    // Firestore Timestamp
-    if (v && typeof v.toDate === 'function') return v.toDate();
-    const d = new Date(v);
-    return isNaN(d.getTime()) ? null : d;
+  // Light user enrichment: look up displayName/email/role for UIDs we haven't seen
+  useEffect(() => {
+    const missing = Array.from(new Set(tickets.map(t => t.userUid).filter(Boolean) as string[]))
+      .filter(uid => !(uid in userCache));
+    if (!missing.length) return;
+    (async () => {
+      const updates: Record<string, { email?: string; displayName?: string; role?: string }> = {};
+      for (const uid of missing) {
+        try {
+          const snap = await getDoc(doc(db, 'users', uid));
+          if (snap.exists()) {
+            const d: any = snap.data();
+            updates[uid] = { email: d.email, displayName: d.displayName || d.name, role: d.role };
+          } else {
+            updates[uid] = {};
+          }
+        } catch {
+          updates[uid] = {};
+        }
+      }
+      setUserCache(prev => ({ ...prev, ...updates }));
+    })();
+  }, [tickets]);
+
+  const sorted = useMemo(() => {
+    return [...tickets].sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
+  }, [tickets]);
+
+  // Only include complaints where the author's role is 'user'
+  const visible = useMemo(() => {
+    return sorted.filter((t) => {
+      const uid = t.userUid;
+      if (!uid) return false;
+      const u = userCache[uid];
+      if (!u) return false; // wait until user doc is fetched
+      return (u.role || 'user') === 'user';
+    });
+  }, [sorted, userCache]);
+
+  // Group tickets by user email (or UID) for collapsible list
+  const groups = useMemo(() => {
+    const map = new Map<string, Ticket[]>();
+    for (const t of visible) {
+      const email = t.userUid ? (userCache[t.userUid]?.email || t.userUid) : 'unknown';
+      const key = String(email);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(t);
+    }
+    return Array.from(map.entries());
+  }, [visible, userCache]);
+
+  const toggle = (email: string) => setExpanded((e) => ({ ...e, [email]: !e[email] }));
+
+  const fmt = (v: any) => {
+    try { return v ? new Date(v).toLocaleString() : ''; } catch { return ''; }
   };
 
-  // Build last 14 days line series from requests
-  const requestsPerDay = useMemo(() => {
-    const now = new Date();
-    const days: { date: string; count: number }[] = [];
-    const counts: Record<string, number> = {};
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      counts[toDateKey(d)] = 0;
+  const saveReply = async (t: Ticket) => {
+    try {
+      const reply = replyMap[t.id] || '';
+      await updateDoc(doc(db, 'tickets', t.id), {
+        adminReply: reply,
+        adminRepliedAt: serverTimestamp(),
+        status: reply ? (t.status === 'Resolved' ? 'Resolved' : 'In Progress') : t.status,
+      });
+    } catch (e) {
+      console.error(e);
+      setError('Failed to save reply.');
     }
-    for (const r of requests) {
-      const d = toDate(r.createdAt);
-      if (!d) continue;
-      const key = toDateKey(d);
-      if (key in counts) counts[key] += 1;
-    }
-    for (const key of Object.keys(counts)) {
-      days.push({ date: key.slice(5), count: counts[key] });
-    }
-    // Keep chronological
-    days.sort((a, b) => a.date.localeCompare(b.date));
-    return days;
-  }, [requests]);
-
-  // Status distribution pie
-  const statusPie = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const r of requests) {
-      const s = (r.status || 'unknown').toLowerCase();
-      map[s] = (map[s] || 0) + 1;
-    }
-    return Object.entries(map).map(([name, value]) => ({ name, value }));
-  }, [requests]);
-
-  // Type bar chart
-  const typeBars = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const r of requests) {
-      const t = (r.type || 'other').toLowerCase();
-      map[t] = (map[t] || 0) + 1;
-    }
-    return Object.entries(map).map(([type, count]) => ({ type, count }));
-  }, [requests]);
+  };
 
   return (
-    <section className="p-6 space-y-6">
-      <h1 className="text-2xl font-semibold text-white">Reports</h1>
+    <section className="p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-semibold text-white">Reports</h1>
+        <span className="text-sm text-gray-400">{visible.length} complaints</span>
+      </div>
 
       {error && (
-        <div className="rounded-md border border-yellow-700/40 bg-yellow-900/20 text-yellow-300 px-3 py-2 text-sm">
+        <div className="mb-3 rounded-md border border-yellow-700/40 bg-yellow-900/20 text-yellow-300 px-3 py-2 text-sm">
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6 text-gray-300">Loading charts…</div>
+        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6 text-gray-300">Loading complaints…</div>
+      ) : groups.length === 0 ? (
+        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6 text-gray-300">No complaints found.</div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Requests per day */}
-          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
-            <div className="text-sm text-gray-300 mb-2 font-medium">Requests (last 14 days)</div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={requestsPerDay} margin={{ top: 5, right: 16, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="date" stroke="#9CA3AF" />
-                  <YAxis allowDecimals={false} stroke="#9CA3AF" />
-                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #374151' }} />
-                  <Line type="monotone" dataKey="count" stroke="#10b981" strokeWidth={2} dot={{ r: 2 }} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+        <div className="rounded-xl border border-gray-800 bg-gray-900/50 divide-y divide-gray-800">
+          {groups.map(([email, list]) => (
+            <div key={email} className="p-6 flex flex-col gap-3">
+              <button
+                type="button"
+                className="text-left text-sm text-gray-400 hover:text-gray-200 flex items-center gap-2 focus:outline-none"
+                aria-expanded={!!expanded[email]}
+                aria-controls={`complaints-${email}`}
+                onClick={() => toggle(email)}
+              >
+                <span className={`transition-transform duration-200 inline-block ${expanded[email] ? 'rotate-90' : 'rotate-0'}`} aria-hidden="true">▶</span>
+                <span>{email}</span>
+                <span className="ml-2 text-xs text-gray-500">({list.length})</span>
+              </button>
 
-          {/* Status distribution */}
-          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4">
-            <div className="text-sm text-gray-300 mb-2 font-medium">Status distribution</div>
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={statusPie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                    {statusPie.map((_, i) => (
-                      <Cell key={`cell-${i}`} fill={COLORS[i % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #374151' }} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+              {expanded[email] && (
+                <div id={`complaints-${email}`} className="mt-2 space-y-4">
+                  {list.map((t) => (
+                    <div key={t.id} className="rounded border border-gray-800 bg-gray-900/40 p-4">
+                      <div className="flex items-center justify-between text-sm text-gray-400">
+                        <span>{fmt(t.createdAt)}</span>
+                        <span className={`px-2 py-0.5 rounded ${String(t.status).toLowerCase()==='resolved'?'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300':String(t.status).toLowerCase()==='in progress'?'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'}`}>{t.status}</span>
+                      </div>
+                      <div className="mt-2">
+                        <p className="text-gray-200 font-medium">{t.subject} <span className="text-xs text-gray-400">• {t.category}</span></p>
+                        <p className="text-sm text-gray-300 mt-1 whitespace-pre-wrap">{t.description}</p>
+                        {t.imageUrl && (
+                          <div className="mt-2"><img src={t.imageUrl} alt="attachment" className="h-24 w-24 object-cover rounded border border-gray-700" /></div>
+                        )}
+                      </div>
+                      <div className="mt-3">
+                        <label className="block text-xs text-gray-400 mb-1">Reply</label>
+                        <textarea
+                          value={replyMap[t.id] ?? ''}
+                          onChange={(e) => setReplyMap((m) => ({ ...m, [t.id]: e.target.value }))}
+                          rows={3}
+                          placeholder="Type a reply to the customer…"
+                          className="w-full px-3 py-2 rounded border border-gray-600 bg-gray-900 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        />
+                        <div className="mt-2 flex justify-end">
+                          <button onClick={() => saveReply(t)} className="px-4 py-1.5 rounded-none bg-teal-600 text-white hover:bg-teal-700">Submit reply</button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-
-          {/* Type breakdown */}
-          <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-4 lg:col-span-2">
-            <div className="text-sm text-gray-300 mb-2 font-medium">Request types</div>
-            <div className="h-72">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={typeBars} margin={{ top: 5, right: 16, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                  <XAxis dataKey="type" stroke="#9CA3AF" />
-                  <YAxis allowDecimals={false} stroke="#9CA3AF" />
-                  <Tooltip contentStyle={{ background: '#111827', border: '1px solid #374151' }} />
-                  <Bar dataKey="count" fill="#60a5fa" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+          ))}
         </div>
       )}
     </section>
