@@ -1,6 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import React, { useEffect, useMemo, useState } from 'react';
+import { collection, onSnapshot, addDoc } from 'firebase/firestore';
+import { auth, db } from '../../../lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
+import { userDevicesCollection, userDevicePayloadFromDevice } from '../../../models/Collections';
 
 // Minimal view-model for Devices collection (aligns with `src/models/Collections.ts` Device)
 type DeviceDoc = {
@@ -23,6 +25,8 @@ type DeviceDoc = {
 
 const AboutDevices: React.FC = () => {
   const [devices, setDevices] = useState<DeviceDoc[]>([]);
+  const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
+  const [userDeviceBySourceId, setUserDeviceBySourceId] = useState<Record<string, { id: string; status?: string; updatedAtMs: number }>>({});
 
   useEffect(() => {
     const col = collection(db, 'Devices');
@@ -50,14 +54,72 @@ const AboutDevices: React.FC = () => {
     return () => unsub();
   }, []);
 
+  // Track auth state
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null));
+    return () => unsub();
+  }, []);
+
+  // Subscribe to user's devices when signed in
+  useEffect(() => {
+    if (!uid) return;
+    const col = userDevicesCollection(db, uid);
+    const unsub = onSnapshot(col, (snap) => {
+      const map: Record<string, { id: string; status?: string; updatedAtMs: number }> = {};
+      snap.forEach((doc) => {
+        const d = doc.data() as any;
+        const srcId = d.sourceDeviceId as string | undefined;
+        if (!srcId) return;
+        const ts = d.UpdatedAt?.toMillis ? d.UpdatedAt.toMillis() : (typeof d.UpdatedAt === 'number' ? d.UpdatedAt : 0);
+        map[srcId] = { id: doc.id, status: d.status, updatedAtMs: ts || 0 };
+      });
+      setUserDeviceBySourceId(map);
+    });
+    return () => unsub();
+  }, [uid]);
+
+  const sorted = useMemo(() => {
+    const withFlag = devices.map((d) => ({
+      ...d,
+      __added: !!userDeviceBySourceId[d.id],
+      __addedAt: userDeviceBySourceId[d.id]?.updatedAtMs ?? 0,
+    }));
+    // Sort: added first by UpdatedAt desc, then others by name
+    return withFlag.sort((a, b) => {
+      if (a.__added && b.__added) return (b.__addedAt - a.__addedAt);
+      if (a.__added) return -1;
+      if (b.__added) return 1;
+      const an = (a.deviceName || a.name || '').toLowerCase();
+      const bn = (b.deviceName || b.name || '').toLowerCase();
+      return an.localeCompare(bn);
+    });
+  }, [devices, userDeviceBySourceId]);
+
+  const handleAdd = async (d: DeviceDoc) => {
+    try {
+      if (!uid) {
+        alert('Please sign in to add devices.');
+        return;
+      }
+      if (userDeviceBySourceId[d.id]) return; // already added
+      // Build payload using helper to ensure status 'pending', UpdatedAt, DeviceCount
+      const payload = userDevicePayloadFromDevice({ ...d, id: d.id } as any);
+      await addDoc(userDevicesCollection(db, uid), payload);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to add device.');
+    }
+  };
+
   return (
     <section className="p-6">
-      <h1 className="text-2xl font-semibold text-white">Devices</h1>
-      {devices.length === 0 ? (
+      <h1 className="text-2xl font-semibold text-white">My Devices</h1>
+      {sorted.length === 0 ? (
         <p className="mt-4 text-gray-300 text-sm">No devices found.</p>
       ) : (
+        <>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {devices.map((d) => (
+          {sorted.map((d) => (
             <div key={d.id} className="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden">
               {d.imageUrl ? (
                 <img src={d.imageUrl} alt={d.deviceName || d.name || 'Device'} className="w-full h-40 object-cover" />
@@ -70,7 +132,9 @@ const AboutDevices: React.FC = () => {
                     <h3 className="text-sm font-semibold text-white">{d.deviceName || d.name || 'Unnamed Device'}</h3>
                     <p className="text-xs text-gray-400">{d.type || '-'} • {d.modelNumber || '-'}</p>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full border border-gray-700 text-gray-300">{d.status || '-'}</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full border border-gray-700 text-gray-300">
+                    {userDeviceBySourceId[d.id]?.status || d.status || '-'}
+                  </span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                   <div><span className="text-gray-400">Serial:</span> {d.serial || '-'}</div>
@@ -80,13 +144,49 @@ const AboutDevices: React.FC = () => {
                   <div><span className="text-gray-400">Discount:</span> {d.discount ?? '-'}</div>
                   <div><span className="text-gray-400">Warranty:</span> {d.warranty ?? '-'}</div>
                 </div>
+                <div className="mt-4 flex justify-end">
+                  {userDeviceBySourceId[d.id] ? (
+                    <button
+                      className="text-xs px-3 py-1 rounded bg-gray-800 text-gray-300 border border-gray-700 cursor-default"
+                      disabled
+                    >
+                      Added
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleAdd(d)}
+                      className="text-xs px-3 py-1 rounded bg-teal-600 hover:bg-teal-500 text-white"
+                    >
+                      Add
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ))}
         </div>
+        {/* Bottom CTA: Add new devices */}
+        <div className="mt-8">
+          <a
+            href="/dashboard/user/about-device"
+            title="About Device"
+            className="inline-flex items-center gap-2 text-2xl font-semibold text-white"
+          >
+            <span className="shrink-0 text-gray-300">
+              {/* Icon */}
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+                <rect x="4" y="4" width="16" height="16" rx="2" />
+                <rect x="9" y="9" width="6" height="6" rx="1" />
+                <path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3" />
+              </svg>
+            </span>
+            <span className="truncate">Add New Devices</span>
+          </a>
+        </div>
+        </>
       )}
     </section>
   );
-};
+}
 
 export default AboutDevices;

@@ -346,3 +346,48 @@ export function supportTicketsCollection(db: Firestore, uid: string): Collection
 export function supportTicketDoc(db: Firestore, uid: string, id: string): DocumentReference<SupportTicket> {
   return doc(db, COLLECTION_SUPPORT_TICKETS_ROOT, uid, SUBCOLLECTION_TICKET, id) as DocumentReference<SupportTicket>;
 }
+
+// Nested: User_Devices/{uid}/Devices
+export const COLLECTION_USER_DEVICES_ROOT = 'User_Devices';
+export const SUBCOLLECTION_USER_DEVICES = 'Devices';
+
+export interface UserDevice {
+  // linkage
+  sourceDeviceId?: string; // id of the document in top-level Devices
+
+  // requested tracking fields
+  UpdatedAt?: Timestamp | null;
+  DeviceCount?: number | null;
+  status?: 'Pending' | 'In Progress' | 'Resolved' | 'open' | 'closed' | 'pending' | string;
+  [key: string]: any; // allow copied fields from Devices document
+}
+
+export function userDevicesParentDoc(db: Firestore, uid: string): DocumentReference {
+  return doc(db, COLLECTION_USER_DEVICES_ROOT, uid);
+}
+export function userDevicesCollection(db: Firestore, uid: string): CollectionReference<UserDevice> {
+  return collection(db, COLLECTION_USER_DEVICES_ROOT, uid, SUBCOLLECTION_USER_DEVICES) as CollectionReference<UserDevice>;
+}
+export function userDeviceDoc(db: Firestore, uid: string, id: string): DocumentReference<UserDevice> {
+  return doc(db, COLLECTION_USER_DEVICES_ROOT, uid, SUBCOLLECTION_USER_DEVICES, id) as DocumentReference<UserDevice>;
+}
+
+export function userDevicePayloadFromDevice(device: Device & { id?: string }): UserDevice & { UpdatedAt: FieldValue; status: string; DeviceCount: number } {
+  return {
+    sourceDeviceId: device.id,
+    deviceName: device.deviceName,
+    name: device.name,
+    type: device.type,
+    status: 'pending',
+    serial: device.serial,
+    modelNumber: device.modelNumber,
+    imageUrl: device.imageUrl,
+    price: device.price ?? null,
+    stock: device.stock ?? null,
+    rating: device.rating ?? null,
+    discount: device.discount ?? null,
+    warranty: device.warranty ?? null,
+    UpdatedAt: serverTimestamp(),
+    DeviceCount: 1,
+  } as any;
+}
