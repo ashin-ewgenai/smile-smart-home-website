@@ -278,7 +278,7 @@ export interface UserServiceRequest {
   preferredDate?: string;
   preferredTime?: string;
   priority?: 'High' | 'Normal' | 'Low' | string;
-  status?: 'new' | 'ack' | 'done' | string;
+  status?: 'new' | 'ack' | 'done' | 'open' | 'closed' | string;
   [key: string]: any;
 }
 
@@ -297,6 +297,14 @@ export const COLLECTION_QUOTES_ROOT = 'Quotes';
 export const SUBCOLLECTION_QUOTE = 'Quote_List';
 
 export interface QuoteItem {
+  // Common fields used by Quote form
+  uid?: string;
+  userEmail?: string | null;
+  location?: string;
+  sqft?: number | null;
+  area?: string;
+  details?: string;
+  status?: 'submitted' | 'approved' | string;
   createdAt?: Timestamp | null;
   [key: string]: any;
 }
@@ -316,11 +324,16 @@ export const COLLECTION_SUPPORT_TICKETS_ROOT = 'Support_Tickets';
 export const SUBCOLLECTION_TICKET = 'Tickets_List';
 
 export interface SupportTicket {
+  // New fields used by TicketCenter
+  subject?: string;
+  category?: 'Device Issue' | 'Connectivity' | 'Billing' | 'Other' | string;
+  // Legacy/alternative title field
   title?: string;
   description?: string;
   imageUrl?: string;
   createdAt?: Timestamp | null;
-  status?: 'open' | 'closed' | 'pending' | string;
+  // Normalize to TicketCenter statuses while preserving legacy values used elsewhere
+  status?: 'Pending' | 'In Progress' | 'Resolved' | 'open' | 'closed' | 'pending' | string;
   [key: string]: any;
 }
 

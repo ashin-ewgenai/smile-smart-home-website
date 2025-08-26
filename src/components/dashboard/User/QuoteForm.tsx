@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { db, auth } from '../../../lib/firebase';
-import { addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { addDoc, serverTimestamp, setDoc, getDocs, query, where } from 'firebase/firestore';
 import { quotesParentDoc, quotesCollection } from '../../../models/Collections';
 
 export type QuoteFormProps = {
@@ -66,6 +66,20 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+
+      // 3) Recompute aggregates on parent: total_no and approved_no
+      const listRef = quotesCollection(db, user.uid);
+      const [allSnap, approvedSnap] = await Promise.all([
+        getDocs(listRef),
+        getDocs(query(listRef, where('status', '==', 'approved'))),
+      ]);
+      const total_no = allSnap.size;
+      const approved_no = approvedSnap.size; // exclude 'submitted'
+      await setDoc(
+        parentRef,
+        { total_no, approved_no, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
       setMessage("Request submitted! We'll get back to you shortly.");
       setLocation('');
       setSqft('');

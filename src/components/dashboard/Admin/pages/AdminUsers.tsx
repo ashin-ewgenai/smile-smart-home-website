@@ -1,8 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { db } from '../../../../lib/firebase';
+import { accountsCollection, quotesCollection, supportTicketsCollection, userServiceRequestsCollection } from '../../../../models/Collections';
+import { getDocs, limit, query, where } from 'firebase/firestore';
 
 interface User { name: string; email: string }
 interface UserDevicesMap { [email: string]: string[] }
+
+type AlertsCount = {
+  uid: string | null;
+  quotes: number;
+  services: number;
+  tickets: number;
+  total: number;
+  loading?: boolean;
+  error?: string | null;
+};
 
 const STORAGE_KEY = 'adminUsers';
 const DEVICES_KEY = 'adminUserDevicesMap';
@@ -49,6 +62,9 @@ const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [devMap, setDevMap] = useState<UserDevicesMap>({});
 
+  // alerts map keyed by email (lowercased)
+  const [alertsMap, setAlertsMap] = useState<Record<string, AlertsCount>>({});
+
   // modal state
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
@@ -76,6 +92,64 @@ const AdminUsers: React.FC = () => {
     setUsers(loadUsers());
     setDevMap(loadUserDevices());
   }, []);
+
+  // helper to resolve UID from Accounts by email
+  async function resolveUidByEmail(email: string): Promise<string | null> {
+    try {
+      const q = query(accountsCollection(db), where('Email', '==', email), limit(1));
+      const snap = await getDocs(q);
+      if (!snap.empty) return snap.docs[0].id; // Accounts are stored with uid as doc id
+    } catch (e) {}
+    return null;
+  }
+
+  // fetch alert counts for a given email
+  async function fetchAlertsForEmail(email: string): Promise<AlertsCount> {
+    const key = email.toLowerCase();
+    // optimistic mark as loading
+    setAlertsMap(prev => ({
+      ...prev,
+      [key]: { ...(prev[key] || { uid: null, quotes: 0, services: 0, tickets: 0, total: 0 }), loading: true, error: null },
+    }));
+    try {
+      const uid = (await resolveUidByEmail(email)) || '';
+      if (!uid) {
+        const empty: AlertsCount = { uid: null, quotes: 0, services: 0, tickets: 0, total: 0 };
+        setAlertsMap(prev => ({ ...prev, [key]: empty }));
+        return empty;
+      }
+
+      const [quotesSnap, servicesSnap, ticketsSnap] = await Promise.all([
+        getDocs(quotesCollection(db, uid)),
+        getDocs(userServiceRequestsCollection(db, uid)),
+        getDocs(supportTicketsCollection(db, uid)),
+      ]);
+
+      const data: AlertsCount = {
+        uid,
+        quotes: quotesSnap.size,
+        services: servicesSnap.size,
+        tickets: ticketsSnap.size,
+        total: quotesSnap.size + servicesSnap.size + ticketsSnap.size,
+      };
+      setAlertsMap(prev => ({ ...prev, [key]: data }));
+      return data;
+    } catch (e: any) {
+      const err: AlertsCount = { uid: null, quotes: 0, services: 0, tickets: 0, total: 0, error: String(e) };
+      setAlertsMap(prev => ({ ...prev, [key]: err }));
+      return err;
+    }
+  }
+
+  // prefetch alerts when users list loads/changes
+  useEffect(() => {
+    if (!users.length) return;
+    users.forEach(u => {
+      const key = u.email.toLowerCase();
+      if (!alertsMap[key]) void fetchAlertsForEmail(u.email);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users]);
 
   const rows = useMemo(() => users.map((u, idx) => {
     const devices = devMap[u.email.toLowerCase()] || [];
@@ -138,6 +212,14 @@ const AdminUsers: React.FC = () => {
     saveUsers(next);
   }
 
+  // modal for showing alert breakdown
+  const [alertModal, setAlertModal] = useState<{ email: string; counts: AlertsCount } | null>(null);
+  const openAlertModal = async (email: string) => {
+    const counts = alertsMap[email.toLowerCase()] || (await fetchAlertsForEmail(email));
+    setAlertModal({ email, counts });
+  };
+  const closeAlertModal = () => setAlertModal(null);
+
   return (
     <section className="bg-white/0 p-0">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
@@ -182,6 +264,23 @@ const AdminUsers: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
                     <div className="flex items-center gap-2 justify-end">
+                      {/* Alerts */}
+                      {(() => {
+                        const counts = alertsMap[email.toLowerCase()];
+                        const loading = !counts || counts.loading;
+                        const total = counts?.total || 0;
+                        const btnClass = total > 0 ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white';
+                        const label = loading ? 'Checking…' : total > 0 ? `Alerts (${total})` : 'No Alerts';
+                        return (
+                          <button
+                            onClick={() => openAlertModal(email)}
+                            className={`px-3 py-1.5 rounded ${btnClass}`}
+                            title={loading ? 'Fetching alerts' : 'View alerts summary'}
+                          >
+                            {label}
+                          </button>
+                        );
+                      })()}
                       <Link to={`/dashboard/admin/estimates?userName=${encodeURIComponent(name)}&userEmail=${encodeURIComponent(email)}`} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded">Estimate</Link>
                       <button onClick={() => openEdit(idx)} className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">Edit</button>
                       <button onClick={() => onDelete(idx)} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded">Delete</button>
@@ -213,6 +312,26 @@ const AdminUsers: React.FC = () => {
                 <button type="submit" className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">Save</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Alerts modal */}
+      {alertModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={closeAlertModal} />
+          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-sm mx-4 p-6 border border-gray-200 dark:border-gray-700">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Alerts Summary</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-2 break-words">{alertModal.email}</p>
+            <ul className="space-y-1 text-sm text-gray-800 dark:text-gray-100">
+              <li className="flex justify-between"><span>Quotes</span><span>{alertModal.counts.quotes}</span></li>
+              <li className="flex justify-between"><span>Service Requests</span><span>{alertModal.counts.services}</span></li>
+              <li className="flex justify-between"><span>Tickets</span><span>{alertModal.counts.tickets}</span></li>
+              <li className="flex justify-between font-semibold border-t border-gray-200 dark:border-gray-700 pt-2"><span>Total</span><span>{alertModal.counts.total}</span></li>
+            </ul>
+            <div className="mt-4 text-right">
+              <button onClick={closeAlertModal} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">Close</button>
+            </div>
           </div>
         </div>
       )}

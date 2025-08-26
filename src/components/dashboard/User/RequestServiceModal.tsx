@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { X } from 'lucide-react';
 import { db, auth } from '../../../lib/firebase';
-import { addDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { addDoc, serverTimestamp, setDoc, getDocs, query, where } from 'firebase/firestore';
 import { userServiceRequestsParentDoc, userServiceRequestsCollection } from '../../../models/Collections';
 
 interface Props {
@@ -116,6 +116,20 @@ const RequestServiceModal: React.FC<Props> = ({ open, onClose, deviceOptions }) 
                   ...payload,
                   updatedAt: serverTimestamp(),
                 });
+
+                // Recompute aggregates on parent: total_no and review_no (closed only)
+                const listRef = userServiceRequestsCollection(db, user.uid);
+                const [allSnap, closedSnap] = await Promise.all([
+                  getDocs(listRef),
+                  getDocs(query(listRef, where('status', '==', 'closed'))),
+                ]);
+                const total_no = allSnap.size;
+                const review_no = closedSnap.size; // exclude 'open'
+                await setDoc(
+                  parentRef,
+                  { total_no, review_no, updatedAt: serverTimestamp() },
+                  { merge: true }
+                );
                 setReqSuccess('Submitted successfully.');
                 setReqError('');
                 setReqDevice('');
