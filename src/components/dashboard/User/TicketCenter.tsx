@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 // Firebase
 import { auth, db, storage } from '../../../lib/firebase';
-import { addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp } from 'firebase/firestore';
-import { supportTicketsCollection } from '../../../models/Collections';
+import { addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp, getDocs, where, setDoc } from 'firebase/firestore';
+import { supportTicketsCollection, supportTicketsParentDoc } from '../../../models/Collections';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -179,6 +179,22 @@ const TicketCenter: React.FC = () => {
       };
       if (uploadedImageUrl) payload.imageUrl = uploadedImageUrl;
       await addDoc(supportTicketsCollection(db, userUid), payload);
+
+      // Recompute aggregates on parent doc: total_no and solved_no (Resolved only)
+      try {
+        const listRef = supportTicketsCollection(db, userUid);
+        const [allSnap, solvedSnap] = await Promise.all([
+          getDocs(listRef),
+          getDocs(query(listRef, where('status', '==', 'Resolved'))),
+        ]);
+        await setDoc(
+          supportTicketsParentDoc(db, userUid),
+          { total_no: allSnap.size, solved_no: solvedSnap.size, updatedAt: serverTimestamp() },
+          { merge: true }
+        );
+      } catch (aggErr) {
+        console.warn('Failed to update support ticket aggregates', aggErr);
+      }
 
       // Clear form
       setSubject('');
