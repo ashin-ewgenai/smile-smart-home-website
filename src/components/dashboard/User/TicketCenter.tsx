@@ -37,6 +37,8 @@ const TicketCenter: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string>('');
+  const [successMsg, setSuccessMsg] = useState<string>('');
+  const [toastEnter, setToastEnter] = useState<boolean>(false);
 
   // Tickets list (local only)
   const [tickets, setTickets] = useState<Ticket[]>([]);
@@ -121,6 +123,23 @@ const TicketCenter: React.FC = () => {
     };
   }, [isLoggedIn, userUid]);
 
+  // Auto-hide success toast after a short delay and handle slide-in/out
+  useEffect(() => {
+    if (!successMsg) return;
+    // start enter animation on next tick
+    const raf = requestAnimationFrame(() => setToastEnter(true));
+    // start exit animation slightly before removal
+    const exitTimer = setTimeout(() => setToastEnter(false), 4300);
+    // remove from DOM after exit animation
+    const removeTimer = setTimeout(() => setSuccessMsg(''), 4600);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(exitTimer);
+      clearTimeout(removeTimer);
+      setToastEnter(false);
+    };
+  }, [successMsg]);
+
   // Basic client-side validation
   const validate = () => {
     const newErrors: { subject?: string; description?: string } = {};
@@ -167,6 +186,7 @@ const TicketCenter: React.FC = () => {
       setDescription('');
       setImageFile(null);
       setErrors(null);
+      setSuccessMsg('Ticket raised successfully');
     } catch (e) {
       // Surface minimal error state in form-level message via fetchError slot
       console.error(e);
@@ -180,7 +200,23 @@ const TicketCenter: React.FC = () => {
   if (!isLoggedIn || !userUid) return null;
 
   return (
-    <section className="dashboard-card bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
+    <>
+      {/* Success toast */}
+      {successMsg && (
+        <div
+          className={`fixed top-6 right-6 z-[70] flex items-center gap-2 rounded-md bg-green-600 text-white shadow-lg px-4 py-2 transform transition-all duration-300 ease-out will-change-transform will-change-opacity ${toastEnter ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'}`}
+          role="status"
+          aria-live="polite"
+        >
+          {/* Check icon */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 6L9 17l-5-5" />
+          </svg>
+          <span className="text-sm font-medium">{successMsg}</span>
+        </div>
+      )}
+
+      <section className="dashboard-card bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
       <div className="px-4 py-4 sm:px-6">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Support Tickets</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">Raise a complaint and track its status</p>
@@ -304,6 +340,7 @@ const TicketCenter: React.FC = () => {
         )}
       </div>
     </section>
+    </>
   );
 };
 
