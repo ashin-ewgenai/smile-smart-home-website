@@ -18,6 +18,7 @@ type Message = {
 const HISTORY_KEY = 'smile-chat-history';
 const OPEN_KEY = 'smile-chat-open';
 const SESSION_KEY = 'smile-chat-sessionId';
+const UNREAD_KEY = 'smile-chat-unread';
 const MAX_MESSAGE_WORDS = 40; // limit of words per message
 
 function now() {
@@ -80,6 +81,7 @@ const SupportChat: React.FC = () => {
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [unread, setUnread] = useState<number>(0);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -94,6 +96,8 @@ const SupportChat: React.FC = () => {
       if (o) setOpen(JSON.parse(o));
       const sid = localStorage.getItem(SESSION_KEY);
       if (sid) setSessionId(sid);
+      const ur = localStorage.getItem(UNREAD_KEY);
+      if (ur) setUnread(Number(ur) || 0);
     } catch {}
   }, []);
 
@@ -108,6 +112,14 @@ const SupportChat: React.FC = () => {
     try {
       localStorage.setItem(OPEN_KEY, JSON.stringify(open));
     } catch {}
+  }, [open]);
+
+  // Reset unread when opened
+  useEffect(() => {
+    if (open && unread > 0) {
+      setUnread(0);
+      try { localStorage.setItem(UNREAD_KEY, '0'); } catch {}
+    }
   }, [open]);
 
   // Auto-scroll on new messages
@@ -187,12 +199,26 @@ const SupportChat: React.FC = () => {
       const text = reply && typeof reply === 'string' ? reply : 'Sorry, I could not generate a reply right now.';
       const botMsg: Message = { id: generateId(), from: 'assistant', text, ts: now() };
       setMessages(prev => [...prev, botMsg]);
+      if (!open) {
+        setUnread(u => {
+          const n = u + 1;
+          try { localStorage.setItem(UNREAD_KEY, String(n)); } catch {}
+          return n;
+        });
+      }
     } catch (e) {
       // Fallback to heuristic reply
       const intent = inferIntent(trimmed);
       const replyText = replyForIntent(intent);
       const botMsg: Message = { id: generateId(), from: 'assistant', text: replyText, ts: now() };
       setMessages(prev => [...prev, botMsg]);
+      if (!open) {
+        setUnread(u => {
+          const n = u + 1;
+          try { localStorage.setItem(UNREAD_KEY, String(n)); } catch {}
+          return n;
+        });
+      }
     } finally {
       setTyping(false);
     }
@@ -211,6 +237,44 @@ const SupportChat: React.FC = () => {
     setTyping(false);
   };
 
+  // Quick replies based on common intents
+  const quickReplies = useMemo(
+    () => [
+      { label: 'Get a quote', text: 'I want a pricing quote.' },
+      { label: 'Our services', text: 'What services do you offer?' },
+      { label: 'Installation', text: 'How does installation work?' },
+      { label: 'Contact', text: 'How can I contact the team?' },
+      { label: 'Warranty', text: 'Do you provide warranty?' },
+      { label: 'Working hours', text: 'What are your support hours?' }
+    ],
+    []
+  );
+
+  const showQuickReplies = useMemo(() => {
+    if (messages.length === 0) return true;
+    const last = messages[messages.length - 1];
+    return last.from === 'assistant' && !typing;
+  }, [messages, typing]);
+
+  const handleQuickReply = (text: string) => {
+    setInput(text);
+    // small delay for UX before send
+    setTimeout(() => send(), 0);
+  };
+
+  const handleInputKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      send();
+    }
+  };
+
+  // Word count for conditional helper text
+  const wordCount = useMemo(() => {
+    const words = input.trim().split(/\s+/).filter(Boolean);
+    return input.trim().length === 0 ? 0 : words.length;
+  }, [input]);
+
   return (
     <div className="fixed bottom-6 right-6 z-[60]">
       {/* Floating toggle button */}
@@ -218,7 +282,7 @@ const SupportChat: React.FC = () => {
         type="button"
         onClick={toggleOpen}
         aria-label={ariaLabel}
-        className="flex items-center justify-center h-12 w-12 rounded-full border border-teal text-teal bg-white dark:bg-charcoal shadow-lg hover:bg-teal hover:text-white transition-colors"
+        className="relative flex items-center justify-center h-12 w-12 rounded-full shadow-lg text-white bg-gradient-to-br from-teal to-gray-800 hover:opacity-90 transition-opacity"
       >
         {!open ? (
           // chat bubble icon (SVG, no extra libs)
@@ -232,63 +296,119 @@ const SupportChat: React.FC = () => {
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         )}
+        {!open && unread > 0 && (
+          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-white text-teal text-[10px] font-semibold grid place-items-center border border-teal shadow">
+            {unread}
+          </span>
+        )}
       </button>
 
       {/* Panel */}
       {open && (
         <div
           ref={panelRef}
-          className="mt-3 w-[22rem] max-w-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-charcoal shadow-xl overflow-hidden"
+          className="mt-3 w-[26rem] max-w-sm rounded-xl border border-gray-200/70 dark:border-gray-700/60 bg-white dark:bg-gray-800 shadow-xl overflow-hidden animate-scale-in ring-1 ring-gray-200 dark:ring-gray-700"
           role="dialog"
           aria-label="Support chat panel"
         >
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div className="text-sm font-semibold text-gray-800 dark:text-gray-200">Support</div>
-            <button
-              type="button"
-              onClick={handleClear}
-              className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
-              title="Clear this conversation"
-            >
-              Clear
-            </button>
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-teal/10 to-transparent flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-teal text-white grid place-items-center shadow">
+                {/* bot avatar icon */}
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+                  <path d="M12 2a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v2h1a2 2 0 0 1 2 2v5a4 4 0 0 1-4 4h-1.18a2 2 0 0 1-1.79 1.11H9.97A2 2 0 0 1 8.18 21H7a4 4 0 0 1-4-4v-5a2 2 0 0 1 2-2h1V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1Zm-5 9v2h2v-2H7Zm10 0h-2v2h2v-2Z"/>
+                </svg>
+              </div>
+              <div>
+                <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">Smile Support</div>
+                <div className="text-[11px] text-gray-600 dark:text-gray-300 inline-flex items-center gap-1">
+                  <span className="relative inline-flex h-2 w-2">
+                    <span className="absolute inline-flex h-2 w-2 rounded-full bg-teal opacity-75"></span>
+                  </span>
+                  We're online
+                </div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleClear}
+                className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+                title="Clear this conversation"
+              >
+                Clear
+              </button>
+            </div>
           </div>
 
-          <div ref={scrollRef} className="max-h-80 overflow-y-auto px-4 py-3 space-y-2">
+          <div ref={scrollRef} className="max-h-[28rem] overflow-y-auto px-4 py-3 space-y-3 bg-soft-gray/40 dark:bg-gray-900/20 animate-fade-in">
             {messages.length === 0 && (
-              <div className="text-sm text-gray-600 dark:text-gray-300">Hi! How can I help you today?</div>
+              <div className="text-sm text-gray-700 dark:text-gray-200">
+                Hi! How can I help you today? Select a quick option below or type your question.
+              </div>
             )}
             {messages.map(m => (
-              <div key={m.id} className={m.from === 'user' ? 'text-right' : 'text-left'}>
+              <div key={m.id} className={m.from === 'user' ? 'flex justify-end' : 'flex items-start gap-2'}>
+                {m.from === 'assistant' && (
+                  <div className="mt-0.5 h-7 w-7 rounded-full bg-gray-100 text-teal grid place-items-center dark:bg-gray-800">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+                      <path d="M12 2a1 1 0 0 1 1 1v1h2a2 2 0 0 1 2 2v2h1a2 2 0 0 1 2 2v5a4 4 0 0 1-4 4h-1.18a2 2 0 0 1-1.79 1.11H9.97A2 2 0 0 1 8.18 21H7a4 4 0 0 1-4-4v-5a2 2 0 0 1 2-2h1V6a2 2 0 0 1 2-2h2V3a1 1 0 0 1 1-1Z"/>
+                    </svg>
+                  </div>
+                )}
                 <div className={
-                  'inline-block max-w-[85%] rounded-lg px-3 py-2 text-sm ' +
+                  'relative inline-block max-w-[85%] rounded-2xl px-3 py-2 text-sm shadow ' +
                   (m.from === 'user'
-                    ? 'bg-teal text-white'
-                    : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200')
+                    ? 'bg-teal text-white rounded-br-sm'
+                    : 'bg-white text-gray-800 dark:bg-gray-700 dark:text-gray-200 rounded-bl-sm border border-gray-100 dark:border-gray-700')
                 }>
                   <div>{m.text}</div>
                   <div className="mt-1 text-[10px] opacity-75">{formatTime(m.ts)}</div>
+                  {/* Tail */}
+                  <span className={
+                    'absolute bottom-0 w-2 h-2 rotate-45 ' +
+                    (m.from === 'user' ? 'right-0 translate-x-1 bg-teal' : 'left-0 -translate-x-1 bg-white dark:bg-gray-700 border-b border-l border-gray-100 dark:border-gray-700')
+                  }></span>
                 </div>
               </div>
             ))}
             {typing && (
               <div className="text-left">
-                <div className="inline-block rounded-lg px-3 py-2 text-sm bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-                  <span>Agent is typing</span>
-                  {!prefersReducedMotion && (
-                    <span className="inline-flex ml-1">
-                      <span className="animate-pulse">.</span>
-                      <span className="animate-pulse" style={{ animationDelay: '100ms' }}>.</span>
-                      <span className="animate-pulse" style={{ animationDelay: '200ms' }}>.</span>
-                    </span>
-                  )}
+                <div className="inline-block rounded-2xl px-3 py-2 text-sm bg-white text-gray-800 dark:bg-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-700">
+                  <span className="inline-flex items-center gap-2">
+                    <span>Agent is typing</span>
+                    {!prefersReducedMotion && (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-pulse"></span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-pulse" style={{ animationDelay: '120ms' }}></span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-pulse" style={{ animationDelay: '240ms' }}></span>
+                      </span>
+                    )}
+                  </span>
                 </div>
               </div>
             )}
+
+            {showQuickReplies && (
+              <div className="pt-1 flex flex-wrap gap-2">
+                {quickReplies.map((q) => (
+                  <button
+                    key={q.label}
+                    type="button"
+                    onClick={() => handleQuickReply(q.text)}
+                    className="text-xs px-2.5 py-1.5 rounded-full border border-teal/60 text-teal hover:bg-teal hover:text-white transition-colors"
+                  >
+                    {q.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Footer CTA removed per request */}
           </div>
 
           <form
-            className="border-t border-gray-200 dark:border-gray-700 px-2 py-2 flex items-center gap-2"
+            className="border-t border-gray-200 dark:border-gray-700 px-2 py-2 flex items-center gap-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur"
             onSubmit={(e) => {
               e.preventDefault();
               send();
@@ -303,16 +423,24 @@ const SupportChat: React.FC = () => {
                 const limited = truncateToWordLimit(val);
                 setInput(limited);
               }}
-              placeholder={`Type your message (max ${MAX_MESSAGE_WORDS} words)`}
-              className="flex-1 bg-white dark:bg-charcoal text-gray-800 dark:text-gray-200 placeholder-gray-400 outline-none px-3 py-2 rounded border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal"
+              onKeyDown={handleInputKeyDown}
+              placeholder="Type your message"
+              className="flex-1 bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 placeholder-gray-400 outline-none px-3 py-2 rounded-full border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal"
             />
+            
+            {wordCount >= MAX_MESSAGE_WORDS && (
+              <span className="text-[11px] text-gray-500 whitespace-nowrap mr-1">Max {MAX_MESSAGE_WORDS} words</span>
+            )}
             <button
               type="submit"
               disabled={typing || !input.trim()}
-              className="px-3 py-2 rounded border border-teal text-teal hover:bg-teal hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-teal text-teal hover:bg-teal hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               aria-disabled={typing || !input.trim()}
             >
-              Send
+              <span>Send</span>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
+                <path d="M3.4 20.6 22 12 3.4 3.4 3 10l10 2-10 2z"/>
+              </svg>
             </button>
           </form>
         </div>
