@@ -147,7 +147,7 @@ const Reports: React.FC = () => {
       </div>
 
       {error && (
-        <div className="mb-3 rounded-md border border-yellow-700/40 bg-yellow-900/20 text-yellow-300 px-3 py-2 text-sm">
+        <div className="mb-3 rounded-md border px-3 py-2 text-sm text-red-700 bg-red-50 border-red-200 dark:text-yellow-300 dark:bg-yellow-900/20 dark:border-yellow-700/40">
           {error}
         </div>
       )}

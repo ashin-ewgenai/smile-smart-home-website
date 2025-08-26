@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { showToast } from '../../../../lib/toast';
+import { db } from '../../../../lib/firebase';
+import { contactMessagesCollection } from '../../../../models/Collections';
+import { getDocs } from 'firebase/firestore';
 
 const Customers: React.FC = () => {
   type CustomerDevice = { name: string; purchaseDate: string; warrantyMonths: number };
-  type Customer = { name: string; email: string; devices: CustomerDevice[] };
+  type Customer = { name: string; email: string; devices: CustomerDevice[]; phone?: string; message?: string };
   type Bill = { id: string; customer: string; device: string; amount: number; date: string; notes: string };
 
   const STORAGE_KEY = 'adminCustomers';
@@ -31,6 +34,8 @@ const Customers: React.FC = () => {
 
   // Details modal state
   const [detailsIdx, setDetailsIdx] = useState<number | null>(null);
+  const [detailsMessage, setDetailsMessage] = useState('');
+  const [detailsPhone, setDetailsPhone] = useState('');
 
   // Bill view modal state
   const [billViewDevice, setBillViewDevice] = useState<string | null>(null);
@@ -45,19 +50,58 @@ const Customers: React.FC = () => {
   const [billDate, setBillDate] = useState('');
   const [billNotes, setBillNotes] = useState('');
 
-  // Load customers on mount
+  // Load customers on mount — try Firestore(Contact_Messages) first, fallback to localStorage/defaults
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const arr = JSON.parse(raw);
-        if (Array.isArray(arr)) setCustomers(arr);
-        else setCustomers(defaultCustomers);
-      } else {
-        setCustomers(defaultCustomers);
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const snap = await getDocs(contactMessagesCollection(db));
+        const seen = new Set<string>();
+        const list: Customer[] = [];
+        snap.forEach((doc) => {
+          const data = doc.data() as any;
+          const email = String(data?.email || '').trim();
+          const name = String(data?.name || '').trim();
+          const phone = String(data?.phone || '').trim();
+          const message = String(data?.message || '').trim();
+          if (email && !seen.has(email)) {
+            seen.add(email);
+            list.push({ name: name || email, email, devices: [], phone, message });
+          }
+        });
+        if (!cancelled) {
+          if (list.length) {
+            setCustomers(list);
+          } else {
+            // fallback to local cache/defaults
+            try {
+              const raw = localStorage.getItem(STORAGE_KEY);
+              if (raw) {
+                const arr = JSON.parse(raw);
+                setCustomers(Array.isArray(arr) ? arr : defaultCustomers);
+              } else {
+                setCustomers(defaultCustomers);
+              }
+            } catch { setCustomers(defaultCustomers); }
+          }
+          setLoaded(true);
+        }
+      } catch {
+        // Firestore failed (rules/offline) — use local cache/defaults
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            setCustomers(Array.isArray(arr) ? arr : defaultCustomers);
+          } else {
+            setCustomers(defaultCustomers);
+          }
+        } catch { setCustomers(defaultCustomers); }
+        if (!cancelled) setLoaded(true);
       }
-    } catch { setCustomers(defaultCustomers); }
-    setLoaded(true);
+    };
+    load();
+    return () => { cancelled = true; };
   }, [defaultCustomers]);
 
   // Persist on changes
@@ -90,6 +134,14 @@ const Customers: React.FC = () => {
     return `${days} days`;
   };
 
+  // Open WhatsApp helper (component scope)
+  function openWhatsApp(rawPhone?: string, text?: string) {
+    const digits = String(rawPhone || '').replace(/\D+/g, '');
+    if (!digits) { showToast('No phone number available for WhatsApp.', 'warn'); return; }
+    const url = `https://wa.me/${digits}${text ? `?text=${encodeURIComponent(text)}` : ''}`;
+    try { window.open(url, '_blank'); } catch { window.location.href = url; }
+  }
+
   // Form open/close
   const openAdd = () => { setEditIndex(null); setName(''); setEmail(''); setDevices([{ name: '', purchaseDate: '', warrantyMonths: 0 }]); setShowForm(true); };
   const openEdit = (idx: number) => { const c = customers[idx]; setEditIndex(idx); setName(c.name); setEmail(c.email); setDevices(c.devices||[]); setShowForm(true); };
@@ -112,7 +164,12 @@ const Customers: React.FC = () => {
     setShowForm(false);
   };
 
-  const openDetails = (idx: number) => setDetailsIdx(idx);
+  const openDetails = (idx: number) => {
+    setDetailsIdx(idx);
+    const c = customers[idx];
+    setDetailsMessage(c?.message || '');
+    setDetailsPhone(c?.phone || '');
+  };
   const closeDetails = () => setDetailsIdx(null);
 
   const deleteCustomer = (idx: number) => {
@@ -216,136 +273,122 @@ const Customers: React.FC = () => {
             <table className="min-w-full divide-y divide-gray-800">
               <thead className="bg-gray-800/60">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Customer</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Devices</th>
-                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">Warranty</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-400 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Customer Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-400 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider">Details</th>
+                  <th className="px-6 py-3 text-center text-xs font-medium text-gray-400 uppercase tracking-wider"><span className="sr-only">Connect</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-800 text-gray-300">
-                {customers.map((c, idx) => {
-                  const count = (c.devices || []).length;
-                  const anyActive = (c.devices || []).some(d => warrantyInfo(d).active);
-                  const label = count === 0 ? '-' : (anyActive ? 'Active' : 'Expired');
-                  const badgeClass = anyActive ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300';
-                  return (
-                    <tr key={c.email}>
-                      <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm font-medium text-gray-900 dark:text-white">{c.name}</div><div className="text-xs text-gray-500 dark:text-gray-400">{c.email}</div></td>
-                      <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm text-gray-900 dark:text-gray-200">{count}</div></td>
-                      <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <div className="flex items-center gap-3 justify-center">
-                          <span className={`inline-flex items-center justify-center h-6 w-20 px-2 rounded text-xs ${badgeClass}`}>{label}</span>
-                          <button onClick={() => openDetails(idx)} className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">Details</button>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="flex items-center gap-2 justify-end">
-                          <button onClick={() => openEdit(idx)} className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">Edit</button>
-                          <button onClick={() => deleteCustomer(idx)} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded">Delete</button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
+                {customers.map((c, idx) => (
+                  <tr key={c.email}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{c.name}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">{c.email}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <button onClick={() => openDetails(idx)} className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">Details</button>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                      <button
+                        onClick={() => openWhatsApp(customers[idx]?.phone, `Hi ${customers[idx]?.name}`)}
+                        className="inline-flex items-center justify-center w-8 h-8 rounded border text-white bg-red-600 hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 border-red-700 dark:border-red-700"
+                        aria-label="Connect"
+                        title="Connect"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          viewBox="0 0 24 24"
+                          width="16"
+                          height="16"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          aria-hidden="true"
+                          focusable="false"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* Add/Edit Modal */}
-      {showForm && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-2xl rounded-lg bg-white dark:bg-gray-800 p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{editIndex===null?'Add Customer':'Edit Customer'}</h3>
-              <button onClick={closeForm} className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-sm">Close</button>
-            </div>
-            <div className="space-y-3">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm text-gray-600 dark:text-gray-300">Name</label>
-                  <input value={name} onChange={e=>setName(e.target.value)} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-600 dark:text-gray-300">Email</label>
-                  <input type="email" value={email} onChange={e=>setEmail(e.target.value)} className="mt-1 w-full rounded border border-gray-300 dark:border-gray-600 px-3 py-2 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100" />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm text-gray-600 dark:text-gray-300">Devices</label>
-                  <button type="button" onClick={addDeviceRow} className="px-2 py-1 text-sm rounded bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-100">Add Row</button>
-                </div>
-                <div className="space-y-2">
-                  {devices.map((d, i) => (
-                    <div key={i} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-center">
-                      <input placeholder="Device name" value={d.name} onChange={e=>updateDevice(i,{name: e.target.value})} className="px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                      <input type="date" value={d.purchaseDate} onChange={e=>updateDevice(i,{purchaseDate: e.target.value})} className="px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                      <input type="number" min={0} placeholder="Warranty (months)" value={d.warrantyMonths} onChange={e=>updateDevice(i,{warrantyMonths: Number(e.target.value||0)})} className="px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
-                      <button type="button" onClick={()=>removeDevice(i)} className="px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-600">Remove</button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button onClick={closeForm} className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600">Cancel</button>
-                <button onClick={saveForm} className="px-3 py-1.5 rounded bg-teal-600 text-white">Save</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      
 
       {/* Details Modal */}
       {detailsIdx !== null && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-4xl rounded-lg bg-white dark:bg-gray-800 p-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4" onClick={closeDetails}>
+          <div className="w-full max-w-lg rounded-lg bg-white dark:bg-gray-800 p-3 ml-5" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Customer Devices</h3>
-              <button onClick={closeDetails} className="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-sm">Close</button>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Details</h3>
+              <button
+                onClick={closeDetails}
+                className="inline-flex items-center justify-center w-8 h-8 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                aria-label="Close"
+                title="Close"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
             </div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Device Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Warranty Start</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Warranty End</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Remaining</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Extend Warranty</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Bill</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {(customers[detailsIdx].devices||[]).map((d) => {
-                    const info = warrantyInfo(d);
-                    const start = new Date(d.purchaseDate);
-                    const end = info.end;
-                    const remaining = remainingText(end);
-                    return (
-                      <tr key={`${d.name}-${d.purchaseDate}`}>
-                        <td className="px-6 py-4">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{d.name}</div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400"></div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-200">{formatDate(start)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-200">{formatDate(end)}</td>
-                        <td className={`px-6 py-4 whitespace-nowrap text-sm ${remaining === 'Expired' ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-200'}`}>{remaining}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                          <button className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">Extend</button>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                          <div className="flex items-center justify-end gap-2">
-                            <button onClick={() => openBillView(d.name, customers[detailsIdx].name)} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">View Bill</button>
-                            <button onClick={() => openBillCreate(customers[detailsIdx].name, d.name)} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md bg-teal-600 text-white hover:bg-teal-700">Create Bill</button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">Message</label>
+                <div className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+                  {detailsMessage || '-'}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-gray-300 mb-1">Phone Number</label>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex text-gray-900 dark:text-gray-100">{detailsPhone || '-'}</span>
+                  {/* WhatsApp icon button */}
+                  <button
+                    type="button"
+                    onClick={() => openWhatsApp(detailsPhone, detailsMessage ? detailsMessage : undefined)}
+                    className="inline-flex items-center justify-center text-green-500 hover:text-green-600 focus:outline-none"
+                    aria-label="Open WhatsApp chat"
+                    title="Open WhatsApp chat"
+                  >
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      width="18"
+                      height="18"
+                      className="fill-current"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path d="M20.52 3.48A11.77 11.77 0 0 0 12.01 0C5.75 0 .67 5.08.67 11.34c0 2 .52 3.98 1.52 5.72L0 24l6.12-2.06a11.3 11.3 0 0 0 5.89 1.6h.01c6.26 0 11.34-5.08 11.34-11.34 0-3.03-1.18-5.88-3.38-7.72ZM12.02 21.3h-.01a9.96 9.96 0 0 1-5.07-1.4l-.36-.21-3.63 1.22 1.2-3.53-.24-.36a9.93 9.93 0 0 1-1.57-5.28c0-5.5 4.48-9.98 9.99-9.98 2.67 0 5.18 1.04 7.07 2.92a9.92 9.92 0 0 1 2.92 7.06c0 5.5-4.48 9.98-9.99 9.98Zm5.73-7.46c-.31-.16-1.85-.91-2.14-1.01-.29-.11-.5-.16-.72.16-.21.31-.83 1.01-1.02 1.22-.19.2-.38.22-.7.06-.31-.16-1.33-.49-2.54-1.56-.94-.84-1.57-1.88-1.75-2.2-.18-.31-.02-.48.14-.64.14-.13.31-.34.47-.51.16-.18.21-.3.31-.5.1-.2.05-.38-.02-.54-.16-.16-.72-1.73-.98-2.36-.26-.63-.52-.53-.72-.54h-.62c-.2 0-.53.08-.81.38-.28.31-1.07 1.05-1.07 2.55 0 1.49 1.1 2.93 1.26 3.13.16.2 2.17 3.31 5.26 4.65.74.32 1.32.51 1.77.65.74.24 1.41.2 1.94.12.59-.09 1.85-.76 2.11-1.49.26-.73.26-1.36.18-1.49-.07-.13-.28-.21-.59-.37Z"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

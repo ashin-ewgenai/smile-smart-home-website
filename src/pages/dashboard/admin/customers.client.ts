@@ -147,25 +147,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const customers = loadCustomers();
     if (!tbody) return;
     tbody.innerHTML = customers.map((c, idx) => {
-      const count = (c.devices || []).length;
-      const anyActive = (c.devices || []).some(d => getWarrantyInfo(d).active);
-      const label = count === 0 ? '-' : (anyActive ? 'Active' : 'Expired');
-      const badgeClass = anyActive ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300';
       return `
           <tr>
-            <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm font-medium text-gray-900 dark:text-white">${c.name}</div><div class="text-xs text-gray-500 dark:text-gray-400">${c.email}</div></td>
-            <td class="px-6 py-4 whitespace-nowrap"><div class="text-sm text-gray-900 dark:text-gray-200">${count}</div></td>
-            <td class="px-6 py-4 whitespace-nowrap text-center">
-              <div class="flex items-center gap-3 justify-center">
-                <span class="inline-flex items-center justify-center h-6 w-20 px-2 rounded text-xs ${badgeClass}">${label}</span>
-                <button data-action="details" data-index="${idx}" class="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">Details</button>
-              </div>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm font-medium text-gray-900 dark:text-white">${c.name}</div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-right">
-              <div class="flex items-center gap-2 justify-end">
-                <button data-action="edit" data-index="${idx}" class="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">Edit</button>
-                <button data-action="delete" data-index="${idx}" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded">Delete</button>
-              </div>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm text-gray-500 dark:text-gray-400">${c.email}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-center">
+              <button data-action="edit" data-index="${idx}" class="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">connect</button>
             </td>
           </tr>
         `;
