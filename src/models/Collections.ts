@@ -175,6 +175,7 @@ export interface Device {
   brand?: string;
   rating?: number | null;
   discount?: number | null;
+  warranty?: string | number | null;
   createdAt?: Timestamp | null;
   createdByUid?: string | null;
   createdByEmail?: string | null;

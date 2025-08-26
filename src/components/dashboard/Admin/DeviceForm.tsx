@@ -19,6 +19,8 @@ export type DeviceFormValues = {
   brand?: string;
   rating?: number; // 0-5
   discount?: number; // 0-100
+  warrantyValue?: number;
+  warrantyUnit?: 'months' | 'years';
 };
 
 const initialState: DeviceFormValues = {
@@ -35,6 +37,8 @@ const initialState: DeviceFormValues = {
   brand: '',
   rating: undefined,
   discount: undefined,
+  warrantyValue: undefined,
+  warrantyUnit: 'months',
 };
 
 export default function DeviceForm() {
@@ -55,6 +59,7 @@ export default function DeviceForm() {
     brand?: string;
     rating?: number;
     discount?: number;
+    warranty?: string | number;
   };
   const [devices, setDevices] = useState<DeviceDoc[]>([]);
   const [loadingDevices, setLoadingDevices] = useState(true);
@@ -71,7 +76,8 @@ export default function DeviceForm() {
 
   // Edit modal state
   const [editing, setEditing] = useState<null | DeviceDoc>(null);
-  const [editValues, setEditValues] = useState<Partial<DeviceDoc>>({});
+  type EditValues = Partial<DeviceDoc> & { warrantyValue?: number; warrantyUnit?: 'months' | 'years' };
+  const [editValues, setEditValues] = useState<EditValues>({});
   // Product preview/embed state
   const [productUrl, setProductUrl] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -89,6 +95,24 @@ export default function DeviceForm() {
   };
   const [previewData, setPreviewData] = useState<ProductPreview | null>(null);
   const [embeddedPreview, setEmbeddedPreview] = useState<ProductPreview | null>(null);
+
+  // Warranty helpers
+  const formatWarranty = useCallback((value?: number, unit: 'months' | 'years' = 'months') => {
+    if (!value && value !== 0) return '';
+    const u = unit === 'years' ? (value === 1 ? 'year' : 'years') : 'months';
+    return `${value} ${u}`;
+  }, []);
+
+  const parseWarranty = useCallback((w: unknown): { value?: number; unit: 'months' | 'years' } => {
+    if (typeof w === 'number') return { value: w, unit: 'months' };
+    if (typeof w === 'string') {
+      const s = w.toLowerCase();
+      const num = parseInt(s.replace(/[^0-9]/g, ''), 10);
+      const unit: 'months' | 'years' = /year/.test(s) ? 'years' : 'months';
+      return { value: isNaN(num) ? undefined : num, unit };
+    }
+    return { value: undefined, unit: 'months' };
+  }, []);
 
   // Prefill assigned email from URL (?userEmail=...)
   useEffect(() => {
@@ -125,6 +149,7 @@ export default function DeviceForm() {
           brand: data.brand ?? '',
           rating: typeof data.rating === 'number' ? data.rating : (typeof data.rating === 'string' ? parseFloat(data.rating) : undefined),
           discount: typeof data.discount === 'number' ? data.discount : (typeof data.discount === 'string' ? parseFloat(data.discount) : undefined),
+          warranty: data.warranty,
         };
       });
       setDevices(list);
@@ -267,6 +292,7 @@ export default function DeviceForm() {
           brand: values.brand?.trim() || '',
           rating: typeof values.rating === 'number' ? values.rating : (values.rating ? Number(values.rating) : null),
           discount: typeof values.discount === 'number' ? values.discount : (values.discount ? Number(values.discount) : null),
+          warranty: formatWarranty(values.warrantyValue, values.warrantyUnit),
           createdAt: serverTimestamp(),
           createdByUid: auth?.currentUser?.uid ?? null,
           createdByEmail: auth?.currentUser?.email ?? null,
@@ -277,6 +303,7 @@ export default function DeviceForm() {
         if (!payload.serial) delete payload.serial;
         if (!payload.modelNumber) delete payload.modelNumber;
         if (!payload.brand) delete payload.brand;
+        if (!payload.warranty) delete payload.warranty;
         await addDoc(devicesCollection(db), payload);
         alert('Device added successfully.');
         setValues((v) => ({ ...initialState, assignedToEmail: v.assignedToEmail }));
@@ -295,6 +322,7 @@ export default function DeviceForm() {
   // Handlers: Edit / Delete
   const openEdit = useCallback((d: DeviceDoc) => {
     setEditing(d);
+    const parsed = parseWarranty(d.warranty);
     setEditValues({
       name: d.name,
       type: d.type,
@@ -307,8 +335,10 @@ export default function DeviceForm() {
       brand: d.brand ?? '',
       rating: typeof d.rating === 'number' ? d.rating : undefined,
       discount: typeof d.discount === 'number' ? d.discount : undefined,
+      warrantyValue: parsed.value as any,
+      warrantyUnit: parsed.unit as any,
     });
-  }, []);
+  }, [parseWarranty]);
 
   const saveEdit = useCallback(async () => {
     if (!editing) return;
@@ -317,6 +347,7 @@ export default function DeviceForm() {
     const md = (editValues.serial ?? '').toString().trim();
     const email = (editValues.assignedToEmail ?? '').toString().trim();
     const brand = (editValues.brand ?? '').toString().trim();
+    const warranty = formatWarranty(editValues.warrantyValue, editValues.warrantyUnit ?? 'months');
     const update: Record<string, any> = {
       deviceName: nm,
       type: (editValues.type ?? '').toString().trim(),
@@ -328,14 +359,16 @@ export default function DeviceForm() {
       description: (editValues.description ?? '').toString().trim(),
       rating: typeof editValues.rating === 'number' ? editValues.rating : null,
       discount: typeof editValues.discount === 'number' ? editValues.discount : null,
+      warranty: warranty,
     };
     // Remove legacy 'name' field if it exists
     update.name = deleteField();
     if (email) update.assignedToEmail = email; else update.assignedToEmail = deleteField();
     if (brand) update.brand = brand; else update.brand = deleteField();
+    if (!warranty) update.warranty = deleteField();
     await updateDoc(ref, update);
     setEditing(null);
-  }, [editing, editValues]);
+  }, [editing, editValues, formatWarranty]);
 
   const removeDevice = useCallback(async (id: string) => {
     if (!confirm('Delete this device? This action cannot be undone.')) return;
@@ -489,6 +522,34 @@ export default function DeviceForm() {
           value={values.brand ?? ''}
           onChange={onChange}
         />
+      </div>
+
+      {/* Warranty */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Warranty</label>
+        <div className="mt-1 grid grid-cols-3 gap-2">
+          <input
+            id="warrantyValue"
+            name="warrantyValue"
+            type="number"
+            min="0"
+            step="1"
+            placeholder="e.g., 12"
+            className="col-span-2 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            value={typeof values.warrantyValue === 'number' ? values.warrantyValue : ''}
+            onChange={(e) => setValues((v) => ({ ...v, warrantyValue: e.target.value === '' ? undefined : Number(e.target.value) }))}
+          />
+          <select
+            id="warrantyUnit"
+            name="warrantyUnit"
+            className="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            value={values.warrantyUnit ?? 'months'}
+            onChange={(e) => setValues((v) => ({ ...v, warrantyUnit: (e.target.value as 'months' | 'years') }))}
+          >
+            <option value="months">months</option>
+            <option value="years">years</option>
+          </select>
+        </div>
       </div>
 
       {/* Price & Stock */}
@@ -653,6 +714,9 @@ export default function DeviceForm() {
                   {d.serial && (
                     <div className="mt-0.5 text-xs text-gray-600 dark:text-gray-300 truncate">Model No: {d.serial}</div>
                   )}
+                  {typeof d.warranty !== 'undefined' && d.warranty !== null && d.warranty !== '' && (
+                    <div className="mt-0.5 text-xs text-gray-600 dark:text-gray-300 truncate">Warranty: {String(d.warranty)}</div>
+                  )}
                   {d.description && (
                     <div className="mt-0.5 text-xs text-gray-600 dark:text-gray-300 line-clamp-2">{d.description}</div>
                   )}
@@ -764,6 +828,27 @@ export default function DeviceForm() {
                   value={editValues.description ?? ''}
                   onChange={(e) => setEditValues((v) => ({ ...v, description: e.target.value }))}
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Warranty</label>
+                <div className="mt-1 grid grid-cols-3 gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    className="col-span-2 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                    value={typeof (editValues as any).warrantyValue === 'number' ? (editValues as any).warrantyValue : ''}
+                    onChange={(e) => setEditValues((v: any) => ({ ...v, warrantyValue: e.target.value === '' ? undefined : Number(e.target.value) }))}
+                  />
+                  <select
+                    className="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                    value={(editValues as any).warrantyUnit ?? 'months'}
+                    onChange={(e) => setEditValues((v: any) => ({ ...v, warrantyUnit: e.target.value }))}
+                  >
+                    <option value="months">months</option>
+                    <option value="years">years</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Assigned Email</label>
