@@ -1,0 +1,9 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import AdminUserDetail from '../../../components/dashboard/Admin/pages/AdminUserDetail';
+export const prerender = false;
+---
+
+<Layout title="User Details - Admin">
+  <AdminUserDetail client:only="react" />
+</Layout>

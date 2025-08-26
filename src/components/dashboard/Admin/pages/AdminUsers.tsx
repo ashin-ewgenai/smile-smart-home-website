@@ -1,97 +1,72 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { db } from '../../../../lib/firebase';
-import { accountsCollection, quotesCollection, supportTicketsCollection, userServiceRequestsCollection } from '../../../../models/Collections';
-import { getDocs, limit, query, where } from 'firebase/firestore';
+import AdminUserDetail from './AdminUserDetail';
+import { auth, db } from '../../../../lib/firebase';
+import { accountsCollection, quotesCollection, supportTicketsCollection, userServiceRequestsCollection, quotesParentDoc, userServiceRequestsParentDoc, supportTicketsParentDoc, registerUserWithProfile, type Account } from '../../../../models/Collections';
+import { getDoc, getDocs, limit, query, where } from 'firebase/firestore';
 
 interface User { name: string; email: string }
-interface UserDevicesMap { [email: string]: string[] }
 
 type AlertsCount = {
   uid: string | null;
+  // unresolved counts (used by button label)
   quotes: number;
   services: number;
   tickets: number;
   total: number;
+  // details for modal
+  quotesResolved?: number;
+  quotesTotal?: number;
+  servicesResolved?: number;
+  servicesTotal?: number;
+  ticketsResolved?: number;
+  ticketsTotal?: number;
   loading?: boolean;
   error?: string | null;
 };
 
-const STORAGE_KEY = 'adminUsers';
-const DEVICES_KEY = 'adminUserDevicesMap';
-
-const defaultUsers: User[] = [
-  { name: 'John Doe', email: 'john@example.com' },
-  { name: 'Jane Smith', email: 'jane@example.com' },
-  { name: 'Robert Johnson', email: 'robert@example.com' },
-  { name: 'Emily Davis', email: 'emily@example.com' },
-  { name: 'Michael Wilson', email: 'michael@example.com' },
-];
-
-function loadUsers(): User[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultUsers;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed as User[] : defaultUsers;
-  } catch {
-    return defaultUsers;
-  }
-}
-
-function saveUsers(users: User[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-}
-
-function loadUserDevices(): UserDevicesMap {
-  try {
-    const raw = localStorage.getItem(DEVICES_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? (parsed as UserDevicesMap) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveUserDevices(map: UserDevicesMap) {
-  localStorage.setItem(DEVICES_KEY, JSON.stringify(map));
-}
+// No local storage: we load users from Firebase Accounts
 
 const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
-  const [devMap, setDevMap] = useState<UserDevicesMap>({});
 
   // alerts map keyed by email (lowercased)
   const [alertsMap, setAlertsMap] = useState<Record<string, AlertsCount>>({});
 
-  // modal state
-  const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState<'add' | 'edit'>('add');
-  const [editIndex, setEditIndex] = useState<number | null>(null);
-  const [formName, setFormName] = useState('');
-  const [formEmail, setFormEmail] = useState('');
+  // removed add/edit/delete flows; only reading from Firebase
 
-  // seed initial storage if empty
+  // Load users from Firebase Accounts
   useEffect(() => {
-    if (!localStorage.getItem(STORAGE_KEY)) {
-      saveUsers(defaultUsers);
-    }
-    if (!localStorage.getItem(DEVICES_KEY)) {
-      const seed: UserDevicesMap = {
-        'john@example.com': ['Living Room Camera', 'Front Door Lock'],
-        'jane@example.com': ['Kitchen Smoke Sensor'],
-        'robert@example.com': [],
-        'emily@example.com': ['Hallway Thermostat', 'Porch Light'],
-        'michael@example.com': ['Garage Sensor'],
-      };
-      const normalized: UserDevicesMap = {};
-      Object.keys(seed).forEach(k => { normalized[k.toLowerCase()] = seed[k]; });
-      saveUserDevices(normalized);
-    }
-    setUsers(loadUsers());
-    setDevMap(loadUserDevices());
+    let mounted = true;
+    const loadUsers = async () => {
+      try {
+        // Only list Accounts with Role == 'user'
+        const snap = await getDocs(query(accountsCollection(db), where('Role', '==', 'user')));
+        const list: User[] = snap.docs.map(d => {
+          const data: any = d.data();
+          const email = data?.Email || data?.email;
+          const name = data?.FullName || data?.Name || data?.name || (email ? String(email).split('@')[0] : '');
+          return email ? { name, email } : null;
+        }).filter(Boolean) as User[];
+        if (mounted) setUsers(list);
+      } catch (e) {
+        if (mounted) setUsers([]);
+      }
+    };
+    void loadUsers();
+    return () => { mounted = false; };
   }, []);
+
+  // Selected user detail drawer state
+  const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
+  const [overlayDark, setOverlayDark] = useState<boolean>(false);
+  const openDetail = (email: string) => {
+    setSelectedEmail(email);
+    // initialize overlay theme from current root theme without changing it
+    try { setOverlayDark(document.documentElement.classList.contains('dark')); } catch { setOverlayDark(false); }
+  };
+  const closeDetail = () => setSelectedEmail(null);
+  // overlayDark is initialized from root theme on open; no in-overlay toggle UI
 
   // helper to resolve UID from Accounts by email
   async function resolveUidByEmail(email: string): Promise<string | null> {
@@ -103,7 +78,7 @@ const AdminUsers: React.FC = () => {
     return null;
   }
 
-  // fetch alert counts for a given email
+  // fetch alert counts for a given email (unresolved only)
   async function fetchAlertsForEmail(email: string): Promise<AlertsCount> {
     const key = email.toLowerCase();
     // optimistic mark as loading
@@ -119,18 +94,79 @@ const AdminUsers: React.FC = () => {
         return empty;
       }
 
-      const [quotesSnap, servicesSnap, ticketsSnap] = await Promise.all([
-        getDocs(quotesCollection(db, uid)),
-        getDocs(userServiceRequestsCollection(db, uid)),
-        getDocs(supportTicketsCollection(db, uid)),
+      // Try to use aggregate fields on parent docs
+      const [qParent, sParent, tParent] = await Promise.all([
+        getDoc(quotesParentDoc(db, uid)),
+        getDoc(userServiceRequestsParentDoc(db, uid)),
+        getDoc(supportTicketsParentDoc(db, uid)),
       ]);
+
+      // Helper to compute unresolved from parent snapshot with given resolvedKey
+      const unresolvedFromParent = (snap: any, resolvedKey: 'approved_no' | 'review_no' | 'solved_no') => {
+        const d = snap?.exists?.() ? snap.data() as any : null;
+        if (!d) return null as number | null;
+        const total = Number(d.total_no ?? NaN);
+        const resolved = Number(d[resolvedKey] ?? NaN);
+        if (Number.isFinite(total) && Number.isFinite(resolved)) return Math.max(0, total - resolved);
+        return null as number | null;
+      };
+
+      let quotesUnresolved = unresolvedFromParent(qParent, 'approved_no');
+      let servicesUnresolved = unresolvedFromParent(sParent, 'review_no');
+      let ticketsUnresolved = unresolvedFromParent(tParent, 'solved_no');
+
+      let quotesResolved: number | null = qParent?.exists?.() ? Number((qParent.data() as any)?.approved_no ?? NaN) : null;
+      let quotesTotal: number | null = qParent?.exists?.() ? Number((qParent.data() as any)?.total_no ?? NaN) : null;
+      let servicesResolved: number | null = sParent?.exists?.() ? Number((sParent.data() as any)?.review_no ?? NaN) : null; // closed
+      let servicesTotal: number | null = sParent?.exists?.() ? Number((sParent.data() as any)?.total_no ?? NaN) : null;
+      let ticketsResolved: number | null = tParent?.exists?.() ? Number((tParent.data() as any)?.solved_no ?? NaN) : null;
+      let ticketsTotal: number | null = tParent?.exists?.() ? Number((tParent.data() as any)?.total_no ?? NaN) : null;
+
+      // Fallback to live queries if aggregates are missing
+      if (quotesUnresolved === null) {
+        const qCol = quotesCollection(db, uid);
+        const [allSnap, approvedSnap] = await Promise.all([
+          getDocs(qCol),
+          getDocs(query(qCol, where('status', '==', 'approved'))),
+        ]);
+        quotesUnresolved = Math.max(0, allSnap.size - approvedSnap.size);
+        quotesResolved = approvedSnap.size;
+        quotesTotal = allSnap.size;
+      }
+      if (servicesUnresolved === null) {
+        const sCol = userServiceRequestsCollection(db, uid);
+        const [allSnap, closedSnap] = await Promise.all([
+          getDocs(sCol),
+          getDocs(query(sCol, where('status', '==', 'closed'))),
+        ]);
+        servicesUnresolved = Math.max(0, allSnap.size - closedSnap.size);
+        servicesResolved = closedSnap.size;
+        servicesTotal = allSnap.size;
+      }
+      if (ticketsUnresolved === null) {
+        const tCol = supportTicketsCollection(db, uid);
+        const [allSnap, solvedSnap] = await Promise.all([
+          getDocs(tCol),
+          // Support different status vocabularies; prefer 'Resolved'
+          getDocs(query(tCol, where('status', 'in', ['Resolved', 'closed'] as any))),
+        ]);
+        ticketsUnresolved = Math.max(0, allSnap.size - solvedSnap.size);
+        ticketsResolved = solvedSnap.size;
+        ticketsTotal = allSnap.size;
+      }
 
       const data: AlertsCount = {
         uid,
-        quotes: quotesSnap.size,
-        services: servicesSnap.size,
-        tickets: ticketsSnap.size,
-        total: quotesSnap.size + servicesSnap.size + ticketsSnap.size,
+        quotes: quotesUnresolved ?? 0,
+        services: servicesUnresolved ?? 0,
+        tickets: ticketsUnresolved ?? 0,
+        total: (quotesUnresolved ?? 0) + (servicesUnresolved ?? 0) + (ticketsUnresolved ?? 0),
+        quotesResolved: Number.isFinite(quotesResolved as any) ? (quotesResolved as number) : undefined,
+        quotesTotal: Number.isFinite(quotesTotal as any) ? (quotesTotal as number) : undefined,
+        servicesResolved: Number.isFinite(servicesResolved as any) ? (servicesResolved as number) : undefined,
+        servicesTotal: Number.isFinite(servicesTotal as any) ? (servicesTotal as number) : undefined,
+        ticketsResolved: Number.isFinite(ticketsResolved as any) ? (ticketsResolved as number) : undefined,
+        ticketsTotal: Number.isFinite(ticketsTotal as any) ? (ticketsTotal as number) : undefined,
       };
       setAlertsMap(prev => ({ ...prev, [key]: data }));
       return data;
@@ -151,66 +187,9 @@ const AdminUsers: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users]);
 
-  const rows = useMemo(() => users.map((u, idx) => {
-    const devices = devMap[u.email.toLowerCase()] || [];
-    return { ...u, idx, deviceCount: devices.length };
-  }), [users, devMap]);
+  const rows = useMemo(() => users.map((u, idx) => ({ ...u, idx })), [users]);
 
-  function openAdd() {
-    setModalMode('add');
-    setEditIndex(null);
-    setFormName('');
-    setFormEmail('');
-    setShowModal(true);
-  }
-
-  function openEdit(index: number) {
-    const u = users[index];
-    if (!u) return;
-    setModalMode('edit');
-    setEditIndex(index);
-    setFormName(u.name);
-    setFormEmail(u.email);
-    setShowModal(true);
-  }
-
-  function closeModal() {
-    setShowModal(false);
-    setEditIndex(null);
-    setFormName('');
-    setFormEmail('');
-  }
-
-  function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const name = formName.trim();
-    const email = formEmail.trim();
-    if (!name || !email) return;
-
-    const dup = users.some((u, i) => u.email.toLowerCase() === email.toLowerCase() && i !== editIndex);
-    if (dup) {
-      alert('A user with this email already exists.');
-      return;
-    }
-
-    const next = [...users];
-    if (modalMode === 'add' || editIndex === null) {
-      next.push({ name, email });
-    } else {
-      next[editIndex] = { name, email };
-    }
-    setUsers(next);
-    saveUsers(next);
-    closeModal();
-  }
-
-  function onDelete(index: number) {
-    if (!confirm('Delete this user?')) return;
-    const next = [...users];
-    next.splice(index, 1);
-    setUsers(next);
-    saveUsers(next);
-  }
+  // removed add/edit/delete handlers
 
   // modal for showing alert breakdown
   const [alertModal, setAlertModal] = useState<{ email: string; counts: AlertsCount } | null>(null);
@@ -220,19 +199,58 @@ const AdminUsers: React.FC = () => {
   };
   const closeAlertModal = () => setAlertModal(null);
 
+  // Add User modal state
+  const [showAdd, setShowAdd] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addPassword, setAddPassword] = useState('');
+  const [addRole, setAddRole] = useState<Account['Role']>('user');
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  const openAdd = () => { setShowAdd(true); setAddError(null); };
+  const closeAdd = () => { setShowAdd(false); setAddName(''); setAddEmail(''); setAddPassword(''); setAddRole('user'); setAddError(null); };
+
+  async function handleAddSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!addEmail || !addPassword) return;
+    setAdding(true);
+    setAddError(null);
+    try {
+      await registerUserWithProfile(auth, db, {
+        email: addEmail,
+        password: addPassword,
+        fullName: addName || addEmail.split('@')[0],
+        role: addRole,
+      });
+      // Refresh users
+      const snap = await getDocs(query(accountsCollection(db), where('Role', '==', 'user')));
+      const list: User[] = snap.docs.map(d => {
+        const data: any = d.data();
+        const email = data?.Email || data?.email;
+        const name = data?.FullName || data?.Name || data?.name || (email ? String(email).split('@')[0] : '');
+        return email ? { name, email } : null;
+      }).filter(Boolean) as User[];
+      setUsers(list);
+      closeAdd();
+    } catch (err: any) {
+      setAddError(err?.message || 'Failed to add user');
+    } finally {
+      setAdding(false);
+    }
+  }
+
   return (
     <section className="bg-white/0 p-0">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Users</h1>
-          <div className="flex gap-2">
-            <button onClick={openAdd} className="inline-flex items-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-              </svg>
-              <span>Add User</span>
-            </button>
-          </div>
+          <button onClick={openAdd} className="inline-flex items-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            <span>Add User</span>
+          </button>
         </div>
 
         <div className="overflow-x-auto">
@@ -241,49 +259,48 @@ const AdminUsers: React.FC = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Devices</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {rows.map(({ name, email, idx, deviceCount }) => (
-                <tr key={email}>
+              {rows.map(({ name, email }) => (
+                <tr
+                  key={email}
+                  onClick={() => openDetail(email)}
+                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                  title="View user details"
+                >
                   <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm font-medium text-gray-900 dark:text-white">{name}</div></td>
                   <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm text-gray-500 dark:text-gray-400">{email}</div></td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <div className="inline-grid grid-cols-[9rem_auto] items-center justify-center gap-4">
-                      <div>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                          {deviceCount} {deviceCount === 1 ? 'device' : 'devices'}
-                        </span>
-                      </div>
-                      <div className="whitespace-nowrap">
-                        <Link to={`/dashboard/admin/devices?userEmail=${encodeURIComponent(email)}`} className="text-teal-600 dark:text-teal-400 hover:underline text-xs">View</Link>
-                      </div>
-                    </div>
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div className="flex items-center gap-2 justify-end">
-                      {/* Alerts */}
+                    <div className="flex items-center justify-end w-full">
                       {(() => {
                         const counts = alertsMap[email.toLowerCase()];
                         const loading = !counts || counts.loading;
+                        if (loading) {
+                          return (
+                            <div className="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" aria-label="Loading alerts" title="Loading alerts" />
+                          );
+                        }
                         const total = counts?.total || 0;
-                        const btnClass = total > 0 ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white';
-                        const label = loading ? 'Checking…' : total > 0 ? `Alerts (${total})` : 'No Alerts';
+                        const hasAlerts = total > 0;
+                        const btnClass = hasAlerts ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white';
                         return (
                           <button
-                            onClick={() => openAlertModal(email)}
-                            className={`px-3 py-1.5 rounded ${btnClass}`}
-                            title={loading ? 'Fetching alerts' : 'View alerts summary'}
+                            onClick={(e) => { e.stopPropagation(); openAlertModal(email); }}
+                            className={`relative w-8 h-8 rounded-full transition-colors duration-150 inline-flex items-center justify-center ${btnClass}`}
+                            aria-label={hasAlerts ? `You have ${total} notifications` : 'No notifications'}
+                            title={hasAlerts ? `${total} notifications` : 'No notifications'}
                           >
-                            {label}
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                              <path d="M12 2a6 6 0 00-6 6v2.586l-.707.707A1 1 0 006 13h12a1 1 0 00.707-1.707L18 10.586V8a6 6 0 00-6-6z"/>
+                              <path d="M8 14a4 4 0 008 0H8z"/>
+                            </svg>
+                            {hasAlerts && (
+                              <span className="absolute -top-1 -right-1 min-w-[1.1rem] h-5 px-1 rounded-full bg-white text-red-700 text-xs font-bold flex items-center justify-center shadow">{total}</span>
+                            )}
                           </button>
                         );
                       })()}
-                      <Link to={`/dashboard/admin/estimates?userName=${encodeURIComponent(name)}&userEmail=${encodeURIComponent(email)}`} className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded">Estimate</Link>
-                      <button onClick={() => openEdit(idx)} className="px-3 py-1.5 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">Edit</button>
-                      <button onClick={() => onDelete(idx)} className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded">Delete</button>
                     </div>
                   </td>
                 </tr>
@@ -293,41 +310,99 @@ const AdminUsers: React.FC = () => {
         </div>
       </div>
 
-      {showModal && (
+      {selectedEmail && (
+        <div className={`fixed inset-0 z-50 overflow-y-auto ${overlayDark ? 'dark' : ''}`}>
+          <div className="min-h-screen bg-white dark:bg-gray-900">
+            <div className="max-w-6xl mx-auto">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">User Details</h2>
+              </div>
+              <AdminUserDetail email={selectedEmail} onBack={closeDetail} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={closeModal} />
-          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-lg mx-4 p-6 border border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">{modalMode === 'add' ? 'Add User' : 'Edit User'}</h2>
-            <form onSubmit={onSubmit} className="space-y-4">
+          <div className="absolute inset-0 bg-black/50" onClick={closeAdd} />
+          <div className="relative z-10 bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add User</h2>
+              <button onClick={closeAdd} className="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white">✕</button>
+            </div>
+            <form onSubmit={handleAddSubmit} className="space-y-4">
+              {addError && <div className="text-red-600 text-sm">{addError}</div>}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
-                <input value={formName} onChange={(e) => setFormName(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500" required />
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full name</label>
+                <input value={addName} onChange={e => setAddName(e.target.value)} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                <input value={formEmail} onChange={(e) => setFormEmail(e.target.value)} type="email" className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500" required />
+                <input type="email" required value={addEmail} onChange={e => setAddEmail(e.target.value)} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+                <input type="password" required value={addPassword} onChange={e => setAddPassword(e.target.value)} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
+                <select value={addRole} onChange={e => setAddRole(e.target.value as Account['Role'])} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+                  <option value="user">user</option>
+                  <option value="admin">admin</option>
+                  <option value="Super Admin">Super Admin</option>
+                </select>
               </div>
               <div className="flex items-center justify-end gap-2 pt-2">
-                <button type="button" onClick={closeModal} className="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded border border-gray-300 dark:border-gray-600">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">Save</button>
+                <button type="button" onClick={closeAdd} className="px-3 py-2 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
+                <button type="submit" disabled={adding} className="px-3 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60">{adding ? 'Adding...' : 'Add User'}</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Alerts modal */}
       {alertModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={closeAlertModal} />
           <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-sm mx-4 p-6 border border-gray-200 dark:border-gray-700">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Alerts Summary</h3>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-2 break-words">{alertModal.email}</p>
-            <ul className="space-y-1 text-sm text-gray-800 dark:text-gray-100">
-              <li className="flex justify-between"><span>Quotes</span><span>{alertModal.counts.quotes}</span></li>
-              <li className="flex justify-between"><span>Service Requests</span><span>{alertModal.counts.services}</span></li>
-              <li className="flex justify-between"><span>Tickets</span><span>{alertModal.counts.tickets}</span></li>
-              <li className="flex justify-between font-semibold border-t border-gray-200 dark:border-gray-700 pt-2"><span>Total</span><span>{alertModal.counts.total}</span></li>
+            <ul className="space-y-3 text-sm text-gray-800 dark:text-gray-100">
+              <li>
+                <div className="flex items-center justify-between gap-2">
+                  <span>Quotes (Unresolved)</span>
+                  <div className="flex items-center gap-2">
+                    <Link to={`/dashboard/admin/estimates?userEmail=${encodeURIComponent(alertModal.email)}`} className="inline-flex px-2 py-0.5 text-xs rounded bg-teal-600 text-white hover:bg-teal-700">View</Link>
+                    <span>{alertModal.counts.quotes}</span>
+                  </div>
+                </div>
+                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 flex justify-between"><span>Approved</span><span>{alertModal.counts.quotesResolved ?? '-'}</span></div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 flex justify-between"><span>Total</span><span>{alertModal.counts.quotesTotal ?? '-'}</span></div>
+              </li>
+              <li>
+                <div className="flex items-center justify-between gap-2">
+                  <span>Service Requests (Unresolved)</span>
+                  <div className="flex items-center gap-2">
+                    <Link to={`/dashboard/admin/service-requests?userEmail=${encodeURIComponent(alertModal.email)}`} className="inline-flex px-2 py-0.5 text-xs rounded bg-teal-600 text-white hover:bg-teal-700">View</Link>
+                    <span>{alertModal.counts.services}</span>
+                  </div>
+                </div>
+                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 flex justify-between"><span>Closed</span><span>{alertModal.counts.servicesResolved ?? '-'}</span></div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 flex justify-between"><span>Total</span><span>{alertModal.counts.servicesTotal ?? '-'}</span></div>
+              </li>
+              <li>
+                <div className="flex items-center justify-between gap-2">
+                  <span>Tickets (Unresolved)</span>
+                  <div className="flex items-center gap-2">
+                    <Link to={`/dashboard/admin/support-tickets?userEmail=${encodeURIComponent(alertModal.email)}`} className="inline-flex px-2 py-0.5 text-xs rounded bg-teal-600 text-white hover:bg-teal-700">View</Link>
+                    <span>{alertModal.counts.tickets}</span>
+                  </div>
+                </div>
+                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 flex justify-between"><span>Solved</span><span>{alertModal.counts.ticketsResolved ?? '-'}</span></div>
+                <div className="text-xs text-gray-600 dark:text-gray-300 flex justify-between"><span>Total</span><span>{alertModal.counts.ticketsTotal ?? '-'}</span></div>
+              </li>
+              <li className="flex justify-between font-semibold border-t border-gray-200 dark:border-gray-700 pt-2"><span>Total Unresolved</span><span>{alertModal.counts.total}</span></li>
             </ul>
             <div className="mt-4 text-right">
               <button onClick={closeAlertModal} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">Close</button>
