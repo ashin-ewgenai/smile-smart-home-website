@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users collection (existing project may already have rules; keep permissive here)
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Chat sessions stored at top-level: chat_sessions/{sessionId}
+    match /chat_sessions/{sessionId} {
+      allow read, write: if isOwner() || isSuperAdmin();
+
+      function isOwner() {
+        // On create, `ownerUid` comes from request.resource
+        return request.auth != null && (
+          request.resource.data.ownerUid == request.auth.uid ||
+          resource.data.ownerUid == request.auth.uid
+        );
+      }
+
+      function isSuperAdmin() {
+        return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "Super Admin";
+      }
+
+      // Messages subcollection
+      match /messages/{msgId} {
+        allow read, write: if isOwner() || isSuperAdmin();
+      }
+    }
+
+    // Support tickets: Support_Tickets/{uid}/Tickets_List/{ticketId}
+    // Allow authenticated user to read/write ONLY their own subtree
+    match /Support_Tickets/{uid}/Tickets_List/{ticketId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

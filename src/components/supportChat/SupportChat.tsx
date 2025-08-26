@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useReducedMotion } from '../../lib/hooks';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../../lib/firebase';
 
 // Self-contained Support Chat widget for Dashboard pages only
 // - No external libraries
@@ -15,6 +17,7 @@ type Message = {
 
 const HISTORY_KEY = 'smile-chat-history';
 const OPEN_KEY = 'smile-chat-open';
+const SESSION_KEY = 'smile-chat-sessionId';
 const MAX_MESSAGE_WORDS = 40; // limit of words per message
 
 function now() {
@@ -76,6 +79,7 @@ const SupportChat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [typing, setTyping] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -88,6 +92,8 @@ const SupportChat: React.FC = () => {
       if (h) setMessages(JSON.parse(h));
       const o = localStorage.getItem(OPEN_KEY);
       if (o) setOpen(JSON.parse(o));
+      const sid = localStorage.getItem(SESSION_KEY);
+      if (sid) setSessionId(sid);
     } catch {}
   }, []);
 
@@ -148,30 +154,48 @@ const SupportChat: React.FC = () => {
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
-  const send = () => {
+  const send = async () => {
     const trimmed = truncateToWordLimit(input).trim();
     if (!trimmed || typing) return;
     const userMsg: Message = { id: generateId(), from: 'user', text: trimmed, ts: now() };
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setTyping(true);
+    
+    // Build minimal message history for backend
+    const history = messages
+      .slice(-10)
+      .map(m => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text }));
+    const payload = {
+      messages: [
+        { role: 'system', content: 'You are Smile Smart Home support assistant. Be concise and helpful.' },
+        ...history,
+        { role: 'user', content: trimmed },
+      ],
+      sessionId: sessionId || undefined,
+    };
 
-    const intent = inferIntent(trimmed);
-    const replyText = replyForIntent(intent);
-
-    const delay = prefersReducedMotion ? 50 : 500 + Math.min(1500, Math.floor(trimmed.length * 20));
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
+    try {
+      const chatFn = httpsCallable(functions, 'chatWithOpenAI');
+      const res = await chatFn(payload as any);
+      const reply = (res?.data as any)?.reply as string | undefined;
+      const newSid = (res?.data as any)?.sessionId as string | undefined;
+      if (newSid && newSid !== sessionId) {
+        setSessionId(newSid);
+        try { localStorage.setItem(SESSION_KEY, newSid); } catch {}
+      }
+      const text = reply && typeof reply === 'string' ? reply : 'Sorry, I could not generate a reply right now.';
+      const botMsg: Message = { id: generateId(), from: 'assistant', text, ts: now() };
+      setMessages(prev => [...prev, botMsg]);
+    } catch (e) {
+      // Fallback to heuristic reply
+      const intent = inferIntent(trimmed);
+      const replyText = replyForIntent(intent);
       const botMsg: Message = { id: generateId(), from: 'assistant', text: replyText, ts: now() };
       setMessages(prev => [...prev, botMsg]);
+    } finally {
       setTyping(false);
-    }, delay);
-    // Cleanup if component unmounts
-    return () => {
-      controller.abort();
-      clearTimeout(timer);
-      setTyping(false);
-    };
+    }
   };
 
   const toggleOpen = () => setOpen(v => !v);

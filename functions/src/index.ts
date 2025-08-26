@@ -3,9 +3,10 @@ import {setGlobalOptions} from "firebase-functions/v2/options";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
+import {defineSecret} from "firebase-functions/params";
 
 // Configure global options (tune as needed)
-setGlobalOptions({maxInstances: 10});
+setGlobalOptions({region: "us-central1", maxInstances: 10});
 
 // Callable: Fetch basic product preview metadata (avoids iframe embedding issues)
 // request.data: { url: string }
@@ -29,13 +30,21 @@ export const fetchProductPreview = onCall(async (request: CallableRequest) => {
   }
 
   try {
-    const resp = await fetch(url, {
-      method: "GET",
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-      },
-    } as RequestInit);
+    const resp = await fetch(
+      url,
+      {
+        method: "GET",
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
+            "AppleWebKit/537.36 (KHTML, like Gecko) " +
+            "Chrome/123 Safari/537.36",
+          "Accept":
+            "text/html,application/xhtml+xml,application/xml;q=0.9," +
+            "image/avif,image/webp,*/*;q=0.8",
+        },
+      } as RequestInit,
+    );
     if (!resp.ok) {
       throw new HttpsError("unavailable", `Fetch failed: ${resp.status}`);
     }
@@ -43,7 +52,10 @@ export const fetchProductPreview = onCall(async (request: CallableRequest) => {
 
     // Minimal meta extraction without external deps
     const getMeta = (name: string) => {
-      const re = new RegExp(`<meta[^>]+(?:property|name)=[\"']${name}[\"'][^>]*content=[\"']([^\"']+)[\"'][^>]*>`, "i");
+      const re = new RegExp(
+        `<meta[^>]+(?:property|name)=["']${name}["'][^>]*content=["']([^"']+)["'][^>]*>`,
+        "i",
+      );
       const m = html.match(re);
       return m?.[1] ?? null;
     };
@@ -61,19 +73,23 @@ export const fetchProductPreview = onCall(async (request: CallableRequest) => {
       const ldMatch = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
       if (ldMatch) {
         const json = JSON.parse(ldMatch[1].trim());
-        const obj = Array.isArray(json) ? json.find((x) => x && typeof x === 'object') : json;
+        const obj = Array.isArray(json) ? json.find((x) => x && typeof x === "object") : json;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const offers = obj?.offers || (obj?.["@graph"]?.find((x: any) => x.offers)?.offers);
         if (offers) {
           const priceVal = offers.price || offers[0]?.price;
-          const currency = offers.priceCurrency || offers[0]?.priceCurrency || '';
+          const currency = offers.priceCurrency || offers[0]?.priceCurrency || "";
           if (priceVal) price = currency ? `${currency} ${priceVal}` : String(priceVal);
         }
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const agg = obj?.aggregateRating || (obj?.["@graph"]?.find((x: any) => x.aggregateRating)?.aggregateRating);
         if (agg?.ratingValue) {
           rating = String(agg.ratingValue);
         }
       }
-    } catch {}
+    } catch {
+      // best-effort parsing; ignore JSON-LD failures
+    }
 
     const site = /amazon\./i.test(u.hostname) ? "Amazon" : (/flipkart\./i.test(u.hostname) ? "Flipkart" : u.hostname);
 
@@ -93,6 +109,198 @@ export const fetchProductPreview = onCall(async (request: CallableRequest) => {
   }
 });
 
+// ======= Secure OpenAI Chat Callable (uses Functions v2 secret) =======
+const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
+
+// request.data: { messages: {role:'system'|'user'|'assistant', content:string}[], model?: string, sessionId?: string }
+// response: { reply: string, sessionId: string }
+export const chatWithOpenAI = onCall({secrets: [OPENAI_API_KEY]}, async (request: CallableRequest) => {
+  const authCtx = request.auth;
+  if (!authCtx) {
+    throw new HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const msgs = request.data?.messages as Array<{ role: string; content: string }> | undefined;
+  const model = (request.data?.model as string | undefined) || "gpt-4o-mini";
+  let sessionId = (request.data?.sessionId as string | undefined)?.trim();
+
+  if (!Array.isArray(msgs) || msgs.length === 0) {
+    throw new HttpsError("invalid-argument", "messages array is required");
+  }
+
+  // Bound and sanitize context
+  const clean = msgs
+    .filter((m) => m && typeof m.role === "string" && typeof m.content === "string")
+    .slice(-12)
+    .map((m) => ({
+      role: (m.role === "system" || m.role === "assistant" || m.role === "user") ? m.role : "user",
+      content: m.content.slice(0, 4000),
+    }));
+
+  const apiKey = OPENAI_API_KEY.value();
+  if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY is not configured");
+
+  // ---- Minimal per-user rate limiting: 3s cooldown, 15 calls per 60s ----
+  const COOLDOWN_MS = 3000;
+  const WINDOW_MS = 60_000;
+  const MAX_PER_WINDOW = 15;
+  const uid = authCtx.uid;
+  const rlRef = db.collection("rate_limits").doc(uid);
+  const nowTs = Date.now();
+  try {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(rlRef);
+      const data = (
+        snap.exists ?
+          (snap.data() as { lastTs?: unknown; windowStart?: unknown; count?: unknown }) :
+          {}
+      ) || {};
+      const lastTs = Number(data.lastTs ?? 0);
+      const windowStart = Number(data.windowStart ?? 0);
+      const count = Number(data.count ?? 0);
+
+      // Cooldown check
+      if (nowTs - lastTs < COOLDOWN_MS) {
+        const waitSec = Math.ceil((COOLDOWN_MS - (nowTs - lastTs)) / 1000);
+        throw new HttpsError(
+          "resource-exhausted",
+          `Please wait ${waitSec}s before trying again.`,
+        );
+      }
+
+      // Sliding window (bucketed) check
+      if (nowTs - windowStart >= WINDOW_MS) {
+        // Reset window
+        tx.set(rlRef, {lastTs: nowTs, windowStart: nowTs, count: 1}, {merge: true});
+      } else {
+        if (count >= MAX_PER_WINDOW) {
+          throw new HttpsError("resource-exhausted", "Rate limit exceeded. Try again in a minute.");
+        }
+        tx.set(rlRef, {lastTs: nowTs, count: count + 1}, {merge: true});
+      }
+    });
+  } catch (e) {
+    // If it's a resource-exhausted error from our checks, rethrow. Otherwise, ignore.
+    if (e instanceof HttpsError && e.code === "resource-exhausted") {
+      throw e;
+    }
+    // Be conservative and allow if transaction failed due to transient errors.
+  }
+
+  // Firestore persistence in top-level collection
+  // Note: uid already defined above
+  const sessionsCol = db.collection("chat_sessions");
+  const now = Date.now();
+  try {
+    if (!sessionId) {
+      sessionId = `${uid}_${now}_${Math.random().toString(36).slice(2, 8)}`;
+      await sessionsCol.doc(sessionId).set(
+        {
+          ownerUid: uid,
+          createdAt: now,
+          updatedAt: now,
+          status: "active",
+          model,
+        },
+        {merge: true},
+      );
+    } else {
+      await sessionsCol.doc(sessionId).set(
+        {
+          ownerUid: uid,
+          updatedAt: now,
+          status: "active",
+          model,
+        },
+        {merge: true},
+      );
+    }
+    const lastUser = [...clean].reverse().find((m) => m.role === "user");
+    if (lastUser) {
+      await sessionsCol.doc(sessionId).collection("messages").add({role: "user", content: lastUser.content, ts: now});
+    }
+  } catch {
+    // Ignore session persistence errors
+  }
+
+  // Ensure we have a safe session id for subsequent writes
+  const sid = sessionId || `${uid}_${now}`;
+
+  try {
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", "Authorization": `Bearer ${apiKey}`},
+      body: JSON.stringify({model, messages: clean, temperature: 0.4, max_tokens: 500}),
+    } as RequestInit);
+
+    if (!resp.ok) {
+      const text = await resp.text().catch(() => "");
+      try {
+        await sessionsCol.doc(sid).set(
+          {status: "error", updatedAt: Date.now()},
+          {merge: true},
+        );
+        const errSnippet = text?.slice(0, 500);
+        await sessionsCol.doc(sid).collection("messages").add({
+          role: "assistant",
+          content: `Error: ${resp.status} ${errSnippet}`,
+          ts: Date.now(),
+          error: true,
+        });
+      } catch {
+        // Ignore logging failures
+      }
+      throw new HttpsError("unavailable", `OpenAI error: ${resp.status} ${text?.slice(0, 200)}`);
+    }
+
+    const data = await resp.json();
+    const content: string | undefined = data?.choices?.[0]?.message?.content;
+    if (!content) {
+      try {
+        await sessionsCol.doc(sid).set(
+          {status: "error", updatedAt: Date.now()},
+          {merge: true},
+        );
+        await sessionsCol.doc(sid).collection("messages").add({
+          role: "assistant",
+          content: "No content in OpenAI response",
+          ts: Date.now(),
+          error: true,
+        });
+      } catch {
+        // Ignore logging failures
+      }
+      throw new HttpsError("data-loss", "No content in OpenAI response");
+    }
+
+    try {
+      await sessionsCol.doc(sid).collection("messages").add({role: "assistant", content, ts: Date.now()});
+      await sessionsCol.doc(sid).set({updatedAt: Date.now(), status: "active"}, {merge: true});
+    } catch {
+      // Ignore logging failures
+    }
+
+    return {reply: content, sessionId};
+  } catch (e) {
+    const err = e as { message?: string };
+    try {
+      await sessionsCol.doc(sid).set(
+        {status: "error", updatedAt: Date.now()},
+        {merge: true},
+      );
+      const exceptionSnippet = err?.message || "Chat call failed";
+      await sessionsCol.doc(sid).collection("messages").add({
+        role: "assistant",
+        content: `Exception: ${exceptionSnippet}`,
+        ts: Date.now(),
+        error: true,
+      });
+    } catch {
+      // Ignore logging failures
+    }
+    throw new HttpsError("internal", err?.message || "Chat call failed");
+  }
+});
 // Initialize Admin SDK once
 if (!getApps().length) {
   initializeApp();
@@ -165,7 +373,10 @@ export const superAdminDeleteUser = onCall(async (request) => {
   }
 });
 
-// Helper to ensure caller is Super Admin
+/**
+ * Ensure the caller has Super Admin role; throws HttpsError if not.
+ * @param {string} callerUid UID of the caller to validate.
+ */
 async function assertSuperAdmin(callerUid: string) {
   const snap = await db.collection("Accounts").doc(callerUid).get();
   const role = snap.exists ? (snap.data()?.Role as string) : undefined;
@@ -223,9 +434,9 @@ export const superAdminGetUser = onCall(async (request) => {
 
     // Firestore account doc (null if not found)
     const userDocSnap = await db.collection("Accounts").doc(uid).get();
-    const fsUser = userDocSnap.exists ? { id: userDocSnap.id, ...userDocSnap.data() } : null;
+    const fsUser = userDocSnap.exists ? {id: userDocSnap.id, ...userDocSnap.data()} : null;
 
-    return { authUser, fsUser };
+    return {authUser, fsUser};
   } catch (e) {
     const err = e as {message?: string};
     throw new HttpsError("internal", err?.message || "Fetch failed");
@@ -256,8 +467,8 @@ export const superAdminListUserIds = onCall(async (request) => {
     const fsIds = fsSnap.docs.map((d) => d.id);
 
     return {
-      auth: { ids: authIds, nextPageToken: listRes.pageToken || null },
-      firestore: { ids: fsIds },
+      auth: {ids: authIds, nextPageToken: listRes.pageToken || null},
+      firestore: {ids: fsIds},
     };
   } catch (e) {
     const err = e as {message?: string};
@@ -294,7 +505,10 @@ export const superAdminUpdateUser = onCall(async (request) => {
     // Build update payload for Auth
     const update: { email?: string; displayName?: string } = {};
     if (typeof email === "string" && email.trim()) update.email = email.trim();
-    if (typeof displayName === "string") update.displayName = displayName || null as unknown as string; // allow empty to clear
+    if (typeof displayName === "string") {
+      // allow empty to clear
+      update.displayName = (displayName || null) as unknown as string;
+    }
 
     if (Object.keys(update).length > 0) {
       await adminAuth.updateUser(uid, update);
@@ -307,10 +521,10 @@ export const superAdminUpdateUser = onCall(async (request) => {
       fsUpdate.FullName = displayName || "";
     }
     if (Object.keys(fsUpdate).length > 0) {
-      await targetRef.set(fsUpdate, { merge: true });
+      await targetRef.set(fsUpdate, {merge: true});
     }
 
-    return { status: "ok" };
+    return {status: "ok"};
   } catch (e) {
     const err = e as { message?: string; code?: string };
     // Map common Auth errors to https error
