@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import AdminUserDetail from './AdminUserDetail';
 import { auth, db } from '../../../../lib/firebase';
 import { accountsCollection, quotesCollection, supportTicketsCollection, userServiceRequestsCollection, quotesParentDoc, userServiceRequestsParentDoc, supportTicketsParentDoc, registerUserWithProfile, type Account } from '../../../../models/Collections';
 import { getDoc, getDocs, limit, query, where } from 'firebase/firestore';
@@ -57,16 +56,20 @@ const AdminUsers: React.FC = () => {
     return () => { mounted = false; };
   }, []);
 
-  // Selected user detail drawer state
-  const [selectedEmail, setSelectedEmail] = useState<string | null>(null);
-  const [overlayDark, setOverlayDark] = useState<boolean>(false);
+  // Selected user detail is now opened as a full page under dashboard layout
   const openDetail = (email: string) => {
-    setSelectedEmail(email);
-    // initialize overlay theme from current root theme without changing it
-    try { setOverlayDark(document.documentElement.classList.contains('dark')); } catch { setOverlayDark(false); }
+    // Navigate to the dedicated page that renders within the main dashboard layout
+    const url = `/dashboard/admin/user?userEmail=${encodeURIComponent(email)}`;
+    try {
+      // Prefer SPA navigation if router is present
+      (window as any).history?.pushState?.({}, '', url);
+      // Dispatch a popstate for frameworks that listen to history changes
+      window.dispatchEvent(new PopStateEvent('popstate'));
+    } catch {
+      window.location.href = url;
+    }
   };
-  const closeDetail = () => setSelectedEmail(null);
-  // overlayDark is initialized from root theme on open; no in-overlay toggle UI
+  // no local overlay, navigation only
 
   // helper to resolve UID from Accounts by email
   async function resolveUidByEmail(email: string): Promise<string | null> {
@@ -310,18 +313,7 @@ const AdminUsers: React.FC = () => {
         </div>
       </div>
 
-      {selectedEmail && (
-        <div className={`fixed inset-0 z-50 overflow-y-auto ${overlayDark ? 'dark' : ''}`}>
-          <div className="min-h-screen bg-white dark:bg-gray-900">
-            <div className="max-w-6xl mx-auto">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">User Details</h2>
-              </div>
-              <AdminUserDetail email={selectedEmail} onBack={closeDetail} />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* User details open in dedicated page; no inline overlay here */}
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">

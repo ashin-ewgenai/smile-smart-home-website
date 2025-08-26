@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from './DashboardLayout';
 import AdminDashboard from './AdminDashboard';
 import AdminSettings from './AdminSettings';
 import AdminProfile from './AdminProfile';
 import AdminUsers from './pages/AdminUsers';
+import AdminUserDetail from './pages/AdminUserDetail';
 import Devices from './pages/Devices';
 import AddDevice from './pages/AddDevice';
 import Estimates from './pages/Estimates';
@@ -41,6 +42,16 @@ const Placeholder = ({ title, note }: { title: string; note?: string }) => (
   </section>
 );
 
+// Wrapper to read query param and render AdminUserDetail inside dashboard layout
+const AdminUserDetailPage: React.FC = () => {
+  const { search } = useLocation();
+  const navigate = useNavigate();
+  const params = new URLSearchParams(search);
+  const email = params.get('userEmail') || '';
+  const handleBack = () => navigate('/dashboard/admin/users');
+  return <AdminUserDetail email={email} onBack={handleBack} />;
+};
+
 const AdminApp: React.FC = () => {
   return (
     <BrowserRouter>
@@ -56,6 +67,7 @@ const AdminApp: React.FC = () => {
             <Route path="/dashboard/admin/devices" element={<Devices />} />
             <Route path="/dashboard/admin/devices/add" element={<AddDevice />} />
             <Route path="/dashboard/admin/users" element={<AdminUsers />} />
+            <Route path="/dashboard/admin/user" element={<AdminUserDetailPage />} />
             <Route path="/dashboard/admin/customers" element={<Customers />} />
             <Route path="/dashboard/admin/reports" element={<Reports />} />
             <Route path="/dashboard/admin/notifications" element={<Notifications />} />

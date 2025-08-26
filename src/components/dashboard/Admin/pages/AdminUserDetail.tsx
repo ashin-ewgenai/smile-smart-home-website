@@ -121,14 +121,65 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
     return null;
   };
 
+  // Build structured details for the selected item
+  const detailData = useMemo(() => {
+    if (!selected) return { rows: [] as { label: string; value: any; wide?: boolean; isLongText?: boolean }[], attachment: undefined as any };
+    const d = selected.data || {};
+    const first = (...keys: string[]) => {
+      for (const k of keys) {
+        const v = d?.[k];
+        if (v !== undefined && v !== null && v !== '') return v;
+      }
+      return undefined;
+    };
+    const rows: { label: string; value: any; wide?: boolean; isLongText?: boolean }[] = [];
+    const asPrettyDate = (v: any) => fmtPretty(dateFrom(v));
+
+    if (selected.type === 'tickets') {
+      rows.push({ label: 'Category', value: first('category', 'Category') });
+      rows.push({ label: 'Subject', value: first('subject', 'Subject', 'title', 'Title') });
+      rows.push({ label: 'Description', value: first('description', 'Description', 'message', 'Message'), wide: true, isLongText: true });
+    } else if (selected.type === 'services') {
+      rows.push({ label: 'Service', value: first('service', 'Service', 'category', 'Category') });
+      rows.push({ label: 'Device', value: first('device', 'Device') });
+      rows.push({ label: 'Priority', value: first('priority', 'Priority') });
+      rows.push({ label: 'Description', value: first('description', 'Description', 'notes', 'Notes'), wide: true, isLongText: true });
+      const scheduled = first('scheduledAt', 'scheduleAt', 'schedule', 'scheduled', 'dateTime', 'datetime');
+      const datePart = first('date', 'Date');
+      const timePart = first('time', 'Time');
+      const scheduledText = scheduled ? asPrettyDate(scheduled) : (datePart || timePart ? `${datePart || ''} ${timePart || ''}`.trim() : undefined);
+      if (scheduledText) rows.push({ label: 'Scheduled', value: scheduledText });
+      const loc = first('location', 'Location', 'area', 'Area');
+      if (loc) rows.push({ label: 'Location', value: loc });
+    } else if (selected.type === 'quotes') {
+      rows.push({ label: 'Sqft', value: first('sqft', 'Sqft', 'squareFeet', 'SquareFeet') });
+      rows.push({ label: 'Location', value: first('location', 'Location') });
+      rows.push({ label: 'Area', value: first('area', 'Area') });
+      rows.push({ label: 'User Email', value: first('email', 'Email', 'userEmail', 'UserEmail') });
+      const details = first('details', 'Details', 'cctv', 'CCTV', 'cctvDetails', 'CctvDetails');
+      if (details) rows.push({ label: 'Details', value: details, wide: true, isLongText: true });
+    }
+
+    const attachment = first('imageUrl', 'imageURL', 'ImageUrl', 'attachment', 'url', 'photoURL', 'photoUrl');
+    return { rows, attachment };
+  }, [selected]);
+
   const fmt = (d: Date | null): string => (d ? d.toLocaleString() : '-');
+
+  // Pretty formatter: Aug 26, 2025 – 5:12 PM
+  const fmtPretty = (d: Date | null): string => {
+    if (!d) return '-';
+    const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return `${date} – ${time}`;
+  };
 
   const statusBadge = (status: string | undefined) => {
     const s = (status || '').toString();
     const lower = s.toLowerCase();
     let cls = 'bg-gray-700 text-gray-100 border border-gray-600';
     if (['new', 'pending', 'submitted'].includes(lower)) cls = 'bg-amber-500/20 text-amber-300 border border-amber-500/40';
-    if (['open', 'in progress', 'approved', 'ack'].includes(lower)) cls = 'bg-blue-500/20 text-blue-300 border border-blue-500/40';
+    if (['open', 'in progress', 'in process', 'approved', 'ack'].includes(lower)) cls = 'bg-blue-500/20 text-blue-300 border border-blue-500/40';
     if (['resolved', 'done', 'closed'].includes(lower)) cls = 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
     return <span className={`text-xs px-2 py-0.5 rounded-full ${cls}`}>{s || '-'}</span>;
   };
@@ -145,9 +196,12 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const closeDetails = () => { setDrawerOpen(false); setSelected(null); };
 
   const statusOptionsByType: Record<TabKey, string[]> = {
-    quotes: ['submitted', 'approved', 'closed'],
-    services: ['new', 'open', 'ack', 'done', 'closed'],
-    tickets: ['Pending', 'In Progress', 'Resolved', 'open', 'closed'],
+    // Per request: Quotes -> submitted, approved
+    quotes: ['submitted', 'approved'],
+    // Service Requests -> open, in process, closed
+    services: ['open', 'in process', 'closed'],
+    // Support Tickets -> pending, resolved, in progress
+    tickets: ['pending', 'resolved', 'in progress'],
   };
 
   const saveStatus = async () => {
@@ -274,35 +328,46 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         </div>
       )}
 
-      {/* Right-side details drawer */}
+      {/* Centered details modal */}
       {drawerOpen && selected && (
         <div className="fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/50" onClick={closeDetails} />
-          <aside className="absolute right-0 top-0 h-full w-full sm:w-[28rem] bg-gray-900 border-l border-gray-700 shadow-xl p-5 overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-white">{selected.type === 'quotes' ? 'Quote' : selected.type === 'services' ? 'Service Request' : 'Support Ticket'} Details</h3>
-              <button onClick={closeDetails} className="text-gray-300 hover:text-white">✕</button>
-            </div>
-            <div className="space-y-2 text-sm">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="text-gray-400">Request ID</div>
-                <div className="col-span-2 text-gray-100 break-all">{selected.id}</div>
-                <div className="text-gray-400">User UID</div>
-                <div className="col-span-2 text-gray-100 break-all">{account?.id}</div>
-                <div className="text-gray-400">Created</div>
-                <div className="col-span-2 text-gray-100">{fmt(dateFrom(selected.data?.createdAt ?? selected.data?.created_at ?? selected.data?.ts))}</div>
-                <div className="text-gray-400">Status</div>
-                <div className="col-span-2">{statusBadge(selected.data?.status ?? selected.data?.Status)}</div>
+          <div className="absolute inset-0 flex items-center justify-center p-4">
+            <div className="w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-5 overflow-y-auto max-h-[90vh]">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">{selected.type === 'quotes' ? 'Quote' : selected.type === 'services' ? 'Service Request' : 'Support Ticket'} Details</h3>
+                <button onClick={closeDetails} className="text-gray-300 hover:text-white">✕</button>
               </div>
-
-              {/* Description/details */}
-              {selected.type !== 'quotes' && selected.data?.description && (
-                <div className="mt-3">
-                  <div className="text-gray-400 mb-1">Description</div>
-                  <div className="text-gray-100 whitespace-pre-wrap">{selected.data.description}</div>
+              <div className="space-y-2 text-sm">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="text-gray-400 flex items-center gap-1">🆔 <span>Request ID</span></div>
+                  <div className="col-span-2 text-gray-100 break-all">{selected.id}</div>
+                  <div className="text-gray-400 flex items-center gap-1">📅 <span>Created</span></div>
+                  <div className="col-span-2 text-gray-100">{fmtPretty(dateFrom(selected.data?.createdAt ?? selected.data?.created_at ?? selected.data?.ts))}</div>
+                  <div className="text-gray-400 flex items-center gap-1">🏷️ <span>Status</span></div>
+                  <div className="col-span-2">{statusBadge(selected.data?.status ?? selected.data?.Status)}</div>
                 </div>
-              )}
-
+              
+              {/* Details section */}
+              <div className="mt-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                  {detailData.rows.map((r, i) => (
+                    <div key={i} className={r.wide ? 'sm:col-span-2' : ''}>
+                      <div className="text-gray-400">{r.label}</div>
+                      <div className={`text-gray-100 ${r.isLongText ? 'whitespace-pre-wrap' : ''}`}>{(r.value ?? '—').toString()}</div>
+                    </div>
+                  ))}
+                </div>
+                {detailData.attachment && (
+                  <div className="mt-3">
+                    <div className="text-gray-400 mb-1">Attachments</div>
+                    <a href={`${detailData.attachment}`} target="_blank" rel="noreferrer">
+                      <img src={`${detailData.attachment}`} alt="attachment" className="h-24 w-24 object-cover rounded border border-gray-700 hover:opacity-90" />
+                    </a>
+                  </div>
+                )}
+              </div>
+              
               {/* Edit status */}
               <div className="mt-4 border-t border-gray-700 pt-4">
                 <div className="text-gray-200 font-medium mb-2">Edit Status</div>
@@ -325,14 +390,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                   </button>
                 </div>
               </div>
-
-              {/* Raw payload for debugging/visibility */}
-              <details className="mt-4">
-                <summary className="cursor-pointer text-gray-400">Raw Data</summary>
-                <pre className="mt-2 text-xs text-gray-300 bg-gray-800 p-3 rounded border border-gray-700 overflow-auto">{JSON.stringify(selected.data, null, 2)}</pre>
-              </details>
+              </div>
             </div>
-          </aside>
+          </div>
         </div>
       )}
     </section>
