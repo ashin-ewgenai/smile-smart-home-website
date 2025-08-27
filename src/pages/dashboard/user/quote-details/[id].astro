@@ -1,0 +1,12 @@
+---
+import QuoteDetails from '@/components/dashboard/user/QuoteDetails';
+import Layout from '@/layouts/Layout.astro';
+
+const { id } = Astro.params;
+---
+
+<Layout title="Quote Details">
+  <main>
+    <QuoteDetails quoteId={id} />
+  </main>
+</Layout>
