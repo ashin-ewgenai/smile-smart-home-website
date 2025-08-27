@@ -30,7 +30,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const [loadingRelated, setLoadingRelated] = useState(false);
 
   // UI: tabs and drawer
-  type TabKey = 'quotes' | 'services' | 'tickets';
+  type TabKey = 'quotes' | 'services' | 'tickets' | 'devices';
   const [activeTab, setActiveTab] = useState<TabKey>('quotes');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selected, setSelected] = useState<
@@ -184,7 +184,13 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
     return <span className={`text-xs px-2 py-0.5 rounded-full ${cls}`}>{s || '-'}</span>;
   };
 
-  const lists = useMemo(() => ({ quotes: quotes || [], services: services || [], tickets: tickets || [] }), [quotes, services, tickets]);
+  const [devices, setDevices] = useState<any[] | null>(null);
+  const lists = useMemo(() => ({ 
+    quotes: quotes || [], 
+    services: services || [], 
+    tickets: tickets || [],
+    devices: devices || []
+  }), [quotes, services, tickets, devices]);
 
   const openDetails = (type: TabKey, id: string, data: any) => {
     setSelected({ type, id, data });
@@ -202,6 +208,8 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
     services: ['open', 'in process', 'closed'],
     // Support Tickets -> pending, resolved, in progress
     tickets: ['pending', 'resolved', 'in progress'],
+    // Devices -> online, offline
+    devices: ['online', 'offline'],
   };
 
   const saveStatus = async () => {
@@ -272,6 +280,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               { key: 'quotes', label: `Quotes (${quotes?.length ?? 0})` },
               { key: 'services', label: `Service Requests (${services?.length ?? 0})` },
               { key: 'tickets', label: `Support Tickets (${tickets?.length ?? 0})` },
+              { key: 'devices', label: 'Devices (0)' },
             ] as { key: TabKey; label: string }[]).map((t) => (
               <button
                 key={t.key}
