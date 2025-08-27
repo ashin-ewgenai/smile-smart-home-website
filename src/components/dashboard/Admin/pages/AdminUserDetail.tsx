@@ -9,7 +9,7 @@ import {
   supportTicketsCollection,
   supportTicketDoc,
 } from '../../../../models/Collections';
-import { getDocs, limit, query, where, updateDoc, Timestamp } from 'firebase/firestore';
+import { getDocs, limit, query, where, updateDoc, doc, Timestamp, collection, onSnapshot } from 'firebase/firestore';
 
 type Props = {
   email?: string | null;
@@ -80,6 +80,26 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   }, [email]);
 
   // Load related collections by UID (Accounts doc id)
+  useEffect(() => {
+    if (!account?.id) return;
+    
+    const devicesRef = collection(db, 'userdevices', account.id, 'devices');
+    const unsubscribe = onSnapshot(devicesRef, 
+      (snapshot) => {
+        const devicesData = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setDevices(devicesData);
+      },
+      (error) => {
+        console.error('Error fetching devices:', error);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [account?.id]);
+
   useEffect(() => {
     if (!account?.id) return;
     let mounted = true;
@@ -194,7 +214,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
 
   const openDetails = (type: TabKey, id: string, data: any) => {
     setSelected({ type, id, data });
-    const current = (data?.status ?? data?.Status ?? '').toString();
+    const current = type === 'devices' 
+      ? (data.isOnline ? 'online' : 'offline')
+      : (data?.status ?? data?.Status ?? '').toString();
     setEditStatus(current);
     setDrawerOpen(true);
   };
@@ -213,6 +235,20 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   };
 
   const saveStatus = async () => {
+    if (!selected) return;
+    
+    if (selected.type === 'devices') {
+      try {
+        await updateDoc(doc(db, 'userdevices', account?.id, 'devices', selected.id), {
+          isOnline: editStatus === 'online',
+          updatedAt: Timestamp.now()
+        });
+        closeDetails();
+      } catch (error) {
+        console.error('Error updating device status:', error);
+      }
+      return;
+    }
     if (!account?.id || !selected) return;
     const uid = account.id as string;
     setSaving(true);
@@ -280,7 +316,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               { key: 'quotes', label: `Quotes (${quotes?.length ?? 0})` },
               { key: 'services', label: `Service Requests (${services?.length ?? 0})` },
               { key: 'tickets', label: `Support Tickets (${tickets?.length ?? 0})` },
-              { key: 'devices', label: 'Devices (0)' },
+              { key: 'devices', label: `Devices (${devices?.length ?? 0})` },
             ] as { key: TabKey; label: string }[]).map((t) => (
               <button
                 key={t.key}
@@ -307,23 +343,62 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-gray-400">
-                      <th className="py-2 pr-4 font-medium">ID</th>
-                      <th className="py-2 pr-4 font-medium">Status</th>
-                      <th className="py-2 pr-4 font-medium">Date</th>
+                      {activeTab === 'devices' ? (
+                        <>
+                          <th className="py-2 pr-4 font-medium">Device ID</th>
+                          <th className="py-2 pr-4 font-medium">Name</th>
+                          <th className="py-2 pr-4 font-medium">Type</th>
+                          <th className="py-2 pr-4 font-medium">Status</th>
+                          <th className="py-2 pr-4 font-medium">Last Active</th>
+                        </>
+                      ) : (
+                        <>
+                          <th className="py-2 pr-4 font-medium">ID</th>
+                          <th className="py-2 pr-4 font-medium">Status</th>
+                          <th className="py-2 pr-4 font-medium">Date</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {lists[activeTab].map((row: any) => {
+                      if (activeTab === 'devices') {
+                        return (
+                          <tr
+                            key={row.id}
+                            onClick={() => openDetails('devices', row.id, row)}
+                            className="cursor-pointer border-b border-gray-700/70 hover:bg-gray-700/40"
+                          >
+                            <td className="py-2 pr-4 text-gray-100 truncate max-w-[10rem]" title={row.id}>
+                              {row.id}
+                            </td>
+                            <td className="py-2 pr-4 text-gray-100">{row.name || 'Unnamed Device'}</td>
+                            <td className="py-2 pr-4 text-gray-300">{row.type || 'Unknown'}</td>
+                            <td className="py-2 pr-4">
+                              {statusBadge(row.isOnline ? 'online' : 'offline')}
+                            </td>
+                            <td className="py-2 pr-4 text-gray-300">
+                              {row.lastActiveAt ? fmt(dateFrom(row.lastActiveAt)) : 'Never'}
+                            </td>
+                          </tr>
+                        );
+                      }
+
                       const status = row.status ?? row.Status;
                       const created = row.createdAt ?? row.created_at ?? row.ts;
-                      const isUnread = (status || '').toString().toLowerCase() === 'pending' || (status || '').toString().toLowerCase() === 'new' || (status || '').toString().toLowerCase() === 'submitted';
+                      const isUnread = (status || '').toString().toLowerCase() === 'pending' || 
+                                     (status || '').toString().toLowerCase() === 'new' || 
+                                     (status || '').toString().toLowerCase() === 'submitted';
+                      
                       return (
                         <tr
                           key={row.id}
                           onClick={() => openDetails(activeTab, row.id, row)}
                           className={`cursor-pointer border-b border-gray-700/70 hover:bg-gray-700/40 ${isUnread ? 'font-semibold' : ''}`}
                         >
-                          <td className="py-2 pr-4 text-gray-100 truncate max-w-[14rem]" title={row.id}>{row.id}</td>
+                          <td className="py-2 pr-4 text-gray-100 truncate max-w-[14rem]" title={row.id}>
+                            {row.id}
+                          </td>
                           <td className="py-2 pr-4">{statusBadge(status)}</td>
                           <td className="py-2 pr-4 text-gray-300">{fmt(dateFrom(created))}</td>
                         </tr>

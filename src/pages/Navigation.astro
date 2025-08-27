@@ -70,26 +70,6 @@ import AuthNavClient from '../components/common/AuthNavClient';
 <AuthModal client:load />
 <AuthNavClient client:idle />
 
-<script is:inline>
-  // Wire nav buttons to open the inline React modal
-  document.addEventListener('click', (e) => {
-    const t = e.target;
-    if (!(t instanceof Element)) return;
-    const trigger = t.closest('[data-open-auth]');
-    if (trigger) {
-      const type = trigger.getAttribute('data-open-auth');
-      if (type === 'login') {
-        e.preventDefault();
-        if (window.__authOpen) window.__authOpen(type);
-      }
-    }
-  });
-  // Escape to close
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && window.__authClose) window.__authClose();
-  });
-</script>
-
 <style>
   /* Apply teal color filter to logo */
   .filter-teal {
@@ -100,19 +80,57 @@ import AuthNavClient from '../components/common/AuthNavClient';
   .dark .filter-teal {
     filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
   }
+  
+  /* Desktop hover behavior */
+  @media (hover: hover) and (pointer: fine) {
+    #mobile-menu-button:hover + #mobile-menu,
+    #mobile-menu:hover {
+      display: block !important;
+    }
+  }
+  
+  /* Mobile click behavior */
+  #mobile-menu {
+    display: none;
+  }
+  
+  #mobile-menu.active {
+    display: block;
+  }
 </style>
 
 <script>
-  // Mobile menu toggle
-  const mobileMenuButton = document.getElementById('mobile-menu-button');
-  const mobileMenu = document.getElementById('mobile-menu');
-
-  mobileMenuButton?.addEventListener('click', () => {
-    mobileMenu?.classList.toggle('hidden');
+  // Mobile click handler
+  document.addEventListener('DOMContentLoaded', () => {
+    const menuButton = document.getElementById('mobile-menu-button');
+    const mobileMenu = document.getElementById('mobile-menu');
+    
+    menuButton?.addEventListener('click', () => {
+      mobileMenu?.classList.toggle('active');
+    });
   });
+</script>
 
-  // Login dropdown toggle (desktop)
-  // No additional JS needed for desktop login link
+<script>
+  // Open AuthModal instead of navigating to /login
+  document.addEventListener('DOMContentLoaded', () => {
+    const triggers = document.querySelectorAll('[data-open-auth]');
+    triggers.forEach((el) => {
+      // Accessibility hints
+      el.setAttribute('role', 'button');
+      el.setAttribute('aria-haspopup', 'dialog');
+      el.addEventListener(
+        'click',
+        (e) => {
+          e.preventDefault();
+          const view = (el.getAttribute('data-open-auth') || 'login').toLowerCase();
+          const openFn = (window as any).__authOpen;
+          if (typeof openFn === 'function') openFn(view);
+        },
+        { passive: false }
+      );
+    });
+  });
 </script>
 
 <!-- Firebase Auth UI script removed; handled by AuthNavClient React component -->
