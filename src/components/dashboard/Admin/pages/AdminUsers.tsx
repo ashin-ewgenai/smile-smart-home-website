@@ -286,7 +286,8 @@ const AdminUsers: React.FC = () => {
                         }
                         const total = counts?.total || 0;
                         const hasAlerts = total > 0;
-                        const btnClass = hasAlerts ? 'bg-red-600 hover:bg-red-700 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white';
+                        const btnClass = 'bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700';
+                        const iconClass = hasAlerts ? 'text-red-600' : 'text-gray-500 dark:text-gray-400';
                         return (
                           <button
                             onClick={(e) => { e.stopPropagation(); openAlertModal(email); }}
@@ -294,12 +295,12 @@ const AdminUsers: React.FC = () => {
                             aria-label={hasAlerts ? `You have ${total} notifications` : 'No notifications'}
                             title={hasAlerts ? `${total} notifications` : 'No notifications'}
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-bell h-5 w-5">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill={hasAlerts ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`lucide lucide-bell h-5 w-5 ${iconClass}`}>
                               <path d="M10.268 21a2 2 0 0 0 3.464 0"></path>
                               <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path>
                             </svg>
                             {hasAlerts && (
-                              <span className="absolute -top-1 -right-1 min-w-[1.1rem] h-5 px-1 rounded-full bg-white text-red-700 text-xs font-bold flex items-center justify-center shadow">{total}</span>
+                              <span className="absolute -top-1 -right-1 min-w-[1.1rem] h-5 px-1 rounded-full bg-red-600 text-white text-xs font-bold flex items-center justify-center shadow">{total}</span>
                             )}
                           </button>
                         );
