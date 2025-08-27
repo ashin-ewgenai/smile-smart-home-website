@@ -73,24 +73,6 @@ const AdminDashboard: React.FC = () => {
       color: 'text-teal-500',
       data: [6, 8, 7, 9, 12, 11, 15, 14, 16, 15, 16, 18],
     },
-    {
-      key: 'active',
-      label: 'Total Devices',
-      value: 298,
-      delta: +5,
-      icon: Activity,
-      color: 'text-blue-500',
-      data: [270, 272, 274, 276, 278, 279, 281, 283, 286, 289, 295, 298],
-    },
-    {
-      key: 'alerts',
-      label: 'Alerts Today',
-      value: 5,
-      delta: -2,
-      icon: Bell,
-      color: 'text-red-500',
-      data: [9, 10, 8, 7, 6, 7, 6, 5, 6, 5, 5, 5],
-    },
   ];
   
   // Simulate fetching data
@@ -261,44 +243,6 @@ const AdminDashboard: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {user.joinDate}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-            
-            {/* Recent Alerts */}
-            <div id="recent-alerts" className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden mb-6">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Alerts</h2>
-                <a href="/dashboard/admin/alerts" className="text-sm text-teal-600 dark:text-teal-400 hover:underline">View All</a>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-gray-50 dark:bg-gray-700">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Device</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Alert Type</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Time</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {recentAlerts.map((alert) => (
-                      <tr key={alert.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{alert.device}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">{alert.type}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {alert.time}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {alert.date}
                         </td>
                       </tr>
                     ))}
