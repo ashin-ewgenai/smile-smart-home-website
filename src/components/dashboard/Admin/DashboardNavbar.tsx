@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Menu, X, User, LogOut, Settings, Bell, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { handleLogout } from './LogoutHandler';
+import DarkModeToggle from '../../ui/DarkModeToggle';
 
 interface DashboardNavbarProps {
   userType: 'admin' | 'user';
@@ -95,24 +96,27 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
             </div>
           </div>
           <div className="flex items-center">
-            {userType === 'admin' ? (
-              <Link
-                to="/dashboard/admin/notifications"
-                aria-label="Notifications"
-                className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none"
-              >
-                <Bell className="h-5 w-5" />
-              </Link>
-            ) : (
-              <button
-                type="button"
-                className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none"
-                disabled
-                aria-disabled="true"
-              >
-                <Bell className="h-5 w-5 opacity-50" />
-              </button>
-            )}
+            <div className="flex items-center space-x-1">
+              <DarkModeToggle />
+              {userType === 'admin' ? (
+                <Link
+                  to="/dashboard/admin/notifications"
+                  aria-label="Notifications"
+                  className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none"
+                >
+                  <Bell className="h-5 w-5" />
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none"
+                  disabled
+                  aria-disabled="true"
+                >
+                  <Bell className="h-5 w-5 opacity-50" />
+                </button>
+              )}
+            </div>
             <div className="ml-3 relative">
               <div>
                 <button 
@@ -266,12 +270,6 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Settings
-                </Link>
-                <Link 
-                  to="/dashboard/admin/users" 
-                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Customers
                 </Link>
                 <Link 
                   to="/dashboard/admin/estimates" 

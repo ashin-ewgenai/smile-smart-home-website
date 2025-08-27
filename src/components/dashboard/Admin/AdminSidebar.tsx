@@ -44,12 +44,6 @@ const AdminSidebar: React.FC = () => {
           Manage Users
         </span>
       </Item>
-      <Item href="/dashboard/admin/customers">
-        <span className="inline-flex items-center gap-2">
-          <UserCircle2 className="h-4 w-4" />
-          Customers
-        </span>
-      </Item>
       <Item href="/dashboard/admin/plan-leads">
         <span className="inline-flex items-center gap-2">
           <FilePlus className="h-4 w-4" />

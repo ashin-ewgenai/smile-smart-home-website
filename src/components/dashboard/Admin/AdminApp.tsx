@@ -11,7 +11,6 @@ import AddDevice from './pages/AddDevice';
 import Estimates from './pages/Estimates';
 import Notifications from './pages/Notifications';
 import Reports from './pages/Reports';
-import Customers from './pages/Customers';
 import Bill from './pages/Bill';
 import QuotePortal from './pages/QuotePortal';
 import AboutDevice from './pages/AboutDevice';
@@ -68,7 +67,6 @@ const AdminApp: React.FC = () => {
             <Route path="/dashboard/admin/devices/add" element={<AddDevice />} />
             <Route path="/dashboard/admin/users" element={<AdminUsers />} />
             <Route path="/dashboard/admin/user" element={<AdminUserDetailPage />} />
-            <Route path="/dashboard/admin/customers" element={<Customers />} />
             <Route path="/dashboard/admin/reports" element={<Reports />} />
             <Route path="/dashboard/admin/notifications" element={<Notifications />} />
             <Route path="/dashboard/admin/alerts" element={<Alerts />} />
