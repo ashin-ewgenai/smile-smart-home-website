@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { auth, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getDoc, setDoc } from 'firebase/firestore';
-import { accountDoc, accountLoginMergePayload, createAccountProfileWithLookup, registerUserWithProfile } from '../../models';
+import { accountDoc, accountLoginMergePayload } from '../../models';
 
-type View = 'login' | 'register' | null;
+type View = 'login' | null;
 
 export default function AuthModal() {
   const [open, setOpen] = useState<View>(null);
@@ -14,8 +14,6 @@ export default function AuthModal() {
   // form fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [confirm, setConfirm] = useState('');
 
   // basic client-side validators and error mapping
   function validEmail(v: string) {
@@ -70,8 +68,6 @@ export default function AuthModal() {
   function resetFormFields() {
     setEmail('');
     setPassword('');
-    setFullName('');
-    setConfirm('');
     setError(null);
   }
 
@@ -149,39 +145,6 @@ export default function AuthModal() {
     }
   }
 
-  async function handleRegister(e: React.FormEvent) {
-    e.preventDefault();
-    resetError();
-    try {
-      // client-side validation
-      if (!fullName || fullName.trim().length < 2) {
-        setError('Please enter your full name');
-        return;
-      }
-      if (!validEmail(email)) {
-        setError('Please enter a valid email');
-        return;
-      }
-      if (!validPassword(password)) {
-        setError('Password must be at least 8 characters and include uppercase, lowercase, number, and symbol');
-        return;
-      }
-      if (password !== confirm) {
-        setError('Passwords do not match');
-        return;
-      }
-      setLoading(true);
-      const cred = await registerUserWithProfile(auth, db, { email, password, fullName, role: 'user' });
-      try { await signOut(auth); } catch {}
-      setOpen('login');
-    } catch (err: any) {
-      const code = err?.code as string | undefined;
-      setError(friendlyAuthError(code));
-    } finally {
-      setLoading(false);
-    }
-  }
-
   const show = open !== null;
 
   return (
@@ -227,39 +190,6 @@ export default function AuthModal() {
                 </div>
                 <button type="submit" className="w-full btn-primary" disabled={loading}>{loading ? 'Signing in...' : 'Sign in'}</button>
                 {error && <p className="text-sm text-red-600">{error}</p>}
-                <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-300">
-                  Don't have an account?{' '}
-                  <button type="button" onClick={()=>{ setError(null); setOpen('register'); }} className="text-blue-600 dark:text-blue-400 hover:underline">Register here</button>
-                </p>
-              </form>
-            )}
-
-            {open === 'register' && (
-              <form className="space-y-5" onSubmit={handleRegister}>
-                <h1 className="text-2xl font-bold text-center text-charcoal dark:text-white mb-2">Create your account</h1>
-                <p className="text-sm text-center text-gray-600 dark:text-gray-300 mb-4">Join us to manage your smart home services.</p>
-                <div>
-                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name</label>
-                  <input id="fullName" type="text" autoComplete="name" required value={fullName} onChange={(e)=>setFullName(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal" placeholder="John Doe" />
-                </div>
-                <div>
-                  <label htmlFor="reg-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email ID</label>
-                  <input id="reg-email" type="email" autoComplete="email" required value={email} onChange={(e)=>setEmail(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal" placeholder="you@example.com" />
-                </div>
-                <div>
-                  <label htmlFor="reg-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                  <input id="reg-password" type="password" autoComplete="new-password" required value={password} onChange={(e)=>setPassword(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal" placeholder="••••••••" />
-                </div>
-                <div>
-                  <label htmlFor="confirm" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm Password</label>
-                  <input id="confirm" type="password" autoComplete="new-password" required value={confirm} onChange={(e)=>setConfirm(e.target.value)} className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal" placeholder="••••••••" />
-                </div>
-                <button type="submit" className="w-full btn-primary" disabled={loading}>{loading ? 'Creating account...' : 'Create account'}</button>
-                {error && <p className="text-sm text-red-600">{error}</p>}
-                <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-300">
-                  Already have an account?{' '}
-                  <button type="button" onClick={()=>{ setError(null); setOpen('login'); }} className="text-blue-600 dark:text-blue-400 hover:underline">Sign in</button>
-                </p>
               </form>
             )}
           </div>
