@@ -109,74 +109,80 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
   };
 
   return (
-    <div className="w-full flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md rounded-xl border border-zinc-200/60 bg-white/95 backdrop-blur shadow-xl dark:bg-zinc-900/90 dark:border-zinc-700/60">
-        <div className="p-6 border-b border-zinc-100/60 dark:border-zinc-800/60 text-center">
-          <div className="mx-auto mb-3 h-12 w-12 rounded-full bg-yellow-400/20 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="h-6 w-6 text-yellow-500"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c0 3-3 5-3 5h6s-3-2-3-5m0-7a4 4 0 00-4 4v1a4 4 0 004 4 4 4 0 004-4V8a4 4 0 00-4-4z"/></svg>
-          </div>
-          <h1 className="text-2xl font-bold">Admin Portal</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">Enter your admin credentials to access the dashboard</p>
+    <div className="p-8">
+      <div className="text-center mb-8">
+        <div className="mx-auto mb-4 h-20 w-20 rounded-full bg-gray-700 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+          </svg>
         </div>
-        <div className="p-6">
-          {error && (
-            <div role="alert" className="mb-4 rounded-md border border-red-500/40 bg-red-50 px-4 py-3 text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-400">
-              <p className="text-sm">{error}</p>
-            </div>
-          )}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Email</label>
-              <input
-                id="email"
-                type="email"
-                placeholder="admin@example.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled={isLoading}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Password</label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                disabled={isLoading}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100"
-              />
-            </div>
-            <button
-              type="submit"
+        <h2 className="text-2xl font-bold text-white">Admin Portal</h2>
+        <p className="mt-2 text-sm text-gray-300">Sign in to access your dashboard</p>
+      </div>
+      
+      {error && (
+        <div className="mb-6 p-4 rounded-lg bg-red-900/50 text-red-200 text-sm border border-red-700">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
+            Email address
+          </label>
+          <div className="relative">
+            <input
+              id="email"
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
               disabled={isLoading}
-              className="w-full inline-flex items-center justify-center rounded-md bg-yellow-400 text-black font-medium py-2.5 shadow-sm hover:bg-yellow-400/90 hover:shadow disabled:opacity-50"
-            >
-              {isLoading ? (
-                <>
-                  <svg className="mr-2 h-4 w-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
-                  Verifying...
-                </>
-              ) : (
-                'Login to Admin Portal'
-              )}
-            </button>
-          </form>
+              className="block w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150 ease-in-out"
+            />
+          </div>
         </div>
-        <div className="px-6 pb-6">
+
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-300">
+              Password
+            </label>
+          </div>
+          <div className="relative">
+            <input
+              id="password"
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              disabled={isLoading}
+              className="block w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150 ease-in-out"
+            />
+          </div>
+        </div>
+
+        <div className="pt-2">
           <button
-            type="button"
-            onClick={() => (window.location.href = '/')}
+            type="submit"
             disabled={isLoading}
-            className="w-full text-sm py-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800"
+            className="w-full flex justify-center py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition duration-200 ease-in-out transform hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Return to Main Site
+            {isLoading ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Signing in...
+              </>
+            ) : 'Sign in'}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

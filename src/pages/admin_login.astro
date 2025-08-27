@@ -4,17 +4,20 @@ import AdminLoginComponent from '../components/admin/AdminLogin';
 ---
 
 <Layout title="Admin & Super Admin Login - Smile Smart Homes">
-  <main
-    class="min-h-screen relative flex flex-col items-center justify-center px-4 py-10 bg-cover bg-center bg-no-repeat overflow-y-auto"
-    style="background-image: url('/windowsLogo.jpg');"
-  >
-    <div class="pointer-events-none absolute inset-0 bg-white/70 dark:bg-black/60"></div>
-    <div class="absolute top-6 left-1/2 -translate-x-1/2 text-center z-10">
-      <a href="/" class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Smile Smart Homes</a>
-      <p class="text-sm text-zinc-700 dark:text-zinc-300">Administrator Login</p>
-    </div>
-    <div class="z-10 w-full flex items-center justify-center">
-      <AdminLoginComponent client:only="react" />
+  <main class="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800 p-4">
+    <div class="w-full max-w-md">
+      <div class="text-center mb-8">
+        <h1 class="text-3xl font-bold text-white">Smile Smart Homes</h1>
+        <p class="text-gray-300">Administrator Login</p>
+      </div>
+      <div class="bg-gray-800 rounded-xl shadow-2xl overflow-hidden border border-gray-700">
+        <AdminLoginComponent client:only="react" />
+      </div>
+      <div class="mt-6 text-center">
+        <a href="/" class="text-sm text-blue-400 hover:text-blue-300 transition-colors">
+          ← Return to Main Site
+        </a>
+      </div>
     </div>
   </main>
 </Layout>

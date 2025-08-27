@@ -153,12 +153,7 @@ const AboutDevices: React.FC = () => {
                       Added
                     </button>
                   ) : (
-                    <button
-                      onClick={() => handleAdd(d)}
-                      className="text-xs px-3 py-1 rounded bg-teal-600 hover:bg-teal-500 text-white"
-                    >
-                      Add
-                    </button>
+                    <></>
                   )}
                 </div>
               </div>
@@ -171,9 +166,7 @@ const AboutDevices: React.FC = () => {
             href="/dashboard/user/about-device"
             title="About Device"
             className="inline-flex items-center gap-2 text-2xl font-semibold text-white"
-          >
-            <span className="truncate">Add New Devices</span>
-          </a>
+          />
         </div>
         </>
       )}
