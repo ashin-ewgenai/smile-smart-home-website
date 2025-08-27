@@ -30,7 +30,6 @@ import AuthNavClient from '../components/common/AuthNavClient';
             Sign In
           </a>
         </div>
-        <a href="/register" data-open-auth="register" data-auth="signup-desktop" class="hidden md:inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base text-teal border border-teal rounded-lg hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">Sign Up</a>
         <!-- Authenticated state (desktop): Username text and avatar dropdown -->
         <span data-auth="user-desktop" style="display:none" class="hidden min-[601px]:inline-flex items-center text-sm md:text-base font-semibold text-teal"></span>
         <!-- Avatar dropdown -->
@@ -62,7 +61,6 @@ import AuthNavClient from '../components/common/AuthNavClient';
         <a href="/gallery" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Gallery</a>
         <a href="/contact" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Contact</a>
         <a href="/login" data-open-auth="login" class="block px-3 py-2 mt-1 text-teal border border-teal rounded-lg text-center hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">Sign In</a>
-        <a href="/register" data-open-auth="register" class="block px-3 py-2 text-teal border border-teal rounded-lg text-center hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">Sign Up</a>
       </div>
     </div>
   </nav>
@@ -80,7 +78,7 @@ import AuthNavClient from '../components/common/AuthNavClient';
     const trigger = t.closest('[data-open-auth]');
     if (trigger) {
       const type = trigger.getAttribute('data-open-auth');
-      if (type === 'login' || type === 'register') {
+      if (type === 'login') {
         e.preventDefault();
         if (window.__authOpen) window.__authOpen(type);
       }
