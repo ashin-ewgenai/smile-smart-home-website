@@ -13,12 +13,10 @@ export type DeviceFormValues = {
   status: 'Active' | 'Inactive';
   assignedToEmail?: string;
   imageUrl?: string;
-  price?: number;
   stock?: number;
+  price?: number;
   description?: string;
   brand?: string;
-  rating?: number; // 0-5
-  discount?: number; // 0-100
   warrantyValue?: number;
   warrantyUnit?: 'months' | 'years';
 };
@@ -31,12 +29,10 @@ const initialState: DeviceFormValues = {
   status: 'Active',
   assignedToEmail: '',
   imageUrl: '',
-  price: undefined,
   stock: undefined,
+  price: undefined,
   description: '',
   brand: '',
-  rating: undefined,
-  discount: undefined,
   warrantyValue: undefined,
   warrantyUnit: 'months',
 };
@@ -167,28 +163,13 @@ export default function DeviceForm() {
   );
 
   // Numeric and long-text handlers
-  const onPriceChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setValues((v) => ({ ...v, price: val === '' ? undefined : Number(val) }));
-  }, []);
-
   const onStockChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setValues((v) => ({ ...v, stock: val === '' ? undefined : Number(val) }));
+    const value = e.target.value === '' ? undefined : Number(e.target.value);
+    setValues(v => ({ ...v, stock: value }));
   }, []);
 
   const onDescriptionChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setValues((v) => ({ ...v, description: e.target.value }));
-  }, []);
-
-  const onRatingChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setValues((v) => ({ ...v, rating: val === '' ? undefined : Number(val) }));
-  }, []);
-
-  const onDiscountChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    setValues((v) => ({ ...v, discount: val === '' ? undefined : Number(val) }));
   }, []);
 
   // Simple URL validation for Amazon/Flipkart (allows others too if https)
@@ -286,12 +267,9 @@ export default function DeviceForm() {
           status: values.status,
           assignedToEmail: values.assignedToEmail?.trim() || '',
           location: values.location?.trim() || '',
-          price: typeof values.price === 'number' ? values.price : (values.price ? Number(values.price) : null),
           stock: typeof values.stock === 'number' ? values.stock : (values.stock ? Number(values.stock) : null),
           description: values.description?.trim() || '',
           brand: values.brand?.trim() || '',
-          rating: typeof values.rating === 'number' ? values.rating : (values.rating ? Number(values.rating) : null),
-          discount: typeof values.discount === 'number' ? values.discount : (values.discount ? Number(values.discount) : null),
           warranty: formatWarranty(values.warrantyValue, values.warrantyUnit),
           createdAt: serverTimestamp(),
           createdByUid: auth?.currentUser?.uid ?? null,
@@ -329,12 +307,9 @@ export default function DeviceForm() {
       status: d.status,
       serial: d.serial ?? '',
       assignedToEmail: d.assignedToEmail ?? '',
-      price: typeof d.price === 'number' ? d.price : undefined,
       stock: typeof d.stock === 'number' ? d.stock : undefined,
       description: d.description ?? '',
       brand: d.brand ?? '',
-      rating: typeof d.rating === 'number' ? d.rating : undefined,
-      discount: typeof d.discount === 'number' ? d.discount : undefined,
       warrantyValue: parsed.value as any,
       warrantyUnit: parsed.unit as any,
     });
@@ -354,11 +329,8 @@ export default function DeviceForm() {
       status: (editValues.status as 'Active' | 'Inactive') ?? 'Active',
       serial: md,
       modelNumber: md,
-      price: typeof editValues.price === 'number' ? editValues.price : null,
       stock: typeof editValues.stock === 'number' ? editValues.stock : null,
       description: (editValues.description ?? '').toString().trim(),
-      rating: typeof editValues.rating === 'number' ? editValues.rating : null,
-      discount: typeof editValues.discount === 'number' ? editValues.discount : null,
       warranty: warranty,
     };
     // Remove legacy 'name' field if it exists
@@ -398,12 +370,6 @@ export default function DeviceForm() {
             )}
             <div className="min-w-0">
               <div className="text-sm font-medium text-gray-900 dark:text-gray-100 line-clamp-2">{embeddedPreview.title ?? 'Product'}</div>
-              {embeddedPreview.price && (
-                <div className="mt-1 text-sm text-gray-900 dark:text-gray-100 font-semibold">{embeddedPreview.price}</div>
-              )}
-              {embeddedPreview.rating && (
-                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300">Rating: {embeddedPreview.rating}</div>
-              )}
               <div className="mt-2 text-xs">
                 <a href={embeddedPreview.url} target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:underline dark:text-teal-400">
                   Open on {getDomainLabel(embeddedPreview.url)}
@@ -459,41 +425,56 @@ export default function DeviceForm() {
             type="text"
             required
             placeholder="e.g., Living Room Camera"
-            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
             value={values.name}
             onChange={onChange}
           />
         </div>
 
-      <div>
-        <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Device Type</label>
-        <select
-          id="type"
-          name="type"
-          required
-          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
-          value={values.type}
-          onChange={onChange}
-        >
-          <option value="">Select a type</option>
-          <option value="Camera">Camera</option>
-          <option value="Sensor">Sensor</option>
-          <option value="Lock">Lock</option>
-          <option value="Thermostat">Thermostat</option>
-          <option value="Light">Light</option>
-        </select>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="md:col-span-2">
+          <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Device Type</label>
+          <select
+            id="type"
+            name="type"
+            required
+            className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+            value={values.type}
+            onChange={onChange}
+          >
+            <option value="">Select a type</option>
+            <option value="Camera">Camera</option>
+            <option value="Sensor">Sensor</option>
+            <option value="Lock">Lock</option>
+            <option value="Thermostat">Thermostat</option>
+            <option value="Light">Light</option>
+          </select>
+        </div>
         <div>
-          <label htmlFor="serial" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Model No</label>
+          <label htmlFor="serial" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Serial No</label>
           <input
             id="serial"
             name="serial"
             type="text"
-            placeholder="e.g., ABCD-1234"
-            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
-            value={values.serial}
+            placeholder="e.g., SN123456"
+            className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+            value={values.serial ?? ''}
+            onChange={onChange}
+          />
+        </div>
+      </div>
+
+      {/* Brand and Image */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="md:col-span-2">
+          <label htmlFor="brand" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Brand</label>
+          <input
+            id="brand"
+            name="brand"
+            type="text"
+            placeholder="e.g., Samsung"
+            className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+            value={values.brand ?? ''}
             onChange={onChange}
           />
         </div>
@@ -504,58 +485,47 @@ export default function DeviceForm() {
             name="imageFile"
             type="file"
             accept="image/*"
-            onChange={(e) => setImageFile(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
             className="mt-1 block w-full text-sm text-gray-900 dark:text-gray-200 file:mr-4 file:py-2 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100"
+            onChange={(e) => setImageFile(e.target.files?.[0] || null)}
           />
         </div>
-      </div>
-
-      {/* Brand */}
-      <div>
-        <label htmlFor="brand" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Brand</label>
-        <input
-          id="brand"
-          name="brand"
-          type="text"
-          placeholder="e.g., Samsung"
-          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
-          value={values.brand ?? ''}
-          onChange={onChange}
-        />
       </div>
 
       {/* Warranty */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Warranty</label>
-        <div className="mt-1 grid grid-cols-3 gap-2">
-          <input
-            id="warrantyValue"
-            name="warrantyValue"
-            type="number"
-            min="0"
-            step="1"
-            placeholder="e.g., 12"
-            className="col-span-2 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
-            value={typeof values.warrantyValue === 'number' ? values.warrantyValue : ''}
-            onChange={(e) => setValues((v) => ({ ...v, warrantyValue: e.target.value === '' ? undefined : Number(e.target.value) }))}
-          />
-          <select
-            id="warrantyUnit"
-            name="warrantyUnit"
-            className="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
-            value={values.warrantyUnit ?? 'months'}
-            onChange={(e) => setValues((v) => ({ ...v, warrantyUnit: (e.target.value as 'months' | 'years') }))}
-          >
-            <option value="months">months</option>
-            <option value="years">years</option>
-          </select>
+      <div className="grid grid-cols-1">
+        {/* Warranty */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Warranty</label>
+          <div className="mt-1 grid grid-cols-3 gap-2">
+            <input
+              id="warrantyValue"
+              name="warrantyValue"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="e.g., 12"
+              className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+              value={typeof values.warrantyValue === 'number' ? values.warrantyValue : ''}
+              onChange={(e) => setValues((v) => ({ ...v, warrantyValue: e.target.value === '' ? undefined : Number(e.target.value) }))}
+            />
+            <select
+              id="warrantyUnit"
+              name="warrantyUnit"
+              className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2 col-span-2"
+              value={values.warrantyUnit ?? 'months'}
+              onChange={(e) => setValues((v) => ({ ...v, warrantyUnit: (e.target.value as 'months' | 'years') }))}
+            >
+              <option value="months">months</option>
+              <option value="years">years</option>
+            </select>
+          </div>
         </div>
       </div>
 
-      {/* Price & Stock */}
+      {/* Price and Stock */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="price" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Price</label>
+          <label htmlFor="price" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Price (₹)</label>
           <input
             id="price"
             name="price"
@@ -563,9 +533,9 @@ export default function DeviceForm() {
             min="0"
             step="0.01"
             placeholder="e.g., 99.99"
-            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
             value={values.price ?? ''}
-            onChange={onPriceChange}
+            onChange={(e) => setValues(v => ({ ...v, price: e.target.value === '' ? undefined : Number(e.target.value) }))}
           />
         </div>
         <div>
@@ -577,46 +547,13 @@ export default function DeviceForm() {
             min="0"
             step="1"
             placeholder="e.g., 10"
-            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
             value={values.stock ?? ''}
             onChange={onStockChange}
           />
         </div>
       </div>
 
-      {/* Rating & Discount */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label htmlFor="rating" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Rating (0-5)</label>
-          <input
-            id="rating"
-            name="rating"
-            type="number"
-            min="0"
-            max="5"
-            step="0.1"
-            placeholder="e.g., 4.5"
-            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
-            value={values.rating ?? ''}
-            onChange={onRatingChange}
-          />
-        </div>
-        <div>
-          <label htmlFor="discount" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Discount (%)</label>
-          <input
-            id="discount"
-            name="discount"
-            type="number"
-            min="0"
-            max="100"
-            step="1"
-            placeholder="e.g., 15"
-            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
-            value={values.discount ?? ''}
-            onChange={onDiscountChange}
-          />
-        </div>
-      </div>
 
       {/* Description */}
       <div>
@@ -626,7 +563,7 @@ export default function DeviceForm() {
           name="description"
           rows={3}
           placeholder="Short description of the device"
-          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+          className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
           value={values.description ?? ''}
           onChange={onDescriptionChange}
         />
@@ -637,7 +574,7 @@ export default function DeviceForm() {
         <select
           id="status"
           name="status"
-          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+          className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
           value={values.status}
           onChange={onChange}
         >
@@ -664,12 +601,12 @@ export default function DeviceForm() {
             placeholder="Search by name or model"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
           />
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
-            className="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+            className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
           >
             <option value="">All types</option>
             <option value="Camera">Camera</option>
@@ -757,7 +694,7 @@ export default function DeviceForm() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
                 <input
-                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                  className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
                   value={editValues.name ?? ''}
                   onChange={(e) => setEditValues((v) => ({ ...v, name: e.target.value }))}
                 />
@@ -765,7 +702,7 @@ export default function DeviceForm() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Type</label>
                 <select
-                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                  className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
                   value={editValues.type ?? ''}
                   onChange={(e) => setEditValues((v) => ({ ...v, type: e.target.value }))}
                 >
@@ -780,7 +717,7 @@ export default function DeviceForm() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
                 <select
-                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                  className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
                   value={(editValues.status as 'Active' | 'Inactive') ?? 'Active'}
                   onChange={(e) => setEditValues((v) => ({ ...v, status: e.target.value as 'Active' | 'Inactive' }))}
                 >
@@ -795,7 +732,7 @@ export default function DeviceForm() {
                     type="number"
                     min="0"
                     step="0.01"
-                    className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                    className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
                     value={typeof editValues.price === 'number' ? editValues.price : ''}
                     onChange={(e) => setEditValues((v) => ({ ...v, price: e.target.value === '' ? undefined : Number(e.target.value) }))}
                   />
@@ -806,7 +743,7 @@ export default function DeviceForm() {
                     type="number"
                     min="0"
                     step="1"
-                    className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                    className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
                     value={typeof editValues.stock === 'number' ? editValues.stock : ''}
                     onChange={(e) => setEditValues((v) => ({ ...v, stock: e.target.value === '' ? undefined : Number(e.target.value) }))}
                   />
@@ -815,7 +752,7 @@ export default function DeviceForm() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Model No</label>
                 <input
-                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                  className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
                   value={editValues.serial ?? ''}
                   onChange={(e) => setEditValues((v) => ({ ...v, serial: e.target.value }))}
                 />
@@ -824,7 +761,7 @@ export default function DeviceForm() {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
                 <textarea
                   rows={3}
-                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                  className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
                   value={editValues.description ?? ''}
                   onChange={(e) => setEditValues((v) => ({ ...v, description: e.target.value }))}
                 />
@@ -841,7 +778,7 @@ export default function DeviceForm() {
                     onChange={(e) => setEditValues((v: any) => ({ ...v, warrantyValue: e.target.value === '' ? undefined : Number(e.target.value) }))}
                   />
                   <select
-                    className="block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                    className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
                     value={(editValues as any).warrantyUnit ?? 'months'}
                     onChange={(e) => setEditValues((v: any) => ({ ...v, warrantyUnit: e.target.value }))}
                   >
@@ -853,7 +790,7 @@ export default function DeviceForm() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Assigned Email</label>
                 <input
-                  className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                  className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
                   value={editValues.assignedToEmail ?? ''}
                   onChange={(e) => setEditValues((v) => ({ ...v, assignedToEmail: e.target.value }))}
                 />

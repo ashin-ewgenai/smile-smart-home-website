@@ -356,49 +356,81 @@ const AdminUsers: React.FC = () => {
       )}
 
       {alertModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={closeAlertModal} />
-          <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-sm mx-4 p-6 border border-gray-200 dark:border-gray-700">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Alerts Summary</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300 mb-2 break-words">{alertModal.email}</p>
-            <ul className="space-y-3 text-sm text-gray-800 dark:text-gray-100">
-              <li>
-                <div className="flex items-center justify-between gap-2">
-                  <span>Quotes (Unresolved)</span>
-                  <div className="flex items-center gap-2">
-                    <Link to={`/dashboard/admin/estimates?userEmail=${encodeURIComponent(alertModal.email)}`} className="inline-flex px-2 py-0.5 text-xs rounded bg-teal-600 text-white hover:bg-teal-700">View</Link>
-                    <span>{alertModal.counts.quotes}</span>
-                  </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-200" 
+            onClick={closeAlertModal} 
+          />
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-gray-100 dark:border-gray-700">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-2">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Alerts Summary</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{alertModal.email}</p>
+            </div>
+
+            {/* Stats Grid */}
+            <div className="p-4 space-y-4">
+              {/* Quotes Card */}
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-200">Quotes</h4>
+                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
+                    {alertModal.counts.quotes} Unresolved
+                  </span>
                 </div>
-                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 flex justify-between"><span>Approved</span><span>{alertModal.counts.quotesResolved ?? '-'}</span></div>
-                <div className="text-xs text-gray-600 dark:text-gray-300 flex justify-between"><span>Total</span><span>{alertModal.counts.quotesTotal ?? '-'}</span></div>
-              </li>
-              <li>
-                <div className="flex items-center justify-between gap-2">
-                  <span>Service Requests (Unresolved)</span>
-                  <div className="flex items-center gap-2">
-                    <Link to={`/dashboard/admin/service-requests?userEmail=${encodeURIComponent(alertModal.email)}`} className="inline-flex px-2 py-0.5 text-xs rounded bg-teal-600 text-white hover:bg-teal-700">View</Link>
-                    <span>{alertModal.counts.services}</span>
-                  </div>
+                <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <div>Approved: <span className="font-medium text-gray-800 dark:text-gray-200">{alertModal.counts.quotesResolved ?? '0'}</span></div>
+                  <div className="text-right">Total: <span className="font-medium text-gray-800 dark:text-gray-200">{alertModal.counts.quotesTotal ?? '0'}</span></div>
                 </div>
-                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 flex justify-between"><span>Closed</span><span>{alertModal.counts.servicesResolved ?? '-'}</span></div>
-                <div className="text-xs text-gray-600 dark:text-gray-300 flex justify-between"><span>Total</span><span>{alertModal.counts.servicesTotal ?? '-'}</span></div>
-              </li>
-              <li>
-                <div className="flex items-center justify-between gap-2">
-                  <span>Tickets (Unresolved)</span>
-                  <div className="flex items-center gap-2">
-                    <Link to={`/dashboard/admin/support-tickets?userEmail=${encodeURIComponent(alertModal.email)}`} className="inline-flex px-2 py-0.5 text-xs rounded bg-teal-600 text-white hover:bg-teal-700">View</Link>
-                    <span>{alertModal.counts.tickets}</span>
-                  </div>
+              </div>
+
+              {/* Service Requests Card */}
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-200">Service Requests</h4>
+                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                    {alertModal.counts.services} Unresolved
+                  </span>
                 </div>
-                <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 flex justify-between"><span>Solved</span><span>{alertModal.counts.ticketsResolved ?? '-'}</span></div>
-                <div className="text-xs text-gray-600 dark:text-gray-300 flex justify-between"><span>Total</span><span>{alertModal.counts.ticketsTotal ?? '-'}</span></div>
-              </li>
-              <li className="flex justify-between font-semibold border-t border-gray-200 dark:border-gray-700 pt-2"><span>Total Unresolved</span><span>{alertModal.counts.total}</span></li>
-            </ul>
-            <div className="mt-4 text-right">
-              <button onClick={closeAlertModal} className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">Close</button>
+                <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <div>Closed: <span className="font-medium text-gray-800 dark:text-gray-200">{alertModal.counts.servicesResolved ?? '0'}</span></div>
+                  <div className="text-right">Total: <span className="font-medium text-gray-800 dark:text-gray-200">{alertModal.counts.servicesTotal ?? '0'}</span></div>
+                </div>
+              </div>
+
+              {/* Tickets Card */}
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-200">Tickets</h4>
+                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
+                    {alertModal.counts.tickets} Unresolved
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <div>Solved: <span className="font-medium text-gray-800 dark:text-gray-200">{alertModal.counts.ticketsResolved ?? '0'}</span></div>
+                  <div className="text-right">Total: <span className="font-medium text-gray-800 dark:text-gray-200">{alertModal.counts.ticketsTotal ?? '0'}</span></div>
+                </div>
+              </div>
+
+              {/* Total Unresolved */}
+              <div className={`mt-4 p-4 rounded-xl ${alertModal.counts.total > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-gray-700/30'}`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">Total Unresolved</span>
+                  <span className={`text-xl font-bold ${alertModal.counts.total > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-200'}`}>
+                    {alertModal.counts.total}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-700 rounded-b-2xl">
+              <button 
+                onClick={closeAlertModal}
+                className="w-full py-2.5 px-4 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
