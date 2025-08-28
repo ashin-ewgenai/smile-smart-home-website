@@ -152,12 +152,8 @@ const RequestServiceModal: React.FC<Props> = ({ open, onClose, deviceOptions }) 
                   onChange={(e) => { clearReqFeedback(); setReqService(e.target.value as typeof reqService); }}
                   className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-3 py-2"
                 >
-                  <option value="installation">Installation</option>
                   <option value="maintenance">Maintenance</option>
                   <option value="troubleshooting">Troubleshooting</option>
-                  <option value="warranty">Warranty</option>
-                  <option value="internet">Internet</option>
-                  <option value="tv">TV</option>
                 </select>
               </div>
               <div className="flex flex-col gap-1">
@@ -273,7 +269,7 @@ const RequestServiceModal: React.FC<Props> = ({ open, onClose, deviceOptions }) 
                 </select>
               </div>
               <div className="md:col-span-2 flex flex-col gap-1">
-                <label htmlFor="reqDesc" className="text-sm text-gray-700 dark:text-gray-200">Describe the issue</label>
+                <label htmlFor="reqDesc" className="text-sm text-gray-700 dark:text-gray-200">Describe what service do you need</label>
                 <textarea
                   id="reqDesc"
                   value={reqDesc}
