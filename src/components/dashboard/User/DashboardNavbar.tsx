@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, User, LogOut, Settings, Bell, ArrowLeft } from 'lucide-react';
+import { Menu, X, User, LogOut, Settings, Bell, ArrowLeft, Moon, Sun } from 'lucide-react';
 import { handleLogout } from './LogoutHandler';
 
 interface DashboardNavbarProps {
@@ -10,6 +10,7 @@ interface DashboardNavbarProps {
 const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -31,6 +32,26 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
       setActualUserName(name.charAt(0).toUpperCase() + name.slice(1));
     }
   }, []);
+
+  // Initialize dark mode from storage or media preference
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('darkMode');
+      const prefers = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const initial = stored === 'true' || (stored === null && prefers);
+      setDarkMode(initial);
+      if (initial) document.documentElement.classList.add('dark');
+      else document.documentElement.classList.remove('dark');
+    } catch {}
+  }, []);
+
+  const toggleDarkMode = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    try { localStorage.setItem('darkMode', String(next)); } catch {}
+    if (next) document.documentElement.classList.add('dark');
+    else document.documentElement.classList.remove('dark');
+  };
 
 
   return (
@@ -75,21 +96,15 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
           </div>
           {/* Centered desktop nav removed; sidebar will handle navigation */}
           <div className="flex items-center">
+            {/* Help button removed; "Raise Tickets" is now in the sidebar and mobile menu */}
             <button
               type="button"
-              onClick={() => {
-                // Notify dashboard to open Help modal
-                window.dispatchEvent(new CustomEvent('open-help'));
-              }}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-teal-600 text-teal-600 hover:bg-teal-50 dark:hover:bg-gray-700"
-              aria-label="Help: Open Support Tickets"
+              onClick={toggleDarkMode}
+              className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white focus:outline-none ml-3"
+              aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+              title={darkMode ? 'Light mode' : 'Dark mode'}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-circle-question-mark h-4 w-4" aria-hidden="true">
-                <circle cx="12" cy="12" r="10"></circle>
-                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
-                <path d="M12 17h.01"></path>
-              </svg>
-              <span className="text-sm font-medium">Help</span>
+              {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
             <button 
               type="button" 
@@ -108,7 +123,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                   onClick={toggleProfileDropdown}
                 >
                   <span className="sr-only">Open user menu</span>
-                  <div className="h-8 w-8 rounded-full flex items-center justify-center bg-teal-500 text-white">
+                  <div className="h-8 w-8 rounded-full flex items-center justify-center bg-black dark:bg-teal-500 text-white ring-1 ring-gray-300/60 dark:ring-teal-300/40 shadow-sm">
                     <User className="h-5 w-5" />
                   </div>
                 </button>
@@ -182,6 +197,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
             <a 
               href={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => setIsMobileMenuOpen(false)}
             >
               Dashboard
             </a>
@@ -189,6 +205,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               <a 
                 href="/dashboard/admin/users" 
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => setIsMobileMenuOpen(false)}
               >
                 Manage Users
               </a>
@@ -196,32 +213,56 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
             <a 
               href={`/dashboard/${userType}/settings`} 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => setIsMobileMenuOpen(false)}
             >
               Settings
             </a>
             <a
               href={`/dashboard/${userType}/quote-portal`}
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => setIsMobileMenuOpen(false)}
             >
               Quote Portal
             </a>
             <a
               href={`/dashboard/${userType}/about-device`}
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => setIsMobileMenuOpen(false)}
             >
               About Device
             </a>
             <a
               href={`/dashboard/${userType}/bill`}
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => setIsMobileMenuOpen(false)}
             >
               Bill
             </a>
+            <a
+              href={`/dashboard/${userType}/support-tickets`}
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Raise Tickets
+            </a>
+            <button
+              type="button"
+              onClick={() => {
+                // Open Support Chat and close menu
+                try {
+                  window.dispatchEvent(new CustomEvent('open-chat'));
+                } catch {}
+                setIsMobileMenuOpen(false);
+              }}
+              className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+            >
+              Support Chat
+            </button>
           </div>
           <div className="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center px-5">
               <div className="flex-shrink-0">
-                <div className="h-10 w-10 rounded-full flex items-center justify-center bg-teal-500 text-white">
+                <div className="h-10 w-10 rounded-full flex items-center justify-center bg-black dark:bg-teal-500 text-white ring-1 ring-gray-300/60 dark:ring-teal-300/40 shadow-sm">
                   <User className="h-6 w-6" />
                 </div>
               </div>
@@ -240,12 +281,14 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               <a 
                 href={`/dashboard/${userType}/profile`} 
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => setIsMobileMenuOpen(false)}
               >
                 Profile
               </a>
               <a 
                 href={`/dashboard/${userType}/settings`} 
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => setIsMobileMenuOpen(false)}
               >
                 Settings
               </a>

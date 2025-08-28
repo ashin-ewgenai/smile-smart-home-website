@@ -132,8 +132,24 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
   // Old quotes state
   const [quotes, setQuotes] = useState<QuoteDoc[]>([]);
   const [quotesLoading, setQuotesLoading] = useState(false);
+  const [quotesError, setQuotesError] = useState<string | null>(null);
   const [showOldQuotes, setShowOldQuotes] = useState(false);
   const [currentUid, setCurrentUid] = useState<string | null>(auth.currentUser?.uid ?? null);
+
+  // Local toast notifications
+  const [toasts, setToasts] = useState<Array<{ id: number; message: string; entering: boolean }>>([]);
+  const showToast = (message: string) => {
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    setToasts((prev) => [...prev, { id, message, entering: true }]);
+    // Trigger enter transition on next frame
+    setTimeout(() => {
+      setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, entering: false } : t)));
+    }, 20);
+    // Auto dismiss in 4s
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
 
   // Load saved progress on mount
   useEffect(() => {
@@ -179,17 +195,32 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       return;
     }
     setQuotesLoading(true);
-    const q = query(
+    setQuotesError(null);
+    // Query strictly by the authenticated user's UID. We sort client-side to avoid needing a composite index.
+    const qRef = query(
       collection(db, 'quotes'),
-      where('userUid', '==', currentUid),
-      orderBy('createdAt', 'desc')
+      where('userUid', '==', currentUid)
     );
-    const unsub = onSnapshot(q, (snap) => {
-      const rows: QuoteDoc[] = [];
-      snap.forEach((d) => rows.push({ id: d.id, ...(d.data() as DocumentData) } as QuoteDoc));
-      setQuotes(rows);
-      setQuotesLoading(false);
-    }, () => setQuotesLoading(false));
+    const unsub = onSnapshot(
+      qRef,
+      (snap) => {
+        const rows: QuoteDoc[] = [];
+        snap.forEach((d) => rows.push({ id: d.id, ...(d.data() as DocumentData) } as QuoteDoc));
+        // Client-side sort by createdAt desc
+        rows.sort((a, b) => {
+          const ta = (a.createdAt as any)?.seconds ?? 0;
+          const tb = (b.createdAt as any)?.seconds ?? 0;
+          return tb - ta;
+        });
+        setQuotes(rows);
+        setQuotesLoading(false);
+      },
+      (err) => {
+        console.error('Failed to load quotes:', err);
+        setQuotesError(err?.message || 'Failed to load quotes');
+        setQuotesLoading(false);
+      }
+    );
     return () => unsub();
   }, [currentUid]);
 
@@ -335,16 +366,23 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
 
       const docRef = await addDoc(collection(db, 'quotes'), quoteData);
       setSubmitSuccess('Quote submitted successfully.');
-      // Clear saved progress on success
+      showToast('Quote submitted successfully.');
+      // Clear inline success to avoid showing the paragraph
+      setTimeout(() => setSubmitSuccess(null), 0);
+      // Reset form and progress on success
+      setFormData({
+        quoteType: '',
+        timeline: '',
+        budget: '',
+      });
+      setCurrentStep(1);
+      setErrors({});
       try {
         localStorage.removeItem(FORM_STORAGE_KEY);
         localStorage.removeItem(STEP_STORAGE_KEY);
       } catch {}
       if (onSubmitted) {
         onSubmitted(docRef.id);
-      } else {
-        // Stay on portal and reveal old quotes so the new one is visible
-        setShowOldQuotes(true);
       }
     } catch (error: any) {
       console.error('Error submitting quote:', error);
@@ -633,7 +671,6 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         {renderStep()}
 
         {submitError && <p className="mt-6 text-sm text-red-600">{submitError}</p>}
-        {submitSuccess && <p className="mt-6 text-sm text-green-600">{submitSuccess}</p>}
 
         <div className="mt-8 flex justify-between">
           {currentStep > 1 && (
@@ -665,26 +702,29 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
           )}
         </div>
       </form>
-      {/* Old Quotes Module */}
+      {/* Requested Quotes Module */}
       <div className="mt-6">
         <button
           type="button"
           onClick={() => setShowOldQuotes(v => !v)}
           className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 hover:bg-gray-50 dark:hover:bg-gray-800"
         >
-          <span className="font-medium">Old Quotes</span>
+          <span className="font-medium">Requested Quotes</span>
           <span className="text-sm text-gray-500">{showOldQuotes ? 'Hide' : 'Show'}</span>
         </button>
         {showOldQuotes && (
           <div className="mt-3 space-y-3">
             {!currentUid && (
-              <div className="text-sm text-gray-500">Sign in to view your previous quotes.</div>
+              <div className="text-sm text-gray-500">Sign in to view your requested quotes.</div>
+            )}
+            {currentUid && quotesError && (
+              <div className="text-sm text-red-600">{quotesError}</div>
             )}
             {currentUid && quotesLoading && (
               <div className="text-sm text-gray-500">Loading your quotes…</div>
             )}
             {currentUid && !quotesLoading && quotes.length === 0 && (
-              <div className="text-sm text-gray-500">No previous quotes found.</div>
+              <div className="text-sm text-gray-500">No requested quotes found.</div>
             )}
             {currentUid && quotes.map((q) => {
               const created = (q.createdAt && (q.createdAt as any).seconds)
@@ -741,6 +781,30 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
             })}
           </div>
         )}
+      </div>
+      {/* Toasts (top-right) */}
+      <div className="fixed top-4 right-4 z-50 space-y-2">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={`max-w-sm rounded-lg shadow-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-900/90 text-emerald-800 dark:text-emerald-200 px-4 py-3 transition-all duration-300 ${
+              t.entering ? 'opacity-0 translate-x-4' : 'opacity-100 translate-x-0'
+            }`}
+          >
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5">✓</span>
+              <div className="text-sm font-medium flex-1">{t.message}</div>
+              <button
+                type="button"
+                onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
+                aria-label="Close notification"
+                className="text-emerald-700/80 dark:text-emerald-200/80 hover:opacity-80"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

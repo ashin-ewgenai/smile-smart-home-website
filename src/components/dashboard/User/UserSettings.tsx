@@ -183,27 +183,7 @@ const UserSettings: React.FC = () => {
           </div>
         </div>
 
-        {/* Appearance Settings */}
-        <div className="bg-gray-900/60 backdrop-blur rounded-2xl shadow-lg p-6 border border-gray-800">
-          <h2 className="text-xl font-semibold text-white flex items-center mb-4">
-            {darkMode ? (
-              <Moon className="mr-2 h-5 w-5 text-emerald-400" />
-            ) : (
-              <Sun className="mr-2 h-5 w-5 text-emerald-400" />
-            )}
-            Appearance
-          </h2>
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium text-white">Dark Mode</h3>
-              <p className="text-xs text-gray-400">Toggle between light and dark mode</p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" className="sr-only peer" checked={darkMode} onChange={toggleDarkMode} />
-              <div className="w-12 h-7 rounded-full bg-gray-700 border border-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-400 transition peer-checked:bg-emerald-500 shadow-inner after:content-[''] after:absolute after:h-6 after:w-6 after:translate-x-0 after:rounded-full after:bg-white after:shadow after:transition-all after:top-0.5 after:left-0.5 peer-checked:after:translate-x-5"></div>
-            </label>
-          </div>
-        </div>
+        {/* Appearance Settings moved to navbar dark mode toggle */}
 
         {/* Language Settings */}
         <div className="bg-gray-900/60 backdrop-blur rounded-2xl shadow-lg p-6 border border-gray-800">

@@ -33,6 +33,16 @@ service cloud.firestore {
       }
     }
 
+    // Quotes: top-level collection `quotes/{quoteId}`
+    // - Authenticated users can create a quote only for themselves (userUid must match request.auth.uid)
+    // - Authenticated users can read only their own quotes
+    // - Admins can read/update/delete any quote
+    match /quotes/{quoteId} {
+      allow create: if request.auth != null && request.resource.data.userUid == request.auth.uid;
+      allow read: if request.auth != null && (resource.data.userUid == request.auth.uid || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
     // Support tickets: Support_Tickets/{uid}/Tickets_List/{ticketId}
     // Allow authenticated user to read/write ONLY their own subtree
     match /Support_Tickets/{uid}/Tickets_List/{ticketId} {

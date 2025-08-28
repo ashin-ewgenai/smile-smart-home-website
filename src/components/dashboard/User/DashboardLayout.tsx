@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useInRouterContext } from 'react-router-dom';
-import { createPortal } from 'react-dom';
-import TicketCenter from './TicketCenter';
 import DashboardNavbar from './DashboardNavbar';
 import DashboardFooter from './DashboardFooter';
 import SupportChatPanel from '../../supportChat/SupportChatPanel';
@@ -17,8 +15,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
   const [collapsed, setCollapsed] = useState(false);
   // Mount flag to avoid hydration mismatches for className/active states
   const [mounted, setMounted] = useState(false);
-  // Global Help (Support Tickets) modal state
-  const [helpOpen, setHelpOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   useEffect(() => {
     try {
@@ -28,19 +24,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
     } catch {}
     setMounted(true);
   }, []);
-  // Listen for navbar 'open-help' across all pages
+  // Listen for global 'open-chat' events (e.g., from mobile menu)
   useEffect(() => {
-    const handler = () => setHelpOpen(true);
-    window.addEventListener('open-help', handler as EventListener);
-    return () => window.removeEventListener('open-help', handler as EventListener);
+    const handler = () => setChatOpen(true);
+    window.addEventListener('open-chat', handler as EventListener);
+    return () => window.removeEventListener('open-chat', handler as EventListener);
   }, []);
-  // Lock body scroll when Help modal is open
-  useEffect(() => {
-    if (!helpOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, [helpOpen]);
   // Support both SPA (with Router) and non-SPA usage
   const inRouter = useInRouterContext();
   const location = inRouter ? useLocation() : (null as unknown as ReturnType<typeof useLocation>);
@@ -71,6 +60,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
           <path d="M3 6h.01" />
           <path d="M3 12h.01" />
           <path d="M3 18h.01" />
+        </svg>
+      )
+    },
+    {
+      href: `${base}/support-tickets`, key: 'tickets', label: 'Raise Tickets', title: 'Raise Tickets', match: `${base}/support-tickets`, icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+          <path d="M3 9h18" />
+          <path d="M3 15h18" />
+          <path d="M7 9v6" />
+          <path d="M17 9v6" />
         </svg>
       )
     },
@@ -227,35 +226,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
       {userType === 'user' && (
         <SupportChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
       )}
-
-      {/* Global Help (Support Tickets) Modal Host */}
-      {mounted && helpOpen && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Support Tickets">
-          <div className="relative w-full max-w-6xl">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Support Tickets</h2>
-                <button
-                  onClick={() => setHelpOpen(false)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 transition"
-                  aria-label="Close"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-x h-4 w-4" aria-hidden="true"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg>
-                  <span className="text-sm font-medium">Close</span>
-                </button>
-              </div>
-              <div
-                className="max-h-[80vh] overflow-y-auto overscroll-contain touch-pan-y p-4"
-                onWheel={(e) => { e.stopPropagation(); }}
-                onTouchMove={(e) => { e.stopPropagation(); }}
-              >
-                <TicketCenter />
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      
     </div>
   );
 };
