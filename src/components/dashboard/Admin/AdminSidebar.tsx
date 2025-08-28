@@ -29,7 +29,7 @@ const AdminSidebar: React.FC = () => {
       <Item href="/dashboard/admin/estimates">
         <span className="inline-flex items-center gap-2">
           <FilePlus className="h-4 w-4" />
-          Create Quote
+          Quotes
         </span>
       </Item>
       <Item href="/dashboard/admin/devices/add">

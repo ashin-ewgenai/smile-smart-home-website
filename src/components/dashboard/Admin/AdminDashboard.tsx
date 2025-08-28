@@ -1,5 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText, ChevronDown, TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
+import { COLLECTION_ACCOUNTS } from '../../../models/Collections';
+
+interface User {
+  id: string;
+  FullName: string;
+  Email: string | null;
+  Role?: string;
+  Status: 'online' | 'offline' | string;
+  CreatedAt?: { toDate: () => Date } | null;
+  [key: string]: any; // For any additional properties
+}
 
 interface UserStats {
   totalUsers: number;
@@ -60,48 +73,99 @@ const AdminDashboard: React.FC = () => {
   });
   
   const [isLoading, setIsLoading] = useState(true);
+  const [recentUsers, setRecentUsers] = useState<User[]>([]);
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
 
-  // Mock KPI & trend data (could be fetched based on dateRange)
-  const kpis = [
-    {
-      key: 'users',
-      label: 'Total Users',
-      value: 156,
-      delta: +12,
-      icon: Users,
-      color: 'text-teal-500',
-      data: [6, 8, 7, 9, 12, 11, 15, 14, 16, 15, 16, 18],
-    },
-  ];
-  
-  // Simulate fetching data
+  // Fetch and process all users
   useEffect(() => {
-    // In a real app, this would be an API call
-    setTimeout(() => {
-      setUserStats({
-        totalUsers: 156,
-        activeUsers: 89,
-        newUsers: 12
-      });
-      
-      setSystemStats({
-        totalDevices: 342,
-        activeDevices: 298,
-        alertsToday: 5
-      });
-      
-      setIsLoading(false);
-    }, 1000);
+    const fetchAndProcessUsers = async () => {
+      try {
+        setIsLoading(true);
+        const usersRef = collection(db, COLLECTION_ACCOUNTS);
+        const querySnapshot = await getDocs(usersRef);
+        
+        // Process all users with proper typing
+        const allUsers = querySnapshot.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            FullName: data.FullName || 'Unknown User',
+            Email: data.Email || null,
+            Status: data.Status || 'offline',
+            Role: data.Role || 'user',
+            CreatedAt: data.CreatedAt || null
+          } as User;
+        });
+        
+        // Filter for users with role 'user' and sort by CreatedAt
+        const userAccounts = allUsers
+          .filter(user => user.Role === 'user')
+          .sort((a, b) => {
+            const dateA = a.CreatedAt?.toDate() || new Date(0);
+            const dateB = b.CreatedAt?.toDate() || new Date(0);
+            return dateB.getTime() - dateA.getTime(); // Newest first
+          });
+        
+        // Get the 5 most recent users
+        const recent = userAccounts.slice(0, 5);
+        setRecentUsers(recent);
+        
+        // Calculate stats
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        
+        const totalUsers = userAccounts.length;
+        const activeUsers = userAccounts.filter(user => user.Status === 'online').length;
+        const newUsers = userAccounts.filter(user => {
+          const userDate = user.CreatedAt?.toDate() || new Date(0);
+          return userDate >= oneWeekAgo;
+        }).length;
+        
+        // Update KPIs
+        setKpis([{
+          key: 'users',
+          label: 'Total Users',
+          value: totalUsers,
+          delta: 0,
+          icon: Users,
+          color: 'text-teal-500',
+          data: [totalUsers],
+        }]);
+        
+        // Update user stats
+        setUserStats({
+          totalUsers,
+          activeUsers,
+          newUsers
+        });
+        
+      } catch (error) {
+        console.error('Error processing users:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchAndProcessUsers();
   }, []);
-  
-  const recentUsers = [
-    { id: 1, name: 'John Doe', email: 'john@example.com', status: 'active', joinDate: '2023-08-10' },
-    { id: 2, name: 'Jane Smith', email: 'jane@example.com', status: 'active', joinDate: '2023-08-09' },
-    { id: 3, name: 'Robert Johnson', email: 'robert@example.com', status: 'inactive', joinDate: '2023-08-08' },
-    { id: 4, name: 'Emily Davis', email: 'emily@example.com', status: 'active', joinDate: '2023-08-07' },
-    { id: 5, name: 'Michael Wilson', email: 'michael@example.com', status: 'pending', joinDate: '2023-08-06' },
-  ];
+
+  const [kpis, setKpis] = useState<Array<{
+    key: string;
+    label: string;
+    value: number | string;
+    delta: number;
+    icon: any;
+    color: string;
+    data: number[];
+  }>>([{
+    key: 'users',
+    label: 'Total Users',
+    value: 0,
+    delta: 0,
+    icon: Users,
+    color: 'text-teal-500',
+    data: [],
+  }]);
   
   const recentAlerts = [
     { id: 1, device: 'Living Room Camera', type: 'Motion Detected', time: '10:23 AM', date: 'Today' },
@@ -228,21 +292,21 @@ const AdminDashboard: React.FC = () => {
                     {recentUsers.map((user) => (
                       <tr key={user.id}>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</div>
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{user.FullName}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">{user.email}</div>
+                          <div className="text-sm text-gray-500 dark:text-gray-400">{user.Email}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
-                            ${user.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 
-                              user.status === 'inactive' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' : 
-                              'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'}`}>
-                            {user.status}
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                            user.Status === 'online' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                            'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                          }`}>
+                            {user.Status}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                          {user.joinDate}
+                          {user.CreatedAt?.toDate().toLocaleDateString() || 'N/A'}
                         </td>
                       </tr>
                     ))}
