@@ -9,7 +9,9 @@ import {
   supportTicketsCollection,
   supportTicketDoc,
 } from '../../../../models/Collections';
-import { getDocs, limit, query, where, updateDoc, doc, Timestamp, collection, onSnapshot } from 'firebase/firestore';
+import { getDocs, getDoc, limit, query, where, updateDoc, doc, Timestamp, collection, onSnapshot } from 'firebase/firestore';
+import DeviceDetailsModal from '../components/DeviceDetailsModal';
+import AddDeviceModal from '../components/AddDeviceModal';
 
 type Props = {
   email?: string | null;
@@ -59,43 +61,120 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   useEffect(() => {
     if (!email) return;
     let mounted = true;
-    (async () => {
+    let unsubscribe: () => void;
+
+    const fetchAccount = async () => {
       setLoading(true);
       setError(null);
       try {
         const q = query(accountsCollection(db), where('Email', '==', email), limit(1));
-        const snap = await getDocs(q);
-        if (snap.empty) {
-          if (mounted) { setError('User not found'); setAccount(null); }
-        } else {
-          if (mounted) setAccount({ id: snap.docs[0].id, ...snap.docs[0].data() });
-        }
+        const querySnapshot = onSnapshot(q, 
+          (snap) => {
+            if (!mounted) return;
+            if (snap.empty) {
+              setError('User not found');
+              setAccount(null);
+            } else {
+              setAccount({ id: snap.docs[0].id, ...snap.docs[0].data() });
+            }
+            setLoading(false);
+          },
+          (err: Error) => {
+            if (!mounted) return;
+            console.error('Error fetching account:', err);
+            setError('Error loading user data');
+            setLoading(false);
+          }
+        );
+        unsubscribe = querySnapshot;
       } catch (e: any) {
-        if (mounted) setError(e?.message || 'Failed to load user');
-      } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setError(e?.message || 'Failed to load user');
+          setLoading(false);
+        }
       }
-    })();
-    return () => { mounted = false; };
+    };
+
+    fetchAccount();
+    
+    return () => {
+      mounted = false;
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
   }, [email]);
 
-  // Load related collections by UID (Accounts doc id)
+  // Fetch devices when account changes
   useEffect(() => {
     if (!account?.id) return;
     
-    const devicesRef = collection(db, 'userdevices', account.id, 'devices');
-    const unsubscribe = onSnapshot(devicesRef, 
-      (snapshot) => {
-        const devicesData = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        }));
-        setDevices(devicesData);
-      },
+    const fetchDevices = async () => {
+      try {
+        // Get user's devices
+        const userDevicesSnapshot = await getDocs(collection(db, 'userdevices', account.id, 'devices'));
+        
+        // Process each device to get details from the main Devices collection
+        const devicesPromises = userDevicesSnapshot.docs.map(async (deviceDoc) => {
+          const deviceData = deviceDoc.data();
+          try {
+            // Get device details from main Devices collection
+            const deviceDetailsSnapshot = await getDoc(doc(db, 'Devices', deviceDoc.id));
+            if (deviceDetailsSnapshot.exists()) {
+              const deviceDetails = deviceDetailsSnapshot.data() as {
+                deviceName?: string;
+                type?: string;
+                modelNumber?: string;
+                brand?: string;
+                description?: string;
+                status?: string;
+              };
+              
+              return {
+                id: deviceDoc.id,
+                deviceName: deviceDetails.deviceName || 'Unnamed Device',
+                type: deviceDetails.type || 'Unknown',
+                modelNumber: deviceDetails.modelNumber || '-',
+                brand: deviceDetails.brand || '-',
+                description: deviceDetails.description || '',
+                status: deviceDetails.status || 'Active',
+                ...deviceData, // This will include isOnline, lastActiveAt, etc.
+                lastActiveAt: (deviceData.lastActiveAt as any)?.toDate?.() || null
+              } as const;
+            }
+          } catch (error) {
+            console.error(`Error fetching device ${deviceDoc.id}:`, error);
+          }
+          
+          // Fallback to basic data if device details can't be fetched
+          return {
+            id: deviceDoc.id,
+            deviceName: 'Unnamed Device',
+            type: 'Unknown',
+            ...deviceData,
+            lastActiveAt: (deviceData.lastActiveAt as any)?.toDate?.() || null
+          } as const;
+        });
+
+        // Wait for all device details to be fetched
+        const devicesWithDetails = (await Promise.all(devicesPromises)).filter(Boolean);
+        setDevices(devicesWithDetails);
+      } catch (error) {
+        console.error('Error in fetchDevices:', error);
+      }
+    };
+
+    // Set up real-time listener for device changes
+    const unsubscribe = onSnapshot(
+      collection(db, 'userdevices', account.id, 'devices'),
+      () => fetchDevices(),
       (error) => {
-        console.error('Error fetching devices:', error);
+        console.error('Error in devices snapshot:', error);
       }
     );
+
+    // Initial fetch
+    fetchDevices();
 
     return () => unsubscribe();
   }, [account?.id]);
@@ -205,6 +284,8 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   };
 
   const [devices, setDevices] = useState<any[] | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<{id: string, userId: string} | null>(null);
+  const [showAddDeviceModal, setShowAddDeviceModal] = useState(false);
   const lists = useMemo(() => ({ 
     quotes: quotes || [], 
     services: services || [], 
@@ -213,10 +294,12 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   }), [quotes, services, tickets, devices]);
 
   const openDetails = (type: TabKey, id: string, data: any) => {
+    if (type === 'devices' && account?.id) {
+      setSelectedDevice({ id, userId: account.id });
+      return;
+    }
     setSelected({ type, id, data });
-    const current = type === 'devices' 
-      ? (data.isOnline ? 'online' : 'offline')
-      : (data?.status ?? data?.Status ?? '').toString();
+    const current = (data?.status ?? data?.Status ?? '').toString();
     setEditStatus(current);
     setDrawerOpen(true);
   };
@@ -311,13 +394,14 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       {/* Tabs */}
       {account?.id && (
         <div className="max-w-6xl mx-auto mt-6">
-          <div className="flex gap-2 border-b border-gray-700">
-            {([
-              { key: 'quotes', label: `Quotes (${quotes?.length ?? 0})` },
-              { key: 'services', label: `Service Requests (${services?.length ?? 0})` },
-              { key: 'tickets', label: `Support Tickets (${tickets?.length ?? 0})` },
-              { key: 'devices', label: `Devices (${devices?.length ?? 0})` },
-            ] as { key: TabKey; label: string }[]).map((t) => (
+          <div className="flex justify-between items-center border-b border-gray-700">
+            <div className="flex gap-2">
+              {([
+                { key: 'quotes', label: `Quotes (${quotes?.length ?? 0})` },
+                { key: 'services', label: `Service Requests (${services?.length ?? 0})` },
+                { key: 'tickets', label: `Support Tickets (${tickets?.length ?? 0})` },
+                { key: 'devices', label: `Devices (${devices?.length ?? 0})` },
+              ] as { key: TabKey; label: string }[]).map((t) => (
               <button
                 key={t.key}
                 onClick={() => setActiveTab(t.key)}
@@ -329,7 +413,16 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               >
                 {t.label}
               </button>
-            ))}
+              ))}
+            </div>
+            {activeTab === 'devices' && (
+              <button
+                onClick={() => setShowAddDeviceModal(true)}
+                className="px-3 py-1.5 text-sm rounded-md bg-teal-600 hover:bg-teal-700 text-white"
+              >
+                Add/Remove Devices
+              </button>
+            )}
           </div>
 
           <div className="bg-gray-800/60 border border-gray-700 rounded-b-md rounded-tr-md p-2 md:p-4">
@@ -342,26 +435,43 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-gray-400">
+                    <tr className="text-left text-xs text-gray-400 uppercase">
                       {activeTab === 'devices' ? (
                         <>
-                          <th className="py-2 pr-4 font-medium">Device ID</th>
-                          <th className="py-2 pr-4 font-medium">Name</th>
-                          <th className="py-2 pr-4 font-medium">Type</th>
-                          <th className="py-2 pr-4 font-medium">Status</th>
-                          <th className="py-2 pr-4 font-medium">Last Active</th>
+                          <th className="py-2 pr-4">Device Name</th>
+                          <th className="py-2 pr-4">Type</th>
+                          <th className="py-2 pr-4">Status</th>
+                          <th className="py-2 pr-4">Last Active</th>
+                        </>
+                      ) : activeTab === 'tickets' ? (
+                        <>
+                          <th className="py-2 pr-4">Subject</th>
+                          <th className="py-2 pr-4">Status</th>
+                          <th className="py-2 pr-4">Created</th>
+                        </>
+                      ) : activeTab === 'services' ? (
+                        <>
+                          <th className="py-2 pr-4">Service</th>
+                          <th className="py-2 pr-4">Status</th>
+                          <th className="py-2 pr-4">Created</th>
                         </>
                       ) : (
                         <>
-                          <th className="py-2 pr-4 font-medium">ID</th>
-                          <th className="py-2 pr-4 font-medium">Status</th>
-                          <th className="py-2 pr-4 font-medium">Date</th>
+                          <th className="py-2 pr-4">ID</th>
+                          <th className="py-2 pr-4">Status</th>
+                          <th className="py-2 pr-4">Created</th>
                         </>
                       )}
                     </tr>
                   </thead>
                   <tbody>
                     {lists[activeTab].map((row: any) => {
+                      const status = row.status ?? row.Status;
+                      const created = row.createdAt ?? row.created_at ?? row.ts;
+                      const isUnread = (status || '').toString().toLowerCase() === 'pending' || 
+                                     (status || '').toString().toLowerCase() === 'new' || 
+                                     (status || '').toString().toLowerCase() === 'submitted';
+                      
                       if (activeTab === 'devices') {
                         return (
                           <tr
@@ -369,10 +479,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             onClick={() => openDetails('devices', row.id, row)}
                             className="cursor-pointer border-b border-gray-700/70 hover:bg-gray-700/40"
                           >
-                            <td className="py-2 pr-4 text-gray-100 truncate max-w-[10rem]" title={row.id}>
-                              {row.id}
+                            <td className="py-2 pr-4 text-gray-100">
+                              {row.deviceName || 'Unnamed Device'}
                             </td>
-                            <td className="py-2 pr-4 text-gray-100">{row.name || 'Unnamed Device'}</td>
                             <td className="py-2 pr-4 text-gray-300">{row.type || 'Unknown'}</td>
                             <td className="py-2 pr-4">
                               {statusBadge(row.isOnline ? 'online' : 'offline')}
@@ -383,17 +492,44 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                           </tr>
                         );
                       }
-
-                      const status = row.status ?? row.Status;
-                      const created = row.createdAt ?? row.created_at ?? row.ts;
-                      const isUnread = (status || '').toString().toLowerCase() === 'pending' || 
-                                     (status || '').toString().toLowerCase() === 'new' || 
-                                     (status || '').toString().toLowerCase() === 'submitted';
                       
+                      if (activeTab === 'tickets') {
+                        return (
+                          <tr
+                            key={row.id}
+                            onClick={() => openDetails('tickets', row.id, row)}
+                            className={`cursor-pointer border-b border-gray-700/70 hover:bg-gray-700/40 ${isUnread ? 'font-semibold' : ''}`}
+                          >
+                            <td className="py-2 pr-4 text-gray-100">
+                              {row.subject || row.title || 'No Subject'}
+                            </td>
+                            <td className="py-2 pr-4">{statusBadge(status)}</td>
+                            <td className="py-2 pr-4 text-gray-300">{fmt(dateFrom(created))}</td>
+                          </tr>
+                        );
+                      }
+                      
+                      if (activeTab === 'services') {
+                        return (
+                          <tr
+                            key={row.id}
+                            onClick={() => openDetails('services', row.id, row)}
+                            className={`cursor-pointer border-b border-gray-700/70 hover:bg-gray-700/40 ${isUnread ? 'font-semibold' : ''}`}
+                          >
+                            <td className="py-2 pr-4 text-gray-100">
+                              {row.service || row.category || 'Uncategorized Service'}
+                            </td>
+                            <td className="py-2 pr-4">{statusBadge(status)}</td>
+                            <td className="py-2 pr-4 text-gray-300">{fmt(dateFrom(created))}</td>
+                          </tr>
+                        );
+                      }
+                      
+                      // Default rendering for other tabs
                       return (
                         <tr
                           key={row.id}
-                          onClick={() => openDetails(activeTab, row.id, row)}
+                          onClick={() => openDetails(activeTab as any, row.id, row)}
                           className={`cursor-pointer border-b border-gray-700/70 hover:bg-gray-700/40 ${isUnread ? 'font-semibold' : ''}`}
                         >
                           <td className="py-2 pr-4 text-gray-100 truncate max-w-[14rem]" title={row.id}>
@@ -479,6 +615,37 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
           </div>
         </div>
       )}
+      
+      {/* Device Details Modal */}
+      {selectedDevice && (
+        <DeviceDetailsModal
+          isOpen={!!selectedDevice}
+          onClose={() => setSelectedDevice(null)}
+          deviceId={selectedDevice.id}
+          userId={selectedDevice.userId}
+        />
+      )}
+
+      <AddDeviceModal
+        isOpen={showAddDeviceModal}
+        onClose={() => setShowAddDeviceModal(false)}
+        userId={account?.id || ''}
+        onDeviceAdded={() => {
+          // Refresh devices list when a new device is added
+          if (account?.id) {
+            const userDevicesRef = collection(db, 'userdevices', account.id, 'devices');
+            const unsubscribe = onSnapshot(userDevicesRef, (snapshot) => {
+              const devicesData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data(),
+                lastActiveAt: doc.data().lastActiveAt?.toDate()
+              }));
+              setDevices(devicesData);
+            });
+            return () => unsubscribe();
+          }
+        }}
+      />
     </section>
   );
 }
