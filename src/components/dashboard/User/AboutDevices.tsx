@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, addDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { userDevicesCollection, userDevicePayloadFromDevice } from '../../../models/Collections';
+import { userDevicesCollection } from '../../../models/Collections';
 
 // Minimal view-model for Devices collection (aligns with `src/models/Collections.ts` Device)
 type DeviceDoc = {
@@ -25,34 +25,9 @@ type DeviceDoc = {
 
 const AboutDevices: React.FC = () => {
   const [devices, setDevices] = useState<DeviceDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
-  const [userDeviceBySourceId, setUserDeviceBySourceId] = useState<Record<string, { id: string; status?: string; updatedAtMs: number }>>({});
-
-  useEffect(() => {
-    const col = collection(db, 'Devices');
-    const unsub = onSnapshot(col, (snap) => {
-      const list: DeviceDoc[] = snap.docs.map((d) => {
-        const data = d.data() as any;
-        return {
-          id: d.id,
-          deviceName: data.deviceName,
-          name: data.name,
-          type: data.type,
-          status: data.status,
-          serial: data.serial,
-          modelNumber: data.modelNumber,
-          imageUrl: data.imageUrl,
-          price: typeof data.price === 'number' ? data.price : null,
-          stock: typeof data.stock === 'number' ? data.stock : null,
-          rating: typeof data.rating === 'number' ? data.rating : null,
-          discount: typeof data.discount === 'number' ? data.discount : null,
-          warranty: data.warranty ?? null,
-        };
-      });
-      setDevices(list);
-    });
-    return () => unsub();
-  }, []);
 
   // Track auth state
   useEffect(() => {
@@ -60,115 +35,291 @@ const AboutDevices: React.FC = () => {
     return () => unsub();
   }, []);
 
-  // Subscribe to user's devices when signed in
+  // Fetch user's devices and their details
   useEffect(() => {
-    if (!uid) return;
-    const col = userDevicesCollection(db, uid);
-    const unsub = onSnapshot(col, (snap) => {
-      const map: Record<string, { id: string; status?: string; updatedAtMs: number }> = {};
-      snap.forEach((doc) => {
-        const d = doc.data() as any;
-        const srcId = d.sourceDeviceId as string | undefined;
-        if (!srcId) return;
-        const ts = d.UpdatedAt?.toMillis ? d.UpdatedAt.toMillis() : (typeof d.UpdatedAt === 'number' ? d.UpdatedAt : 0);
-        map[srcId] = { id: doc.id, status: d.status, updatedAtMs: ts || 0 };
-      });
-      setUserDeviceBySourceId(map);
-    });
-    return () => unsub();
+    if (!uid) {
+      console.log('No UID available');
+      return;
+    }
+    
+    const fetchUserDevices = async () => {
+      try {
+        setLoading(true);
+        console.log(`Fetching devices for user: ${uid}`);
+        
+        // 1. Get all device IDs from user's devices subcollection
+        const userDevicesRef = collection(db, 'userdevices', uid, 'devices');
+        console.log('User devices ref path:', userDevicesRef.path);
+        
+        const userDevicesSnap = await getDocs(userDevicesRef);
+        console.log('User devices subcollection docs:', userDevicesSnap.docs.map(d => ({
+          id: d.id,
+          data: d.data(),
+          ref: d.ref.path
+        })));
+        
+        if (userDevicesSnap.empty) {
+          console.log('No devices found in user devices subcollection');
+          setDevices([]);
+          setLoading(false);
+          return;
+        }
+        
+        // 2. Get all device details in a single query using 'in' operator
+        const deviceIds = userDevicesSnap.docs.map(doc => doc.id);
+        console.log('Device IDs to fetch:', deviceIds);
+        
+        if (deviceIds.length === 0) {
+          console.log('No device IDs found in user devices');
+          setDevices([]);
+          setLoading(false);
+          return;
+        }
+        
+        // Get device details from main Devices collection
+        const devicesRef = collection(db, 'Devices');
+        const devicesQuery = query(devicesRef, where('__name__', 'in', deviceIds));
+        const devicesSnap = await getDocs(devicesQuery);
+        
+        console.log('Fetched devices from main collection:', devicesSnap.docs.map(d => ({
+          id: d.id,
+          data: d.data(),
+          ref: d.ref.path
+        })));
+        
+        // Create a map of device ID to user device data
+        const userDevicesMap = new Map(
+          userDevicesSnap.docs.map(doc => [doc.id, doc.data()])
+        );
+        
+        // 3. Combine device data with user-specific data
+        const deviceResults = devicesSnap.docs.map(doc => {
+          const deviceData = doc.data();
+          const userDeviceData = userDevicesMap.get(doc.id) || {};
+          
+          console.log(`Processing device ${doc.id}:`, { 
+            deviceData, 
+            userDeviceData,
+            ref: doc.ref.path 
+          });
+          
+          return {
+            id: doc.id,
+            deviceName: deviceData.deviceName || deviceData.name || 'Unnamed Device',
+            name: deviceData.name,
+            type: deviceData.type,
+            status: userDeviceData.status || deviceData.status || 'Active',
+            serial: userDeviceData.serialNumber || deviceData.serial || 'N/A',
+            modelNumber: deviceData.modelNumber,
+            imageUrl: deviceData.imageUrl,
+            price: typeof deviceData.price === 'number' ? deviceData.price : null,
+            stock: typeof deviceData.stock === 'number' ? deviceData.stock : null,
+            rating: typeof deviceData.rating === 'number' ? deviceData.rating : null,
+            discount: typeof deviceData.discount === 'number' ? deviceData.discount : null,
+            warranty: userDeviceData.warrantyExpiry || deviceData.warranty || null,
+          } as DeviceDoc;
+        });
+        
+        console.log('Processed device results:', deviceResults);
+        setDevices(deviceResults);
+        setError(null);
+      } catch (err) {
+        console.error('Error fetching user devices:', err);
+        setError('Failed to load your devices. Please try again later.');
+        setDevices([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchUserDevices();
+    
+    // Set up real-time updates for user's devices
+    const userDevicesRef = collection(db, 'userdevices', uid, 'devices');
+    const unsubscribe = onSnapshot(userDevicesRef, 
+      () => fetchUserDevices(),
+      (error) => {
+        console.error('Error in real-time update:', error);
+        setError('Error receiving device updates');
+      }
+    );
+    
+    return () => unsubscribe();
   }, [uid]);
 
-  const sorted = useMemo(() => {
-    const withFlag = devices.map((d) => ({
-      ...d,
-      __added: !!userDeviceBySourceId[d.id],
-      __addedAt: userDeviceBySourceId[d.id]?.updatedAtMs ?? 0,
-    }));
-    // Sort: added first by UpdatedAt desc, then others by name
-    return withFlag.sort((a, b) => {
-      if (a.__added && b.__added) return (b.__addedAt - a.__addedAt);
-      if (a.__added) return -1;
-      if (b.__added) return 1;
-      const an = (a.deviceName || a.name || '').toLowerCase();
-      const bn = (b.deviceName || b.name || '').toLowerCase();
-      return an.localeCompare(bn);
-    });
-  }, [devices, userDeviceBySourceId]);
+  if (loading) {
+    return (
+      <section className="p-6">
+        <h1 className="text-2xl font-semibold text-white">My Devices</h1>
+        <div className="mt-4 flex justify-center items-center h-40">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+          <span className="ml-3 text-gray-300">Loading your devices...</span>
+        </div>
+      </section>
+    );
+  }
 
-  const handleAdd = async (d: DeviceDoc) => {
-    try {
-      if (!uid) {
-        alert('Please sign in to add devices.');
-        return;
-      }
-      if (userDeviceBySourceId[d.id]) return; // already added
-      // Build payload using helper to ensure status 'pending', UpdatedAt, DeviceCount
-      const payload = userDevicePayloadFromDevice({ ...d, id: d.id } as any);
-      await addDoc(userDevicesCollection(db, uid), payload);
-    } catch (e) {
-      console.error(e);
-      alert('Failed to add device.');
-    }
-  };
+  if (error) {
+    return (
+      <section className="p-6">
+        <h1 className="text-2xl font-semibold text-white">My Devices</h1>
+        <div className="mt-4 p-4 bg-red-900/30 border border-red-700 rounded text-red-200">
+          <p className="font-medium">Error loading devices</p>
+          <p className="text-sm mt-1">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-3 px-3 py-1 text-sm bg-red-700 hover:bg-red-600 rounded transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="p-6">
-      <h1 className="text-2xl font-semibold text-white">My Devices</h1>
-      {sorted.length === 0 ? (
-        <p className="mt-4 text-gray-300 text-sm">No devices found.</p>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-semibold text-white">My Devices</h1>
+        <span className="text-sm text-gray-400">{devices.length} device{devices.length !== 1 ? 's' : ''}</span>
+      </div>
+      
+      {devices.length === 0 ? (
+        <div className="mt-8 text-center py-12 bg-gray-900/50 rounded-lg border border-gray-800">
+          <svg
+            className="mx-auto h-12 w-12 text-gray-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            aria-hidden="true"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+            />
+          </svg>
+          <h3 className="mt-2 text-sm font-medium text-white">No devices found</h3>
+          <p className="mt-1 text-sm text-gray-400">You don't have any devices assigned to your account.</p>
+        </div>
       ) : (
-        <>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {sorted.map((d) => (
-            <div key={d.id} className="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden">
-              {d.imageUrl ? (
-                <img src={d.imageUrl} alt={d.deviceName || d.name || 'Device'} className="w-full h-40 object-cover" />
+          {devices.map((device) => (
+            <div key={device.id} className="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden hover:border-blue-500/50 transition-colors">
+              {device.imageUrl ? (
+                <img 
+                  src={device.imageUrl} 
+                  alt={device.deviceName || device.name || 'Device'} 
+                  className="w-full h-40 object-cover"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.onerror = null;
+                    target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgNDAwIDIwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzFhMjEyOSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNGJmZjZmIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiPk5vIGltYWdlIGF2YWlsYWJsZTwvdGV4dD48L3N2Zz4=';
+                  }}
+                />
               ) : (
-                <div className="w-full h-40 flex items-center justify-center text-gray-500 text-sm bg-gray-800">No image</div>
+                <div className="w-full h-40 flex items-center justify-center bg-gray-800">
+                  <svg className="h-16 w-16 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
               )}
-              <div className="p-4 text-gray-200">
+              
+              <div className="p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-sm font-semibold text-white">{d.deviceName || d.name || 'Unnamed Device'}</h3>
-                    <p className="text-xs text-gray-400">{d.type || '-'} • {d.modelNumber || '-'}</p>
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-white truncate" title={device.deviceName || device.name || 'Unnamed Device'}>
+                      {device.deviceName || device.name || 'Unnamed Device'}
+                    </h3>
+                    <p className="text-xs text-gray-400 truncate">
+                      {device.type || 'Unknown type'}{device.modelNumber ? ` • ${device.modelNumber}` : ''}
+                    </p>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded-full border border-gray-700 text-gray-300">
-                    {userDeviceBySourceId[d.id]?.status || d.status || '-'}
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    device.status === 'Active' ? 'bg-green-900/30 text-green-400 border border-green-800' :
+                    device.status === 'Inactive' ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-800' :
+                    'bg-gray-800 text-gray-400 border border-gray-700'
+                  }`}>
+                    {device.status || 'Unknown'}
                   </span>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                  <div><span className="text-gray-400">Serial:</span> {d.serial || '-'}</div>
-                  <div><span className="text-gray-400">Price:</span> {d.price ?? '-'}</div>
-                  <div><span className="text-gray-400">Stock:</span> {d.stock ?? '-'}</div>
-                  <div><span className="text-gray-400">Rating:</span> {d.rating ?? '-'}</div>
-                  <div><span className="text-gray-400">Discount:</span> {d.discount ?? '-'}</div>
-                  <div><span className="text-gray-400">Warranty:</span> {d.warranty ?? '-'}</div>
-                </div>
-                <div className="mt-4 flex justify-end">
-                  {userDeviceBySourceId[d.id] ? (
-                    <button
-                      className="text-xs px-3 py-1 rounded bg-gray-800 text-gray-300 border border-gray-700 cursor-default"
-                      disabled
-                    >
-                      Added
-                    </button>
-                  ) : (
-                    <></>
+                
+                <div className="mt-3 grid grid-cols-1 gap-2 text-xs">
+                  <div className="truncate">
+                    <span className="text-gray-400">Device ID:</span> 
+                    <span className="ml-1 text-gray-300 font-mono text-xs" title={device.id}>
+                      {device.id}
+                    </span>
+                  </div>
+                  <div className="truncate">
+                    <span className="text-gray-400">Serial:</span> 
+                    <span className="ml-1 text-gray-300 font-medium" title={device.serial}>
+                      {device.serial || 'N/A'}
+                    </span>
+                  </div>
+                  
+                  {device.warranty && (
+                    <div className="truncate">
+                      <span className="text-gray-400">Warranty:</span>
+                      <span className="ml-1 text-gray-300">
+                        {typeof device.warranty === 'string' ? 
+                          new Date(device.warranty).toLocaleDateString() : 
+                          device.warranty}
+                      </span>
+                    </div>
                   )}
+                  
+                  {device.price !== null && device.price !== undefined && (
+                    <div>
+                      <span className="text-gray-400">Value:</span>
+                      <span className="ml-1 text-gray-300">
+                        ${device.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  )}
+                  
+                  {device.rating !== null && device.rating !== undefined && (
+                    <div className="flex items-center">
+                      <span className="text-gray-400">Rating:</span>
+                      <div className="flex ml-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <svg
+                            key={star}
+                            className={`h-3.5 w-3.5 ${star <= Math.round(device.rating!) ? 'text-yellow-400' : 'text-gray-600'}`}
+                            fill="currentColor"
+                            viewBox="0 0 20 20"
+                            xmlns="http://www.w3.org/2000/svg"
+                          >
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                        ))}
+                        <span className="ml-1 text-gray-400 text-xs">
+                          ({device.rating.toFixed(1)})
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="mt-3 text-xs text-gray-500">
+                  <span className="text-gray-400">Document ID:</span> {device.id}
+                </div>
+                <div className="mt-2 flex justify-end space-x-2">
+                  <button
+                    onClick={() => {
+                      // TODO: Implement device details view
+                      console.log('View details for device:', device.id);
+                    }}
+                    className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                  >
+                    View Details
+                  </button>
                 </div>
               </div>
             </div>
           ))}
         </div>
-        {/* Bottom CTA: Add new devices */}
-        <div className="mt-8">
-          <a
-            href="/dashboard/user/about-device"
-            title="About Device"
-            className="inline-flex items-center gap-2 text-2xl font-semibold text-white"
-          />
-        </div>
-        </>
       )}
     </section>
   );
