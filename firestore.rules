@@ -9,7 +9,7 @@ service cloud.firestore {
 
     // Chat sessions stored at top-level: chat_sessions/{sessionId}
     match /chat_sessions/{sessionId} {
-      allow read, write: if isOwner() || isSuperAdmin();
+      allow read, write: if isOwner() || isAdmin();
 
       function isOwner() {
         // On create, `ownerUid` comes from request.resource
@@ -19,13 +19,17 @@ service cloud.firestore {
         );
       }
 
-      function isSuperAdmin() {
-        return request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "Super Admin";
+      // Admin roles are stored in Accounts collection under field `Role`
+      function isAdmin() {
+        return request.auth != null && (
+          get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role == "Admin" ||
+          get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role == "Super Admin"
+        );
       }
 
       // Messages subcollection
       match /messages/{msgId} {
-        allow read, write: if isOwner() || isSuperAdmin();
+        allow read, write: if isOwner() || isAdmin();
       }
     }
 
@@ -33,6 +37,38 @@ service cloud.firestore {
     // Allow authenticated user to read/write ONLY their own subtree
     match /Support_Tickets/{uid}/Tickets_List/{ticketId} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Global support availability status
+    // support_status/global -> { online: boolean, updatedAt: number, updatedAt: number, updatedBy: uid }
+    match /support_status/{docId} {
+      allow read: if request.auth != null; // any signed-in user can read status
+      allow write: if isAdmin(); // only Admin/Super Admin can toggle
+
+      function isAdmin() {
+        return request.auth != null && (
+          get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role == "Admin" ||
+          get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role == "Super Admin"
+        );
+      }
+    }
+
+    // Per-user human claim: when true, humans handle this user's chat (AI disabled)
+    match /support_claims/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // Per-user human request: user can raise, admin can clear
+    match /support_requests/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if isAdmin();
+    }
+
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role in ['Admin','SuperAdmin','Owner','Manager','Support'];
     }
   }
 }

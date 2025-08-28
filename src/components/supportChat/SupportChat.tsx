@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useReducedMotion } from '../../lib/hooks';
 import { httpsCallable } from 'firebase/functions';
-import { functions } from '../../lib/firebase';
+import { auth, functions, storage } from '../../lib/firebase';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 // Self-contained Support Chat widget for Dashboard pages only
 // - No external libraries
@@ -11,8 +12,10 @@ import { functions } from '../../lib/firebase';
 type Message = {
   id: string;
   from: 'user' | 'assistant';
-  text: string;
+  text?: string;
+  imageUrl?: string; // optional image attachment
   ts: number; // epoch ms
+  uploading?: boolean; // local state for uploads
 };
 
 const HISTORY_KEY = 'smile-chat-history';
@@ -85,6 +88,7 @@ const SupportChat: React.FC = () => {
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   // Load from localStorage
@@ -177,7 +181,8 @@ const SupportChat: React.FC = () => {
     // Build minimal message history for backend
     const history = messages
       .slice(-10)
-      .map(m => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text }));
+      .filter(m => !!m.text) // do not send image-only items
+      .map(m => ({ role: m.from === 'user' ? 'user' : 'assistant', content: m.text as string }));
     const payload = {
       messages: [
         { role: 'system', content: 'You are Smile Smart Home support assistant. Be concise and helpful.' },
@@ -221,6 +226,44 @@ const SupportChat: React.FC = () => {
       }
     } finally {
       setTyping(false);
+    }
+  };
+
+  // Handle image selection and upload
+  const onPickImage = () => fileInputRef.current?.click();
+  const onFileSelected: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+    const file = e.target.files?.[0];
+    // reset input so selecting same file again still triggers change
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return;
+    const maxBytes = 8 * 1024 * 1024; // 8MB
+    if (file.size > maxBytes) {
+      const errMsg: Message = { id: generateId(), from: 'assistant', text: 'Selected image is larger than 8MB.', ts: now() };
+      setMessages(prev => [...prev, errMsg]);
+      return;
+    }
+
+    const tempId = generateId();
+    const placeholder: Message = { id: tempId, from: 'user', ts: now(), uploading: true };
+    setMessages(prev => [...prev, placeholder]);
+
+    try {
+      const uid = auth.currentUser?.uid || 'anon';
+      const sid = sessionId || 'local';
+      const path = `support_chat/${uid}/${sid}/${Date.now()}_${file.name}`;
+      const ref = storageRef(storage, path);
+      const task = uploadBytesResumable(ref, file, { contentType: file.type });
+
+      task.on('state_changed', undefined, (error) => {
+        // on error, replace placeholder with error text
+        setMessages(prev => prev.map(m => m.id === tempId ? ({ id: tempId, from: 'assistant', text: `Upload failed: ${error?.message || 'unknown error'}`, ts: now() }) : m));
+      }, async () => {
+        const url = await getDownloadURL(task.snapshot.ref);
+        setMessages(prev => prev.map(m => m.id === tempId ? ({ id: tempId, from: 'user', imageUrl: url, ts: now() }) : m));
+      });
+    } catch (error: any) {
+      setMessages(prev => prev.map(m => m.id === tempId ? ({ id: tempId, from: 'assistant', text: `Upload failed: ${error?.message || 'unknown error'}`, ts: now() }) : m));
     }
   };
 
@@ -362,7 +405,17 @@ const SupportChat: React.FC = () => {
                     ? 'bg-teal text-white rounded-br-sm'
                     : 'bg-white text-gray-800 dark:bg-gray-700 dark:text-gray-200 rounded-bl-sm border border-gray-100 dark:border-gray-700')
                 }>
-                  <div>{m.text}</div>
+                  {m.imageUrl ? (
+                    <a href={m.imageUrl} target="_blank" rel="noreferrer" className="block group">
+                      <img src={m.imageUrl} alt="uploaded" className={`max-h-64 rounded-md ${m.from === 'user' ? 'border border-white/20' : 'border border-gray-200 dark:border-gray-600'}`} />
+                      {m.text && <div className="mt-1">{m.text}</div>}
+                    </a>
+                  ) : (
+                    <div className="whitespace-pre-wrap">{m.text}</div>
+                  )}
+                  {m.uploading && (
+                    <div className="mt-1 text-[10px] opacity-75">Uploading…</div>
+                  )}
                   <div className="mt-1 text-[10px] opacity-75">{formatTime(m.ts)}</div>
                   {/* Tail */}
                   <span className={
@@ -414,6 +467,24 @@ const SupportChat: React.FC = () => {
               send();
             }}
           >
+            {/* Hidden file input for image pickup */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={onFileSelected}
+            />
+            <button
+              type="button"
+              onClick={onPickImage}
+              className="inline-flex items-center justify-center h-9 w-9 rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              title="Upload image"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
+                <path d="M16.5 6.5a3.5 3.5 0 1 0-7 0v8a2.5 2.5 0 1 0 5 0V8a1.5 1.5 0 0 0-3 0v6a.5.5 0 0 1-1 0V8a2.5 2.5 0 1 1 5 0v6.5a3.5 3.5 0 1 1-7 0v-8a4.5 4.5 0 1 1 9 0V10h-1V6.5Z"/>
+              </svg>
+            </button>
             <input
               ref={inputRef}
               type="text"
