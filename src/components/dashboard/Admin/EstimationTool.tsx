@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, addDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../../../lib/firebase';
+import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload } from '../../../models/Collections';
 import QuoteDetails from './QuoteDetails';
 
 interface QuoteItem {
@@ -48,6 +49,8 @@ const EstimationTool: React.FC = () => {
     deliveryTimeline: '',
     notes: ''
   });
+
+  const [saving, setSaving] = useState(false);
 
   type LineItem = {
     id: string;
@@ -125,11 +128,26 @@ const EstimationTool: React.FC = () => {
     if (!selectedQuote?.id) return;
     
     try {
+      // Update in both collections for compatibility
+      
+      // Update original quotes collection
       const quoteRef = doc(db, 'quotes', selectedQuote.id);
       await updateDoc(quoteRef, {
         status: 'confirmed',
         updatedAt: Timestamp.now()
       });
+      
+      // Update Estimation Quote collection if it exists
+      try {
+        const estimationQuoteRef = estimationQuoteDoc(db, selectedQuote.id);
+        await updateDoc(estimationQuoteRef, {
+          status: 'Confirmed',
+          updatedAt: Timestamp.now()
+        });
+      } catch (estimationError) {
+        // Estimation quote might not exist yet, that's okay
+        console.log('Estimation quote not found, only updated original quote');
+      }
       
       // Update local state
       setQuotes(quotes.map(quote => 
@@ -148,6 +166,94 @@ const EstimationTool: React.FC = () => {
     } catch (error) {
       console.error('Error updating quote status:', error);
       alert('Failed to update quote status. Please try again.');
+    }
+  };
+
+  const saveEstimationQuote = async (status: 'Draft' | 'Pending' | 'Confirmed') => {
+    if (!createForm.customerEmail.trim()) {
+      alert('Please enter customer email');
+      return;
+    }
+
+    if (items.some(item => !item.name.trim())) {
+      alert('Please fill in all product/service names');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const currentUser = auth.currentUser;
+      const payload = estimationQuotePayload({
+        quoteId: createForm.quoteId,
+        customerEmail: createForm.customerEmail,
+        status,
+        issueDate: createForm.issueDate,
+        expiryDate: createForm.expiryDate || undefined,
+        items: items.map(item => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          taxPercent: item.taxPercent
+        })),
+        subtotal: totals.subtotal,
+        taxes: totals.taxes,
+        overallDiscount: createForm.overallDiscount,
+        shippingCharges: createForm.shippingCharges,
+        installationCharges: createForm.installationCharges,
+        grandTotal: totals.grand,
+        paymentTerms: createForm.paymentTerms,
+        warranty: createForm.warranty,
+        deliveryTimeline: createForm.deliveryTimeline,
+        notes: createForm.notes,
+        createdByUid: currentUser?.uid,
+        createdByEmail: currentUser?.email || undefined
+      });
+
+      // Use the quoteId as the document ID for easy reference
+      await setDoc(estimationQuoteDoc(db, createForm.quoteId), payload);
+      
+      const actionText = status === 'Draft' ? 'saved as draft' : 
+                        status === 'Confirmed' ? 'sent to customer' : 'saved';
+      alert(`Quote ${actionText} successfully!`);
+      
+      // Reset form after successful save
+      if (status !== 'Draft') {
+        setShowCreateForm(false);
+        setCreateForm({
+          customerEmail: '',
+          numDevices: 0,
+          discount: 0,
+          estimatedBudget: '',
+          quoteId: `Q-${Date.now()}`,
+          status: 'Pending',
+          issueDate: new Date().toISOString().slice(0, 10),
+          expiryDate: '',
+          overallDiscount: 0,
+          shippingCharges: 0,
+          installationCharges: 0,
+          paymentTerms: 'Advance 50% / Balance Net 15',
+          warranty: '',
+          deliveryTimeline: '',
+          notes: ''
+        });
+        setItems([{
+          id: `row-${Date.now()}`,
+          name: '',
+          description: '',
+          quantity: 1,
+          unitPrice: 0,
+          discount: 0,
+          taxPercent: 0
+        }]);
+      }
+    } catch (error) {
+      console.error('Error saving estimation quote:', error);
+      alert('Failed to save quote. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -555,16 +661,22 @@ const EstimationTool: React.FC = () => {
 
                 {/* Actions */}
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-3">
-                  <button type="button" className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Save as Draft</button>
+                  <button 
+                    type="button" 
+                    className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                    onClick={() => saveEstimationQuote('Draft')}
+                    disabled={saving}
+                  >
+                    {saving ? 'Saving...' : 'Save as Draft'}
+                  </button>
                   <button type="button" className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 hover:bg-indigo-200">Preview Quote</button>
                   <button
                     type="button"
-                    className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500"
-                    onClick={() => {
-                      console.log('Send to customer', { createForm, items, totals });
-                    }}
+                    className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500 disabled:opacity-50"
+                    onClick={() => saveEstimationQuote('Confirmed')}
+                    disabled={saving}
                   >
-                    Send to Customer
+                    {saving ? 'Sending...' : 'Send to Customer'}
                   </button>
                   <button type="button" className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Download PDF</button>
                   <div className="ml-auto">
