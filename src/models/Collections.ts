@@ -391,3 +391,94 @@ export function userDevicePayloadFromDevice(device: Device & { id?: string }): U
     DeviceCount: 1,
   } as any;
 }
+
+// Estimation Quotes Collection
+export interface EstimationQuote {
+  quoteId: string;
+  customerEmail: string;
+  status: 'Pending' | 'Confirmed' | 'Draft' | string;
+  issueDate: Date | Timestamp | null;
+  expiryDate?: Date | Timestamp | null;
+  items: Array<{
+    id: string;
+    name: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    discount: number;
+    taxPercent: number;
+  }>;
+  subtotal: number;
+  taxes: number;
+  overallDiscount: number;
+  shippingCharges: number;
+  installationCharges: number;
+  grandTotal: number;
+  paymentTerms: string;
+  warranty?: string;
+  deliveryTimeline?: string;
+  notes?: string;
+  createdAt?: Timestamp | null;
+  updatedAt?: Timestamp | null;
+  createdByUid?: string;
+  createdByEmail?: string;
+}
+
+export const COLLECTION_ESTIMATION_QUOTES = 'Estimation Quote';
+
+export function estimationQuotesCollection(db: Firestore): CollectionReference<EstimationQuote> {
+  return collection(db, COLLECTION_ESTIMATION_QUOTES) as CollectionReference<EstimationQuote>;
+}
+
+export function estimationQuoteDoc(db: Firestore, id: string): DocumentReference<EstimationQuote> {
+  return doc(db, COLLECTION_ESTIMATION_QUOTES, id) as DocumentReference<EstimationQuote>;
+}
+
+export function estimationQuotePayload(params: {
+  quoteId: string;
+  customerEmail: string;
+  status: string;
+  issueDate: string;
+  expiryDate?: string;
+  items: Array<any>;
+  subtotal: number;
+  taxes: number;
+  overallDiscount: number;
+  shippingCharges: number;
+  installationCharges: number;
+  grandTotal: number;
+  paymentTerms: string;
+  warranty?: string;
+  deliveryTimeline?: string;
+  notes?: string;
+  createdByUid?: string;
+  createdByEmail?: string;
+}): EstimationQuote & { createdAt: FieldValue; updatedAt: FieldValue } {
+  const toDate = (dateStr?: string) => {
+    if (!dateStr) return null;
+    return new Date(dateStr);
+  };
+
+  return {
+    quoteId: params.quoteId,
+    customerEmail: params.customerEmail,
+    status: params.status,
+    issueDate: toDate(params.issueDate),
+    expiryDate: toDate(params.expiryDate),
+    items: params.items,
+    subtotal: params.subtotal,
+    taxes: params.taxes,
+    overallDiscount: params.overallDiscount,
+    shippingCharges: params.shippingCharges,
+    installationCharges: params.installationCharges,
+    grandTotal: params.grandTotal,
+    paymentTerms: params.paymentTerms,
+    warranty: params.warranty,
+    deliveryTimeline: params.deliveryTimeline,
+    notes: params.notes,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    createdByUid: params.createdByUid,
+    createdByEmail: params.createdByEmail,
+  } as any;
+}
