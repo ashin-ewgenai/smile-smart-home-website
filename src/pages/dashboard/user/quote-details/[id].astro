@@ -1,5 +1,5 @@
 ---
-import QuoteDetails from '@/components/dashboard/user/QuoteDetails';
+import QuoteDetails from '@/components/dashboard/User/QuoteDetails';
 import Layout from '@/layouts/Layout.astro';
 
 const { id } = Astro.params;
@@ -7,6 +7,6 @@ const { id } = Astro.params;
 
 <Layout title="Quote Details">
   <main>
-    <QuoteDetails quoteId={id} />
+    <QuoteDetails quoteId={id} client:load />
   </main>
 </Layout>

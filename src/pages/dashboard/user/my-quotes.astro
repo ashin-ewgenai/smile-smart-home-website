@@ -1,13 +1,10 @@
 ---
-import MyQuotes from '@/components/dashboard/user/MyQuotes';
+import MyQuotes from '@/components/dashboard/User/MyQuotes';
 import Layout from '@/layouts/Layout.astro';
-import { useAuth } from '@/lib/useAuth';
-
-const { user } = useAuth();
 ---
 
 <Layout title="My Quotes">
   <main>
-    <MyQuotes userEmail={user?.email} />
+    <MyQuotes client:load />
   </main>
 </Layout>
