@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, ShieldCheck, Receipt, Wrench, ChevronRight } from 'lucide-react';
+import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, Wrench, ChevronRight } from 'lucide-react';
 import RequestServiceModal from './RequestServiceModal';
-import PaymentHistoryModal from './PaymentHistoryModal';
-import WarrantyDetailsModal from './WarrantyDetailsModal';
 import RequestStatusModal from './RequestStatusModal';
 import { db, auth } from '../../../lib/firebase';
 import { getDocs, query, orderBy, limit, getDoc } from 'firebase/firestore';
@@ -21,10 +19,7 @@ interface UserDashboardProps {
 const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   // Get actual user name from Firestore or localStorage
   const [actualUserName, setActualUserName] = useState(userName);
-  const [warrantyOpen, setWarrantyOpen] = useState(false);
-  const [paymentOpen, setPaymentOpen] = useState(false);
   const [serviceRequestOpen, setServiceRequestOpen] = useState(false);
-  const [paymentFilter, setPaymentFilter] = useState<'all' | 'monthly' | 'yearly' | 'instalment' | 'onetime'>('all');
   const [serviceFilter, setServiceFilter] = useState<'all' | 'tv' | 'internet' | 'warranty' | 'installation' | 'maintenance' | 'troubleshooting'>('all');
   const [deviceFilter, setDeviceFilter] = useState<'all' | string>('all');
   const [dateSort, setDateSort] = useState<'desc' | 'asc'>('desc');
@@ -33,8 +28,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   const myDevicesRef = useRef<HTMLDivElement>(null);
   // Billing & Warranty compact toggle
   const [billingCompact, setBillingCompact] = useState(false);
-  // Billing & Warranty alternate actions (slide between sets)
-  const [billingAlt, setBillingAlt] = useState(false);
 
   // Request Service form state
   const [reqService, setReqService] = useState<'installation' | 'maintenance' | 'troubleshooting' | 'warranty' | 'internet' | 'tv'>('installation');
@@ -277,125 +270,48 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 col-span-1 md:col-span-2">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Quick Controls</h2>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setBillingAlt((v) => !v)}
-                    className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-teal-600 dark:text-teal-400"
-                    aria-label={billingAlt ? 'Show billing & warranty actions' : 'Show portals & devices'}
-                    title={billingAlt ? 'Show Billing & Warranty' : 'Show Bill Portal & Devices'}
-                  >
-                    <span className="sr-only">Toggle action set</span>
-                    {/* reuse settings icon for toggle; could be arrows */}
-                    <ChevronRight className={`h-5 w-5 transition-transform ${billingAlt ? 'rotate-180' : ''}`} />
-                  </button>
-                </div>
               </div>
-              {/* Sliding panels */}
-              <div className="relative overflow-hidden">
-                {/* Panel 1: default actions */}
-                <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 gap-3 transition-transform duration-300 ease-out ${billingAlt ? 'absolute inset-0 -translate-x-full z-0' : 'relative translate-x-0 z-10'}`} aria-hidden={billingAlt}>
-                  {/* Warranty Status */}
-                  <button
-                    onClick={() => setWarrantyOpen(true)}
-                    className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
-                    aria-label="Open Warranty Details"
-                  >
-                    <div className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center mb-2">
-                      <ShieldCheck className="h-5 w-5 text-blue-600 dark:text-blue-300" />
-                    </div>
-                    {!billingCompact && (
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">Warranty Status</span>
-                    )}
-                  </button>
-                  {/* Payment History */}
-                  <button
-                    onClick={() => setPaymentOpen(true)}
-                    className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
-                    aria-label="Open Payment History"
-                  >
-                    <div className="h-10 w-10 rounded-full bg-yellow-100 dark:bg-yellow-900 flex items-center justify-center mb-2">
-                      <Receipt className="h-5 w-5 text-yellow-600 dark:text-yellow-300" />
-                    </div>
-                    {!billingCompact && (
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">Payment History</span>
-                    )}
-                  </button>
-                  {/* Request Service */}
-                  <button
-                    onClick={() => setServiceRequestOpen(true)}
-                    className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
-                    aria-label="Open Request Service"
-                  >
-                    <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mb-2">
-                      <Wrench className="h-5 w-5 text-green-600 dark:text-green-300" />
-                    </div>
-                    {!billingCompact && (
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">Request Service</span>
-                    )}
-                  </button>
-                </div>
-                {/* Panel 2: alternate actions (Bill portal & devices) */}
-                <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 gap-3 transition-transform duration-300 ease-out ${billingAlt ? 'relative translate-x-0 z-10' : 'absolute inset-0 translate-x-full z-0'}`} aria-hidden={!billingAlt}>
-                  {/* Bill Portal */}
-                  <a
-                    href="/dashboard/user/bill"
-                    className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
-                    aria-label="Open Bill Portal"
-                  >
-                    <div className="h-10 w-10 rounded-full bg-teal-100 dark:bg-teal-900 flex items-center justify-center mb-2">
-                      <Receipt className="h-5 w-5 text-teal-600 dark:text-teal-300" />
-                    </div>
-                    {!billingCompact && (
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">Bill Portal</span>
-                    )}
-                  </a>
-                  {/* About Device */}
-                  <a
-                    href="/dashboard/user/about-device"
-                    className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
-                    aria-label="Open About Device"
-                  >
-                    <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center mb-2">
-                      <Home className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
-                    </div>
-                    {!billingCompact && (
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">About Device</span>
-                    )}
-                  </a>
-                  {/* Quote Portal */}
-                  <a
-                    href="/dashboard/user/quote-portal"
-                    className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
-                    aria-label="Open Quote Portal"
-                  >
-                    <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center mb-2">
-                      <Calendar className="h-5 w-5 text-amber-600 dark:text-amber-300" />
-                    </div>
-                    {!billingCompact && (
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">Quote Portal</span>
-                    )}
-                  </a>
-                </div>
-              </div>
-              {/* Navigation dots below */}
-              <div className="mt-3 flex items-center justify-center gap-2">
+              {/* Single board with three actions */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-3 gap-3">
+                {/* Request Service */}
                 <button
-                  type="button"
-                  onClick={() => setBillingAlt(false)}
-                  className={`h-2.5 w-2.5 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-teal-400/40 ${!billingAlt ? 'bg-teal-500 ring-2 ring-teal-300/60 scale-110' : 'bg-gray-400 dark:bg-gray-500 opacity-90 hover:opacity-100'}`}
-                  aria-label="Show actions panel"
-                  aria-pressed={!billingAlt}
-                  title="Actions"
-                />
-                <button
-                  type="button"
-                  onClick={() => setBillingAlt(true)}
-                  className={`h-2.5 w-2.5 rounded-full transition-all focus:outline-none focus:ring-2 focus:ring-teal-400/40 ${billingAlt ? 'bg-teal-500 ring-2 ring-teal-300/60 scale-110' : 'bg-gray-400 dark:bg-gray-500 opacity-90 hover:opacity-100'}`}
-                  aria-label="Show portals panel"
-                  aria-pressed={billingAlt}
-                  title="Portals"
-                />
+                  onClick={() => setServiceRequestOpen(true)}
+                  className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
+                  aria-label="Open Request Service"
+                >
+                  <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mb-2">
+                    <Wrench className="h-5 w-5 text-green-600 dark:text-green-300" />
+                  </div>
+                  {!billingCompact && (
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Request Service</span>
+                  )}
+                </button>
+                {/* About Device */}
+                <a
+                  href="/dashboard/user/about-device"
+                  className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
+                  aria-label="Open About Device"
+                >
+                  <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center mb-2">
+                    <Home className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
+                  </div>
+                  {!billingCompact && (
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">About Device</span>
+                  )}
+                </a>
+                {/* Quote Portal */}
+                <a
+                  href="/dashboard/user/quote-portal"
+                  className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
+                  aria-label="Open Quote Portal"
+                >
+                  <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center mb-2">
+                    <Calendar className="h-5 w-5 text-amber-600 dark:text-amber-300" />
+                  </div>
+                  {!billingCompact && (
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">Quote Portal</span>
+                  )}
+                </a>
               </div>
             </div>
           </div>
@@ -464,15 +380,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     </div>
     {/* Support Tickets modal removed here; now rendered globally in DashboardLayout */}
 
-    <PaymentHistoryModal open={paymentOpen} onClose={() => setPaymentOpen(false)} />
-
     <RequestServiceModal
       open={serviceRequestOpen}
       onClose={() => setServiceRequestOpen(false)}
       deviceOptions={formDeviceOptions}
     />
-
-    <WarrantyDetailsModal open={warrantyOpen} onClose={() => setWarrantyOpen(false)} userDevices={userDevices as any} />
     </>
   );
 };

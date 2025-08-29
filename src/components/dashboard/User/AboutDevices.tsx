@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, getDocs, getDoc, doc } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { userDevicesCollection } from '../../../models/Collections';
@@ -28,6 +28,23 @@ const AboutDevices: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
+  const [selectedDevice, setSelectedDevice] = useState<DeviceDoc | null>(null);
+  const [selectedDeviceCount, setSelectedDeviceCount] = useState<number | null>(null);
+  const [selectedDeviceCountLoading, setSelectedDeviceCountLoading] = useState(false);
+  const [userTotalDevices, setUserTotalDevices] = useState<number | null>(null);
+
+  // Helper: try multiple keys and parse number-like strings
+  const coerceNumberFromKeys = (obj: any, keys: string[]): number | null => {
+    for (const k of keys) {
+      const v = obj?.[k];
+      if (typeof v === 'number' && Number.isFinite(v)) return v;
+      if (typeof v === 'string') {
+        const n = Number(v);
+        if (Number.isFinite(n)) return n;
+      }
+    }
+    return null;
+  };
 
   // Track auth state
   useEffect(() => {
@@ -146,6 +163,59 @@ const AboutDevices: React.FC = () => {
     
     return () => unsubscribe();
   }, [uid]);
+
+  // Open details modal and fetch this device's count from userdevices/{uid}/devices/{deviceId}
+  const openDetails = async (device: DeviceDoc) => {
+    setSelectedDevice(device);
+    setSelectedDeviceCount(null);
+    setUserTotalDevices(null);
+    if (!uid) return;
+    try {
+      setSelectedDeviceCountLoading(true);
+      const ref = doc(db, 'userdevices', uid, 'devices', device.id);
+      console.log('[AboutDevices] Fetching per-device count from:', ref.path);
+      let snap = await getDoc(ref);
+      if (!snap.exists()) {
+        // Fallbacks: try sourceDeviceId or deviceId linking back to Devices doc id
+        console.warn('[AboutDevices] Direct doc not found; falling back to queries by sourceDeviceId/deviceId');
+        const devsCol = collection(db, 'userdevices', uid, 'devices');
+        let qSnap = await getDocs(query(devsCol, where('sourceDeviceId', '==', device.id)));
+        if (qSnap.empty) {
+          qSnap = await getDocs(query(devsCol, where('deviceId', '==', device.id)));
+        }
+        snap = qSnap.docs[0] ?? snap; // use first match if any
+      }
+      if (snap.exists()) {
+        const data: any = snap.data();
+        console.log('[AboutDevices] Device doc data (resolved):', data);
+        // Try multiple possible fields incl. common aliases; fall back to serials length
+        const countAliases = ['deviceCount','DeviceCount','deviceCount1','DeviceCount1','count','Count','quantity','Quantity','qty','Qty'];
+        const parsed = coerceNumberFromKeys(data, countAliases);
+        const count = parsed ?? (Array.isArray(data.serials) ? data.serials.length : null);
+        setSelectedDeviceCount(count ?? null);
+      } else {
+        console.warn('[AboutDevices] No device record found for current user/device');
+        setSelectedDeviceCount(null);
+      }
+
+      // Also fetch total device count from parent userdevices doc if available
+      const parentRef = doc(db, 'userdevices', uid);
+      console.log('[AboutDevices] Fetching total device count from:', parentRef.path);
+      const parentSnap = await getDoc(parentRef);
+      if (parentSnap.exists()) {
+        const pdata: any = parentSnap.data();
+        console.log('[AboutDevices] User parent doc data:', pdata);
+        const totalAliases = ['totalDevices','devicesCount','deviceCount','DeviceCount','deviceCount1','DeviceCount1','total','Total'];
+        const totalParsed = coerceNumberFromKeys(pdata, totalAliases);
+        if (totalParsed !== null) setUserTotalDevices(totalParsed);
+      }
+    } catch (e) {
+      console.error('Failed to fetch selected device count', e);
+      setSelectedDeviceCount(null);
+    } finally {
+      setSelectedDeviceCountLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -307,10 +377,7 @@ const AboutDevices: React.FC = () => {
                 </div>
                 <div className="mt-2 flex justify-end space-x-2">
                   <button
-                    onClick={() => {
-                      // TODO: Implement device details view
-                      console.log('View details for device:', device.id);
-                    }}
+                    onClick={() => openDetails(device)}
                     className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
                   >
                     View Details
@@ -319,6 +386,82 @@ const AboutDevices: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {selectedDevice && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => { setSelectedDevice(null); setSelectedDeviceCount(null); setUserTotalDevices(null); }}
+        >
+          <div
+            className="w-full max-w-md rounded-lg bg-gray-900 border border-gray-800 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+              <h3 className="text-sm font-semibold text-white">Device Details</h3>
+              <button
+                className="text-gray-400 hover:text-white"
+                aria-label="Close"
+                onClick={() => { setSelectedDevice(null); setSelectedDeviceCount(null); setUserTotalDevices(null); }}
+              >
+                ✕
+              </button>
+            </div>
+            {selectedDevice.imageUrl ? (
+              <img
+                src={selectedDevice.imageUrl}
+                alt={selectedDevice.deviceName || selectedDevice.name || 'Device'}
+                className="w-full h-48 object-cover"
+              />
+            ) : (
+              <div className="w-full h-48 flex items-center justify-center bg-gray-800">
+                <svg className="h-12 w-12 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+            )}
+            <div className="px-4 py-4 text-sm">
+              <div className="mb-2">
+                <span className="text-gray-400">Device ID:</span>
+                <span className="ml-2 font-mono text-gray-200 break-all">{selectedDevice.id}</span>
+              </div>
+              <div className="mb-2">
+                <span className="text-gray-400">Serial:</span>
+                <span className="ml-2 text-gray-200">{selectedDevice.serial || 'N/A'}</span>
+              </div>
+              <div className="mb-2">
+                <span className="text-gray-400">Number of this device you own:</span>
+                <span className="ml-2 text-gray-200">
+                  {selectedDeviceCountLoading ? 'Loading…' : (selectedDeviceCount ?? '—')}
+                </span>
+              </div>
+              {selectedDevice.warranty && (
+                <div className="mb-2">
+                  <span className="text-gray-400">Warranty:</span>
+                  <span className="ml-2 text-gray-200">
+                    {typeof selectedDevice.warranty === 'string'
+                      ? new Date(selectedDevice.warranty).toLocaleDateString()
+                      : selectedDevice.warranty}
+                  </span>
+                </div>
+              )}
+              {userTotalDevices !== null && (
+                <div className="mt-3 text-xs text-gray-400">
+                  Total devices on your account: <span className="text-gray-200">{userTotalDevices}</span>
+                </div>
+              )}
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setSelectedDevice(null)}
+                  className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </section>
