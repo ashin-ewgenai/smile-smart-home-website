@@ -12,6 +12,8 @@ import {
 import { getDocs, getDoc, limit, query, where, updateDoc, doc, Timestamp, collection, onSnapshot } from 'firebase/firestore';
 import DeviceDetailsModal from '../components/DeviceDetailsModal';
 import AddDeviceModal from '../components/AddDeviceModal';
+import EstimationEditor from '../components/EstimationEditor';
+import StatusChangeButton from '../components/StatusChangeButton';
 
 type Props = {
   email?: string | null;
@@ -733,7 +735,19 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                   <div className="text-gray-400 flex items-center gap-1">📅 <span>Created</span></div>
                   <div className="col-span-2 text-gray-100">{fmtPretty(dateFrom(selected.data?.createdAt ?? selected.data?.created_at ?? selected.data?.ts))}</div>
                   <div className="text-gray-400 flex items-center gap-1">🏷️ <span>Status</span></div>
-                  <div className="col-span-2">{statusBadge(selected.data?.status ?? selected.data?.Status)}</div>
+                  <div className="col-span-2">
+                    {selected.type === 'services' || selected.type === 'tickets' ? (
+                      <StatusChangeButton
+                        value={editStatus}
+                        options={statusOptionsByType[selected.type]}
+                        onChange={setEditStatus}
+                        onSave={saveStatus}
+                        saving={saving}
+                      />
+                    ) : (
+                      statusBadge(selected.data?.status ?? selected.data?.Status)
+                    )}
+                  </div>
                 </div>
               
               {/* Details section */}
@@ -862,28 +876,15 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 </div>
               )}
               
-              {/* Edit status */}
-              <div className="mt-4 border-t border-gray-700 pt-4">
-                <div className="text-gray-200 font-medium mb-2">Edit Status</div>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value)}
-                    className="bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
-                  >
-                    {statusOptionsByType[selected.type].map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={saveStatus}
-                    disabled={saving}
-                    className="px-4 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60"
-                  >
-                    {saving ? 'Saving...' : 'Save'}
-                  </button>
-                </div>
-              </div>
+              {/* Estimation Editor / Creator */}
+              {selected?.type === 'quotes' && (
+                <EstimationEditor
+                  selected={selected as any}
+                  accountEmail={account?.Email}
+                  estimation={estimation}
+                  onSaved={(saved) => { setEstimation(saved); }}
+                />
+              )}
               </div>
             </div>
           </div>
