@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../../lib/firebase';
 
@@ -32,6 +32,10 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'add' | 'remove'>('add');
+  // Filters
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+  const [brandFilter, setBrandFilter] = useState('');
 
   const fetchDevices = async () => {
     if (!isOpen) return;
@@ -82,6 +86,30 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
     fetchDevices();
   }, [isOpen, userId, viewMode]);
 
+  // Derived: unique types/brands and filtered devices
+  const allTypes = useMemo(() => {
+    const s = new Set<string>();
+    devices.forEach(d => d.type && s.add(d.type));
+    return Array.from(s).sort();
+  }, [devices]);
+
+  const allBrands = useMemo(() => {
+    const s = new Set<string>();
+    devices.forEach(d => d.brand && s.add(d.brand));
+    return Array.from(s).sort();
+  }, [devices]);
+
+  const filteredDevices = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return devices.filter(d => {
+      if (typeFilter && d.type !== typeFilter) return false;
+      if (brandFilter && d.brand !== brandFilter) return false;
+      if (!q) return true;
+      const hay = `${d.deviceName} ${d.type} ${d.modelNumber} ${d.brand}`.toLowerCase();
+      return hay.includes(q);
+    });
+  }, [devices, search, typeFilter, brandFilter]);
+
   const handleAddDevices = async () => {
     if (selectedDevices.length === 0) return;
 
@@ -94,9 +122,8 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
         const deviceRef = doc(db, 'userdevices', userId, 'devices', deviceId);
         batch.push(
           setDoc(deviceRef, {
+            deviceId,
             addedAt: now,
-            isOnline: false,
-            lastActiveAt: null,
             updatedAt: now
           }, { merge: true })
         );
@@ -185,7 +212,59 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
         )}
 
         <div className="space-y-4">
-          <div className="max-h-96 overflow-y-auto">
+          {/* Toolbar: search + filters */}
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+            <div className="flex-1">
+              <label className="block text-xs text-gray-400 mb-1">Search</label>
+              <div className="relative">
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by name, type, model, brand..."
+                  className="w-full bg-gray-700/80 text-gray-100 placeholder-gray-400 border border-gray-600 rounded-md pl-9 pr-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                />
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">🔎</span>
+              </div>
+            </div>
+            <div className="sm:w-52">
+              <label className="block text-xs text-gray-400 mb-1">Type</label>
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value)}
+                className="w-full bg-gray-700/80 text-gray-100 border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              >
+                <option value="">All</option>
+                {allTypes.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div className="sm:w-52">
+              <label className="block text-xs text-gray-400 mb-1">Brand</label>
+              <select
+                value={brandFilter}
+                onChange={(e) => setBrandFilter(e.target.value)}
+                className="w-full bg-gray-700/80 text-gray-100 border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              >
+                <option value="">All</option>
+                {allBrands.map(b => (
+                  <option key={b} value={b}>{b}</option>
+                ))}
+              </select>
+            </div>
+            {(search || typeFilter || brandFilter) && (
+              <button
+                onClick={() => { setSearch(''); setTypeFilter(''); setBrandFilter(''); }}
+                className="sm:self-auto self-stretch px-3 py-2 text-sm rounded-md bg-gray-700 hover:bg-gray-600 text-white"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          <div className="text-xs text-gray-400 -mt-2">{filteredDevices.length} of {devices.length} devices</div>
+
+          <div className="max-h-96 overflow-y-auto rounded-md border border-gray-700/70">
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-left text-gray-400 border-b border-gray-700">
@@ -197,7 +276,7 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
                 </tr>
               </thead>
               <tbody>
-                {devices.map((device) => (
+                {filteredDevices.map((device) => (
                   <tr 
                     key={device.id}
                     className={`border-b border-gray-700/50 hover:bg-gray-800/50 ${
@@ -228,6 +307,11 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
                     <td className="py-3 text-gray-300">{device.brand || '-'}</td>
                   </tr>
                 ))}
+                {filteredDevices.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-gray-400">No devices match your filters.</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
