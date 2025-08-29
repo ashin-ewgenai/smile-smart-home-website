@@ -1,4 +1,20 @@
-import { Firestore, Timestamp, doc, collection, CollectionReference, DocumentReference, serverTimestamp, FieldValue, increment, setDoc, getDocs, where, limit, query } from 'firebase/firestore';
+import { 
+  collection, 
+  doc, 
+  serverTimestamp, 
+  Timestamp, 
+  type CollectionReference, 
+  type DocumentReference, 
+  type FieldValue, 
+  type Firestore,
+  getDocs,
+  getDoc,
+  query,
+  where,
+  increment,
+  limit,
+  setDoc
+} from 'firebase/firestore';
 import { type Auth, type UserCredential, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 
 // Accounts Collection
@@ -306,6 +322,8 @@ export interface QuoteItem {
   details?: string;
   status?: 'submitted' | 'approved' | string;
   createdAt?: Timestamp | null;
+  estimationQuoteId?: string; // Reference to Estimation Quote collection
+  hasEstimation?: boolean; // Flag to indicate if estimation exists
   [key: string]: any;
 }
 
@@ -395,6 +413,7 @@ export function userDevicePayloadFromDevice(device: Device & { id?: string }): U
 // Estimation Quotes Collection
 export interface EstimationQuote {
   quoteId: string;
+  originalQuoteId?: string; // Reference to the original quote in 'quotes' collection
   customerEmail: string;
   status: 'Pending' | 'Confirmed' | 'Draft' | string;
   issueDate: Date | Timestamp | null;
@@ -434,51 +453,62 @@ export function estimationQuoteDoc(db: Firestore, id: string): DocumentReference
   return doc(db, COLLECTION_ESTIMATION_QUOTES, id) as DocumentReference<EstimationQuote>;
 }
 
-export function estimationQuotePayload(params: {
-  quoteId: string;
-  customerEmail: string;
-  status: string;
-  issueDate: string;
-  expiryDate?: string;
-  items: Array<any>;
-  subtotal: number;
-  taxes: number;
-  overallDiscount: number;
-  shippingCharges: number;
-  installationCharges: number;
-  grandTotal: number;
-  paymentTerms: string;
-  warranty?: string;
-  deliveryTimeline?: string;
-  notes?: string;
-  createdByUid?: string;
-  createdByEmail?: string;
-}): EstimationQuote & { createdAt: FieldValue; updatedAt: FieldValue } {
-  const toDate = (dateStr?: string) => {
-    if (!dateStr) return null;
-    return new Date(dateStr);
-  };
-
+export function estimationQuotePayload(data: Partial<EstimationQuote>): EstimationQuote {
   return {
-    quoteId: params.quoteId,
-    customerEmail: params.customerEmail,
-    status: params.status,
-    issueDate: toDate(params.issueDate),
-    expiryDate: toDate(params.expiryDate),
-    items: params.items,
-    subtotal: params.subtotal,
-    taxes: params.taxes,
-    overallDiscount: params.overallDiscount,
-    shippingCharges: params.shippingCharges,
-    installationCharges: params.installationCharges,
-    grandTotal: params.grandTotal,
-    paymentTerms: params.paymentTerms,
-    warranty: params.warranty,
-    deliveryTimeline: params.deliveryTimeline,
-    notes: params.notes,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-    createdByUid: params.createdByUid,
-    createdByEmail: params.createdByEmail,
-  } as any;
+    quoteId: data.quoteId || '',
+    originalQuoteId: data.originalQuoteId || '',
+    customerEmail: data.customerEmail || '',
+    status: data.status || 'Draft',
+    issueDate: data.issueDate || Timestamp.now(),
+    expiryDate: data.expiryDate || null,
+    items: data.items || [],
+    subtotal: data.subtotal || 0,
+    taxes: data.taxes || 0,
+    overallDiscount: data.overallDiscount || 0,
+    shippingCharges: data.shippingCharges || 0,
+    installationCharges: data.installationCharges || 0,
+    grandTotal: data.grandTotal || 0,
+    paymentTerms: data.paymentTerms || '',
+    warranty: data.warranty || '',
+    deliveryTimeline: data.deliveryTimeline || '',
+    notes: data.notes || '',
+    createdAt: data.createdAt || Timestamp.now(),
+    updatedAt: Timestamp.now(),
+    createdByUid: data.createdByUid || '',
+    createdByEmail: data.createdByEmail || '',
+  };
+}
+
+// Helper functions to query related documents
+export async function getQuoteWithEstimation(db: Firestore, quoteId: string) {
+  const quoteDoc = await getDoc(doc(db, 'quotes', quoteId));
+  const quote = quoteDoc.data();
+  
+  if (quote?.estimationQuoteId) {
+    const estimationDoc = await getDoc(estimationQuoteDoc(db, quote.estimationQuoteId));
+    return {
+      quote: quote,
+      estimation: estimationDoc.data()
+    };
+  }
+  
+  return { quote, estimation: null };
+}
+
+export async function getCustomerQuotesAndEstimations(db: Firestore, customerEmail: string) {
+  const [quotesSnap, estimationsSnap] = await Promise.all([
+    getDocs(query(
+      collection(db, 'quotes'), 
+      where('customerEmail', '==', customerEmail)
+    )),
+    getDocs(query(
+      estimationQuotesCollection(db),
+      where('customerEmail', '==', customerEmail)
+    ))
+  ]);
+  
+  return {
+    quotes: quotesSnap.docs.map(d => ({id: d.id, ...d.data()})),
+    estimations: estimationsSnap.docs.map(d => ({id: d.id, ...d.data()}))
+  };
 }

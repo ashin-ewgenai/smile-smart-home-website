@@ -148,7 +148,7 @@ const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote }) => 
             className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500"
             onClick={onCreateQuote}
           >
-            Create Quote
+            Create Estimation Quote
           </button>
         </div>
       </div>

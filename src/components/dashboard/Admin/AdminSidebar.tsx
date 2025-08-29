@@ -9,7 +9,11 @@ const AdminSidebar: React.FC = () => {
   const location = inRouter ? useLocation() : { pathname: '' } as any;
 
   const Item = ({ href, children }: { href: string; children: React.ReactNode }) => {
-    const active = inRouter && location.pathname.startsWith(href);
+    const active = inRouter && (
+      href === '/dashboard/admin' 
+        ? location.pathname === href || location.pathname === '/dashboard/admin/'
+        : location.pathname.startsWith(href)
+    );
     const cls = `${linkBase} ${active ? 'bg-gray-200 dark:bg-gray-700' : ''}`;
     return inRouter ? (
       <Link to={href} className={cls}>{children}</Link>
