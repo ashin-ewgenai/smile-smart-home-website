@@ -8,109 +8,99 @@ import {defineSecret} from "firebase-functions/params";
 // Configure global options (tune as needed)
 setGlobalOptions({region: "us-central1", maxInstances: 10});
 
-// Callable: Fetch basic product preview metadata (avoids iframe embedding issues)
-// request.data: { url: string }
-export const fetchProductPreview = onCall(async (request: CallableRequest) => {
-  const authCtx = request.auth;
-  if (!authCtx) {
-    throw new HttpsError("unauthenticated", "Must be authenticated.");
-  }
-
-  const url = (request.data?.url as string | undefined)?.trim();
-  if (!url) throw new HttpsError("invalid-argument", "url is required");
-  let u: URL;
-  try {
-    u = new URL(url);
-  } catch {
-    throw new HttpsError("invalid-argument", "Invalid URL");
-  }
-  // Restrict to well-known shopping domains to reduce SSRF risk
-  if (!(/amazon\./i.test(u.hostname) || /flipkart\./i.test(u.hostname))) {
-    throw new HttpsError("permission-denied", "Domain not allowed");
-  }
-
-  try {
-    const resp = await fetch(
-      url,
-      {
-        method: "GET",
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " +
-            "AppleWebKit/537.36 (KHTML, like Gecko) " +
-            "Chrome/123 Safari/537.36",
-          "Accept":
-            "text/html,application/xhtml+xml,application/xml;q=0.9," +
-            "image/avif,image/webp,*/*;q=0.8",
-        },
-      } as RequestInit,
-    );
-    if (!resp.ok) {
-      throw new HttpsError("unavailable", `Fetch failed: ${resp.status}`);
-    }
-    const html = await resp.text();
-
-    // Minimal meta extraction without external deps
-    const getMeta = (name: string) => {
-      const re = new RegExp(
-        `<meta[^>]+(?:property|name)=["']${name}["'][^>]*content=["']([^"']+)["'][^>]*>`,
-        "i",
-      );
-      const m = html.match(re);
-      return m?.[1] ?? null;
-    };
-
-    // Try OpenGraph first
-    const ogTitle = getMeta("og:title") || getMeta("twitter:title");
-    const ogImage = getMeta("og:image") || getMeta("twitter:image");
-    const ogUrl = getMeta("og:url");
-    const ogDesc = getMeta("og:description") || getMeta("description");
-
-    // Try to parse JSON-LD for price/rating (best-effort)
-    let price: string | null = null;
-    let rating: string | null = null;
-    try {
-      const ldMatch = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/i);
-      if (ldMatch) {
-        const json = JSON.parse(ldMatch[1].trim());
-        const obj = Array.isArray(json) ? json.find((x) => x && typeof x === "object") : json;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const offers = obj?.offers || (obj?.["@graph"]?.find((x: any) => x.offers)?.offers);
-        if (offers) {
-          const priceVal = offers.price || offers[0]?.price;
-          const currency = offers.priceCurrency || offers[0]?.priceCurrency || "";
-          if (priceVal) price = currency ? `${currency} ${priceVal}` : String(priceVal);
-        }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const agg = obj?.aggregateRating || (obj?.["@graph"]?.find((x: any) => x.aggregateRating)?.aggregateRating);
-        if (agg?.ratingValue) {
-          rating = String(agg.ratingValue);
-        }
-      }
-    } catch {
-      // best-effort parsing; ignore JSON-LD failures
-    }
-
-    const site = /amazon\./i.test(u.hostname) ? "Amazon" : (/flipkart\./i.test(u.hostname) ? "Flipkart" : u.hostname);
-
-    return {
-      url,
-      site,
-      title: ogTitle,
-      image: ogImage,
-      description: ogDesc,
-      price,
-      rating,
-      canonical: ogUrl,
-    };
-  } catch (e) {
-    const err = e as { message?: string };
-    throw new HttpsError("internal", err?.message || "Preview fetch failed");
-  }
-});
-
 // ======= Secure OpenAI Chat Callable (uses Functions v2 secret) =======
 const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
+
+// ======= Smart Triage (no Firestore writes) =======
+// Lightweight in-memory rate limiter per instance (best-effort; no persistent writes)
+const triageRateMap: Map<string, number[]> = new Map();
+
+/**
+ * triageChat: Classify a single user message and optionally answer simple FAQs.
+ * request.data: { message: string }
+ * response: { kind: 'faq'|'general'|'complaint', answer?: string }
+ */
+export const triageChat = onCall({secrets: [OPENAI_API_KEY]}, async (request: CallableRequest) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+  const message = (request.data?.message as string | undefined)?.trim();
+  if (!message) throw new HttpsError("invalid-argument", "message is required");
+
+  // In-memory rate limit: up to 10 calls per 60s, 3s cooldown
+  const COOLDOWN_MS = 3000;
+  const WINDOW_MS = 60_000;
+  const MAX_PER_WINDOW = 10;
+  const uid = authCtx.uid;
+  const now = Date.now();
+  const arr = triageRateMap.get(uid) || [];
+  const recent = arr.filter((t) => now - t < WINDOW_MS);
+  if (recent.length > 0 && now - recent[recent.length - 1] < COOLDOWN_MS) {
+    const waitSec = Math.ceil((COOLDOWN_MS - (now - recent[recent.length - 1])) / 1000);
+    throw new HttpsError("resource-exhausted", `Please wait ${waitSec}s before trying again.`);
+  }
+  if (recent.length >= MAX_PER_WINDOW) {
+    throw new HttpsError("resource-exhausted", "Rate limit exceeded. Try again in a minute.");
+  }
+  recent.push(now);
+  triageRateMap.set(uid, recent);
+
+  const apiKey = OPENAI_API_KEY.value();
+  if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY is not configured");
+
+  // System prompt to classify and optionally answer
+  const system = `You are Smile Smart Home support triage.
+Classify the user's single message as one of: faq, general, complaint.
+- faq: product or account questions with clear factual answer (e.g., warranty, pricing, how to reset device, app navigation).
+- general: small talk or generic questions to the assistant.
+- complaint: reports of issues, malfunctions, or requests for help that likely need a support ticket.
+If faq or general, provide a concise helpful answer (<=80 words).
+Output strict JSON: {"kind":"faq|general|complaint","answer":"..."?}`;
+
+  const body = {
+    model: "gpt-4o-mini",
+    messages: [
+      { role: "system", content: system },
+      { role: "user", content: message },
+    ],
+    temperature: 0.2,
+    max_tokens: 200,
+  };
+
+  try {
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify(body),
+    } as RequestInit);
+    if (!resp.ok) throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
+    const data = await resp.json();
+    const content: string | undefined = data?.choices?.[0]?.message?.content;
+    if (!content) {
+      // Fallback conservative response
+      return { kind: "complaint" } as const;
+    }
+    // Try to parse JSON strictly; if it fails, default to complaint
+    let parsed: { kind?: string; answer?: string } = {};
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      // Sometimes models wrap JSON with text; attempt to extract
+      const m = content.match(/\{[\s\S]*\}/);
+      if (m) {
+        try { parsed = JSON.parse(m[0]); } catch {}
+      }
+    }
+    const kind = (parsed.kind === "faq" || parsed.kind === "general" || parsed.kind === "complaint") ? parsed.kind : "complaint";
+    if (kind === "faq" || kind === "general") {
+      const answer = typeof parsed.answer === "string" && parsed.answer.trim() ? parsed.answer.trim() : "";
+      return { kind, answer } as const;
+    }
+    return { kind: "complaint" } as const;
+  } catch (e) {
+    const err = e as { message?: string };
+    throw new HttpsError("internal", err?.message || "Triage failed");
+  }
+});
 
 // request.data: { messages: {role:'system'|'user'|'assistant', content:string}[], model?: string, sessionId?: string }
 // response: { reply: string, sessionId: string }
@@ -533,5 +523,245 @@ export const superAdminUpdateUser = onCall(async (request) => {
     }
     throw new HttpsError("internal", err?.message || "Update failed");
   }
+});
+
+// ====== Chatbot: Support Ticket + Troubleshooting Workflow ======
+// Collections used:
+// - tickets/{ticketId}: { ownerUid, status: 'open'|'pending'|'resolved'|'escalated'|'closed',
+//     complaint, deviceSerial, deviceType, imageUploadAttempts, troubleshootingAttempts, createdAt, updatedAt, lastSuggestion }
+// - devices/{serial}: { ownerUid, deviceType }
+// - product_docs/{deviceType}: { links: string[] }
+// - admin_notifications/{id}: { type, ticketId, ownerUid, createdAt, payload }
+
+// Ticket creation is intentionally not exposed via chatbot. Users must create tickets via the dedicated UI.
+
+/** Analyze complaint text using OpenAI Chat. */
+export const analyzeComplaint = onCall({secrets: [OPENAI_API_KEY]}, async (request) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
+  if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
+
+  const snap = await db.collection("tickets").doc(ticketId).get();
+  if (!snap.exists) throw new HttpsError("not-found", "Ticket not found");
+  const t = snap.data() as any;
+  if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+
+  const apiKey = OPENAI_API_KEY.value();
+  if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY not configured");
+
+  const prompt = `You are a support triage assistant. Summarize the user complaint in 1-2 concise sentences and list likely root causes as bullet points (max 4).\n\nComplaint:\n${t.complaint}`;
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: "gpt-4o-mini", messages: [ { role: "user", content: prompt } ], temperature: 0.2, max_tokens: 250 }),
+  } as RequestInit);
+  if (!resp.ok) throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
+  const data = await resp.json();
+  const content: string | undefined = data?.choices?.[0]?.message?.content;
+  return { analysis: content || "" };
+});
+
+/** Request serial image: increments attempts and enforces max 2 attempts per ticket. */
+export const requestSerialImage = onCall(async (request) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
+  if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
+
+  const ref = db.collection("tickets").doc(ticketId);
+  let attempts: number = 0;
+  await db.runTransaction(async (tx) => {
+    const s = await tx.get(ref);
+    if (!s.exists) throw new HttpsError("not-found", "Ticket not found");
+    const t = s.data() as any;
+    if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+    attempts = Number(t.imageUploadAttempts || 0);
+    if (attempts >= 2) throw new HttpsError("failed-precondition", "Max image uploads reached");
+    tx.set(ref, { imageUploadAttempts: attempts + 1, updatedAt: Date.now() }, { merge: true });
+  });
+  return { allowed: true, remaining: Math.max(0, 2 - (attempts + 1)) };
+});
+
+/** Extract serial number from an image URL using OpenAI Vision (gpt-4o). */
+export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY]}, async (request) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
+  const imageUrl = (request.data?.imageUrl as string | undefined)?.trim();
+  if (!ticketId || !imageUrl) throw new HttpsError("invalid-argument", "ticketId and imageUrl are required");
+
+  const tRef = db.collection("tickets").doc(ticketId);
+  const s = await tRef.get();
+  if (!s.exists) throw new HttpsError("not-found", "Ticket not found");
+  const t = s.data() as any;
+  if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+
+  const apiKey = OPENAI_API_KEY.value();
+  if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY not configured");
+
+  const messages = [
+    {
+      role: "user",
+      content: [
+        { type: "text", text: "Extract the product serial number visible in this image. Return only the serial string. If unclear, say: NONE" },
+        { type: "image_url", image_url: { url: imageUrl } },
+      ],
+    },
+  ];
+
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: "gpt-4o", messages, temperature: 0.0, max_tokens: 50 }),
+  } as RequestInit);
+  if (!resp.ok) throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
+  const data = await resp.json();
+  const content: string = (data?.choices?.[0]?.message?.content || "").trim();
+  const serial = content === "NONE" ? "" : content.replace(/[^A-Za-z0-9\-\/_]/g, "").slice(0, 64);
+
+  if (!serial) {
+    return { serial: null };
+  }
+
+  await tRef.set({ deviceSerial: serial, updatedAt: Date.now() }, { merge: true });
+  return { serial };
+});
+
+/** Verify serial belongs to the user and fetch documentation links by deviceType. */
+export const verifySerialAndFetchDocs = onCall(async (request) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
+  const serial = (request.data?.serial as string | undefined)?.trim();
+  if (!ticketId || !serial) throw new HttpsError("invalid-argument", "ticketId and serial are required");
+
+  const tRef = db.collection("tickets").doc(ticketId);
+  const tSnap = await tRef.get();
+  if (!tSnap.exists) throw new HttpsError("not-found", "Ticket not found");
+  const t = tSnap.data() as any;
+  if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+
+  // Devices keyed by serial for quick lookups
+  const devSnap = await db.collection("devices").doc(serial).get();
+  if (!devSnap.exists) {
+    return { valid: false, message: "This product is not recognized." };
+  }
+  const dev = devSnap.data() as any;
+  if (dev.ownerUid !== authCtx.uid) {
+    return { valid: false, message: "This product is not recognized." };
+  }
+
+  const deviceType: string = dev.deviceType || "generic";
+  await tRef.set({ deviceSerial: serial, deviceType, updatedAt: Date.now() }, { merge: true });
+
+  // Fetch docs
+  const docsSnap = await db.collection("product_docs").doc(deviceType).get();
+  const links: string[] = (docsSnap.exists ? (docsSnap.data()?.links as string[]) : []) || [];
+  return { valid: true, deviceType, links };
+});
+
+/** Suggest a troubleshooting step based on docs and complaint using OpenAI. */
+export const suggestTroubleshootingStep = onCall({secrets: [OPENAI_API_KEY]}, async (request) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
+  const docs = (request.data?.docs as string[] | undefined) || [];
+  if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
+
+  const tRef = db.collection("tickets").doc(ticketId);
+  const tSnap = await tRef.get();
+  if (!tSnap.exists) throw new HttpsError("not-found", "Ticket not found");
+  const t = tSnap.data() as any;
+  if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+
+  const apiKey = OPENAI_API_KEY.value();
+  if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY not configured");
+
+  const attempt = Number(t.troubleshootingAttempts || 0);
+  if (attempt >= 3) {
+    return { done: true, message: "Max troubleshooting attempts reached." };
+  }
+
+  const prompt = `You are a device troubleshooting assistant. Based on the user's complaint and the provided documentation links, suggest one precise next step they can try now. Keep it under 80 words and actionable.\n\nComplaint: ${t.complaint}\nDocs: ${docs.join("\n")}`;
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: "gpt-4o-mini", messages: [ { role: "user", content: prompt } ], temperature: 0.2, max_tokens: 180 }),
+  } as RequestInit);
+  if (!resp.ok) throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
+  const data = await resp.json();
+  const suggestion: string = (data?.choices?.[0]?.message?.content || "").trim();
+
+  await tRef.set({ troubleshootingAttempts: attempt + 1, lastSuggestion: suggestion, updatedAt: Date.now() }, { merge: true });
+  return { done: false, attempt: attempt + 1, suggestion };
+});
+
+/** Mark resolved or escalate to human and notify admins. */
+export const resolveOrEscalate = onCall(async (request) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
+  const solved = Boolean(request.data?.solved);
+  if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
+
+  const tRef = db.collection("tickets").doc(ticketId);
+  const snap = await tRef.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Ticket not found");
+  const t = snap.data() as any;
+  if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+
+  const now = Date.now();
+  if (solved) {
+    await tRef.set({ status: "resolved", updatedAt: now }, { merge: true });
+    return { status: "resolved" };
+  }
+
+  // Not solved -> escalate
+  await tRef.set({ status: "escalated", updatedAt: now }, { merge: true });
+  await db.collection("admin_notifications").add({
+    type: "ticket_escalated",
+    ticketId,
+    ownerUid: authCtx.uid,
+    createdAt: now,
+    payload: { lastSuggestion: t.lastSuggestion || null, deviceSerial: t.deviceSerial || null },
+  });
+  return { status: "escalated" };
+});
+
+/** Admin closes a ticket manually. Requires Super Admin or Admin role. */
+export const adminCloseTicket = onCall(async (request) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
+  if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
+
+  // Allow both Super Admin and Admin roles
+  const callerSnap = await db.collection("Accounts").doc(authCtx.uid).get();
+  const role = callerSnap.exists ? (callerSnap.data()?.Role as string | undefined) : undefined;
+  if (role !== "Super Admin" && role !== "Admin") {
+    throw new HttpsError("permission-denied", "Only admins can close tickets");
+  }
+  await db.collection("tickets").doc(ticketId).set({ status: "closed", updatedAt: Date.now() }, { merge: true });
+  return { status: "closed" };
+});
+
+/** Optional: record user feedback after resolution. */
+export const recordTicketFeedback = onCall(async (request) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
+  const rating = Number(request.data?.rating ?? 0); // 1..5
+  const comment = (request.data?.comment as string | undefined)?.trim() || "";
+  if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
+
+  const tRef = db.collection("tickets").doc(ticketId);
+  const s = await tRef.get();
+  if (!s.exists) throw new HttpsError("not-found", "Ticket not found");
+  const t = s.data() as any;
+  if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+
+  await tRef.collection("feedback").add({ rating, comment, ts: Date.now() });
+  return { ok: true };
 });
 

@@ -1,8 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { db, auth, functions as firebaseFunctions, storage } from '../../../lib/firebase';
+import { db, auth, storage } from '../../../lib/firebase';
 import { addDoc, serverTimestamp, onSnapshot, query, orderBy, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { devicesCollection, deviceDoc } from '../../../models/Collections';
-import { httpsCallable } from 'firebase/functions';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 export type DeviceFormValues = {
@@ -194,15 +193,7 @@ export default function DeviceForm() {
     setPreviewUrl(url);
     setShowPreview(true);
     setPreviewData(null);
-    try {
-      const callable = httpsCallable<{ url: string }, ProductPreview>(firebaseFunctions, 'fetchProductPreview');
-      const res = await callable({ url });
-      if (res?.data && typeof res.data === 'object') {
-        setPreviewData(res.data as ProductPreview);
-      }
-    } catch {
-      // Ignore; will fall back to iframe
-    }
+    // Removed backend preview fetch. Falling back to embedded iframe only.
   }, [productUrl, isSupportedProductUrl]);
 
   // File is uploaded during submit (mirrors TicketCenter)

@@ -3,10 +3,14 @@ import { auth, db, functions, storage } from '../../lib/firebase';
 import { addDoc, collection, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { triageChat } from '../../lib/chatbot';
 
 interface SupportChatPanelProps {
   open: boolean;
   onClose: () => void;
+  // New: enforce existing ticket for chatbot workflow
+  ticketId?: string; // if undefined, chat will prompt user to raise a ticket first (bot mode)
+  raiseTicketsHref?: string; // optional link target for the "Raise Tickets" page
 }
 
 type ChatMsg = {
@@ -18,7 +22,7 @@ type ChatMsg = {
   uploading?: boolean;
 };
 
-const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose }) => {
+const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, ticketId: providedTicketId, raiseTicketsHref }) => {
   const [uid, setUid] = useState<string | null>(null);
   // Global status kept if needed for future banners, but routing is claim-only
   const [statusOnline, setStatusOnline] = useState<boolean>(false);
@@ -29,6 +33,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose }) =>
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const msgsUnsubRef = useRef<null | (() => void)>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const botNeedsTicket = !claimed && !providedTicketId;
 
   const sessionId = useMemo(() => (uid ? `live_${uid}` : null), [uid]);
   // Offline (bot) local storage keys
@@ -121,7 +126,43 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose }) =>
       return;
     }
 
-    // Offline: use OpenAI callable function, keep local history
+    // If no ticket in bot mode, perform triage and answer simple FAQs; complaint requires ticket
+    if (!providedTicketId) {
+      const userMsg: ChatMsg = { role: 'user', content, ts: Date.now() };
+      setMessages((prev) => {
+        const next = [...prev, userMsg];
+        try { localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next)); } catch {}
+        return next;
+      });
+      try {
+        const res = await triageChat(content);
+        if (res.kind === 'faq' || res.kind === 'general') {
+          const botMsg: ChatMsg = { role: 'assistant', content: res.answer || 'Here to help with any quick questions.', ts: Date.now() };
+          setMessages((prev) => {
+            const next = [...prev, botMsg];
+            try { localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next)); } catch {}
+            return next;
+          });
+        } else {
+          const infoMsg: ChatMsg = { role: 'agent', content: 'This looks like a support issue. Please create a support ticket before we can help.', ts: Date.now() };
+          setMessages((prev) => {
+            const next = [...prev, infoMsg];
+            try { localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next)); } catch {}
+            return next;
+          });
+        }
+      } catch {
+        const errMsg: ChatMsg = { role: 'agent', content: 'Sorry, something went wrong. Please try again later.', ts: Date.now() };
+        setMessages((prev) => {
+          const next = [...prev, errMsg];
+          try { localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next)); } catch {}
+          return next;
+        });
+      }
+      return;
+    }
+
+    // Offline (bot): use OpenAI callable function, keep local history
     const userMsg: ChatMsg = { role: 'user', content, ts: Date.now() };
     setMessages((prev) => {
       const next = [...prev, userMsg];
@@ -226,7 +267,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose }) =>
           <div className="flex items-center gap-3">
             <div className={`h-2.5 w-2.5 rounded-full ${claimed ? 'bg-emerald-500' : 'bg-gray-400'}`} />
             <div className="text-sm font-medium text-gray-800 dark:text-gray-100">
-              {claimed ? 'Human support connected' : 'Awaiting human support'}
+              {claimed ? 'Human support connected' : 'Human support offline'}
             </div>
             {!claimed && (
               <button onClick={requestHuman} className="text-xs px-2 py-1 rounded-full border border-rose-600 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20">
@@ -242,8 +283,22 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose }) =>
             <div className="text-xs text-gray-500">Loading conversation…</div>
           )}
           {!loading && messages.length === 0 && (
-            <div className="text-sm text-gray-700 dark:text-gray-200">
-              {statusOnline ? 'You are connected to our support team. Send your message to start.' : 'Support is currently offline. You can still leave a message and we will reply when we are back online.'}
+            <div className="text-sm text-gray-700 dark:text-gray-200 space-y-2">
+              {claimed ? (
+                <div>You are connected to our support team. Send your message to start.</div>
+              ) : (
+                <>
+                  <div>I'm here to make your life easier. Ask me anything!</div>
+                  {botNeedsTicket && (
+                    <div className="p-2 rounded-md border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+                      You can ask general questions here without a ticket. If you have an issue or complaint, please create a support ticket so our team can assist.
+                      {raiseTicketsHref && (
+                        <a href={raiseTicketsHref} className="ml-2 underline font-medium">Go to Raise Tickets</a>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
           {(() => {
@@ -316,6 +371,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose }) =>
             onClick={onPickImage}
             className="inline-flex items-center justify-center h-9 w-9 rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
             title="Upload image"
+            disabled={botNeedsTicket}
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
               <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm1 12 3.5-4.2a1 1 0 0 1 1.5 0L13 14l2.5-3a1 1 0 0 1 1.5 0L19 14v2H5Zm3-8a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/>
@@ -325,8 +381,9 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose }) =>
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={claimed ? 'Type your message…' : 'Leave a message…'}
+            placeholder={claimed ? 'Type your message…' : 'Ask your question…'}
             className="flex-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none px-3 py-2 rounded-full border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal"
+            disabled={false}
           />
           <button
             type="submit"
