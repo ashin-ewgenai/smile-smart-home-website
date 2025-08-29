@@ -1,10 +1,633 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
+import QuoteDetails from './QuoteDetails';
+
+interface QuoteItem {
+  id: string;
+  userEmail?: string | null;
+  quoteType?: string;
+  status?: string;
+  budget?: string | number;
+  budgetCurrency?: string;
+  createdAt?: Timestamp | null;
+  customerEmail?: string;
+  propertyType?: string;
+  numberOfRooms?: number;
+  devicesRequired?: string[];
+  additionalNotes?: string;
+  newRoomsToAutomate?: string[];
+  roomsAlreadySmart?: string[];
+  timeline?: string;
+}
 
 const EstimationTool: React.FC = () => {
+  const [quotes, setQuotes] = useState<QuoteItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedQuote, setSelectedQuote] = useState<QuoteItem | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    // Basic
+    customerEmail: '',
+    numDevices: 0,
+    discount: 0,
+    estimatedBudget: '',
+    // Quote info
+    quoteId: `Q-${Date.now()}`,
+    status: 'Pending' as 'Pending' | 'Confirmed',
+    issueDate: new Date().toISOString().slice(0, 10),
+    expiryDate: '',
+    // Charges
+    overallDiscount: 0,
+    shippingCharges: 0,
+    installationCharges: 0,
+    // Terms
+    paymentTerms: 'Advance 50% / Balance Net 15',
+    warranty: '',
+    deliveryTimeline: '',
+    notes: ''
+  });
+
+  type LineItem = {
+    id: string;
+    name: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    discount: number; // absolute, optional
+    taxPercent: number; // e.g. 18
+  };
+
+  const [items, setItems] = useState<LineItem[]>([
+    {
+      id: `row-${Date.now()}`,
+      name: '',
+      description: '',
+      quantity: 1,
+      unitPrice: 0,
+      discount: 0,
+      taxPercent: 0
+    }
+  ]);
+
+  const addRow = () => {
+    setItems((prev) => [
+      ...prev,
+      {
+        id: `row-${Date.now()}-${prev.length + 1}`,
+        name: '',
+        description: '',
+        quantity: 1,
+        unitPrice: 0,
+        discount: 0,
+        taxPercent: 0
+      }
+    ]);
+  };
+
+  const removeRow = (id: string) => {
+    setItems((prev) => prev.filter((r) => r.id !== id));
+  };
+
+  const updateRow = (id: string, patch: Partial<LineItem>) => {
+    setItems((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  };
+
+  const calcRow = (r: LineItem) => {
+    const line = Math.max(0, r.quantity * r.unitPrice - (r.discount || 0));
+    const tax = (line * (r.taxPercent || 0)) / 100;
+    return { line, tax, total: line + tax };
+  };
+
+  const totals = React.useMemo(() => {
+    const sub = items.reduce((sum, r) => sum + calcRow(r).line, 0);
+    const taxes = items.reduce((sum, r) => sum + calcRow(r).tax, 0);
+    const afterDiscount = Math.max(0, sub - (createForm.overallDiscount || 0));
+    const grand =
+      afterDiscount +
+      taxes +
+      (createForm.shippingCharges || 0) +
+      (createForm.installationCharges || 0);
+    return {
+      subtotal: sub,
+      taxes,
+      grand
+    };
+  }, [items, createForm.overallDiscount, createForm.shippingCharges, createForm.installationCharges]);
+  const handleQuoteSelect = (quote: QuoteItem) => {
+    setSelectedQuote(quote);
+    // Reset form visibility when selecting a quote
+    setShowCreateForm(false);
+  };
+
+  const handleSendQuote = async () => {
+    if (!selectedQuote?.id) return;
+    
+    try {
+      const quoteRef = doc(db, 'quotes', selectedQuote.id);
+      await updateDoc(quoteRef, {
+        status: 'confirmed',
+        updatedAt: Timestamp.now()
+      });
+      
+      // Update local state
+      setQuotes(quotes.map(quote => 
+        quote.id === selectedQuote.id 
+          ? { ...quote, status: 'confirmed' } 
+          : quote
+      ));
+      
+      // Update selected quote in modal
+      setSelectedQuote({
+        ...selectedQuote,
+        status: 'confirmed'
+      });
+      
+      alert('Quote has been confirmed and sent to the customer.');
+    } catch (error) {
+      console.error('Error updating quote status:', error);
+      alert('Failed to update quote status. Please try again.');
+    }
+  };
+
+
+  useEffect(() => {
+    const fetchQuotes = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Query all documents in the 'quotes' collection, ordered by createdAt
+        const quotesQuery = query(
+          collection(db, 'quotes'),
+          orderBy('createdAt', 'desc')
+        );
+        
+        const querySnapshot = await getDocs(quotesQuery);
+        
+        const quotesData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as QuoteItem[];
+        
+        setQuotes(quotesData.filter(quote => 
+          quote.status && quote.status.toLowerCase() === 'pending'
+        ));
+      } catch (err) {
+        console.error('Error fetching quotes:', err);
+        setError('Failed to load quotes. Please try again later.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchQuotes();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <p className="text-lg text-gray-500 dark:text-gray-400">Loading quotes...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center text-red-500">
+          <p className="text-lg">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex items-center justify-center h-64">
-      <div className="text-center text-gray-500 dark:text-gray-400">
-        <p className="text-lg">Quote management functionality coming soon</p>
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Quote Management</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            {quotes.length} {quotes.length === 1 ? 'quote' : 'quotes'} pending
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <h2 className="text-lg font-medium text-gray-900 dark:text-white">Pending Quotes</h2>
+            </div>
+            {quotes.length === 0 ? (
+              <div className="p-6 text-center">
+                <p className="text-gray-500 dark:text-gray-400">No pending quotes found</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                {quotes.map((quote) => (
+                  <li 
+                    key={quote.id} 
+                    className={`px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
+                      selectedQuote?.id === quote.id ? 'bg-indigo-50 dark:bg-gray-700' : ''
+                    }`}
+                    onClick={() => handleQuoteSelect(quote)}
+                  >
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
+                        <span className="text-indigo-600 dark:text-indigo-300 font-medium">
+                          {quote.customerEmail ? quote.customerEmail.charAt(0).toUpperCase() : 'Q'}
+                        </span>
+                      </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">
+                          {quote.customerEmail || 'No email provided'}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {quote.quoteType || 'No type specified'} • {quote.propertyType || 'No property type'}
+                        </div>
+                      </div>
+                      <div className="ml-auto">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                          {quote.status || 'Pending'}
+                        </span>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {showCreateForm ? (
+          <div className="lg:col-span-3">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <div className="mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Create Quote</h2>
+                <div className="h-1 w-24 bg-indigo-600 rounded" />
+              </div>
+
+              <div className="space-y-8">
+                {/* Quote Information */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Quote Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Quote ID</label>
+                      <input
+                        type="text"
+                        value={createForm.quoteId}
+                        readOnly
+                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm sm:text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
+                      <select
+                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                        value={createForm.status}
+                        onChange={(e) => setCreateForm({ ...createForm, status: e.target.value as any })}
+                      >
+                        {['Pending','Confirmed'].map(s => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Date of Issue</label>
+                      <input
+                        type="date"
+                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                        value={createForm.issueDate}
+                        onChange={(e) => setCreateForm({ ...createForm, issueDate: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Expiry Date</label>
+                      <input
+                        type="date"
+                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                        value={createForm.expiryDate}
+                        onChange={(e) => setCreateForm({ ...createForm, expiryDate: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Customer & quick fields */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Customer & Estimate</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="md:col-span-3">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Customer Email</label>
+                      <input
+                        type="email"
+                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                        value={createForm.customerEmail}
+                        onChange={(e) => setCreateForm({ ...createForm, customerEmail: e.target.value })}
+                        placeholder="customer@example.com"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Products & Services */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Products & Services</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full table-fixed divide-y divide-gray-200 dark:divide-gray-700">
+                      <thead>
+                        <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                          <th className="px-3 py-2 w-56 whitespace-nowrap">Product/Service</th>
+                          <th className="px-3 py-2 w-40 whitespace-nowrap">Description</th>
+                          <th className="px-3 py-2 w-20 whitespace-nowrap">Qty</th>
+                          <th className="px-3 py-2">Unit Price</th>
+                          <th className="px-3 py-2">Discount</th>
+                          <th className="px-3 py-2">Tax %</th>
+                          <th className="px-3 py-2">Subtotal</th>
+                          <th className="px-3 py-2"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {items.map((r) => {
+                          const c = calcRow(r);
+                          return (
+                            <tr key={r.id} className="text-sm">
+                              <td className="px-3 py-2 w-56">
+                                <input
+                                  type="text"
+                                  placeholder="Select or type..."
+                                  className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                                  value={r.name}
+                                  onChange={(e) => updateRow(r.id, { name: e.target.value })}
+                                />
+                              </td>
+                              <td className="px-3 py-2">
+                                <input
+                                  type="text"
+                                  className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                                  value={r.description}
+                                  onChange={(e) => updateRow(r.id, { description: e.target.value })}
+                                />
+                              </td>
+                              <td className="px-3 py-2 w-20">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                                  value={r.quantity}
+                                  onChange={(e) => updateRow(r.id, { quantity: Number(e.target.value) })}
+                                />
+                              </td>
+                              <td className="px-3 py-2 w-28">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                                  value={r.unitPrice}
+                                  onChange={(e) => updateRow(r.id, { unitPrice: Number(e.target.value) })}
+                                />
+                              </td>
+                              <td className="px-3 py-2 w-24">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                                  value={r.discount}
+                                  onChange={(e) => updateRow(r.id, { discount: Number(e.target.value) })}
+                                />
+                              </td>
+                              <td className="px-3 py-2 w-32">
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white sm:text-sm"
+                                  value={r.taxPercent}
+                                  onChange={(e) => updateRow(r.id, { taxPercent: Number(e.target.value) })}
+                                />
+                              </td>
+                              <td className="px-3 py-2 whitespace-nowrap w-28 text-gray-900 dark:text-gray-100">{(c.total).toFixed(2)}</td>
+                              <td className="px-3 py-2 text-right">
+                                <button
+                                  type="button"
+                                  className="text-red-600 hover:text-red-700 p-1"
+                                  onClick={() => removeRow(r.id)}
+                                  aria-label="Delete row"
+                                  title="Delete"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+                                    <path fillRule="evenodd" d="M9 3.75A2.25 2.25 0 0 1 11.25 1.5h1.5A2.25 2.25 0 0 1 15 3.75V4.5h3.75a.75.75 0 0 1 0 1.5h-.71l-1.03 12.004A3.75 3.75 0 0 1 13.27 21H10.73a3.75 3.75 0 0 1-3.74-2.996L5.96 6H5.25a.75.75 0 0 1 0-1.5H9V3.75Zm1.5.75h3V3.75a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75V4.5Zm-2.97 1.5 1.02 11.88a2.25 2.25 0 0 0 2.22 1.995h2.54a2.25 2.25 0 0 0 2.22-1.995L18.47 6H7.53ZM9.75 9a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0v-6a.75.75 0 0 1 .75-.75Zm4.5 0a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0v-6a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      className="inline-flex justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      onClick={addRow}
+                    >
+                      Add Device
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pricing Summary */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Pricing Summary</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-300">Subtotal</span>
+                        <span className="text-gray-900 dark:text-white font-medium">{totals.subtotal.toFixed(2)}</span>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Overall Discount</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                          value={createForm.overallDiscount}
+                          onChange={(e) => setCreateForm({ ...createForm, overallDiscount: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-600 dark:text-gray-300">Taxes</span>
+                        <span className="text-gray-900 dark:text-white font-medium">{totals.taxes.toFixed(2)}</span>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Shipping/Delivery Charges</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                          value={createForm.shippingCharges}
+                          onChange={(e) => setCreateForm({ ...createForm, shippingCharges: Number(e.target.value) })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Installation/Service Charges</label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                          value={createForm.installationCharges}
+                          onChange={(e) => setCreateForm({ ...createForm, installationCharges: Number(e.target.value) })}
+                        />
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 dark:bg-gray-700 rounded-md p-4 flex items-center justify-between">
+                      <span className="text-base font-medium text-gray-900 dark:text-white">Grand Total</span>
+                      <span className="text-xl font-semibold text-indigo-600">{totals.grand.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Terms & Conditions */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Terms & Conditions</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Payment Terms</label>
+                      <select
+                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                        value={createForm.paymentTerms}
+                        onChange={(e) => setCreateForm({ ...createForm, paymentTerms: e.target.value })}
+                      >
+                        <option>Advance 50% / Balance Net 15</option>
+                        <option>Advance 30% / Balance Net 30</option>
+                        <option>Net 15</option>
+                        <option>Net 30</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Warranty / Support</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                        value={createForm.warranty}
+                        onChange={(e) => setCreateForm({ ...createForm, warranty: e.target.value })}
+                        placeholder="e.g., 1 year standard warranty"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Delivery Timeline</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                        value={createForm.deliveryTimeline}
+                        onChange={(e) => setCreateForm({ ...createForm, deliveryTimeline: e.target.value })}
+                        placeholder="e.g., 2-3 weeks from order"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
+                      <textarea
+                        rows={4}
+                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                        value={createForm.notes}
+                        onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Attachments */}
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Attachments</h3>
+                  <input type="file" multiple className="block w-full text-sm text-gray-700 dark:text-gray-300" />
+                </div>
+
+                {/* Actions */}
+                <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-wrap gap-3">
+                  <button type="button" className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Save as Draft</button>
+                  <button type="button" className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 hover:bg-indigo-200">Preview Quote</button>
+                  <button
+                    type="button"
+                    className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500"
+                    onClick={() => {
+                      console.log('Send to customer', { createForm, items, totals });
+                    }}
+                  >
+                    Send to Customer
+                  </button>
+                  <button type="button" className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Download PDF</button>
+                  <div className="ml-auto">
+                    <button
+                      type="button"
+                      className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      onClick={() => setShowCreateForm(false)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          selectedQuote && (
+            <div className="lg:col-span-2">
+              <QuoteDetails 
+                quote={selectedQuote!} 
+                onCreateQuote={() => {
+                  if (!selectedQuote) return;
+                  setShowCreateForm(true);
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    customerEmail: selectedQuote.customerEmail || '',
+                    numDevices: selectedQuote.devicesRequired?.length || 0,
+                    discount: 0,
+                    estimatedBudget: String(selectedQuote.budget ?? '')
+                  }));
+                  // Pre-populate line items from devicesRequired
+                  const devices = selectedQuote.devicesRequired || [];
+                  if (devices.length > 0) {
+                    setItems(
+                      devices.map((device, idx) => ({
+                        id: `row-${Date.now()}-${idx}`,
+                        name: device,
+                        description: '',
+                        quantity: 1,
+                        unitPrice: 0,
+                        discount: 0,
+                        taxPercent: 0,
+                      }))
+                    );
+                  } else {
+                    // Ensure at least one empty row
+                    setItems([
+                      {
+                        id: `row-${Date.now()}`,
+                        name: '',
+                        description: '',
+                        quantity: 1,
+                        unitPrice: 0,
+                        discount: 0,
+                        taxPercent: 0,
+                      },
+                    ]);
+                  }
+                }} 
+              />
+            </div>
+          )
+        )}
       </div>
     </div>
   );
