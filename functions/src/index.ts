@@ -59,8 +59,8 @@ Output strict JSON: {"kind":"faq|general|complaint","answer":"..."?}`;
   const body = {
     model: "gpt-4o-mini",
     messages: [
-      { role: "system", content: system },
-      { role: "user", content: message },
+      {role: "system", content: system},
+      {role: "user", content: message},
     ],
     temperature: 0.2,
     max_tokens: 200,
@@ -69,7 +69,7 @@ Output strict JSON: {"kind":"faq|general|complaint","answer":"..."?}`;
   try {
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      headers: {"Content-Type": "application/json", "Authorization": `Bearer ${apiKey}`},
       body: JSON.stringify(body),
     } as RequestInit);
     if (!resp.ok) throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
@@ -77,7 +77,7 @@ Output strict JSON: {"kind":"faq|general|complaint","answer":"..."?}`;
     const content: string | undefined = data?.choices?.[0]?.message?.content;
     if (!content) {
       // Fallback conservative response
-      return { kind: "complaint" } as const;
+      return {kind: "complaint"} as const;
     }
     // Try to parse JSON strictly; if it fails, default to complaint
     let parsed: { kind?: string; answer?: string } = {};
@@ -87,15 +87,17 @@ Output strict JSON: {"kind":"faq|general|complaint","answer":"..."?}`;
       // Sometimes models wrap JSON with text; attempt to extract
       const m = content.match(/\{[\s\S]*\}/);
       if (m) {
-        try { parsed = JSON.parse(m[0]); } catch {}
+        try {
+          parsed = JSON.parse(m[0]);
+        } catch {}
       }
     }
     const kind = (parsed.kind === "faq" || parsed.kind === "general" || parsed.kind === "complaint") ? parsed.kind : "complaint";
     if (kind === "faq" || kind === "general") {
       const answer = typeof parsed.answer === "string" && parsed.answer.trim() ? parsed.answer.trim() : "";
-      return { kind, answer } as const;
+      return {kind, answer} as const;
     }
-    return { kind: "complaint" } as const;
+    return {kind: "complaint"} as const;
   } catch (e) {
     const err = e as { message?: string };
     throw new HttpsError("internal", err?.message || "Triage failed");
@@ -553,13 +555,13 @@ export const analyzeComplaint = onCall({secrets: [OPENAI_API_KEY]}, async (reque
   const prompt = `You are a support triage assistant. Summarize the user complaint in 1-2 concise sentences and list likely root causes as bullet points (max 4).\n\nComplaint:\n${t.complaint}`;
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: "gpt-4o-mini", messages: [ { role: "user", content: prompt } ], temperature: 0.2, max_tokens: 250 }),
+    headers: {"Content-Type": "application/json", "Authorization": `Bearer ${apiKey}`},
+    body: JSON.stringify({model: "gpt-4o-mini", messages: [{role: "user", content: prompt}], temperature: 0.2, max_tokens: 250}),
   } as RequestInit);
   if (!resp.ok) throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
   const data = await resp.json();
   const content: string | undefined = data?.choices?.[0]?.message?.content;
-  return { analysis: content || "" };
+  return {analysis: content || ""};
 });
 
 /** Request serial image: increments attempts and enforces max 2 attempts per ticket. */
@@ -570,7 +572,7 @@ export const requestSerialImage = onCall(async (request) => {
   if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
 
   const ref = db.collection("tickets").doc(ticketId);
-  let attempts: number = 0;
+  let attempts = 0;
   await db.runTransaction(async (tx) => {
     const s = await tx.get(ref);
     if (!s.exists) throw new HttpsError("not-found", "Ticket not found");
@@ -578,9 +580,9 @@ export const requestSerialImage = onCall(async (request) => {
     if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
     attempts = Number(t.imageUploadAttempts || 0);
     if (attempts >= 2) throw new HttpsError("failed-precondition", "Max image uploads reached");
-    tx.set(ref, { imageUploadAttempts: attempts + 1, updatedAt: Date.now() }, { merge: true });
+    tx.set(ref, {imageUploadAttempts: attempts + 1, updatedAt: Date.now()}, {merge: true});
   });
-  return { allowed: true, remaining: Math.max(0, 2 - (attempts + 1)) };
+  return {allowed: true, remaining: Math.max(0, 2 - (attempts + 1))};
 });
 
 /** Extract serial number from an image URL using OpenAI Vision (gpt-4o). */
@@ -604,16 +606,16 @@ export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY]}, async 
     {
       role: "user",
       content: [
-        { type: "text", text: "Extract the product serial number visible in this image. Return only the serial string. If unclear, say: NONE" },
-        { type: "image_url", image_url: { url: imageUrl } },
+        {type: "text", text: "Extract the product serial number visible in this image. Return only the serial string. If unclear, say: NONE"},
+        {type: "image_url", image_url: {url: imageUrl}},
       ],
     },
   ];
 
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: "gpt-4o", messages, temperature: 0.0, max_tokens: 50 }),
+    headers: {"Content-Type": "application/json", "Authorization": `Bearer ${apiKey}`},
+    body: JSON.stringify({model: "gpt-4o", messages, temperature: 0.0, max_tokens: 50}),
   } as RequestInit);
   if (!resp.ok) throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
   const data = await resp.json();
@@ -621,11 +623,11 @@ export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY]}, async 
   const serial = content === "NONE" ? "" : content.replace(/[^A-Za-z0-9\-\/_]/g, "").slice(0, 64);
 
   if (!serial) {
-    return { serial: null };
+    return {serial: null};
   }
 
-  await tRef.set({ deviceSerial: serial, updatedAt: Date.now() }, { merge: true });
-  return { serial };
+  await tRef.set({deviceSerial: serial, updatedAt: Date.now()}, {merge: true});
+  return {serial};
 });
 
 /** Verify serial belongs to the user and fetch documentation links by deviceType. */
@@ -645,20 +647,20 @@ export const verifySerialAndFetchDocs = onCall(async (request) => {
   // Devices keyed by serial for quick lookups
   const devSnap = await db.collection("devices").doc(serial).get();
   if (!devSnap.exists) {
-    return { valid: false, message: "This product is not recognized." };
+    return {valid: false, message: "This product is not recognized."};
   }
   const dev = devSnap.data() as any;
   if (dev.ownerUid !== authCtx.uid) {
-    return { valid: false, message: "This product is not recognized." };
+    return {valid: false, message: "This product is not recognized."};
   }
 
   const deviceType: string = dev.deviceType || "generic";
-  await tRef.set({ deviceSerial: serial, deviceType, updatedAt: Date.now() }, { merge: true });
+  await tRef.set({deviceSerial: serial, deviceType, updatedAt: Date.now()}, {merge: true});
 
   // Fetch docs
   const docsSnap = await db.collection("product_docs").doc(deviceType).get();
   const links: string[] = (docsSnap.exists ? (docsSnap.data()?.links as string[]) : []) || [];
-  return { valid: true, deviceType, links };
+  return {valid: true, deviceType, links};
 });
 
 /** Suggest a troubleshooting step based on docs and complaint using OpenAI. */
@@ -680,21 +682,21 @@ export const suggestTroubleshootingStep = onCall({secrets: [OPENAI_API_KEY]}, as
 
   const attempt = Number(t.troubleshootingAttempts || 0);
   if (attempt >= 3) {
-    return { done: true, message: "Max troubleshooting attempts reached." };
+    return {done: true, message: "Max troubleshooting attempts reached."};
   }
 
   const prompt = `You are a device troubleshooting assistant. Based on the user's complaint and the provided documentation links, suggest one precise next step they can try now. Keep it under 80 words and actionable.\n\nComplaint: ${t.complaint}\nDocs: ${docs.join("\n")}`;
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: "gpt-4o-mini", messages: [ { role: "user", content: prompt } ], temperature: 0.2, max_tokens: 180 }),
+    headers: {"Content-Type": "application/json", "Authorization": `Bearer ${apiKey}`},
+    body: JSON.stringify({model: "gpt-4o-mini", messages: [{role: "user", content: prompt}], temperature: 0.2, max_tokens: 180}),
   } as RequestInit);
   if (!resp.ok) throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
   const data = await resp.json();
   const suggestion: string = (data?.choices?.[0]?.message?.content || "").trim();
 
-  await tRef.set({ troubleshootingAttempts: attempt + 1, lastSuggestion: suggestion, updatedAt: Date.now() }, { merge: true });
-  return { done: false, attempt: attempt + 1, suggestion };
+  await tRef.set({troubleshootingAttempts: attempt + 1, lastSuggestion: suggestion, updatedAt: Date.now()}, {merge: true});
+  return {done: false, attempt: attempt + 1, suggestion};
 });
 
 /** Mark resolved or escalate to human and notify admins. */
@@ -713,20 +715,20 @@ export const resolveOrEscalate = onCall(async (request) => {
 
   const now = Date.now();
   if (solved) {
-    await tRef.set({ status: "resolved", updatedAt: now }, { merge: true });
-    return { status: "resolved" };
+    await tRef.set({status: "resolved", updatedAt: now}, {merge: true});
+    return {status: "resolved"};
   }
 
   // Not solved -> escalate
-  await tRef.set({ status: "escalated", updatedAt: now }, { merge: true });
+  await tRef.set({status: "escalated", updatedAt: now}, {merge: true});
   await db.collection("admin_notifications").add({
     type: "ticket_escalated",
     ticketId,
     ownerUid: authCtx.uid,
     createdAt: now,
-    payload: { lastSuggestion: t.lastSuggestion || null, deviceSerial: t.deviceSerial || null },
+    payload: {lastSuggestion: t.lastSuggestion || null, deviceSerial: t.deviceSerial || null},
   });
-  return { status: "escalated" };
+  return {status: "escalated"};
 });
 
 /** Admin closes a ticket manually. Requires Super Admin or Admin role. */
@@ -742,8 +744,8 @@ export const adminCloseTicket = onCall(async (request) => {
   if (role !== "Super Admin" && role !== "Admin") {
     throw new HttpsError("permission-denied", "Only admins can close tickets");
   }
-  await db.collection("tickets").doc(ticketId).set({ status: "closed", updatedAt: Date.now() }, { merge: true });
-  return { status: "closed" };
+  await db.collection("tickets").doc(ticketId).set({status: "closed", updatedAt: Date.now()}, {merge: true});
+  return {status: "closed"};
 });
 
 /** Optional: record user feedback after resolution. */
@@ -761,7 +763,7 @@ export const recordTicketFeedback = onCall(async (request) => {
   const t = s.data() as any;
   if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
 
-  await tRef.collection("feedback").add({ rating, comment, ts: Date.now() });
-  return { ok: true };
+  await tRef.collection("feedback").add({rating, comment, ts: Date.now()});
+  return {ok: true};
 });
 
