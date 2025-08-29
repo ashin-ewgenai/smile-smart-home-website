@@ -729,27 +729,20 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 <button onClick={closeDetails} className="text-gray-300 hover:text-white">✕</button>
               </div>
               <div className="space-y-2 text-sm">
+                {/* Subheader meta under title */}
+                <div className="text-gray-400 flex items-center gap-2 mb-2">
+                  <span>📅</span>
+                  <span className="font-medium">Created</span>
+                  <span className="text-gray-200">{fmtPretty(dateFrom(selected.data?.createdAt ?? selected.data?.created_at ?? selected.data?.ts))}</span>
+                </div>
+
+                {/* Top info grid */}
                 <div className="grid grid-cols-3 gap-2">
                   <div className="text-gray-400 flex items-center gap-1">🆔 <span>Request ID</span></div>
                   <div className="col-span-2 text-gray-100 break-all">{selected.id}</div>
-                  <div className="text-gray-400 flex items-center gap-1">📅 <span>Created</span></div>
-                  <div className="col-span-2 text-gray-100">{fmtPretty(dateFrom(selected.data?.createdAt ?? selected.data?.created_at ?? selected.data?.ts))}</div>
-                  <div className="text-gray-400 flex items-center gap-1">🏷️ <span>Status</span></div>
-                  <div className="col-span-2">
-                    {selected.type === 'services' || selected.type === 'tickets' ? (
-                      <StatusChangeButton
-                        value={editStatus}
-                        options={statusOptionsByType[selected.type]}
-                        onChange={setEditStatus}
-                        onSave={saveStatus}
-                        saving={saving}
-                      />
-                    ) : (
-                      statusBadge(selected.data?.status ?? selected.data?.Status)
-                    )}
-                  </div>
+                  {/* Created & Status moved out of this grid */}
                 </div>
-              
+
               {/* Details section */}
               <div className="mt-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -768,6 +761,27 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     </a>
                   </div>
                 )}
+              </div>
+
+              {/* Bottom status control */}
+              <div className="mt-6 border-t border-gray-700 pt-4">
+                <div className="text-gray-400 flex items-center gap-2 mb-2">
+                  <span>🏷️</span>
+                  <span className="font-medium">Status</span>
+                </div>
+                <div>
+                  {selected.type === 'services' || selected.type === 'tickets' ? (
+                    <StatusChangeButton
+                      value={editStatus}
+                      options={statusOptionsByType[selected.type]}
+                      onChange={setEditStatus}
+                      onSave={saveStatus}
+                      saving={saving}
+                    />
+                  ) : (
+                    statusBadge(selected.data?.status ?? selected.data?.Status)
+                  )}
+                </div>
               </div>
 
               {selected.type === 'quotes' && estimation && (
