@@ -90,11 +90,14 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, estimation,
       const afterDiscount = Math.max(0, subtotal - overallDiscount);
       const grandTotal = afterDiscount + taxes + shippingCharges + installationCharges;
 
+      const isCreate = !estimation;
+      const statusForEstimation = isCreate ? 'Confirmed' : (draft.status || 'Confirmed');
+
       const payload = estimationQuotePayload({
         quoteId: draft.id || draft.quoteId || `Q-${selected.id}`,
         originalQuoteId: draft.originalQuoteId || selected.id,
         customerEmail: draft.customerEmail || accountEmail || selected.data?.userEmail || '',
-        status: draft.status || 'Pending',
+        status: statusForEstimation,
         issueDate: draft.issueDate,
         expiryDate: draft.expiryDate,
         items,
@@ -129,7 +132,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, estimation,
       quoteId: newId,
       originalQuoteId: selected.id,
       customerEmail: accountEmail || selected.data?.userEmail || '',
-      status: 'Pending',
+      status: 'Confirmed',
       issueDate: new Date().toISOString().slice(0, 10),
       expiryDate: '',
       items: [

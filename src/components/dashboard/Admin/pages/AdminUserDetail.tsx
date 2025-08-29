@@ -882,7 +882,38 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                   selected={selected as any}
                   accountEmail={account?.Email}
                   estimation={estimation}
-                  onSaved={(saved) => { setEstimation(saved); }}
+                  onSaved={async (saved) => {
+                    setEstimation(saved);
+                    try {
+                      if (selected?.type !== 'quotes') return;
+                      const isFlat = !!(selected?.data?.userUid || selected?.data?.uid);
+                      const estId = saved?.id || saved?.quoteId;
+                      if (isFlat) {
+                        // Flat quotes collection
+                        await updateDoc(doc(db, 'quotes', selected.id), {
+                          status: 'Confirmed',
+                          hasEstimation: true,
+                          estimationQuoteId: estId,
+                          updatedAt: Timestamp.now(),
+                        } as any);
+                      } else if (account?.id) {
+                        // Nested quotes under user
+                        await updateDoc(quoteDoc(db, account.id, selected.id) as any, {
+                          status: 'confirmed',
+                          hasEstimation: true,
+                          estimationQuoteId: estId,
+                          updatedAt: Timestamp.now(),
+                        } as any);
+                      }
+
+                      // Sync local UI state
+                      const newStatus = isFlat ? 'Confirmed' : 'confirmed';
+                      setQuotes((prev) => (prev || []).map((q) => q.id === selected.id ? { ...q, status: newStatus, hasEstimation: true, estimationQuoteId: estId } : q));
+                      setSelected((s) => s ? { ...s, data: { ...s.data, status: newStatus, hasEstimation: true, estimationQuoteId: estId } } : s);
+                    } catch (e) {
+                      console.error('Failed to update quote status after estimation save:', e);
+                    }
+                  }}
                 />
               )}
               </div>
