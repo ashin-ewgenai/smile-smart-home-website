@@ -105,28 +105,8 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       !Astro.url.pathname.startsWith('/admin') &&
       Astro.url.pathname !== '/admin_login'
     ) && <ConsultationPopup client:load />}
+    <script type="module" src="../lib/lenis-init.ts"></script>
     <script type="module">
-      // Initialize smooth scrolling with Lenis
-      import Lenis from 'lenis';
-      
-      const lenis = new Lenis({
-        duration: 1.2,
-        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-        direction: 'vertical',
-        gestureDirection: 'vertical',
-        smooth: true,
-        smoothTouch: false,
-        touchMultiplier: 2,
-        infinite: false,
-      });
-      
-      function raf(time) {
-        lenis.raf(time);
-        requestAnimationFrame(raf);
-      }
-      
-      requestAnimationFrame(raf);
-      
       // Initialize animations
       import { inViewReveal, scrollProgress, magneticButton } from '../lib/animate';
       
@@ -147,7 +127,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
         // Respect reduced motion preference
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (prefersReducedMotion) {
-          lenis.destroy();
+          // lenis.destroy(); // Removed this line as lenis is not defined here
         }
       });
     </script>

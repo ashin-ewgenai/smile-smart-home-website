@@ -76,6 +76,27 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Public contact form submissions: create-only into contactRequests
+    // Anyone (including unauthenticated) may create a request, but no reads/updates/deletes
+    match /contactRequests/{docId} {
+      allow create: if isValidContactRequest();
+      allow read, update, delete: if false;
+
+      function isValidContactRequest() {
+        // Only allow these fields
+        return request.resource.data.keys().hasOnly(['fullName','email','phone','message','createdAt','status','service'])
+          // Required fields and types
+          && (request.resource.data.fullName is string && request.resource.data.fullName.size() > 0)
+          && (request.resource.data.email is string && request.resource.data.email.size() > 0)
+          && (request.resource.data.message is string && request.resource.data.message.size() > 0)
+          && (request.resource.data.createdAt is timestamp)
+          && (request.resource.data.status == 'pending')
+          // Optional fields if present must be strings or null
+          && (!request.resource.data.keys().hasAny(['phone']) || request.resource.data.phone is string || request.resource.data.phone == null)
+          && (!request.resource.data.keys().hasAny(['service']) || request.resource.data.service is string || request.resource.data.service == null);
+      }
+    }
+
     function isAdmin() {
       return exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) &&
              get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role in ['Admin','SuperAdmin','Owner','Manager','Support'];

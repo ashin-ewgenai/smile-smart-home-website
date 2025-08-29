@@ -24,6 +24,11 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [account, setAccount] = useState<any | null>(null);
+  // Contact requests (for User Details landing)
+  const [contactRequests, setContactRequests] = useState<any[]>([]);
+  const [loadingContactRequests, setLoadingContactRequests] = useState<boolean>(false);
+  const [openIds, setOpenIds] = useState<Record<string, boolean>>({});
+  const toggleOpen = (id: string) => setOpenIds((prev) => ({ ...prev, [id]: !prev[id] }));
 
   // Related docs
   const [quotes, setQuotes] = useState<any[] | null>(null);
@@ -103,6 +108,29 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         unsubscribe();
       }
     };
+  }, [email]);
+
+  // When no email is provided, show a real-time list of contactRequests (new user submissions)
+  useEffect(() => {
+    if (email) return; // Only run when viewing the general User Details list
+    setLoadingContactRequests(true);
+    const ref = collection(db, 'contactRequests');
+    // Order newest first if createdAt exists
+    let unsubscribe = onSnapshot(ref, (snap) => {
+      const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      // sort locally by createdAt desc to avoid requiring index
+      rows.sort((a: any, b: any) => {
+        const da = (a?.createdAt as any)?.toMillis?.() ?? (a?.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+        const dbv = (b?.createdAt as any)?.toMillis?.() ?? (b?.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+        return dbv - da;
+      });
+      setContactRequests(rows);
+      setLoadingContactRequests(false);
+    }, (err) => {
+      console.error('contactRequests onSnapshot error:', err);
+      setLoadingContactRequests(false);
+    });
+    return () => unsubscribe();
   }, [email]);
 
   // Fetch devices when account changes
@@ -372,7 +400,71 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       {/* Profile card */}
       <div className="max-w-6xl mx-auto mt-4">
         <div className="bg-gray-800/80 backdrop-blur rounded-xl shadow-lg border border-gray-700 p-6">
-          {!email && <div className="text-gray-300">Missing userEmail in URL.</div>}
+          {!email && (
+            <div className="space-y-4">
+              {loadingContactRequests && <div className="text-gray-300">Loading...</div>}
+              {!loadingContactRequests && contactRequests.length === 0 && (
+                <div className="text-gray-300">No contact requests.</div>
+              )}
+              {!loadingContactRequests && contactRequests.length > 0 && (
+                <div className="rounded-xl border border-gray-800 bg-gray-900/50 divide-y divide-gray-800">
+                  {contactRequests.map((r: any) => {
+                    const id = r.id as string;
+                    const isOpen = !!openIds[id];
+                    return (
+                      <div key={id} className="p-6 flex flex-col gap-3">
+                        <button
+                          type="button"
+                          className="text-left text-sm text-gray-400 hover:text-gray-200 flex items-center gap-2 focus:outline-none"
+                          aria-expanded={isOpen}
+                          aria-controls={`contact-panel-${id}`}
+                          onClick={() => toggleOpen(id)}
+                        >
+                          <span
+                            className={`transition-transform duration-200 inline-block ${isOpen ? 'rotate-90' : 'rotate-0'}`}
+                            aria-hidden="true"
+                          >
+                            ▶
+                          </span>
+                          <span>{r.email || '—'}</span>
+                        </button>
+                        {isOpen && (
+                          <div id={`contact-panel-${id}`} className="text-sm text-gray-300 pl-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                              <div>
+                                <div className="text-gray-400">Full Name</div>
+                                <div className="text-gray-100">{r.fullName || '—'}</div>
+                              </div>
+                              <div>
+                                <div className="text-gray-400">Email</div>
+                                <div className="text-gray-100 break-all">{r.email || '—'}</div>
+                              </div>
+                              <div>
+                                <div className="text-gray-400">Phone</div>
+                                <div className="text-gray-100">{r.phone || '—'}</div>
+                              </div>
+                              <div>
+                                <div className="text-gray-400">Service</div>
+                                <div className="text-gray-100">{r.service || '—'}</div>
+                              </div>
+                              <div className="sm:col-span-2">
+                                <div className="text-gray-400">Message</div>
+                                <div className="text-gray-100 whitespace-pre-wrap break-words">{r.message || '—'}</div>
+                              </div>
+                              <div>
+                                <div className="text-gray-400">Created</div>
+                                <div className="text-gray-100">{fmt(dateFrom(r.createdAt))}</div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
           {email && loading && <div className="text-gray-300">Loading...</div>}
           {error && <div className="text-red-400">{error}</div>}
           {!loading && !error && account && (

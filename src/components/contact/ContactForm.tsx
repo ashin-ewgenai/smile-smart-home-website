@@ -1,10 +1,16 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { contactMessagesCollection, contactMessagePayload } from '../../models';
-import type { ContactMessageInput } from '../../models';
 import { db } from '../../lib/firebase';
-import { addDoc } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
-const initialState: ContactMessageInput = {
+type ContactFormState = {
+  name: string;
+  email: string;
+  phone: string;
+  service: string;
+  message: string;
+};
+
+const initialState: ContactFormState = {
   name: '',
   email: '',
   phone: '',
@@ -13,8 +19,10 @@ const initialState: ContactMessageInput = {
 };
 
 export default function ContactForm() {
-  const [values, setValues] = useState<ContactMessageInput>(initialState);
+  const [values, setValues] = useState<ContactFormState>(initialState);
   const [submitting, setSubmitting] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string>('');
+  const [errorMsg, setErrorMsg] = useState<string>('');
 
   const canSubmit = useMemo(() => {
     return (
@@ -37,13 +45,24 @@ export default function ContactForm() {
       e.preventDefault();
       if (!canSubmit || submitting) return;
       setSubmitting(true);
+      setSuccessMsg('');
+      setErrorMsg('');
       try {
-        await addDoc(contactMessagesCollection(db), contactMessagePayload(values));
-        alert("Thank you! Your message has been sent. We'll get back to you soon.");
+        // Write to contactRequests with required fields
+        await addDoc(collection(db, 'contactRequests'), {
+          fullName: values.name.trim(),
+          email: values.email.trim().toLowerCase(),
+          phone: values.phone.trim(),
+          message: values.message.trim(),
+          createdAt: serverTimestamp(),
+          status: 'pending',
+          service: values.service || null,
+        });
+        setSuccessMsg('your data submitted successfully');
         setValues(initialState);
       } catch (err) {
         console.error('Contact form save failed:', err);
-        alert('Sorry, there was an error sending your message. Please try again.');
+        setErrorMsg('Sorry, there was an error sending your message. Please try again.');
       } finally {
         setSubmitting(false);
       }
@@ -142,6 +161,13 @@ export default function ContactForm() {
       <button type="submit" className="btn-primary w-full btn-magnetic disabled:opacity-60 disabled:cursor-not-allowed" disabled={!canSubmit || submitting}>
         {submitting ? 'Sending…' : 'Send Message'}
       </button>
+
+      {successMsg && (
+        <p className="text-green-600 dark:text-green-400 text-sm" role="status">{successMsg}</p>
+      )}
+      {errorMsg && (
+        <p className="text-red-600 dark:text-red-400 text-sm" role="alert">{errorMsg}</p>
+      )}
     </form>
   );
 }
