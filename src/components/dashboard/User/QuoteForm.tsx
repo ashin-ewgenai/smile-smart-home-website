@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { auth, db } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
 import type { DocumentData } from 'firebase/firestore';
 
 // ... (existing imports)
@@ -135,6 +135,42 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
   const [quotesError, setQuotesError] = useState<string | null>(null);
   const [showOldQuotes, setShowOldQuotes] = useState(false);
   const [currentUid, setCurrentUid] = useState<string | null>(auth.currentUser?.uid ?? null);
+
+  // Modal state for viewing a quote + estimation
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedQuote, setSelectedQuote] = useState<QuoteDoc | null>(null);
+  const [estimation, setEstimation] = useState<any | null>(null);
+  const [estLoading, setEstLoading] = useState(false);
+
+  const openQuoteModal = async (q: QuoteDoc) => {
+    setSelectedQuote(q);
+    setModalOpen(true);
+    setEstimation(null);
+    setEstLoading(true);
+    try {
+      // Lookup admin estimation by originalQuoteId
+      const qRef = query(
+        collection(db, 'Estimation Quote'),
+        where('originalQuoteId', '==', q.id),
+        limit(1)
+      );
+      const snap = await getDocs(qRef);
+      if (!snap.empty) {
+        setEstimation(snap.docs[0].data());
+      } else if ((q as any).estimationQuoteId) {
+        // fallback: if quote stored a direct estimation id, try fetch by that id
+        try {
+          const direct = await getDocs(query(collection(db, 'Estimation Quote'), where('quoteId', '==', (q as any).estimationQuoteId), limit(1)));
+          if (!direct.empty) setEstimation(direct.docs[0].data());
+        } catch {}
+      }
+    } catch {}
+    finally {
+      setEstLoading(false);
+    }
+  };
+
+  const closeModal = () => { setModalOpen(false); setSelectedQuote(null); setEstimation(null); };
 
   // Local toast notifications
   const [toasts, setToasts] = useState<Array<{ id: number; message: string; entering: boolean }>>([]);
@@ -732,7 +768,14 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                 : null;
               const bill = q.bill as any;
               return (
-                <div key={q.id} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-4">
+                <div
+                  key={q.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openQuoteModal(q)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') openQuoteModal(q); }}
+                  className="cursor-pointer rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                >
                   <div className="flex flex-wrap items-center gap-3 justify-between">
                     <div className="space-y-0.5">
                       <div className="font-semibold">{q.quoteType || 'Quote'}</div>
@@ -782,6 +825,106 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
           </div>
         )}
       </div>
+
+      {/* Quote Details Modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={closeModal} />
+          <div className="relative z-[61] w-full max-w-3xl rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold">Quote Details</h3>
+              <button onClick={closeModal} className="rounded px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Close">×</button>
+            </div>
+            <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
+              {selectedQuote ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <div><div className="text-gray-500">Type</div><div className="font-medium">{selectedQuote.quoteType || 'Quote'}</div></div>
+                    <div><div className="text-gray-500">Status</div><div className="font-medium">{selectedQuote.status || 'Pending'}</div></div>
+                    <div><div className="text-gray-500">Budget</div><div className="font-medium">{selectedQuote.budgetCurrency || 'INR'} {selectedQuote.budget || ''}</div></div>
+                    <div><div className="text-gray-500">Created</div><div className="font-medium">{(selectedQuote.createdAt as any)?.seconds ? new Date((selectedQuote.createdAt as any).seconds * 1000).toLocaleString() : '—'}</div></div>
+                  </div>
+                  {selectedQuote.details && (
+                    <div className="text-sm"><div className="text-gray-500">Details</div><div className="mt-1 whitespace-pre-line">{selectedQuote.details}</div></div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">No quote selected.</div>
+              )}
+
+              <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                <h4 className="font-semibold">Admin Estimation</h4>
+                {estLoading && (<div className="mt-2 text-sm text-gray-500">Loading estimation…</div>)}
+                {!estLoading && !estimation && (<div className="mt-2 text-sm text-gray-500">No estimation available yet.</div>)}
+                {!estLoading && estimation && (
+                  <div className="mt-3 space-y-3 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div><div className="text-gray-500">Estimation ID</div><div className="font-medium">{estimation.quoteId || estimation.id || ''}</div></div>
+                      <div><div className="text-gray-500">Status</div><div className="font-medium">{estimation.status}</div></div>
+                      <div><div className="text-gray-500">Issue Date</div><div className="font-medium">{typeof estimation.issueDate === 'string' ? estimation.issueDate : (estimation.issueDate?.toDate ? estimation.issueDate.toDate().toLocaleDateString() : '')}</div></div>
+                      <div><div className="text-gray-500">Grand Total</div><div className="font-medium">₹ {Number(estimation.grandTotal || 0).toFixed(2)}</div></div>
+                    </div>
+                    {Array.isArray(estimation.items) && estimation.items.length > 0 && (
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-xs sm:text-sm">
+                          <thead>
+                            <tr className="text-left text-gray-500">
+                              <th className="py-1 pr-3">Item</th>
+                              <th className="py-1 pr-3 hidden md:table-cell">Description</th>
+                              <th className="py-1 pr-3">Qty</th>
+                              <th className="py-1 pr-3">Unit</th>
+                              <th className="py-1 pr-3 hidden lg:table-cell">Discount</th>
+                              <th className="py-1 pr-3 hidden lg:table-cell">Tax %</th>
+                              <th className="py-1">Total</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                            {estimation.items.map((it: any) => {
+                              const line = Math.max(0, (it.quantity || 0) * (it.unitPrice || 0) - (it.discount || 0));
+                              const tax = (line * (it.taxPercent || 0)) / 100;
+                              const total = line + tax;
+                              return (
+                                <tr key={it.id}>
+                                  <td className="py-1 pr-3">{it.name}</td>
+                                  <td className="py-1 pr-3 hidden md:table-cell">{it.description}</td>
+                                  <td className="py-1 pr-3">{it.quantity}</td>
+                                  <td className="py-1 pr-3">{it.unitPrice}</td>
+                                  <td className="py-1 pr-3 hidden lg:table-cell">{it.discount}</td>
+                                  <td className="py-1 pr-3 hidden lg:table-cell">{it.taxPercent}</td>
+                                  <td className="py-1">{total.toFixed(2)}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div><span className="text-gray-500">Subtotal</span> <div className="font-medium">₹ {Number(estimation.subtotal || 0).toFixed(2)}</div></div>
+                      <div><span className="text-gray-500">Taxes</span> <div className="font-medium">₹ {Number(estimation.taxes || 0).toFixed(2)}</div></div>
+                      <div><span className="text-gray-500">Shipping</span> <div className="font-medium">₹ {Number(estimation.shippingCharges || 0).toFixed(2)}</div></div>
+                      <div><span className="text-gray-500">Installation</span> <div className="font-medium">₹ {Number(estimation.installationCharges || 0).toFixed(2)}</div></div>
+                      <div><span className="text-gray-500">Overall Discount</span> <div className="font-medium">{Number(estimation.overallDiscount || 0)}%</div></div>
+                    </div>
+                    {(estimation.paymentTerms || estimation.warranty || estimation.deliveryTimeline || estimation.notes) && (
+                      <div className="space-y-2">
+                        {estimation.paymentTerms && (<div><span className="text-gray-500">Payment Terms</span><div className="font-medium">{estimation.paymentTerms}</div></div>)}
+                        {estimation.warranty && (<div><span className="text-gray-500">Warranty</span><div className="font-medium">{estimation.warranty}</div></div>)}
+                        {estimation.deliveryTimeline && (<div><span className="text-gray-500">Delivery</span><div className="font-medium">{estimation.deliveryTimeline}</div></div>)}
+                        {estimation.notes && (<div><span className="text-gray-500">Notes</span><div className="font-medium whitespace-pre-line">{estimation.notes}</div></div>)}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end pt-2">
+                <button onClick={closeModal} className="px-4 py-2 rounded-lg bg-teal text-white hover:bg-teal/90">Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Toasts (top-right) */}
       <div className="fixed top-4 right-4 z-50 space-y-2">
         {toasts.map((t) => (

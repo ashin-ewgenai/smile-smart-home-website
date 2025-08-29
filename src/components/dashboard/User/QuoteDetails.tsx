@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import { doc, getDoc, getDocs, query, where, limit } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { quoteDoc, type QuoteItem } from '@/models/Collections';
+import { quoteDoc, type QuoteItem, estimationQuoteDoc, estimationQuotesCollection, type EstimationQuote } from '@/models/Collections';
 import { useAuth } from '@/lib/useAuth';
 
 interface Props {
@@ -19,6 +19,8 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
   const { user } = useAuth();
   const [data, setData] = useState<QuoteItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [estimation, setEstimation] = useState<EstimationQuote | null>(null);
+  const [estLoading, setEstLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -28,7 +30,18 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
         const ref = quoteDoc(db, user.uid, quoteId);
         const snap = await getDoc(ref as ReturnType<typeof doc>);
         if (!active) return;
-        setData((snap.exists() ? (snap.data() as QuoteItem) : null));
+        if (snap.exists()) {
+          setData(snap.data() as QuoteItem);
+        } else {
+          // Fallback: look in root 'quotes' collection (legacy path used by QuoteForm list)
+          try {
+            const rootSnap = await getDoc(doc(db, 'quotes', quoteId));
+            if (!active) return;
+            setData(rootSnap.exists() ? (rootSnap.data() as any as QuoteItem) : null);
+          } catch {
+            setData(null);
+          }
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -36,6 +49,56 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
     run();
     return () => { active = false; };
   }, [user, quoteId]);
+
+  // Fetch admin-created estimation quote linked to this quote
+  useEffect(() => {
+    let active = true;
+    const fetchEstimation = async () => {
+      if (!user) return;
+      if (!data) { setEstimation(null); return; }
+      setEstLoading(true);
+      try {
+        // 1) If the user quote stores a direct reference to estimation
+        if (data.estimationQuoteId) {
+          const esnap = await getDoc(estimationQuoteDoc(db, data.estimationQuoteId));
+          if (!active) return;
+          if (esnap.exists()) { setEstimation(esnap.data() as EstimationQuote); return; }
+        }
+
+        // 2) Fallback: try by originalQuoteId matching this quoteId
+        try {
+          const q1 = query(
+            estimationQuotesCollection(db),
+            where('originalQuoteId', '==', quoteId),
+            limit(1)
+          );
+          const r1 = await getDocs(q1);
+          if (!active) return;
+          if (!r1.empty) { setEstimation(r1.docs[0].data() as EstimationQuote); return; }
+        } catch {}
+
+        // 3) Fallback: try by customerEmail if available
+        if ((data as any).userEmail) {
+          try {
+            const q2 = query(
+              estimationQuotesCollection(db),
+              where('customerEmail', '==', (data as any).userEmail),
+              limit(1)
+            );
+            const r2 = await getDocs(q2);
+            if (!active) return;
+            if (!r2.empty) { setEstimation(r2.docs[0].data() as EstimationQuote); return; }
+          } catch {}
+        }
+
+        setEstimation(null);
+      } finally {
+        if (active) setEstLoading(false);
+      }
+    };
+    fetchEstimation();
+    return () => { active = false; };
+  }, [db, data, quoteId, user]);
 
   if (loading) {
     return (
@@ -81,6 +144,94 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
             </div>
           </div>
         )}
+
+        {/* Estimation Quote Section */}
+        <div className="mt-8">
+          <div className="mb-3">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Admin Estimation</h3>
+            <div className="h-1 w-16 bg-indigo-500 rounded mt-1" />
+          </div>
+
+          {estLoading && (
+            <div className="text-gray-600 dark:text-gray-300">Loading estimation...</div>
+          )}
+
+          {!estLoading && !estimation && (
+            <div className="text-gray-600 dark:text-gray-300">No estimation available yet.</div>
+          )}
+
+          {!estLoading && estimation && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Estimation ID" value={(estimation as any).quoteId} />
+                <Field label="Status" value={estimation.status} />
+                <Field label="Issue Date" value={(estimation.issueDate as any)?.toDate ? (estimation.issueDate as any).toDate().toLocaleDateString() : (typeof estimation.issueDate === 'string' ? estimation.issueDate : 'N/A')} />
+                <Field label="Grand Total" value={estimation.grandTotal?.toFixed ? `₹ ${estimation.grandTotal.toFixed(2)}` : estimation.grandTotal} />
+              </div>
+
+              {Array.isArray(estimation.items) && estimation.items.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Line Items</h4>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-gray-500 dark:text-gray-300">
+                          <th className="py-2 pr-4">Item</th>
+                          <th className="py-2 pr-4 hidden md:table-cell">Description</th>
+                          <th className="py-2 pr-4">Qty</th>
+                          <th className="py-2 pr-4">Unit</th>
+                          <th className="py-2 pr-4 hidden lg:table-cell">Discount</th>
+                          <th className="py-2 pr-4 hidden lg:table-cell">Tax %</th>
+                          <th className="py-2">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                        {estimation.items.map((it) => {
+                          const line = Math.max(0, (it.quantity || 0) * (it.unitPrice || 0) - (it.discount || 0));
+                          const tax = (line * (it.taxPercent || 0)) / 100;
+                          const total = line + tax;
+                          return (
+                            <tr key={it.id} className="text-gray-900 dark:text-gray-100">
+                              <td className="py-2 pr-4">{it.name}</td>
+                              <td className="py-2 pr-4 hidden md:table-cell">{it.description}</td>
+                              <td className="py-2 pr-4">{it.quantity}</td>
+                              <td className="py-2 pr-4">{it.unitPrice}</td>
+                              <td className="py-2 pr-4 hidden lg:table-cell">{it.discount}</td>
+                              <td className="py-2 pr-4 hidden lg:table-cell">{it.taxPercent}</td>
+                              <td className="py-2">{total.toFixed(2)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <Field label="Subtotal" value={estimation.subtotal?.toFixed ? `₹ ${estimation.subtotal.toFixed(2)}` : estimation.subtotal} />
+                <Field label="Taxes" value={estimation.taxes?.toFixed ? `₹ ${estimation.taxes.toFixed(2)}` : estimation.taxes} />
+                <Field label="Shipping Charges" value={estimation.shippingCharges} />
+                <Field label="Installation Charges" value={estimation.installationCharges} />
+                <Field label="Overall Discount" value={estimation.overallDiscount} />
+              </div>
+
+              {(estimation.paymentTerms || estimation.warranty || estimation.deliveryTimeline || estimation.notes) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Field label="Payment Terms" value={estimation.paymentTerms} />
+                  <Field label="Warranty" value={estimation.warranty} />
+                  <Field label="Delivery Timeline" value={estimation.deliveryTimeline} />
+                  {estimation.notes && (
+                    <div className="md:col-span-2">
+                      <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</h4>
+                      <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded text-gray-900 dark:text-gray-100 whitespace-pre-line">{estimation.notes}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
