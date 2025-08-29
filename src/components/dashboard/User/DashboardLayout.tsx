@@ -82,16 +82,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
         </svg>
       )
     },
-    {
-      href: `${base}/bill`, key: 'bill', label: 'Bill', title: 'Bill', match: `${base}/bill`, icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-          <path d="M6 2h12a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2-3-2V4a2 2 0 0 1 2-2Z" />
-          <path d="M8 7h8" />
-          <path d="M8 11h8" />
-          <path d="M8 15h5" />
-        </svg>
-      )
-    },
+    
     {
       href: `${base}/settings`, key: 'settings', label: 'Settings', title: 'Settings', match: `${base}/settings`, icon: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">

@@ -231,13 +231,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
             >
               About Device
             </a>
-            <a
-              href={`/dashboard/${userType}/bill`}
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Bill
-            </a>
+            {/* Bill link removed as requested */}
             <a
               href={`/dashboard/${userType}/support-tickets`}
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
