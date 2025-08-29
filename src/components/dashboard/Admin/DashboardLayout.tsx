@@ -1,7 +1,6 @@
 import React from 'react';
 import DashboardNavbar from './DashboardNavbar';
 import DashboardFooter from './DashboardFooter';
-import SupportChat from '../../supportChat/SupportChat';
 import AdminSidebar from './AdminSidebar';
 
 interface DashboardLayoutProps {
@@ -32,7 +31,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
           <DashboardFooter />
         </div>
       </div>
-      {userType === 'user' && <SupportChat />}
     </div>
   );
 };

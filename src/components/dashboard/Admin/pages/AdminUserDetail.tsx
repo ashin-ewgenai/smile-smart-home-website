@@ -46,6 +46,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   >(null);
   const [editStatus, setEditStatus] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const [estimation, setEstimation] = useState<any | null>(null);
 
   // Derive email either from prop or URL param if not provided
   useEffect(() => {
@@ -109,6 +110,52 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       }
     };
   }, [email]);
+
+  // Load estimation details when a quote is selected (top-level hook)
+  useEffect(() => {
+    const loadEstimation = async () => {
+      if (!selected || selected.type !== 'quotes') { setEstimation(null); return; }
+      try {
+        const candidates: (string | null)[] = [];
+        if (selected.data?.quoteId) candidates.push(selected.data.quoteId);
+        // Sometimes the estimation doc id is `Q-<timestamp>` and the quote's own id is not the same.
+        // We try constructing `Q-<selected.id>` only if it already looks like `Q-...`.
+        if (typeof selected.id === 'string' && selected.id.startsWith('Q-')) {
+          candidates.push(selected.id);
+        } else {
+          candidates.push(`Q-${selected.id}`);
+        }
+
+        let found: any | null = null;
+        for (const id of candidates) {
+          if (!id) continue;
+          try {
+            const ref = doc(db, 'Estimation Quote', id);
+            const snap = await getDoc(ref);
+            if (snap.exists()) { found = { id: snap.id, ...snap.data() }; break; }
+          } catch {}
+        }
+
+        // Fallback: search by originalQuoteId field
+        if (!found) {
+          try {
+            const col = collection(db, 'Estimation Quote');
+            const qs = await getDocs(query(col, where('originalQuoteId', '==', selected.id), limit(1)));
+            if (!qs.empty) {
+              const d = qs.docs[0];
+              found = { id: d.id, ...d.data() };
+            }
+          } catch {}
+        }
+
+        setEstimation(found);
+      } catch (e) {
+        console.warn('Failed to load estimation:', e);
+        setEstimation(null);
+      }
+    };
+    loadEstimation();
+  }, [selected]);
 
   // When no email is provided, show a real-time list of contactRequests (new user submissions)
   useEffect(() => {
@@ -214,13 +261,32 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       setLoadingRelated(true);
       try {
         const uid: string = account.id;
-        const [qSnap, sSnap, tSnap] = await Promise.all([
+        // Fetch nested collections (primary)
+        const [qSnapNested, sSnap, tSnap] = await Promise.all([
           getDocs(quotesCollection(db, uid)),
           getDocs(userServiceRequestsCollection(db, uid)),
           getDocs(supportTicketsCollection(db, uid)),
         ]);
+
+        // Also support a flat quotes collection that stores user UID in a field
+        // e.g., collection 'quotes' with field 'userUid' or 'uid'
+        let flatQuotes: any[] = [];
+        try {
+          const flatCol = collection(db, 'quotes');
+          const [byUserUid, byUid] = await Promise.all([
+            getDocs(query(flatCol, where('userUid', '==', uid))),
+            getDocs(query(flatCol, where('uid', '==', uid))),
+          ]);
+          // Prefer 'userUid' results; if empty, use 'uid'
+          const chosen = byUserUid.size > 0 ? byUserUid : byUid;
+          flatQuotes = chosen.docs.map(d => ({ id: d.id, ...d.data() }));
+        } catch {}
+
         if (!mounted) return;
-        setQuotes(qSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        const nestedQuotes = qSnapNested.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Merge nested + flat (IDs are distinct across roots; simple concat is fine)
+        const allQuotes = [...nestedQuotes, ...flatQuotes];
+        setQuotes(allQuotes);
         setServices(sSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setTickets(tSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch {
@@ -246,6 +312,16 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       if (v?.seconds) return new Date(v.seconds * 1000);
     } catch {}
     return null;
+  };
+
+  const fmt = (d: Date | null): string => (d ? d.toLocaleString() : '-');
+
+  // Pretty formatter: Aug 26, 2025 – 5:12 PM
+  const fmtPretty = (d: Date | null): string => {
+    if (!d) return '-';
+    const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    return `${date} – ${time}`;
   };
 
   // Build structured details for the selected item
@@ -279,27 +355,35 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       const loc = first('location', 'Location', 'area', 'Area');
       if (loc) rows.push({ label: 'Location', value: loc });
     } else if (selected.type === 'quotes') {
-      rows.push({ label: 'Sqft', value: first('sqft', 'Sqft', 'squareFeet', 'SquareFeet') });
-      rows.push({ label: 'Location', value: first('location', 'Location') });
-      rows.push({ label: 'Area', value: first('area', 'Area') });
-      rows.push({ label: 'User Email', value: first('email', 'Email', 'userEmail', 'UserEmail') });
-      const details = first('details', 'Details', 'cctv', 'CCTV', 'cctvDetails', 'CctvDetails');
-      if (details) rows.push({ label: 'Details', value: details, wide: true, isLongText: true });
+      // Display fields requested for quotes coming from flat structure
+      const valOrDash = (v: any) => (v === undefined || v === null || v === '' ? '—' : v);
+      const arrToText = (v: any) => Array.isArray(v) ? (v as any[]).join(', ') : v;
+
+      rows.push({ label: 'Budget', value: valOrDash(first('budget')) });
+      rows.push({ label: 'Budget Currency', value: valOrDash(first('budgetCurrency')) });
+      // Explicitly show created/updated timestamps
+      const created = first('createdAt', 'created_at', 'ts');
+      const updated = first('updatedAt', 'updated_at');
+      if (created) rows.push({ label: 'Created At', value: fmtPretty(dateFrom(created)) });
+      if (updated) rows.push({ label: 'Updated At', value: fmtPretty(dateFrom(updated)) });
+      // Also show status as a plain value in details (it is also shown above with a badge)
+      rows.push({ label: 'Status', value: valOrDash(first('status', 'Status')) });
+      rows.push({ label: 'Customer Email', value: valOrDash(first('customerEmail')) });
+      rows.push({ label: 'Customer ID', value: valOrDash(first('customerId')) });
+      const newRooms = arrToText(first('newRoomsToAutomate'));
+      if (newRooms !== undefined) rows.push({ label: 'New Rooms To Automate', value: valOrDash(newRooms), wide: true });
+      rows.push({ label: 'Quote Type', value: valOrDash(first('quoteType')) });
+      const smartRooms = arrToText(first('roomsAlreadySmart'));
+      if (smartRooms !== undefined) rows.push({ label: 'Rooms Already Smart', value: valOrDash(smartRooms), wide: true });
+      rows.push({ label: 'Timeline', value: valOrDash(first('timeline')) });
+      rows.push({ label: 'User UID', value: valOrDash(first('userUid', 'uid')) });
     }
 
     const attachment = first('imageUrl', 'imageURL', 'ImageUrl', 'attachment', 'url', 'photoURL', 'photoUrl');
     return { rows, attachment };
   }, [selected]);
 
-  const fmt = (d: Date | null): string => (d ? d.toLocaleString() : '-');
-
-  // Pretty formatter: Aug 26, 2025 – 5:12 PM
-  const fmtPretty = (d: Date | null): string => {
-    if (!d) return '-';
-    const date = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    const time = d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-    return `${date} – ${time}`;
-  };
+  
 
   const statusBadge = (status: string | undefined) => {
     const s = (status || '').toString();
@@ -335,8 +419,8 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const closeDetails = () => { setDrawerOpen(false); setSelected(null); };
 
   const statusOptionsByType: Record<TabKey, string[]> = {
-    // Per request: Quotes -> submitted, approved
-    quotes: ['submitted', 'approved'],
+    // Quotes -> pending, confirmed
+    quotes: ['pending', 'confirmed'],
     // Service Requests -> open, in process, closed
     services: ['open', 'in process', 'closed'],
     // Support Tickets -> pending, resolved, in progress
@@ -532,8 +616,6 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                         <>
                           <th className="py-2 pr-4">Device Name</th>
                           <th className="py-2 pr-4">Type</th>
-                          <th className="py-2 pr-4">Status</th>
-                          <th className="py-2 pr-4">Last Active</th>
                         </>
                       ) : activeTab === 'tickets' ? (
                         <>
@@ -549,7 +631,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                         </>
                       ) : (
                         <>
-                          <th className="py-2 pr-4">ID</th>
+                          <th className="py-2 pr-4">Quote Type</th>
                           <th className="py-2 pr-4">Status</th>
                           <th className="py-2 pr-4">Created</th>
                         </>
@@ -575,12 +657,6 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                               {row.deviceName || 'Unnamed Device'}
                             </td>
                             <td className="py-2 pr-4 text-gray-300">{row.type || 'Unknown'}</td>
-                            <td className="py-2 pr-4">
-                              {statusBadge(row.isOnline ? 'online' : 'offline')}
-                            </td>
-                            <td className="py-2 pr-4 text-gray-300">
-                              {row.lastActiveAt ? fmt(dateFrom(row.lastActiveAt)) : 'Never'}
-                            </td>
                           </tr>
                         );
                       }
@@ -617,15 +693,15 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                         );
                       }
                       
-                      // Default rendering for other tabs
+                      // Default rendering for other tabs (quotes)
                       return (
                         <tr
                           key={row.id}
                           onClick={() => openDetails(activeTab as any, row.id, row)}
                           className={`cursor-pointer border-b border-gray-700/70 hover:bg-gray-700/40 ${isUnread ? 'font-semibold' : ''}`}
                         >
-                          <td className="py-2 pr-4 text-gray-100 truncate max-w-[14rem]" title={row.id}>
-                            {row.id}
+                          <td className="py-2 pr-4 text-gray-100 truncate max-w-[14rem]" title={row.quoteType || row.type || row.id}>
+                            {row.quoteType || row.type || '—'}
                           </td>
                           <td className="py-2 pr-4">{statusBadge(status)}</td>
                           <td className="py-2 pr-4 text-gray-300">{fmt(dateFrom(created))}</td>
@@ -679,6 +755,112 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                   </div>
                 )}
               </div>
+
+              {selected.type === 'quotes' && estimation && (
+                <div className="mt-6 border-t border-gray-700 pt-4">
+                  <div className="text-gray-200 font-medium mb-2">Estimate</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <div className="text-gray-400">Quote ID</div>
+                      <div className="text-gray-100">{estimation.quoteId || estimation.id}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Status</div>
+                      <div className="text-gray-100">{estimation.status || '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Created At</div>
+                      <div className="text-gray-100">{fmtPretty(dateFrom(estimation.createdAt))}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Updated At</div>
+                      <div className="text-gray-100">{fmtPretty(dateFrom(estimation.updatedAt))}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Issue Date</div>
+                      <div className="text-gray-100">{fmtPretty(dateFrom(estimation.issueDate))}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Delivery Timeline</div>
+                      <div className="text-gray-100">{estimation.deliveryTimeline || '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Customer Email</div>
+                      <div className="text-gray-100">{estimation.customerEmail || '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Created By</div>
+                      <div className="text-gray-100">{estimation.createdByEmail || estimation.createdByUid || '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Subtotal</div>
+                      <div className="text-gray-100">{estimation.subtotal ?? '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Taxes</div>
+                      <div className="text-gray-100">{estimation.taxes ?? '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Shipping</div>
+                      <div className="text-gray-100">{estimation.shippingCharges ?? '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Installation</div>
+                      <div className="text-gray-100">{estimation.installationCharges ?? '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Overall Discount</div>
+                      <div className="text-gray-100">{estimation.overallDiscount ?? '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-gray-400">Grand Total</div>
+                      <div className="text-gray-100 font-medium">{estimation.grandTotal ?? '—'}</div>
+                    </div>
+                    {estimation.paymentTerms && (
+                      <div className="sm:col-span-2">
+                        <div className="text-gray-400">Payment Terms</div>
+                        <div className="text-gray-100">{estimation.paymentTerms}</div>
+                      </div>
+                    )}
+                    {estimation.notes && (
+                      <div className="sm:col-span-2">
+                        <div className="text-gray-400">Notes</div>
+                        <div className="text-gray-100 whitespace-pre-wrap">{estimation.notes}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {Array.isArray(estimation.items) && estimation.items.length > 0 && (
+                    <div className="mt-4">
+                      <div className="text-gray-200 font-medium mb-2">Items</div>
+                      <div className="overflow-x-auto rounded-md border border-gray-700/70">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="text-left text-gray-400 border-b border-gray-700">
+                              <th className="py-2 pr-4">Name</th>
+                              <th className="py-2 pr-4">Qty</th>
+                              <th className="py-2 pr-4">Unit Price</th>
+                              <th className="py-2 pr-4">Discount</th>
+                              <th className="py-2 pr-4">Tax %</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {estimation.items.map((it: any) => (
+                              <tr key={it.id} className="border-b border-gray-700/50">
+                                <td className="py-2 pr-4 text-gray-100">{it.name || '-'}</td>
+                                <td className="py-2 pr-4 text-gray-300">{it.quantity ?? '-'}</td>
+                                <td className="py-2 pr-4 text-gray-300">{it.unitPrice ?? '-'}</td>
+                                <td className="py-2 pr-4 text-gray-300">{it.discount ?? '-'}</td>
+                                <td className="py-2 pr-4 text-gray-300">{it.taxPercent ?? '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               
               {/* Edit status */}
               <div className="mt-4 border-t border-gray-700 pt-4">
@@ -722,21 +904,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         isOpen={showAddDeviceModal}
         onClose={() => setShowAddDeviceModal(false)}
         userId={account?.id || ''}
-        onDeviceAdded={() => {
-          // Refresh devices list when a new device is added
-          if (account?.id) {
-            const userDevicesRef = collection(db, 'userdevices', account.id, 'devices');
-            const unsubscribe = onSnapshot(userDevicesRef, (snapshot) => {
-              const devicesData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                lastActiveAt: doc.data().lastActiveAt?.toDate()
-              }));
-              setDevices(devicesData);
-            });
-            return () => unsubscribe();
-          }
-        }}
+        onDeviceAdded={() => { /* no-op: realtime listener above will refresh with enriched details */ }}
       />
     </section>
   );

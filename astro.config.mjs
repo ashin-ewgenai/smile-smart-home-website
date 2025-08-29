@@ -2,6 +2,7 @@ import { defineConfig } from 'astro/config';
 import tailwind from '@astrojs/tailwind';
 import react from '@astrojs/react';
 import node from '@astrojs/node';
+import { fileURLToPath, URL } from 'node:url';
 
 export default defineConfig({
   site: 'https://smilesmarthomes.com',
@@ -17,6 +18,11 @@ export default defineConfig({
     inlineStylesheets: 'always'
   },
   vite: {
+    resolve: {
+      alias: {
+        '@': fileURLToPath(new URL('./src', import.meta.url))
+      }
+    },
     server: {
       proxy: {
         '/api': {

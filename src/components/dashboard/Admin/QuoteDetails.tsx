@@ -19,14 +19,25 @@ interface QuoteDetailsProps {
     timeline?: string;
   };
   onCreateQuote: () => void;
+  onBack?: () => void;
 }
 
-const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote }) => {
+const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote, onBack }) => {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Quote Details</h2>
-        <div className="h-1 w-20 bg-indigo-600 rounded"></div>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Quote Details</h2>
+          <div className="h-1 w-20 bg-indigo-600 rounded"></div>
+        </div>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+          >
+            ← Back to List
+          </button>
+        )}
       </div>
 
       <div className="space-y-6">
@@ -148,7 +159,7 @@ const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote }) => 
             className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500"
             onClick={onCreateQuote}
           >
-            Create Quote
+            Create Estimation Quote
           </button>
         </div>
       </div>

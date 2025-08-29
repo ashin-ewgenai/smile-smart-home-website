@@ -9,10 +9,16 @@ const AdminSidebar: React.FC = () => {
   const location = inRouter ? useLocation() : { pathname: '' } as any;
 
   const Item = ({ href, children }: { href: string; children: React.ReactNode }) => {
-    const active = inRouter && location.pathname.startsWith(href);
+    // Convert full paths to relative paths for React Router with basename
+    const relativePath = href.replace('/dashboard/admin', '') || '/';
+    const active = inRouter && (
+      relativePath === '/' 
+        ? location.pathname === '/' || location.pathname === ''
+        : location.pathname.startsWith(relativePath)
+    );
     const cls = `${linkBase} ${active ? 'bg-gray-200 dark:bg-gray-700' : ''}`;
     return inRouter ? (
-      <Link to={href} className={cls}>{children}</Link>
+      <Link to={relativePath} className={cls}>{children}</Link>
     ) : (
       <a href={href} className={cls}>{children}</a>
     );
