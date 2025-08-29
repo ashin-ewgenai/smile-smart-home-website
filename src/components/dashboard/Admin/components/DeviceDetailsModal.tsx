@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../../../lib/firebase';
 
 interface DeviceDetailsModalProps {
@@ -43,6 +43,47 @@ export default function DeviceDetailsModal({ isOpen, onClose, deviceId, userId }
   const [editedValue, setEditedValue] = useState('');
   const [numberOfDevices, setNumberOfDevices] = useState(1);
   const [editingSerials, setEditingSerials] = useState<SerialData[]>([]);
+  const [warrantyControls, setWarrantyControls] = useState<{count: number; unit: 'months' | 'years'}[]>([]);
+
+  const handleSend = () => {
+    // Placeholder for sending a command/alert to the device
+    console.log('Send command clicked for device:', deviceId);
+  };
+
+  // Helpers for warranty quick-set controls
+  const toYMD = (d: Date) => {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+  const addMonths = (date: Date, months: number) => {
+    const d = new Date(date.getTime());
+    const day = d.getDate();
+    d.setMonth(d.getMonth() + months);
+    // handle month overflow (e.g., Jan 31 +1 month -> Feb last day)
+    if (d.getDate() < day) d.setDate(0);
+    return d;
+  };
+  const setWarrantyMonths = (index: number, months: number) => {
+    setEditingSerials((prev) => {
+      const base = new Date();
+      const expiry = addMonths(base, months);
+      const dateStr = toYMD(expiry);
+      const arr = [...prev];
+      const current = arr[index] || { serialNumber: '', warrantyExpiry: '' };
+      arr[index] = { ...current, warrantyExpiry: dateStr };
+      return arr;
+    });
+  };
+  const clearWarranty = (index: number) => {
+    setEditingSerials((prev) => {
+      const arr = [...prev];
+      const current = arr[index] || { serialNumber: '', warrantyExpiry: '' };
+      arr[index] = { ...current, warrantyExpiry: '' };
+      return arr;
+    });
+  };
 
   useEffect(() => {
     const fetchDeviceDetails = async () => {
@@ -177,7 +218,10 @@ export default function DeviceDetailsModal({ isOpen, onClose, deviceId, userId }
         setDevice(prev => prev ? { ...prev, serials: newSerials } : null);
         setEditingSerials([...newSerials]);
       } else if (field === 'serials') {
+        const num = Array.isArray(value) ? value.length : 1;
         updateData.serials = value;
+        updateData.numberOfDevices = num;
+        setNumberOfDevices(num);
         setDevice(prev => prev ? { ...prev, serials: [...value] } : null);
       }
       
@@ -207,14 +251,14 @@ export default function DeviceDetailsModal({ isOpen, onClose, deviceId, userId }
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-5 overflow-y-auto max-h-[90vh]">
+      <div className="w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-6 overflow-y-auto max-h-[90vh]">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold text-white">
             Device Details
           </h3>
           <button 
             onClick={onClose}
-            className="text-gray-300 hover:text-white text-xl"
+            className="text-gray-300 hover:text-white text-xl rounded-full hover:bg-white/5 px-2 py-1"
             aria-label="Close"
           >
             ✕
@@ -227,30 +271,41 @@ export default function DeviceDetailsModal({ isOpen, onClose, deviceId, userId }
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Device Image */}
+            {/* Device Image + Send */}
             {device?.imageUrl && (
               <div className="flex justify-center mb-4">
-                <div className="w-32 h-32 md:w-48 md:h-48 rounded-lg overflow-hidden border border-gray-700">
-                  <img 
-                    src={device.imageUrl} 
-                    alt={device.deviceName || 'Device Image'}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      // Fallback to a placeholder if image fails to load
-                      const target = e.target as HTMLImageElement;
-                      target.src = 'https://via.placeholder.com/200?text=No+Image';
-                      target.onerror = null; // Prevent infinite loop if placeholder also fails
-                    }}
+                <div className="flex items-start gap-4">
+                  <div className="w-28 h-28 md:w-32 md:h-32 rounded-full overflow-hidden border border-gray-700 ring-1 ring-gray-700 shadow-lg bg-gray-800">
+                    <img 
+                      src={device.imageUrl} 
+                      alt={device.deviceName || 'Device Image'}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        // Fallback to a placeholder if image fails to load
+                        const target = e.target as HTMLImageElement;
+                        target.src = 'https://via.placeholder.com/200?text=No+Image';
+                        target.onerror = null; // Prevent infinite loop if placeholder also fails
+                      }}
+                    />
+                  </div>
+                  <button
+                    onClick={handleSend}
+                    className="hidden"
+                    title="Send command"
                   />
                 </div>
               </div>
             )}
             
-            <div className="space-y-4 text-sm">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-gray-400">Device ID</div>
-                <div className="col-span-2 text-gray-100 break-all">{device?.id || '-'}</div>
-              
+            <div className="text-sm">
+              <div className="grid md:grid-cols-2 gap-6">
+              {/* Section: Device Overview */}
+              <div>
+                <h4 className="text-gray-300 font-medium mb-3">Device Overview</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-gray-400">Device ID</div>
+                  <div className="col-span-2 text-gray-100 break-all">{device?.id || '-'}</div>
+            
                 <div className="text-gray-400">Device Name</div>
                 <div className="col-span-2 text-gray-100">{device?.deviceName || '-'}</div>
 
@@ -259,22 +314,33 @@ export default function DeviceDetailsModal({ isOpen, onClose, deviceId, userId }
 
                 <div className="text-gray-400">Status</div>
                 <div className="col-span-2">
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    device?.status === 'online' 
-                      ? 'bg-green-900/30 text-green-400 border border-green-700' 
-                      : device?.status === 'error'
-                      ? 'bg-red-900/30 text-red-400 border border-red-700'
-                      : device?.status === 'maintenance'
-                      ? 'bg-yellow-900/30 text-yellow-400 border border-yellow-700'
-                      : 'bg-gray-700 text-gray-100 border border-gray-600'
-                  }`}>
-                    {device?.status || 'offline'}
-                  </span>
+                  {(() => {
+                    const raw = (device?.status || '').toLowerCase();
+                    const active = raw === 'active' || raw === 'online';
+                    const classes = active
+                      ? 'bg-green-500/15 text-green-400 border border-green-700'
+                      : 'bg-red-500/15 text-red-400 border border-red-700';
+                    return (
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full ${classes}`}>
+                        {active ? 'Active' : 'Inactive'}
+                      </span>
+                    );
+                  })()}
                 </div>
 
                 <div className="text-gray-400">Model Number</div>
                 <div className="col-span-2 text-gray-100">{device?.modelNumber || '-'}</div>
 
+                <div className="text-gray-400">Brand</div>
+                <div className="col-span-2 text-gray-100">{device?.brand || '-'}</div>
+              </div>
+            </div>
+
+
+            {/* Section: Editable Fields */}
+            <div>
+              <h4 className="text-gray-300 font-medium mb-3">Editable Fields</h4>
+              <div className="grid grid-cols-3 gap-4">
                 <div className="text-gray-400">Serial Numbers</div>
                 <div className="col-span-2 space-y-3">
                   {editingField === 'serials' ? (
@@ -315,6 +381,62 @@ export default function DeviceDetailsModal({ isOpen, onClose, deviceId, userId }
                               className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-xs"
                               min={new Date().toISOString().split('T')[0]}
                             />
+                            <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  type="number"
+                                  min={1}
+                                  value={warrantyControls[index]?.count ?? 12}
+                                  onChange={(e) => {
+                                    const val = Math.max(1, parseInt(e.target.value || '1'));
+                                    setWarrantyControls((prev) => {
+                                      const arr = [...prev];
+                                      arr[index] = { count: val, unit: arr[index]?.unit || 'months' };
+                                      return arr;
+                                    });
+                                  }}
+                                  className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-xs"
+                                  title="Amount"
+                                />
+                                <select
+                                  value={warrantyControls[index]?.unit ?? 'months'}
+                                  onChange={(e) => {
+                                    const unit = (e.target.value as 'months' | 'years') || 'months';
+                                    setWarrantyControls((prev) => {
+                                      const arr = [...prev];
+                                      arr[index] = { count: arr[index]?.count || 12, unit };
+                                      return arr;
+                                    });
+                                  }}
+                                  className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-xs"
+                                  title="Unit"
+                                >
+                                  <option value="months">months</option>
+                                  <option value="years">years</option>
+                                </select>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const c = warrantyControls[index]?.count ?? 12;
+                                    const u = warrantyControls[index]?.unit ?? 'months';
+                                    const months = u === 'years' ? c * 12 : c;
+                                    setWarrantyMonths(index, months);
+                                  }}
+                                  className="px-2 py-1 text-xs bg-teal-700 hover:bg-teal-600 rounded border border-teal-600 text-white"
+                                  title="Apply custom warranty"
+                                >
+                                  Apply
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => clearWarranty(index)}
+                                className="px-2 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-300"
+                                title="Clear warranty date"
+                              >
+                                Clear
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -343,6 +465,10 @@ export default function DeviceDetailsModal({ isOpen, onClose, deviceId, userId }
                           </div>
                           {serial?.warrantyExpiry && (
                             <div className="flex items-center text-xs text-gray-400 pl-6">
+                              <svg className="w-3.5 h-3.5 mr-1 text-gray-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke="currentColor" strokeWidth="1.5" />
+                                <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                              </svg>
                               <span className="mr-1">Warranty:</span>
                               <span className="text-gray-300">
                                 {new Date(serial.warrantyExpiry).toLocaleDateString()}
@@ -358,18 +484,20 @@ export default function DeviceDetailsModal({ isOpen, onClose, deviceId, userId }
                           serialNumber: s.serialNumber || '',
                           warrantyExpiry: s.warrantyExpiry || ''
                         })) || []);
+                          setWarrantyControls(Array.from({ length: numberOfDevices }, () => ({ count: 12, unit: 'months' })));
                         }}
-                        className="mt-2 text-xs text-teal-400 hover:text-teal-300"
+                        className="mt-2 inline-flex items-center justify-center p-1.5 rounded-full text-teal-300 hover:text-teal-100 bg-teal-500/10 hover:bg-teal-500/15 ring-1 ring-inset ring-teal-500/30 hover:ring-teal-400/50 shadow-sm hover:shadow-teal-500/20 transition"
                         title="Edit serial numbers"
+                        aria-label="Edit serial numbers"
                       >
-                        Edit Serial Numbers
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                          <path d="M12 20h9"/>
+                          <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+                        </svg>
                       </button>
                     </div>
                   )}
                 </div>
-
-                <div className="text-gray-400">Brand</div>
-                <div className="col-span-2 text-gray-100">{device?.brand || '-'}</div>
 
                 <div className="text-gray-400">Number of Devices</div>
                 <div className="col-span-2 flex items-center">
@@ -404,28 +532,41 @@ export default function DeviceDetailsModal({ isOpen, onClose, deviceId, userId }
                           setEditingField('numberOfDevices');
                           setEditedValue(numberOfDevices.toString());
                         }}
-                        className="ml-2 text-xs text-teal-400 hover:text-teal-300"
+                        className="ml-2 inline-flex items-center justify-center p-1.5 rounded-full text-teal-300 hover:text-teal-100 bg-teal-500/10 hover:bg-teal-500/15 ring-1 ring-inset ring-teal-500/30 hover:ring-teal-400/50 shadow-sm hover:shadow-teal-500/20 transition"
                         title="Edit number of devices"
+                        aria-label="Edit number of devices"
                       >
-                        Edit
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                          <path d="M12 20h9"/>
+                          <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
+                        </svg>
                       </button>
                     </>
                   )}
                 </div>
+              </div>
+              {/* Close the Editable Fields section */}
+              </div>
+              </div>{/* end grid two-column */}
 
-                <div className="text-gray-400">Warranty</div>
-                <div className="col-span-2 text-gray-100">{device?.warranty || 'No warranty'}</div>
+              <div className="border-t border-gray-800" />
 
-                {device?.createdAt && (
-                  <>
-                    <div className="text-gray-400">Added On</div>
-                    <div className="col-span-2 text-gray-300">
-                      {device?.addedAt 
-                        ? new Date(device.addedAt).toLocaleDateString() 
-                        : 'N/A'}
-                    </div>
-                  </>
-                )}
+              {/* Section: Metadata */}
+              <div>
+                <h4 className="text-gray-300 font-medium mb-3">Metadata</h4>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-gray-400">Warranty</div>
+                  <div className="col-span-2 text-gray-100">{device?.warranty || 'No warranty'}</div>
+
+                  <div className="text-gray-400">Added On</div>
+                  <div className="col-span-2 text-gray-300">
+                    {device?.addedAt
+                      ? new Date(device.addedAt as any).toLocaleDateString()
+                      : device?.createdAt
+                      ? new Date(device.createdAt as any).toLocaleDateString()
+                      : 'N/A'}
+                  </div>
+                </div>
               </div>
             </div>
           </div>
