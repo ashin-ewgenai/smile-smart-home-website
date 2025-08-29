@@ -54,30 +54,30 @@ const AdminUserDetailPage: React.FC = () => {
 
 const AdminApp: React.FC = () => {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/dashboard/admin">
       <RequireAdmin>
         <DashboardLayout userType="admin" userName="Admin">
           <Routes>
-            <Route path="/dashboard/admin" element={<AdminDashboard />} />
-            <Route path="/dashboard/admin/settings" element={<AdminSettings />} />
-            <Route path="/dashboard/admin/profile" element={<AdminProfile />} />
+            <Route path="/" element={<AdminDashboard />} />
+            <Route path="/settings" element={<AdminSettings />} />
+            <Route path="/profile" element={<AdminProfile />} />
 
             {/* Concrete React pages for admin routes */}
-            <Route path="/dashboard/admin/estimates" element={<Estimates />} />
-            <Route path="/dashboard/admin/devices" element={<Devices />} />
-            <Route path="/dashboard/admin/devices/add" element={<AddDevice />} />
-            <Route path="/dashboard/admin/users" element={<AdminUsers />} />
-            <Route path="/dashboard/admin/user" element={<AdminUserDetailPage />} />
-            <Route path="/dashboard/admin/reports" element={<Reports />} />
-            <Route path="/dashboard/admin/notifications" element={<Notifications />} />
-            <Route path="/dashboard/admin/alerts" element={<Alerts />} />
-            <Route path="/dashboard/admin/plan-leads" element={<UserPlanLeads />} />
-            <Route path="/dashboard/admin/bill" element={<Bill />} />
-            <Route path="/dashboard/admin/quote-portal" element={<QuotePortal />} />
-            <Route path="/dashboard/admin/about-device" element={<AboutDevice />} />
-            <Route path="/dashboard/admin/support" element={<AdminSupportApp />} />
+            <Route path="/estimates" element={<Estimates />} />
+            <Route path="/devices" element={<Devices />} />
+            <Route path="/devices/add" element={<AddDevice />} />
+            <Route path="/users" element={<AdminUsers />} />
+            <Route path="/user" element={<AdminUserDetailPage />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/alerts" element={<Alerts />} />
+            <Route path="/plan-leads" element={<UserPlanLeads />} />
+            <Route path="/bill" element={<Bill />} />
+            <Route path="/quote-portal" element={<QuotePortal />} />
+            <Route path="/about-device" element={<AboutDevice />} />
+            <Route path="/support" element={<AdminSupportApp />} />
 
-            <Route path="*" element={<Navigate to="/dashboard/admin" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </DashboardLayout>
       </RequireAdmin>

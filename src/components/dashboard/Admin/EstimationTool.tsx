@@ -24,10 +24,21 @@ interface QuoteItem {
 
 const EstimationTool: React.FC = () => {
   const [quotes, setQuotes] = useState<QuoteItem[]>([]);
+  const [selectedQuote, setSelectedQuote] = useState<QuoteItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedQuote, setSelectedQuote] = useState<QuoteItem | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [validationError, setValidationError] = useState<string | null>(null);
+
+  // Reset to quote list when component mounts or route changes
+  React.useEffect(() => {
+    setSelectedQuote(null);
+    setShowCreateForm(false);
+    setValidationError(null);
+  }, []);
+
   const [createForm, setCreateForm] = useState({
     // Basic
     customerEmail: '',
@@ -49,8 +60,6 @@ const EstimationTool: React.FC = () => {
     deliveryTimeline: '',
     notes: ''
   });
-
-  const [saving, setSaving] = useState(false);
 
   type LineItem = {
     id: string;
@@ -220,12 +229,22 @@ const EstimationTool: React.FC = () => {
       console.log('Saving payload with originalQuoteId:', payload.originalQuoteId);
       await setDoc(estimationQuoteDoc(db, estimationId), payload);
       
-      // Update original quote with reference to estimation
-      await updateDoc(doc(db, 'quotes', selectedQuote.id), {
-        estimationQuoteId: estimationId,
-        hasEstimation: true,
-        updatedAt: Timestamp.now()
-      });
+      // Only update original quote status when sending to customer (Confirmed)
+      if (status === 'Confirmed') {
+        await updateDoc(doc(db, 'quotes', selectedQuote.id), {
+          estimationQuoteId: estimationId,
+          hasEstimation: true,
+          status: 'confirmed',
+          updatedAt: Timestamp.now()
+        });
+      } else {
+        // For Draft/Pending, just add reference without changing status
+        await updateDoc(doc(db, 'quotes', selectedQuote.id), {
+          estimationQuoteId: estimationId,
+          hasEstimation: true,
+          updatedAt: Timestamp.now()
+        });
+      }
       
       alert(status === 'Draft' ? 'Quote saved as draft!' : 'Quote saved successfully!');
       
@@ -320,6 +339,8 @@ const EstimationTool: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Quote Management</h1>
+        </div>
+        <div>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {quotes.length} {quotes.length === 1 ? 'quote' : 'quotes'} pending
           </p>
@@ -328,7 +349,7 @@ const EstimationTool: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {!selectedQuote && !showCreateForm && (
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-2">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
               <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-lg font-medium text-gray-900 dark:text-white">Pending Quotes</h2>
@@ -379,9 +400,30 @@ const EstimationTool: React.FC = () => {
           <div className="lg:col-span-3">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <div className="mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Create Quote</h2>
-                <div className="h-1 w-24 bg-indigo-600 rounded" />
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Create Estimation Quote</h2>
+                <div className="h-1 w-20 bg-indigo-600 rounded"></div>
               </div>
+
+              {/* Validation Error Message */}
+              {validationError && (
+                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                        Please enter the required fields:
+                      </h3>
+                      <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                        <pre className="whitespace-pre-wrap">{validationError}</pre>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-8">
                 {/* Quote Information */}
@@ -396,18 +438,6 @@ const EstimationTool: React.FC = () => {
                         readOnly
                         className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm sm:text-sm"
                       />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
-                      <select
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
-                        value={createForm.status}
-                        onChange={(e) => setCreateForm({ ...createForm, status: e.target.value as any })}
-                      >
-                        {['Pending','Confirmed'].map(s => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
-                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Date of Issue</label>
@@ -668,19 +698,44 @@ const EstimationTool: React.FC = () => {
 
                 {/* Actions */}
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row flex-wrap gap-3">
-                  <button 
-                    type="button" 
-                    className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
-                    onClick={() => saveEstimationQuote('Draft')}
-                    disabled={saving}
-                  >
-                    {saving ? 'Saving...' : 'Save as Draft'}
-                  </button>
-                  <button type="button" className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-indigo-700 bg-indigo-100 hover:bg-indigo-200">Preview Quote</button>
                   <button
                     type="button"
                     className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500 disabled:opacity-50"
-                    onClick={() => saveEstimationQuote('Confirmed')}
+                    onClick={() => {
+                      // Clear previous validation errors
+                      setValidationError(null);
+                      
+                      // Validate required fields before sending
+                      const missingFields = [];
+                      
+                      if (!createForm.quoteId.trim()) missingFields.push('Quote ID');
+                      if (!createForm.issueDate) missingFields.push('Date of Issue');
+                      if (!selectedQuote?.customerEmail?.trim()) missingFields.push('Customer Email');
+                      if (!createForm.paymentTerms.trim()) missingFields.push('Payment Terms');
+                      
+                      // Check if there are any line items
+                      if (items.length === 0 || items.every(item => !item.name.trim())) {
+                        missingFields.push('At least one product/service item');
+                      }
+                      
+                      // Check if line items have required fields
+                      const incompleteItems = items.filter(item => 
+                        item.name.trim() && (!item.quantity || item.quantity <= 0 || !item.unitPrice || item.unitPrice <= 0)
+                      );
+                      
+                      if (incompleteItems.length > 0) {
+                        missingFields.push('Complete quantity and unit price for all items');
+                      }
+                      
+                      if (missingFields.length > 0) {
+                        setValidationError(`• ${missingFields.join('\n• ')}`);
+                        // Scroll to top to show error message
+                        document.querySelector('.bg-white.dark\\:bg-gray-800')?.scrollIntoView({ behavior: 'smooth' });
+                        return;
+                      }
+                      
+                      saveEstimationQuote('Confirmed');
+                    }}
                     disabled={saving}
                   >
                     {saving ? 'Sending...' : 'Send to Customer'}
@@ -704,6 +759,7 @@ const EstimationTool: React.FC = () => {
             <div className="lg:col-span-3">
               <QuoteDetails 
                 quote={selectedQuote!} 
+                onBack={() => setSelectedQuote(null)}
                 onCreateQuote={() => {
                   if (!selectedQuote) return;
                   setShowCreateForm(true);

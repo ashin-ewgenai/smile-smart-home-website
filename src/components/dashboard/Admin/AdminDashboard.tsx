@@ -34,17 +34,31 @@ const Sparkline: React.FC<{ data: number[]; width?: number; height?: number; str
   stroke = '#14b8a6',
 }) => {
   if (!data || data.length === 0) return null;
-  const max = Math.max(...data);
-  const min = Math.min(...data);
+  
+  // Filter out invalid data points
+  const validData = data.filter(d => typeof d === 'number' && !isNaN(d) && isFinite(d));
+  if (validData.length === 0) return null;
+  
+  const max = Math.max(...validData);
+  const min = Math.min(...validData);
   const range = max - min || 1;
-  const step = width / (data.length - 1);
-  const points = data
+  const step = validData.length > 1 ? width / (validData.length - 1) : 0;
+  
+  const points = validData
     .map((d, i) => {
       const x = i * step;
       const y = height - ((d - min) / range) * height;
+      // Ensure coordinates are valid numbers
+      if (isNaN(x) || isNaN(y) || !isFinite(x) || !isFinite(y)) {
+        return null;
+      }
       return `${x},${y}`;
     })
+    .filter(Boolean)
     .join(' ');
+    
+  if (!points) return null;
+  
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
       <polyline
