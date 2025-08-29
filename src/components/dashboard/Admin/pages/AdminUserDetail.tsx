@@ -12,6 +12,8 @@ import {
 import { getDocs, getDoc, limit, query, where, updateDoc, doc, Timestamp, collection, onSnapshot } from 'firebase/firestore';
 import DeviceDetailsModal from '../components/DeviceDetailsModal';
 import AddDeviceModal from '../components/AddDeviceModal';
+import EstimationEditor from '../components/EstimationEditor';
+import StatusChangeButton from '../components/StatusChangeButton';
 
 type Props = {
   email?: string | null;
@@ -727,15 +729,20 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 <button onClick={closeDetails} className="text-gray-300 hover:text-white">✕</button>
               </div>
               <div className="space-y-2 text-sm">
+                {/* Subheader meta under title */}
+                <div className="text-gray-400 flex items-center gap-2 mb-2">
+                  <span>📅</span>
+                  <span className="font-medium">Created</span>
+                  <span className="text-gray-200">{fmtPretty(dateFrom(selected.data?.createdAt ?? selected.data?.created_at ?? selected.data?.ts))}</span>
+                </div>
+
+                {/* Top info grid */}
                 <div className="grid grid-cols-3 gap-2">
                   <div className="text-gray-400 flex items-center gap-1">🆔 <span>Request ID</span></div>
                   <div className="col-span-2 text-gray-100 break-all">{selected.id}</div>
-                  <div className="text-gray-400 flex items-center gap-1">📅 <span>Created</span></div>
-                  <div className="col-span-2 text-gray-100">{fmtPretty(dateFrom(selected.data?.createdAt ?? selected.data?.created_at ?? selected.data?.ts))}</div>
-                  <div className="text-gray-400 flex items-center gap-1">🏷️ <span>Status</span></div>
-                  <div className="col-span-2">{statusBadge(selected.data?.status ?? selected.data?.Status)}</div>
+                  {/* Created & Status moved out of this grid */}
                 </div>
-              
+
               {/* Details section */}
               <div className="mt-6">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
@@ -754,6 +761,27 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     </a>
                   </div>
                 )}
+              </div>
+
+              {/* Bottom status control */}
+              <div className="mt-6 border-t border-gray-700 pt-4">
+                <div className="text-gray-400 flex items-center gap-2 mb-2">
+                  <span>🏷️</span>
+                  <span className="font-medium">Status</span>
+                </div>
+                <div>
+                  {selected.type === 'services' || selected.type === 'tickets' ? (
+                    <StatusChangeButton
+                      value={editStatus}
+                      options={statusOptionsByType[selected.type]}
+                      onChange={setEditStatus}
+                      onSave={saveStatus}
+                      saving={saving}
+                    />
+                  ) : (
+                    statusBadge(selected.data?.status ?? selected.data?.Status)
+                  )}
+                </div>
               </div>
 
               {selected.type === 'quotes' && estimation && (
@@ -862,28 +890,46 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 </div>
               )}
               
-              {/* Edit status */}
-              <div className="mt-4 border-t border-gray-700 pt-4">
-                <div className="text-gray-200 font-medium mb-2">Edit Status</div>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value)}
-                    className="bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
-                  >
-                    {statusOptionsByType[selected.type].map((opt) => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
-                  </select>
-                  <button
-                    onClick={saveStatus}
-                    disabled={saving}
-                    className="px-4 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60"
-                  >
-                    {saving ? 'Saving...' : 'Save'}
-                  </button>
-                </div>
-              </div>
+              {/* Estimation Editor / Creator */}
+              {selected?.type === 'quotes' && (
+                <EstimationEditor
+                  selected={selected as any}
+                  accountEmail={account?.Email}
+                  estimation={estimation}
+                  onSaved={async (saved) => {
+                    setEstimation(saved);
+                    try {
+                      if (selected?.type !== 'quotes') return;
+                      const isFlat = !!(selected?.data?.userUid || selected?.data?.uid);
+                      const estId = saved?.id || saved?.quoteId;
+                      if (isFlat) {
+                        // Flat quotes collection
+                        await updateDoc(doc(db, 'quotes', selected.id), {
+                          status: 'Confirmed',
+                          hasEstimation: true,
+                          estimationQuoteId: estId,
+                          updatedAt: Timestamp.now(),
+                        } as any);
+                      } else if (account?.id) {
+                        // Nested quotes under user
+                        await updateDoc(quoteDoc(db, account.id, selected.id) as any, {
+                          status: 'confirmed',
+                          hasEstimation: true,
+                          estimationQuoteId: estId,
+                          updatedAt: Timestamp.now(),
+                        } as any);
+                      }
+
+                      // Sync local UI state
+                      const newStatus = isFlat ? 'Confirmed' : 'confirmed';
+                      setQuotes((prev) => (prev || []).map((q) => q.id === selected.id ? { ...q, status: newStatus, hasEstimation: true, estimationQuoteId: estId } : q));
+                      setSelected((s) => s ? { ...s, data: { ...s.data, status: newStatus, hasEstimation: true, estimationQuoteId: estId } } : s);
+                    } catch (e) {
+                      console.error('Failed to update quote status after estimation save:', e);
+                    }
+                  }}
+                />
+              )}
               </div>
             </div>
           </div>
