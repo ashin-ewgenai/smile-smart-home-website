@@ -172,27 +172,27 @@ const Notifications: React.FC = () => {
         const allNotifications: UnifiedNotification[] = [
           // Service Requests
           ...serviceRequestsSnap.docs.map(d => ({
+            ...d.data(),
             id: d.id,
-            type: 'service_request' as NotificationType,
-            ...d.data()
+            type: 'service_request' as NotificationType
           })),
           // Contact Messages
           ...contactMessagesSnap.docs.map(d => ({
+            ...d.data(),
             id: d.id,
-            type: 'contact_message' as NotificationType,
-            ...d.data()
+            type: 'contact_message' as NotificationType
           })),
           // Plan Leads
           ...plannerLeadsSnap.docs.map(d => ({
+            ...d.data(),
             id: d.id,
-            type: 'plan_lead' as NotificationType,
-            ...d.data()
+            type: 'plan_lead' as NotificationType
           })),
           // Quote Requests
           ...quotesSnap.docs.map(d => ({
+            ...d.data(),
             id: d.id,
-            type: 'quote_request' as NotificationType,
-            ...d.data()
+            type: 'quote_request' as NotificationType
           }))
         ];
         

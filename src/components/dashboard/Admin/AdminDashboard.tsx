@@ -241,29 +241,29 @@ const AdminDashboard: React.FC = () => {
               const Icon = kpi.icon as any;
               const isUp = kpi.delta >= 0;
               const cardInner = (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700 h-full flex flex-col">
+                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 h-full flex flex-col">
                   <div className="flex items-start justify-between">
                     <div>
-                      <span className="text-gray-600 dark:text-gray-400">{kpi.label}</span>
-                      <div className="mt-1 flex items-end gap-2">
-                        <span className="text-2xl font-bold text-gray-900 dark:text-white">{kpi.value}</span>
-                        <span className={`text-xs font-medium flex items-center ${isUp ? 'text-emerald-600' : 'text-red-500'}`}>
-                          {isUp ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
+                      <span className="text-base text-gray-600 dark:text-gray-400">{kpi.label}</span>
+                      <div className="mt-2 flex items-end gap-3">
+                        <span className="text-4xl font-bold text-gray-900 dark:text-white">{kpi.value}</span>
+                        <span className={`text-sm font-medium flex items-center ${isUp ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {isUp ? <TrendingUp className="h-5 w-5 mr-1" /> : <TrendingDown className="h-5 w-5 mr-1" />}
                           {isUp ? '+' : ''}{kpi.delta}
                         </span>
                       </div>
                     </div>
-                    <div className={`p-2 rounded-md ${kpi.color.replace('text-', 'bg-').replace('-500', '-100')} dark:bg-gray-700`}>
-                      <Icon className={`h-5 w-5 ${kpi.color}`} />
+                    <div className={`p-3 rounded-md ${kpi.color.replace('text-', 'bg-').replace('-500', '-100')} dark:bg-gray-700`}>
+                      <Icon className={`h-6 w-6 ${kpi.color}`} />
                     </div>
                   </div>
-                  <div className="mt-3">
+                  <div className="mt-4">
                     <Sparkline data={kpi.data} />
                   </div>
-                  {(kpi.key === 'users' || kpi.key === 'active') && (
+                  {kpi.key === 'active' && (
                     <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                      <a href={kpi.key === 'users' ? "/dashboard/admin/users" : "/dashboard/admin/devices"} className="text-teal-600 dark:text-teal-400 hover:underline text-sm font-medium flex items-center">
-                        {kpi.key === 'users' ? 'View All Users' : 'View All Devices'}
+                      <a href="/dashboard/admin/devices" className="text-teal-600 dark:text-teal-400 hover:underline text-sm font-medium flex items-center">
+                        View All Devices
                         <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
                         </svg>
