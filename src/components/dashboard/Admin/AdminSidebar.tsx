@@ -12,9 +12,9 @@ const AdminSidebar: React.FC = () => {
     // Convert full paths to relative paths for React Router with basename
     const relativePath = href.replace('/dashboard/admin', '') || '/';
     const active = inRouter && (
-      relativePath === '/' 
+      relativePath === '/'
         ? location.pathname === '/' || location.pathname === ''
-        : location.pathname.startsWith(relativePath)
+        : location.pathname === relativePath
     );
     const cls = `${linkBase} ${active ? 'bg-gray-200 dark:bg-gray-700' : ''}`;
     return inRouter ? (
@@ -50,10 +50,10 @@ const AdminSidebar: React.FC = () => {
           Manage Users
         </span>
       </Item>
-      <Item href="/dashboard/admin/user">
+      <Item href="/dashboard/admin/contact-submissions">
         <span className="inline-flex items-center gap-2">
           <UserCircle2 className="h-4 w-4" />
-          User Details
+          Contact Submissions
         </span>
       </Item>
       <Item href="/dashboard/admin/plan-leads">
