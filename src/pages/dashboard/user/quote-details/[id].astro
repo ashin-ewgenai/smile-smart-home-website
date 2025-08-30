@@ -2,11 +2,11 @@
 import QuoteDetails from '@/components/dashboard/User/QuoteDetails';
 import Layout from '@/layouts/Layout.astro';
 
-const { id } = Astro.params;
+const id = Astro.params.id as string;
 ---
 
 <Layout title="Quote Details">
   <main>
-    <QuoteDetails quoteId={id} client:load />
+    {id ? <QuoteDetails quoteId={id} client:load /> : null}
   </main>
 </Layout>
