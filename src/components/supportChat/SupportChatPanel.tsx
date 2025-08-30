@@ -18,12 +18,14 @@ type ChatMsg = {
   role: 'user' | 'agent' | 'assistant';
   content?: string;
   imageUrl?: string;
+  showTicketCTA?: boolean;
   ts: number;
   uploading?: boolean;
 };
 
 const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, ticketId: providedTicketId, raiseTicketsHref }) => {
   const [uid, setUid] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   // Global status kept if needed for future banners, but routing is claim-only
   const [statusOnline, setStatusOnline] = useState<boolean>(false);
   const [claimed, setClaimed] = useState<boolean>(false);
@@ -41,9 +43,13 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
   const OFFLINE_SESSION_KEY = 'smile-chat-sessionId';
 
   useEffect(() => {
-    const u = auth.currentUser?.uid || null;
-    setUid(u);
-  }, [open]);
+    const unsubAuth = auth.onAuthStateChanged((user) => {
+      const u = user?.uid || null;
+      setUid(u);
+      setIsAuthenticated(!!u);
+    });
+    return () => unsubAuth();
+  }, []);
 
   // Read support availability (informational only)
   useEffect(() => {
@@ -55,9 +61,13 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
 
   // Read per-user claim. If claimed, AI must be disabled and messages go to Firestore live chat
   useEffect(() => {
-    if (!uid) return;
+    if (!uid) {
+      setClaimed(false);
+      return;
+    }
     const unsub = onSnapshot(doc(db, 'support_claims', uid), (snap) => {
-      setClaimed(Boolean(snap.data()?.online));
+      // Only set claimed if the document exists AND online is true
+      setClaimed(snap.exists() && Boolean(snap.data()?.online));
     });
     return () => unsub();
   }, [uid]);
@@ -78,8 +88,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
           ownerUid: uid,
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          status: 'human',
-          type: 'live',
+          status: 'ai',
+          type: 'ai',
         }, { merge: true });
       }
       const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
@@ -103,14 +113,23 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
     }
     // Tear down previous already handled above
     setLoading(true);
-    if (claimed) setupOnline(); else setupOffline();
+    if (claimed) {
+      setupOnline();
+    } else {
+      // For AI mode, we need to load from Firestore if authenticated, not localStorage
+      if (isAuthenticated && uid && sessionId) {
+        setupOnline();
+      } else {
+        setupOffline();
+      }
+    }
     return () => {
       if (msgsUnsubRef.current) {
         try { msgsUnsubRef.current(); } catch {}
         msgsUnsubRef.current = null;
       }
     };
-  }, [open, uid, sessionId, claimed]);
+  }, [open, uid, sessionId, claimed, isAuthenticated]);
 
   const send = async () => {
     const content = input.trim();
@@ -126,8 +145,69 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
       return;
     }
 
-    // If no ticket in bot mode, perform triage and answer simple FAQs; complaint requires ticket
-    if (!providedTicketId) {
+    // If authenticated user, use chatWithOpenAI for proper Firestore storage
+    if (isAuthenticated) {
+      const userMsg: ChatMsg = { role: 'user', content, ts: Date.now() };
+      setMessages((prev) => [...prev, userMsg]);
+      
+      try {
+        // Get last 5 messages for context (excluding current user message)
+        const recentMessages = messages.slice(-4).map(msg => ({
+          role: msg.role === 'agent' ? 'assistant' : msg.role,
+          content: msg.content || ''
+        }));
+        
+        const payload = {
+          messages: [
+            ...recentMessages,
+            { role: 'user', content },
+          ],
+          sessionId: sessionId, // Use consistent session ID for admin dashboard
+        };
+        const call = httpsCallable(functions, 'chatWithOpenAI');
+        const res = await call(payload);
+        const reply = (res?.data as any)?.reply as string | undefined;
+        
+        // Check if AI detected a complaint and show ticket CTA
+        if (reply?.startsWith('COMPLAINT_DETECTED:')) {
+          const cleanReply = reply.replace('COMPLAINT_DETECTED:', '').trim();
+          const botMsg: ChatMsg = { role: 'assistant', content: cleanReply, ts: Date.now() };
+          setMessages((prev) => [...prev, botMsg]);
+          
+          // Show ticket creation CTA
+          const ctaMsg: ChatMsg = { 
+            role: 'agent', 
+            content: '🎫 It looks like you have a support issue. Would you like to create a support ticket for faster assistance?', 
+            ts: Date.now() + 1,
+            showTicketCTA: true
+          };
+          setMessages((prev) => [...prev, ctaMsg]);
+        } else if (reply?.includes('Please upload an image of your device')) {
+          // AI is requesting device image for serial number extraction
+          const botMsg: ChatMsg = { role: 'assistant', content: reply, ts: Date.now() };
+          setMessages((prev) => [...prev, botMsg]);
+          
+          // Show image upload prompt
+          const imageMsg: ChatMsg = { 
+            role: 'agent', 
+            content: '📷 Please click the image button below to upload a photo of your device showing the serial number.', 
+            ts: Date.now() + 1
+          };
+          setMessages((prev) => [...prev, imageMsg]);
+        } else {
+          const botMsg: ChatMsg = { role: 'assistant', content: reply || 'Sorry, I could not generate a reply right now.', ts: Date.now() };
+          setMessages((prev) => [...prev, botMsg]);
+        }
+      } catch (error) {
+        console.error('Chat error:', error);
+        const errMsg: ChatMsg = { role: 'agent', content: 'Sorry, something went wrong. Please try again later.', ts: Date.now() };
+        setMessages((prev) => [...prev, errMsg]);
+      }
+      return;
+    }
+
+    // If unauthenticated user, use triageChat for basic FAQs only
+    if (!providedTicketId && !isAuthenticated) {
       const userMsg: ChatMsg = { role: 'user', content, ts: Date.now() };
       setMessages((prev) => {
         const next = [...prev, userMsg];
@@ -144,15 +224,16 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
             return next;
           });
         } else {
-          const infoMsg: ChatMsg = { role: 'agent', content: 'This looks like a support issue. Please create a support ticket before we can help.', ts: Date.now() };
+          const infoMsg: ChatMsg = { role: 'agent', content: 'This looks like a support issue. Please sign in and create a support ticket for assistance.', ts: Date.now() };
           setMessages((prev) => {
             const next = [...prev, infoMsg];
             try { localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next)); } catch {}
             return next;
           });
         }
-      } catch {
-        const errMsg: ChatMsg = { role: 'agent', content: 'Sorry, something went wrong. Please try again later.', ts: Date.now() };
+      } catch (error) {
+        console.error('Triage chat error:', error);
+        const errMsg: ChatMsg = { role: 'agent', content: 'Please sign in to use the chat feature.', ts: Date.now() };
         setMessages((prev) => {
           const next = [...prev, errMsg];
           try { localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next)); } catch {}
@@ -162,50 +243,12 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
       return;
     }
 
-    // Offline (bot): use OpenAI callable function, keep local history
-    const userMsg: ChatMsg = { role: 'user', content, ts: Date.now() };
-    setMessages((prev) => {
-      const next = [...prev, userMsg];
-      try { localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next)); } catch {}
-      return next;
-    });
-    let sessionLocalId: string | null = null;
-    try { sessionLocalId = localStorage.getItem(OFFLINE_SESSION_KEY); } catch {}
-
-    // Build message history for backend (convert to OpenAI roles)
-    const history = messages.slice(-10).map((m) => ({
-      role: m.role === 'user' ? 'user' : 'assistant',
-      content: m.content,
-    }));
-    const payload = {
-      messages: [
-        { role: 'system', content: 'You are Smile Smart Home support assistant. Be concise and helpful.' },
-        ...history,
-        { role: 'user', content },
-      ],
-      sessionLocalId,
-    };
-    const call = httpsCallable(functions, 'chatWithOpenAI');
-    try {
-      const res = await call(payload);
-      const reply = (res?.data as any)?.reply as string | undefined;
-      const newSid = (res?.data as any)?.sessionId as string | undefined;
-      if (newSid && newSid !== sessionLocalId) {
-        try { localStorage.setItem(OFFLINE_SESSION_KEY, newSid); } catch {}
-      }
-      const botMsg: ChatMsg = { role: 'assistant', content: reply || 'Sorry, I could not generate a reply right now.', ts: Date.now() };
-      setMessages((prev) => [...prev, botMsg]);
-      try { localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify([...messages, userMsg, botMsg])); } catch {}
-    } catch (e) {
-      // Error bubble
-      const errMsg: ChatMsg = { role: 'agent', content: 'Sorry, something went wrong. Please try again later.', ts: Date.now() };
-      setMessages((prev) => [...prev, errMsg]);
-    }
+    // unified: no legacy branch; authenticated users handled above; unauthenticated triage handled earlier.
   };
 
   // Image upload handling
   const onPickImage = () => fileInputRef.current?.click();
-  const onFileSelected: React.ChangeEventHandler<HTMLInputElement> = (e) => {
+  const onFileSelected: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
     const file = e.target.files?.[0];
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (!file) return;
@@ -238,9 +281,68 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
           const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
           await addDoc(msgsCol, { role: 'user', imageUrl: url, ts: Date.now() });
           await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human' }, { merge: true });
-        } catch {}
+        } catch (e) {
+          console.error('Failed to persist image message to Firestore:', e);
+        }
       } else {
-        // Offline mode: do not send to OpenAI, just keep in local history
+        // Process image for serial number extraction only if a valid ticket is available
+        const activeTicketId = providedTicketId;
+        if (!activeTicketId) {
+          const warn: ChatMsg = { role: 'agent', content: 'Please create a support ticket first. Then upload the device photo here.', ts: Date.now() + 2 };
+          setMessages((prev) => [...prev, warn]);
+          return;
+        }
+        try {
+          const extractSerial = httpsCallable(functions, 'extractSerialFromImage');
+          const verifySerial = httpsCallable(functions, 'verifySerialAndFetchDocs');
+          const suggestStep = httpsCallable(functions, 'suggestTroubleshootingStep');
+
+          const extractResult = await extractSerial({ ticketId: activeTicketId, imageUrl: url });
+          const serial = (extractResult.data as any)?.serial;
+
+          if (serial) {
+            // Verify serial and get device documentation
+            const verifyResult = await verifySerial({ ticketId: activeTicketId, serial });
+            const verifyData = verifyResult.data as any;
+
+            if (verifyData?.valid) {
+              // Suggest one next troubleshooting step based on docs and complaint
+              const sres = await suggestStep({ ticketId: activeTicketId, docs: (verifyData.links || []) });
+              const suggestion = (sres?.data as any)?.suggestion || 'Device-specific troubleshooting steps will be provided based on your device documentation.';
+
+              const troubleshootMsg: ChatMsg = { 
+                role: 'assistant', 
+                content: `✅ Device verified! Serial: ${serial}\n\n${suggestion}`, 
+                ts: Date.now() + 2 
+              };
+              setMessages((prev) => [...prev, troubleshootMsg]);
+            } else {
+              const errorMsg: ChatMsg = { 
+                role: 'agent', 
+                content: '❌ Device not recognized or not registered to your account. Please ensure the image shows the serial number clearly.', 
+                ts: Date.now() + 2 
+              };
+              setMessages((prev) => [...prev, errorMsg]);
+            }
+          } else {
+            const noSerialMsg: ChatMsg = { 
+              role: 'agent', 
+              content: '❌ Could not extract serial number from image. Please ensure the serial number is clearly visible and try again.', 
+              ts: Date.now() + 2 
+            };
+            setMessages((prev) => [...prev, noSerialMsg]);
+          }
+        } catch (error) {
+          console.error('Serial extraction error:', error);
+          const errorMsg: ChatMsg = { 
+            role: 'agent', 
+            content: '❌ Failed to process device image. Please try again or contact support.', 
+            ts: Date.now() + 2 
+          };
+          setMessages((prev) => [...prev, errorMsg]);
+        }
+        
+        // Also keep in local history
         try {
           const OFFLINE_HISTORY_KEY = 'smile-chat-history';
           const next = [...messages.filter(Boolean), { id: tempId, role: 'user', imageUrl: url, ts: Date.now() } as ChatMsg];
@@ -289,7 +391,12 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
               ) : (
                 <>
                   <div>I'm here to make your life easier. Ask me anything!</div>
-                  {botNeedsTicket && (
+                  {!isAuthenticated && (
+                    <div className="p-2 rounded-md border border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
+                      Please sign in to use the chat feature for personalized support.
+                    </div>
+                  )}
+                  {botNeedsTicket && isAuthenticated && (
                     <div className="p-2 rounded-md border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
                       You can ask general questions here without a ticket. If you have an issue or complaint, please create a support ticket so our team can assist.
                       {raiseTicketsHref && (
@@ -332,6 +439,22 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
                         </a>
                       ) : (
                         <div>{m.content}</div>
+                      )}
+                      {m.showTicketCTA && (
+                        <div className="mt-2">
+                          {raiseTicketsHref ? (
+                            <a
+                              href={raiseTicketsHref}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-600 text-white hover:bg-rose-700 text-xs"
+                            >
+                              Raise a Support Ticket
+                            </a>
+                          ) : (
+                            <div className="text-xs text-rose-700">
+                              Please go to your Dashboard → Support → Raise Ticket to proceed.
+                            </div>
+                          )}
+                        </div>
                       )}
                       {m.uploading && (
                         <div className="mt-1 text-[10px] opacity-70">Uploading…</div>
@@ -381,13 +504,13 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={claimed ? 'Type your message…' : 'Ask your question…'}
+            placeholder={claimed ? 'Type your message…' : isAuthenticated ? 'Ask your question…' : 'Please sign in to chat'}
             className="flex-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none px-3 py-2 rounded-full border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal"
-            disabled={false}
+            disabled={!isAuthenticated && !claimed}
           />
           <button
             type="submit"
-            disabled={!input.trim()}
+            disabled={!input.trim() || (!isAuthenticated && !claimed)}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-teal text-teal hover:bg-teal hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Send
