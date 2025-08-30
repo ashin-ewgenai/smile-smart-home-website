@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../../../../lib/firebase';
-import { collectionGroup, doc, onSnapshot, orderBy, query, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collectionGroup, doc, onSnapshot, query, updateDoc, serverTimestamp, getDoc, where } from 'firebase/firestore';
 // Admin complaints table (Recharts removed per request)
 
 type Ticket = {
@@ -13,6 +13,7 @@ type Ticket = {
   userUid?: string;
   imageUrl?: string | null;
   adminReply?: string;
+  adminRepliedAt?: any;
 };
 
 // (Removed COLORS used by the pie chart)
@@ -21,21 +22,23 @@ const Reports: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [replyMap, setReplyMap] = useState<Record<string, string>>({});
   const [userCache, setUserCache] = useState<Record<string, { email?: string; displayName?: string; role?: string }>>({});
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
-  // Load data from Firestore with localStorage fallback
+  // Load only tickets with status In Progress from Firestore
   useEffect(() => {
     let unsub: undefined | (() => void);
     setLoading(true);
     try {
-      // Read all user tickets via collection group query over supportTickets/{uid}/ticket
-      const qRef = query(collectionGroup(db, 'ticket'), orderBy('createdAt', 'desc'));
+      // Read all user tickets via collection group query over Support_Tickets/{uid}/Tickets_List
+      // We'll filter for 'in progress' status in the client to catch all case variations
+      const qRef = query(
+        collectionGroup(db, 'Tickets_List')
+      );
       unsub = onSnapshot(qRef, async (snap) => {
         const arr: Ticket[] = snap.docs.map((d) => {
           const data = d.data() as any;
-          const parentUid = d.ref.parent.parent?.id; // supportTickets/{uid}/ticket/{ticketId}
+          const parentUid = d.ref.parent.parent?.id; // Support_Tickets/{uid}/Tickets_List/{ticketId}
           return {
             id: d.id,
             subject: data.subject || '',
@@ -46,6 +49,7 @@ const Reports: React.FC = () => {
             userUid: parentUid,
             imageUrl: data.imageUrl ?? null,
             adminReply: data.adminReply || '',
+            adminRepliedAt: data.adminRepliedAt?.toDate ? data.adminRepliedAt.toDate() : (data.adminRepliedAt || null),
           };
         });
         setTickets(arr);
@@ -67,148 +71,235 @@ const Reports: React.FC = () => {
     return () => { if (typeof unsub === 'function') unsub(); };
   }, []);
 
-  // Light user enrichment: look up displayName/email/role for UIDs we haven't seen
+  // Fetch user details from Accounts collection using UID
   useEffect(() => {
-    const missing = Array.from(new Set(tickets.map(t => t.userUid).filter(Boolean) as string[]))
-      .filter(uid => !(uid in userCache));
-    if (!missing.length) return;
+    const missingUids = Array.from(new Set(tickets
+      .map(t => t.userUid)
+      .filter(Boolean) as string[]
+    )).filter(uid => !userCache[uid]);
+
+    if (!missingUids.length) return;
+
     (async () => {
-      const updates: Record<string, { email?: string; displayName?: string; role?: string }> = {};
-      for (const uid of missing) {
+      const updates: Record<string, { email?: string; displayName?: string }> = {};
+      
+      for (const uid of missingUids) {
         try {
-          const snap = await getDoc(doc(db, 'users', uid));
-          if (snap.exists()) {
-            const d: any = snap.data();
-            updates[uid] = { email: d.email, displayName: d.displayName || d.name, role: d.role };
+          // Directly fetch user details from Accounts collection using UID
+          const userDoc = await getDoc(doc(db, 'Accounts', uid));
+          
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            updates[uid] = {
+              email: userData.Email || '',
+              displayName: userData.FullName || 'User',
+            };
+            // console.log('Fetched user data:', uid, updates[uid]);
           } else {
+            // console.log('No user found for UID:', uid);
             updates[uid] = {};
           }
-        } catch {
+        } catch (e) {
+          console.error('Error fetching user data for UID:', uid, e);
           updates[uid] = {};
         }
       }
-      setUserCache(prev => ({ ...prev, ...updates }));
+
+      if (Object.keys(updates).length > 0) {
+        setUserCache(prev => ({
+          ...prev,
+          ...updates
+        }));
+      }
     })();
-  }, [tickets]);
+  }, [tickets, userCache]);
 
-  const sorted = useMemo(() => {
-    return [...tickets].sort((a, b) => (new Date(b.createdAt || 0).getTime()) - (new Date(a.createdAt || 0).getTime()));
-  }, [tickets]);
-
-  // Only include complaints where the author's role is 'user'
+  // Sort and filter tickets
   const visible = useMemo(() => {
-    return sorted.filter((t) => {
-      const uid = t.userUid;
-      if (!uid) return false;
-      const u = userCache[uid];
-      if (!u) return false; // wait until user doc is fetched
-      return (u.role || 'user') === 'user';
-    });
-  }, [sorted, userCache]);
+    return [...tickets]
+      .filter(t => t.status && t.status.toLowerCase() !== 'resolved')
+      .sort((a, b) => {
+        const dateA = a.createdAt?.getTime() || 0;
+        const dateB = b.createdAt?.getTime() || 0;
+        return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
+      });
+  }, [tickets, sortOrder]);
 
-  // Group tickets by user email (or UID) for collapsible list
+  // Group tickets by user details for collapsible list
+  // Group tickets by user details for collapsible list
   const groups = useMemo(() => {
-    const map = new Map<string, Ticket[]>();
+    const map = new Map<string, { displayName: string, tickets: Ticket[] }>();
+    
     for (const t of visible) {
-      const email = t.userUid ? (userCache[t.userUid]?.email || t.userUid) : 'unknown';
-      const key = String(email);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(t);
+      if (!t.userUid) continue;
+      const user = userCache[t.userUid] || {};
+      const key = user.displayName || 'Unknown User';
+      
+      if (!map.has(key)) {
+        map.set(key, {
+          displayName: key,
+          tickets: []
+        });
+      }
+      
+      map.get(key)!.tickets.push(t);
     }
-    return Array.from(map.entries());
+    
+    return Array.from(map.values());
   }, [visible, userCache]);
-
-  const toggle = (email: string) => setExpanded((e) => ({ ...e, [email]: !e[email] }));
 
   const fmt = (v: any) => {
     try { return v ? new Date(v).toLocaleString() : ''; } catch { return ''; }
   };
 
-  const saveReply = async (t: Ticket) => {
+  const updateTicketStatus = async (ticket: Ticket, newStatus: string) => {
     try {
-      const reply = replyMap[t.id] || '';
-      if (!t.userUid) throw new Error('Missing user UID on ticket.');
-      await updateDoc(doc(db, 'supportTickets', t.userUid, 'ticket', t.id), {
-        adminReply: reply,
-        adminRepliedAt: serverTimestamp(),
-        status: reply ? (t.status === 'Resolved' ? 'Resolved' : 'In Progress') : t.status,
-      });
+      if (!ticket.userUid) throw new Error('Missing user UID on ticket.');
+      
+      await updateDoc(
+        doc(db, 'Support_Tickets', ticket.userUid, 'Tickets_List', ticket.id),
+        {
+          status: newStatus,
+          updatedAt: serverTimestamp(),
+        }
+      );
     } catch (e) {
-      console.error(e);
-      setError('Failed to save reply.');
+      console.error('Error updating ticket status:', e);
+      setError('Failed to update ticket status.');
     }
   };
 
   return (
-    <section className="p-6">
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-semibold text-white">Reports</h1>
-        <span className="text-sm text-gray-400">{visible.length} complaints</span>
+    <div className="p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Support Tickets</h1>
+          <span className="text-sm text-gray-400">{visible.length} active tickets</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-300">Sort by:</span>
+          <div className="inline-flex rounded-md shadow-sm" role="group">
+            <button
+              type="button"
+              onClick={() => setSortOrder('newest')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-l-md ${
+                sortOrder === 'newest'
+                  ? 'bg-teal-600 text-white'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              } transition-colors`}
+            >
+              Newest First
+            </button>
+            <button
+              type="button"
+              onClick={() => setSortOrder('oldest')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-r-md ${
+                sortOrder === 'oldest'
+                  ? 'bg-teal-600 text-white'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+              } transition-colors`}
+            >
+              Oldest First
+            </button>
+          </div>
+        </div>
       </div>
 
       {error && (
-        <div className="mb-3 rounded-md border px-3 py-2 text-sm text-red-700 bg-red-50 border-red-200 dark:text-yellow-300 dark:bg-yellow-900/20 dark:border-yellow-700/40">
+        <div className="mb-3 rounded-md border px-3 py-2 text-sm text-red-700 bg-red-50 border-red-200">
           {error}
         </div>
       )}
 
       {loading ? (
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6 text-gray-300">Loading complaints…</div>
-      ) : groups.length === 0 ? (
-        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6 text-gray-300">No complaints found.</div>
+      ) : visible.length === 0 ? (
+        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6 text-gray-300">No active tickets found.</div>
       ) : (
-        <div className="rounded-xl border border-gray-800 bg-gray-900/50 divide-y divide-gray-800">
-          {groups.map(([email, list]) => (
-            <div key={email} className="p-6 flex flex-col gap-3">
-              <button
-                type="button"
-                className="text-left text-sm text-gray-400 hover:text-gray-200 flex items-center gap-2 focus:outline-none"
-                aria-expanded={!!expanded[email]}
-                aria-controls={`complaints-${email}`}
-                onClick={() => toggle(email)}
-              >
-                <span className={`transition-transform duration-200 inline-block ${expanded[email] ? 'rotate-90' : 'rotate-0'}`} aria-hidden="true">▶</span>
-                <span>{email}</span>
-                <span className="ml-2 text-xs text-gray-500">({list.length})</span>
-              </button>
-
-              {expanded[email] && (
-                <div id={`complaints-${email}`} className="mt-2 space-y-4">
-                  {list.map((t) => (
-                    <div key={t.id} className="rounded border border-gray-800 bg-gray-900/40 p-4">
-                      <div className="flex items-center justify-between text-sm text-gray-400">
-                        <span>{fmt(t.createdAt)}</span>
-                        <span className={`px-2 py-0.5 rounded ${String(t.status).toLowerCase()==='resolved'?'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300':String(t.status).toLowerCase()==='in progress'?'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300':'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'}`}>{t.status}</span>
-                      </div>
-                      <div className="mt-2">
-                        <p className="text-gray-200 font-medium">{t.subject} <span className="text-xs text-gray-400">• {t.category}</span></p>
-                        <p className="text-sm text-gray-300 mt-1 whitespace-pre-wrap">{t.description}</p>
-                        {t.imageUrl && (
-                          <div className="mt-2"><img src={t.imageUrl} alt="attachment" className="h-24 w-24 object-cover rounded border border-gray-700" /></div>
-                        )}
-                      </div>
-                      <div className="mt-3">
-                        <label className="block text-xs text-gray-400 mb-1">Reply</label>
-                        <textarea
-                          value={replyMap[t.id] ?? ''}
-                          onChange={(e) => setReplyMap((m) => ({ ...m, [t.id]: e.target.value }))}
-                          rows={3}
-                          placeholder="Type a reply to the customer…"
-                          className="w-full px-3 py-2 rounded border border-gray-600 bg-gray-900 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                        />
-                        <div className="mt-2 flex justify-end">
-                          <button onClick={() => saveReply(t)} className="px-4 py-1.5 rounded-none bg-teal-600 text-white hover:bg-teal-700">Submit reply</button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+          {visible.map((ticket) => (
+            <div key={ticket.id} className="group relative rounded-lg border border-gray-800 bg-gray-900/40 p-4 hover:bg-gray-900/60 transition-colors duration-200">
+              {/* Header with user info and timestamp */}
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-white">
+                      {userCache[ticket.userUid!]?.displayName || 'User'}
+                    </span>
+                  </div>
+                  {userCache[ticket.userUid!]?.email && (
+                    <p className="text-xs text-gray-400 truncate mt-0.5">
+                      {userCache[ticket.userUid!]?.email}
+                    </p>
+                  )}
                 </div>
-              )}
+                <span className="text-xs text-gray-500 whitespace-nowrap">
+                  {fmt(ticket.createdAt)}
+                </span>
+              </div>
+
+              {/* Ticket content */}
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-medium text-white">{ticket.subject}</h4>
+                    <span className="text-xs text-gray-400">• {ticket.category}</span>
+                  </div>
+                  <p className="mt-1 text-sm text-gray-300 line-clamp-3" title={ticket.description}>
+                    {ticket.description}
+                  </p>
+                </div>
+
+                {/* Image preview */}
+                {ticket.imageUrl && (
+                  <div className="mt-2 rounded-md overflow-hidden border border-gray-800">
+                    <img 
+                      src={ticket.imageUrl} 
+                      alt="Ticket attachment" 
+                      className="w-full h-32 object-cover hover:scale-105 transition-transform duration-200 cursor-pointer"
+                      onClick={() => ticket.imageUrl && window.open(ticket.imageUrl, '_blank')}
+                    />
+                  </div>
+                )}
+
+                {/* Admin reply section */}
+                {(ticket.adminReply || ticket.adminRepliedAt) && (
+                  <div className="mt-3 p-3 rounded-md bg-gray-900/50 border border-gray-800">
+                    <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                      <span>Admin response</span>
+                      {ticket.adminRepliedAt && (
+                        <span>{fmt(ticket.adminRepliedAt)}</span>
+                      )}
+                    </div>
+                    {ticket.adminReply && (
+                      <p className="text-sm text-gray-200 mt-1 whitespace-pre-wrap">
+                        {ticket.adminReply}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Status update */}
+                <div className="mt-3 pt-3 border-t border-gray-800">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-gray-300">Update Status</span>
+                    <select
+                      value={ticket.status}
+                      onChange={(e) => updateTicketStatus(ticket, e.target.value)}
+                      className="text-xs px-3 py-1.5 rounded-md border border-gray-700 bg-gray-900 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                    >
+                      <option value="Pending">Pending</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Resolved">Resolved</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
             </div>
           ))}
         </div>
       )}
-    </section>
+    </div>
   );
 };
 
