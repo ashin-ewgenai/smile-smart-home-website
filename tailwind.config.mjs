@@ -1,4 +1,6 @@
 /** @type {import('tailwindcss').Config} */
+import colors from 'tailwindcss/colors';
+
 export default {
   content: ['./src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}'],
   darkMode: 'class',
@@ -6,7 +8,8 @@ export default {
     extend: {
       colors: {
         charcoal: '#2E3A3A',
-        teal: '#009688',
+        // Restore full Tailwind teal scale and also provide a DEFAULT shade for "bg-teal"
+        teal: { ...colors.teal, DEFAULT: '#009688' },
         'soft-gray': '#F5F7F8',
         border: 'rgb(var(--color-border) / <alpha-value>)'
       },

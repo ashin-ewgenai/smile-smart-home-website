@@ -215,7 +215,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
       </div>
       <DashboardFooter />
       {userType === 'user' && (
-        <SupportChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+        <SupportChatPanel
+          open={chatOpen}
+          onClose={() => setChatOpen(false)}
+          raiseTicketsHref={`${base}/support-tickets`}
+        />
       )}
       
     </div>
