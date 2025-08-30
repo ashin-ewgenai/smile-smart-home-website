@@ -59,7 +59,8 @@ const AdminUsers: React.FC = () => {
   // Selected user detail is now opened as a full page under dashboard layout
   const openDetail = (email: string) => {
     // Navigate to the dedicated page that renders within the main dashboard layout
-    const url = `/dashboard/admin/user?userEmail=${encodeURIComponent(email)}`;
+    // Path must match AdminApp route: "/contact-submissions" which renders AdminUserDetailPage
+    const url = `/dashboard/admin/contact-submissions?userEmail=${encodeURIComponent(email)}`;
     try {
       // Prefer SPA navigation if router is present
       (window as any).history?.pushState?.({}, '', url);
