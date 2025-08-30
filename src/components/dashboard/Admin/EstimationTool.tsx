@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, addDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
 import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload } from '../../../models/Collections';
 import QuoteDetails from './QuoteDetails';
@@ -27,7 +27,6 @@ const EstimationTool: React.FC = () => {
   const [selectedQuote, setSelectedQuote] = useState<QuoteItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -179,7 +178,13 @@ const EstimationTool: React.FC = () => {
   };
 
   const saveEstimationQuote = async (status: 'Draft' | 'Pending' | 'Confirmed') => {
-    if (!createForm.customerEmail.trim()) {
+    if (!selectedQuote) {
+      alert('No quote selected');
+      return;
+    }
+
+    const customerEmail = selectedQuote.customerEmail || createForm.customerEmail;
+    if (!customerEmail.trim()) {
       alert('Please enter customer email');
       return;
     }
@@ -191,17 +196,16 @@ const EstimationTool: React.FC = () => {
 
     setSaving(true);
     try {
-      setSaving(true);
       
       const estimationId = createForm.quoteId;
       
       const payload = estimationQuotePayload({
         quoteId: estimationId,
         originalQuoteId: selectedQuote.id, // Link back to original quote
-        customerEmail: selectedQuote.customerEmail,
+        customerEmail: customerEmail,
         status: status,
-        issueDate: createForm.issueDate,
-        expiryDate: createForm.expiryDate,
+        issueDate: createForm.issueDate ? new Date(createForm.issueDate) : null,
+        expiryDate: createForm.expiryDate ? new Date(createForm.expiryDate) : null,
         items: items.map(item => ({
           id: item.id,
           name: item.name,
@@ -222,7 +226,7 @@ const EstimationTool: React.FC = () => {
         deliveryTimeline: createForm.deliveryTimeline,
         notes: createForm.notes,
         createdByUid: auth.currentUser?.uid,
-        createdByEmail: auth.currentUser?.email,
+        createdByEmail: auth.currentUser?.email || undefined,
       });
 
       // Save estimation quote
@@ -251,8 +255,13 @@ const EstimationTool: React.FC = () => {
       if (status === 'Pending') {
         // Reset form and close modal
         setCreateForm({
-          quoteId: '',
-          issueDate: '',
+          customerEmail: '',
+          numDevices: 0,
+          discount: 0,
+          estimatedBudget: '',
+          quoteId: `Q-${Date.now()}`,
+          status: 'Pending' as 'Pending' | 'Confirmed',
+          issueDate: new Date().toISOString().slice(0, 10),
           expiryDate: '',
           overallDiscount: 0,
           shippingCharges: 0,
@@ -300,9 +309,13 @@ const EstimationTool: React.FC = () => {
           ...doc.data()
         })) as QuoteItem[];
         
-        setQuotes(quotesData.filter(quote => 
-          quote.status && quote.status.toLowerCase() === 'pending'
-        ));
+        setQuotes(
+          quotesData.filter((quote) => {
+            const isPending = quote.status && quote.status.toLowerCase() === 'pending';
+            const isMaintenance = (quote.quoteType || '').toLowerCase() === 'maintenance';
+            return isPending && !isMaintenance;
+          })
+        );
       } catch (err) {
         console.error('Error fetching quotes:', err);
         setError('Failed to load quotes. Please try again later.');
@@ -341,7 +354,21 @@ const EstimationTool: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Quote Management</h1>
         </div>
         <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-gray-400 inline-flex items-center gap-2">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4 animate-spin"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" className="opacity-30" />
+              <path d="M12 6v6l4 2" />
+            </svg>
             {quotes.length} {quotes.length === 1 ? 'quote' : 'quotes'} pending
           </p>
         </div>
@@ -363,9 +390,7 @@ const EstimationTool: React.FC = () => {
                   {quotes.map((quote) => (
                     <li 
                       key={quote.id} 
-                      className={`px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer ${
-                        selectedQuote?.id === quote.id ? 'bg-indigo-50 dark:bg-gray-700' : ''
-                      }`}
+                      className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
                       onClick={() => handleQuoteSelect(quote)}
                     >
                       <div className="flex items-center">
@@ -399,9 +424,21 @@ const EstimationTool: React.FC = () => {
         {showCreateForm ? (
           <div className="lg:col-span-3">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <div className="mb-6">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Create Estimation Quote</h2>
-                <div className="h-1 w-20 bg-indigo-600 rounded"></div>
+              <div className="mb-6 flex items-start justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Create Estimation Quote</h2>
+                  <div className="h-1 w-20 bg-indigo-600 rounded"></div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCreateForm(false)}
+                  className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 111.414 1.414L5.414 9H17a1 1 0 110 2H5.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                  </svg>
+                  Back
+                </button>
               </div>
 
               {/* Validation Error Message */}
@@ -582,7 +619,7 @@ const EstimationTool: React.FC = () => {
                       className="inline-flex justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
                       onClick={addRow}
                     >
-                      Add Device
+                      Add Product/Service
                     </button>
                   </div>
                 </div>
@@ -710,7 +747,8 @@ const EstimationTool: React.FC = () => {
                       
                       if (!createForm.quoteId.trim()) missingFields.push('Quote ID');
                       if (!createForm.issueDate) missingFields.push('Date of Issue');
-                      if (!selectedQuote?.customerEmail?.trim()) missingFields.push('Customer Email');
+                      const customerEmail = selectedQuote?.customerEmail || createForm.customerEmail;
+                      if (!customerEmail?.trim()) missingFields.push('Customer Email');
                       if (!createForm.paymentTerms.trim()) missingFields.push('Payment Terms');
                       
                       // Check if there are any line items

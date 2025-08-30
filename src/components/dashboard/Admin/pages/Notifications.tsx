@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../../../../lib/firebase';
-import { query, orderBy, onSnapshot, updateDoc, getDoc, getDocs, where, collectionGroup } from 'firebase/firestore';
+import { query, orderBy, updateDoc, getDoc, getDocs, where, collectionGroup, type Timestamp } from 'firebase/firestore';
 import { 
   serviceRequestsCollection, 
   serviceRequestDoc, 
@@ -8,21 +8,25 @@ import {
   userDoc,
   contactMessagesCollection,
   plannerLeadsCollection,
-  COLLECTION_QUOTES_ROOT,
+  plannerLeadDoc,
   SUBCOLLECTION_QUOTE
 } from '../../../../models/Collections';
 import { showToast } from '../../../../lib/toast';
+import { contactMessageDoc, quoteDoc, supportTicketDoc } from '../../../../models/Collections';
 
 type Priority = 'High' | 'Normal' | 'Low' | string;
 type Status = 'new' | 'ack' | 'done' | string;
-type NotificationType = 'service_request' | 'quote_request' | 'contact_message' | 'plan_lead';
+type NotificationType = 'service_request' | 'quote_request' | 'contact_message' | 'plan_lead' | 'support_ticket';
 
 type UnifiedNotification = {
   id?: string;
   type: NotificationType;
-  createdAt?: Date | string | number;
-  created_at?: Date | string | number;
-  ts?: Date | string | number;
+  createdAt?: Date | string | number | Timestamp | null;
+  created_at?: Date | string | number | Timestamp | null;
+  ts?: Date | string | number | Timestamp | null;
+  adminRead?: boolean;
+  // For nested paths
+  parentUid?: string; // e.g., quotes/{uid}/Quote_List/{id} or supportTickets/{uid}/ticket/{id}
   
   // Service Request fields
   preferredDate?: string;
@@ -58,10 +62,17 @@ type UnifiedNotification = {
   [key: string]: any;
 };
 
-const fmt = (ts?: Date | string | number | null) => {
+const fmt = (ts?: Date | string | number | Timestamp | null) => {
   try {
     if (!ts) return '';
-    const d = ts instanceof Date ? ts : new Date(ts);
+    let d: Date;
+    if (typeof (ts as any)?.toDate === 'function') {
+      d = (ts as any).toDate();
+    } else if (ts instanceof Date) {
+      d = ts;
+    } else {
+      d = new Date(ts as any);
+    }
     return d.toLocaleString();
   } catch {
     return '';
@@ -72,6 +83,7 @@ const Notifications: React.FC = () => {
   const [items, setItems] = useState<UnifiedNotification[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
+  const [updating, setUpdating] = useState<string | null>(null);
 
   // cache user lookups
   const userCache = useMemo(() => new Map<string, { displayName: string; email: string } | null>(), []);
@@ -162,38 +174,47 @@ const Notifications: React.FC = () => {
     (async () => {
       try {
         // Fetch all notification types
-        const [serviceRequestsSnap, contactMessagesSnap, plannerLeadsSnap, quotesSnap] = await Promise.all([
+        const [serviceRequestsSnap, contactMessagesSnap, plannerLeadsSnap, quotesSnap, ticketsSnap] = await Promise.all([
           getDocs(query(serviceRequestsCollection(db), orderBy('createdAt', 'desc'))),
           getDocs(query(contactMessagesCollection(db), orderBy('createdAt', 'desc'))),
           getDocs(query(plannerLeadsCollection(db), orderBy('createdAt', 'desc'))),
-          getDocs(query(collectionGroup(db, SUBCOLLECTION_QUOTE), orderBy('createdAt', 'desc')))
+          getDocs(query(collectionGroup(db, SUBCOLLECTION_QUOTE), orderBy('createdAt', 'desc'))),
+          getDocs(query(collectionGroup(db, 'ticket'), orderBy('createdAt', 'desc')))
         ]);
         
         const allNotifications: UnifiedNotification[] = [
           // Service Requests
           ...serviceRequestsSnap.docs.map(d => ({
+            ...d.data(),
             id: d.id,
-            type: 'service_request' as NotificationType,
-            ...d.data()
+            type: 'service_request' as NotificationType
           })),
           // Contact Messages
           ...contactMessagesSnap.docs.map(d => ({
+            ...d.data(),
             id: d.id,
-            type: 'contact_message' as NotificationType,
-            ...d.data()
+            type: 'contact_message' as NotificationType
           })),
           // Plan Leads
           ...plannerLeadsSnap.docs.map(d => ({
+            ...d.data(),
             id: d.id,
-            type: 'plan_lead' as NotificationType,
-            ...d.data()
+            type: 'plan_lead' as NotificationType
           })),
           // Quote Requests
           ...quotesSnap.docs.map(d => ({
+            ...d.data(),
             id: d.id,
             type: 'quote_request' as NotificationType,
-            ...d.data()
-          }))
+            parentUid: d.ref.parent.parent?.id
+          })),
+          // Support Tickets (Reports issued by users)
+          ...ticketsSnap.docs.map(d => ({
+            ...d.data(),
+            id: d.id,
+            type: 'support_ticket' as NotificationType,
+            parentUid: d.ref.parent.parent?.id
+          })),
         ];
         
         // Sort by creation date
@@ -252,6 +273,7 @@ const Notifications: React.FC = () => {
       case 'quote_request': return '💰';
       case 'contact_message': return '📧';
       case 'plan_lead': return '📋';
+      case 'support_ticket': return '📣';
       default: return '🔔';
     }
   };
@@ -259,9 +281,10 @@ const Notifications: React.FC = () => {
   const getNotificationTitle = (item: UnifiedNotification) => {
     switch (item.type) {
       case 'service_request': return `Service Request: ${item.service || 'Unknown'}`;
-      case 'quote_request': return `Quote Request: ${item.location || 'Unknown Location'}`;
+      case 'quote_request': return `New Quote Sent${item.location ? ` • ${item.location}` : ''}`;
       case 'contact_message': return `Contact Message from ${item.name || 'Unknown'}`;
-      case 'plan_lead': return 'New Plan Lead';
+      case 'plan_lead': return 'New Plan Lead Created';
+      case 'support_ticket': return `Report Issued${item.subject ? ` • ${item.subject}` : ''}`;
       default: return 'Notification';
     }
   };
@@ -271,8 +294,61 @@ const Notifications: React.FC = () => {
       case 'service_request': return `Device: ${item.device || 'N/A'} | Priority: ${item.priority || 'Normal'}`;
       case 'quote_request': return `Area: ${item.area || 'N/A'} | Size: ${item.sqft || 'N/A'} sqft`;
       case 'contact_message': return `Service: ${item.service || 'N/A'} | Phone: ${item.phone || 'N/A'}`;
-      case 'plan_lead': return 'New planning consultation request';
+      case 'plan_lead': return 'A user requested a planning consultation';
+      case 'support_ticket': return `Category: ${item.category || 'General'}${item.description ? ` • ${item.description}` : ''}`;
       default: return '';
+    }
+  };
+
+  const isUnread = (item: UnifiedNotification) => {
+    // If explicit adminRead flag exists, use it
+    if (typeof item.adminRead !== 'undefined') return !item.adminRead;
+    // Otherwise infer: service requests with status 'new' are unread; others default to unread for 7 days
+    if (item.type === 'service_request') return (item.status || 'new') === 'new';
+    const createdAt = item.createdAt || item.created_at || item.ts;
+    if (!createdAt) return true;
+    const created = new Date(createdAt as any);
+    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return created > weekAgo;
+  };
+
+  const markAsRead = async (item: UnifiedNotification) => {
+    const key = `${item.type}:${item.id}`;
+    try {
+      setUpdating(key);
+      if (!item.id) return;
+      switch (item.type) {
+        case 'service_request': {
+          await updateDoc(serviceRequestDoc(db, item.id), { adminRead: true });
+          break;
+        }
+        case 'contact_message': {
+          await updateDoc(contactMessageDoc(db, item.id), { adminRead: true });
+          break;
+        }
+        case 'plan_lead': {
+          await updateDoc(plannerLeadDoc(db, item.id), { adminRead: true });
+          break;
+        }
+        case 'quote_request': {
+          if (!item.parentUid) throw new Error('Missing parent UID for quote');
+          await updateDoc(quoteDoc(db, item.parentUid, item.id), { adminRead: true });
+          break;
+        }
+        case 'support_ticket': {
+          if (!item.parentUid) throw new Error('Missing parent UID for ticket');
+          await updateDoc(supportTicketDoc(db, item.parentUid, item.id), { adminRead: true });
+          break;
+        }
+        default:
+          break;
+      }
+      // reflect locally
+      setItems((prev) => prev.map((x) => (x.id === item.id && x.type === item.type ? { ...x, adminRead: true } : x)));
+    } catch {
+      showToast('Failed to mark as read.', 'error');
+    } finally {
+      setUpdating(null);
     }
   };
 
@@ -286,7 +362,7 @@ const Notifications: React.FC = () => {
       {/* Filter Tabs */}
       <div className="mb-6">
         <div className="flex space-x-1 bg-gray-800/50 p-1 rounded-lg">
-          {(['all', 'service_request', 'quote_request', 'contact_message', 'plan_lead'] as const).map((filterType) => (
+          {(['all', 'service_request', 'quote_request', 'contact_message', 'plan_lead', 'support_ticket'] as const).map((filterType) => (
             <button
               key={filterType}
               onClick={() => setFilter(filterType)}
@@ -300,7 +376,8 @@ const Notifications: React.FC = () => {
                filterType === 'service_request' ? 'Service Requests' :
                filterType === 'quote_request' ? 'Quote Requests' :
                filterType === 'contact_message' ? 'Contact Messages' :
-               'Plan Leads'}
+               filterType === 'plan_lead' ? 'Plan Leads' :
+               'Reports'}
             </button>
           ))}
         </div>
@@ -321,20 +398,23 @@ const Notifications: React.FC = () => {
             const name = item.userName || item.displayName || item.name || '';
             const user = name ? `${name}` : (email || 'Unknown User');
             const userEmail = email || 'No email';
+            const unread = isUnread(item);
             
             return (
-              <div key={id} className="rounded-xl border border-gray-800 bg-gray-900/30 p-6 hover:bg-gray-900/50 transition-colors">
+              <div key={id} className={`rounded-xl border p-6 transition-colors ${unread ? 'border-indigo-700/50 bg-indigo-900/20 hover:bg-indigo-900/30' : 'border-gray-800 bg-gray-900/30 hover:bg-gray-900/50'}`}>
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4">
                     <div className="text-2xl">{getNotificationIcon(item.type)}</div>
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
                         <h3 className="text-lg font-semibold text-white">{getNotificationTitle(item)}</h3>
+                        {unread && <span className="inline-block w-2 h-2 rounded-full bg-indigo-400" aria-label="unread" />}
                         <span className={`px-2 py-1 text-xs rounded-full ${
                           item.type === 'service_request' ? 'bg-blue-900/30 text-blue-300' :
                           item.type === 'quote_request' ? 'bg-green-900/30 text-green-300' :
                           item.type === 'contact_message' ? 'bg-purple-900/30 text-purple-300' :
-                          'bg-orange-900/30 text-orange-300'
+                          item.type === 'plan_lead' ? 'bg-orange-900/30 text-orange-300' :
+                          'bg-pink-900/30 text-pink-300'
                         }`}>
                           {item.type.replace('_', ' ').toUpperCase()}
                         </span>
@@ -393,6 +473,15 @@ const Notifications: React.FC = () => {
                           </button>
                         </div>
                       </>
+                    )}
+                    {unread && (
+                      <button
+                        onClick={() => markAsRead(item)}
+                        disabled={updating === `${item.type}:${id}`}
+                        className="px-3 py-1 text-xs rounded border border-indigo-500 text-indigo-300 hover:bg-indigo-700/30 disabled:opacity-50"
+                      >
+                        {updating === `${item.type}:${id}` ? 'Saving…' : 'Mark as Read'}
+                      </button>
                     )}
                   </div>
                 </div>
