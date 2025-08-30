@@ -9,7 +9,7 @@ import {
   supportTicketsCollection,
   supportTicketDoc,
 } from '../../../../models/Collections';
-import { getDocs, getDoc, limit, query, where, updateDoc, doc, Timestamp, collection, onSnapshot } from 'firebase/firestore';
+import { getDocs, getDoc, limit, query, where, updateDoc, doc, Timestamp, collection, onSnapshot, deleteDoc } from 'firebase/firestore';
 import DeviceDetailsModal from '../components/DeviceDetailsModal';
 import AddDeviceModal from '../components/AddDeviceModal';
 import EstimationEditor from '../components/EstimationEditor';
@@ -31,6 +31,27 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const [loadingContactRequests, setLoadingContactRequests] = useState<boolean>(false);
   const [openIds, setOpenIds] = useState<Record<string, boolean>>({});
   const toggleOpen = (id: string) => setOpenIds((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  // Deletion state and handler for contact requests
+  const [deletingIds, setDeletingIds] = useState<Record<string, boolean>>({});
+  const handleDeleteContact = async (id: string) => {
+    try {
+      setDeletingIds((p) => ({ ...p, [id]: true }));
+      
+      await deleteDoc(doc(db, 'contactRequests', id));
+      setContactRequests((prev) => prev.filter((r) => r.id !== id));
+    } catch (e: any) {
+      let errorMsg = 'Failed to delete. Please try again.';
+      if (e?.code === 'permission-denied') {
+        errorMsg = 'Permission denied. Please ensure you are logged in as an admin and Firestore rules are deployed.';
+      } else if (e?.code === 'not-found') {
+        errorMsg = 'Contact submission not found.';
+      }
+      if (typeof window !== 'undefined') alert(errorMsg);
+    } finally {
+      setDeletingIds((p) => ({ ...p, [id]: false }));
+    }
+  };
 
   // Related docs
   const [quotes, setQuotes] = useState<any[] | null>(null);
@@ -474,7 +495,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       {/* Header */}
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between px-2 md:px-0">
-          <h2 className="text-lg font-semibold text-gray-100">User Details</h2>
+          <h2 className="text-lg font-semibold text-gray-100">Contact Submissions</h2>
           {onBack ? (
             <button type="button" onClick={onBack} className="text-teal-600 hover:underline">Back to Users</button>
           ) : (
@@ -499,21 +520,35 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     const isOpen = !!openIds[id];
                     return (
                       <div key={id} className="p-6 flex flex-col gap-3">
-                        <button
-                          type="button"
-                          className="text-left text-sm text-gray-400 hover:text-gray-200 flex items-center gap-2 focus:outline-none"
-                          aria-expanded={isOpen}
-                          aria-controls={`contact-panel-${id}`}
-                          onClick={() => toggleOpen(id)}
-                        >
-                          <span
-                            className={`transition-transform duration-200 inline-block ${isOpen ? 'rotate-90' : 'rotate-0'}`}
-                            aria-hidden="true"
+                        <div className="flex items-center justify-between">
+                          <button
+                            type="button"
+                            className="text-left text-sm text-gray-400 hover:text-gray-200 flex items-center gap-2 focus:outline-none"
+                            aria-expanded={isOpen}
+                            aria-controls={`contact-panel-${id}`}
+                            onClick={() => toggleOpen(id)}
                           >
-                            ▶
-                          </span>
-                          <span>{r.email || '—'}</span>
-                        </button>
+                            <span
+                              className={`transition-transform duration-200 inline-block ${isOpen ? 'rotate-90' : 'rotate-0'}`}
+                              aria-hidden="true"
+                            >
+                              ▶
+                            </span>
+                            <span>{r.email || '—'}</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteContact(id)}
+                            className={`p-1 text-red-400 hover:text-red-300 disabled:opacity-50 disabled:cursor-not-allowed`}
+                            title="Delete"
+                            aria-label="Delete contact submission"
+                            disabled={!!deletingIds[id]}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+                              <path fillRule="evenodd" d="M9 3.75A2.25 2.25 0 0 1 11.25 1.5h1.5A2.25 2.25 0 0 1 15 3.75V4.5h3.75a.75.75 0 0 1 0 1.5h-.71l-1.03 12.004A3.75 3.75 0 0 1 13.27 21H10.73a3.75 3.75 0 0 1-3.74-2.996L5.96 6H5.25a.75.75 0 0 1 0-1.5H9V3.75Zm1.5.75h3V3.75a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75V4.5Zm-2.97 1.5 1.02 11.88a2.25 2.25 0 0 0 2.22 1.995h2.54a2.25 2.25 0 0 0 2.22-1.995L18.47 6H7.53ZM9.75 9a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0v-6a.75.75 0 0 1 .75-.75Zm4.5 0a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0v-6a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" />
+                            </svg>
+                          </button>
+                        </div>
                         {isOpen && (
                           <div id={`contact-panel-${id}`} className="text-sm text-gray-300 pl-6">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">

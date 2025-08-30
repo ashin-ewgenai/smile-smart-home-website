@@ -1,9 +1,18 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import AdminUserDetail from '../../../components/dashboard/Admin/pages/AdminUserDetail';
+import AdminApp from '../../../components/dashboard/Admin/AdminApp';
 export const prerender = false;
 ---
 
 <Layout title="Contact Submissions - Admin">
-  <AdminUserDetail client:only="react" />
+  <AdminApp client:only="react" />
 </Layout>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const userEmail = localStorage.getItem('userEmail');
+    const userRole = localStorage.getItem('userRole');
+    const isAdmin = userRole === 'admin';
+    if (!userEmail || !isAdmin) window.location.href = '/admin_login';
+  });
+  </script>

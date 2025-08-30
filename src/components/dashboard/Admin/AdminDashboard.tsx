@@ -240,25 +240,26 @@ const AdminDashboard: React.FC = () => {
             {kpis.map((kpi) => {
               const Icon = kpi.icon as any;
               const isUp = kpi.delta >= 0;
+              const solo = kpis.length === 1;
               const cardInner = (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 h-full flex flex-col">
+                <div className={`bg-white dark:bg-gray-800 rounded-lg shadow ${solo ? 'p-7' : 'p-6'} border border-gray-200 dark:border-gray-700 h-full flex flex-col`}>
                   <div className="flex items-start justify-between">
                     <div>
-                      <span className="text-base text-gray-600 dark:text-gray-400">{kpi.label}</span>
+                      <span className={`${solo ? 'text-lg' : 'text-base'} text-gray-600 dark:text-gray-400`}>{kpi.label}</span>
                       <div className="mt-2 flex items-end gap-3">
-                        <span className="text-4xl font-bold text-gray-900 dark:text-white">{kpi.value}</span>
-                        <span className={`text-sm font-medium flex items-center ${isUp ? 'text-emerald-600' : 'text-red-500'}`}>
-                          {isUp ? <TrendingUp className="h-5 w-5 mr-1" /> : <TrendingDown className="h-5 w-5 mr-1" />}
+                        <span className={`${solo ? 'text-5xl' : 'text-4xl'} font-bold text-gray-900 dark:text-white`}>{kpi.value}</span>
+                        <span className={`${solo ? 'text-base' : 'text-sm'} font-medium flex items-center ${isUp ? 'text-emerald-600' : 'text-red-500'}`}>
+                          {isUp ? <TrendingUp className={`${solo ? 'h-6 w-6' : 'h-5 w-5'} mr-1`} /> : <TrendingDown className={`${solo ? 'h-6 w-6' : 'h-5 w-5'} mr-1`} />}
                           {isUp ? '+' : ''}{kpi.delta}
                         </span>
                       </div>
                     </div>
-                    <div className={`p-3 rounded-md ${kpi.color.replace('text-', 'bg-').replace('-500', '-100')} dark:bg-gray-700`}>
-                      <Icon className={`h-6 w-6 ${kpi.color}`} />
+                    <div className={`rounded-md ${solo ? 'p-4' : 'p-3'} ${kpi.color.replace('text-', 'bg-').replace('-500', '-100')} dark:bg-gray-700`}>
+                      <Icon className={`${solo ? 'h-8 w-8' : 'h-6 w-6'} ${kpi.color}`} />
                     </div>
                   </div>
                   <div className="mt-4">
-                    <Sparkline data={kpi.data} />
+                    <Sparkline data={kpi.data} width={solo ? 160 : 120} height={solo ? 40 : 32} />
                   </div>
                   {kpi.key === 'active' && (
                     <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
@@ -277,7 +278,10 @@ const AdminDashboard: React.FC = () => {
                   {cardInner}
                 </a>
               ) : (
-                <div key={kpi.key} className="h-full">
+                <div
+                  key={kpi.key}
+                  className={`h-full ${kpis.length === 1 ? 'col-span-full justify-self-center w-full max-w-xs' : ''}`}
+                >
                   {cardInner}
                 </div>
               );

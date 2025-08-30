@@ -105,10 +105,10 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       !Astro.url.pathname.startsWith('/admin') &&
       Astro.url.pathname !== '/admin_login'
     ) && <ConsultationPopup client:load />}
-    <script type="module" src="../lib/lenis-init.ts"></script>
+    <script type="module" src="/src/lib/lenis-init.ts"></script>
     <script type="module">
       // Initialize animations
-      import { inViewReveal, scrollProgress, magneticButton } from '../lib/animate';
+      import { inViewReveal, scrollProgress, magneticButton } from '/src/lib/animate';
       
       document.addEventListener('DOMContentLoaded', () => {
         // Initialize scroll progress
