@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
 import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload } from '../../../models/Collections';
@@ -251,6 +251,11 @@ const EstimationTool: React.FC = () => {
       }
       
       alert(status === 'Draft' ? 'Quote saved as draft!' : 'Quote saved successfully!');
+
+      // Refresh list and return to Pending Quotes view so user sees updates immediately
+      await fetchPendingQuotes();
+      setShowCreateForm(false);
+      setSelectedQuote(null);
       
       if (status === 'Pending') {
         // Reset form and close modal
@@ -289,43 +294,42 @@ const EstimationTool: React.FC = () => {
     }
   };
 
+  // Reusable loader for Pending quotes
+  const fetchPendingQuotes = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const quotesQuery = query(
+        collection(db, 'quotes'),
+        orderBy('createdAt', 'desc')
+      );
+
+      const querySnapshot = await getDocs(quotesQuery);
+
+      const quotesData = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as QuoteItem[];
+
+      setQuotes(
+        quotesData.filter((quote) => {
+          const isPending = quote.status && quote.status.toLowerCase() === 'pending';
+          const isMaintenance = (quote.quoteType || '').toLowerCase() === 'maintenance';
+          return isPending && !isMaintenance;
+        })
+      );
+    } catch (err) {
+      console.error('Error fetching quotes:', err);
+      setError('Failed to load quotes. Please try again later.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchQuotes = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Query all documents in the 'quotes' collection, ordered by createdAt
-        const quotesQuery = query(
-          collection(db, 'quotes'),
-          orderBy('createdAt', 'desc')
-        );
-        
-        const querySnapshot = await getDocs(quotesQuery);
-        
-        const quotesData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as QuoteItem[];
-        
-        setQuotes(
-          quotesData.filter((quote) => {
-            const isPending = quote.status && quote.status.toLowerCase() === 'pending';
-            const isMaintenance = (quote.quoteType || '').toLowerCase() === 'maintenance';
-            return isPending && !isMaintenance;
-          })
-        );
-      } catch (err) {
-        console.error('Error fetching quotes:', err);
-        setError('Failed to load quotes. Please try again later.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchQuotes();
-  }, []);
+    fetchPendingQuotes();
+  }, [fetchPendingQuotes]);
 
   if (loading) {
     return (
