@@ -4,30 +4,52 @@ import AuthModal from '../components/home/AuthModal';
 import AuthNavClient from '../components/common/AuthNavClient';
 ---
 
-<header class="fixed top-0 left-0 right-0 z-50 bg-white/90 dark:bg-charcoal/90 backdrop-blur-sm border-b border-gray-200 dark:border-gray-700">
+<header class="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-charcoal/95 backdrop-blur-md border-b border-gray-200/60 dark:border-gray-700/60 shadow-sm">
   <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between h-16 md:h-20">
       <!-- Logo -->
-      <a href="/" class="flex items-center space-x-3 text-lg md:text-xl font-semibold text-charcoal dark:text-white" aria-label="Smile Smart Homes home">
-        <img src="/logo-primary.png" alt="Smile Smart Homes" class="h-8 md:h-10 w-auto brightness-0 dark:brightness-100 dark:invert filter-teal" />
-        <img src="/my-secondary.png.png" alt="Secondary logo" class="h-9 md:h-11 lg:h-12 w-auto hidden sm:inline-block brightness-0 dark:brightness-100 dark:invert filter-teal" />
+      <a href="/" class="flex items-center space-x-3 text-lg md:text-xl font-semibold text-charcoal dark:text-white group transition-all duration-200 hover:scale-[1.02]" aria-label="Smile Smart Homes home">
+        <div class="relative">
+          <img src="/logo-primary.png" alt="Smile Smart Homes" class="h-8 md:h-10 w-auto brightness-0 dark:brightness-100 dark:invert filter-teal transition-transform duration-200 group-hover:rotate-3" />
+          <div class="absolute inset-0 bg-gradient-to-r from-teal/20 to-blue-500/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 -z-10"></div>
+        </div>
+        <img src="/my-secondary.png.png" alt="Secondary logo" class="h-9 md:h-11 lg:h-12 w-auto hidden sm:inline-block brightness-0 dark:brightness-100 dark:invert filter-teal transition-transform duration-200 group-hover:scale-105" />
       </a>
 
       <!-- Desktop Navigation (visible only above 910px) -->
-      <div class="hidden min-[911px]:flex items-center space-x-2 lg:space-x-4 xl:space-x-6">
-        <a href="/" class="px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-md font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal focus-visible:text-teal hover:bg-teal/10 dark:hover:bg-white/5 focus-visible:bg-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal transition-colors duration-150">Home</a>
-        <a href="/services" class="px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-md font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal focus-visible:text-teal hover:bg-teal/10 dark:hover:bg-white/5 focus-visible:bg-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal transition-colors duration-150">Services</a>
-        <a href="/about" class="px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-md font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal focus-visible:text-teal hover:bg-teal/10 dark:hover:bg-white/5 focus-visible:bg-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal transition-colors duration-150">About</a>
-        <a href="/gallery" class="px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-md font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal focus-visible:text-teal hover:bg-teal/10 dark:hover:bg-white/5 focus-visible:bg-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal transition-colors duration-150">Gallery</a>
-        <a href="/contact" class="px-2.5 py-1.5 md:px-3.5 md:py-2 rounded-md font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal focus-visible:text-teal hover:bg-teal/10 dark:hover:bg-white/5 focus-visible:bg-teal/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/50 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal transition-colors duration-150">Contact</a>
+      <div class="hidden min-[911px]:flex items-center space-x-1 lg:space-x-2 xl:space-x-3">
+        <a href="/" class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden">
+          <span class="relative z-10">Home</span>
+          <div class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+        </a>
+        <a href="/services" class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden">
+          <span class="relative z-10">Services</span>
+          <div class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+        </a>
+        <a href="/about" class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden">
+          <span class="relative z-10">About</span>
+          <div class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+        </a>
+        <a href="/gallery" class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden">
+          <span class="relative z-10">Gallery</span>
+          <div class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+        </a>
+        <a href="/contact" class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden">
+          <span class="relative z-10">Contact</span>
+          <div class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+        </a>
       </div>
 
       <!-- Right side -->
       <div class="flex items-center space-x-2 md:space-x-4">
         <DarkModeToggle client:load />
         <div class="hidden md:block">
-          <a href="/login" data-open-auth="login" data-auth="signin-desktop" class="inline-flex items-center px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base text-teal border border-teal rounded-lg hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">
-            Sign In
+          <a href="/login" data-open-auth="login" data-auth="signin-desktop" class="relative inline-flex items-center px-4 py-2.5 text-sm md:text-base font-medium text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200 group overflow-hidden">
+            <div class="absolute inset-0 bg-gradient-to-r from-white/10 to-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+            <svg class="w-4 h-4 mr-2 relative z-10 group-hover:rotate-12 transition-transform duration-200" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M3 3a1 1 0 011 1v12a1 1 0 11-2 0V4a1 1 0 011-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd"></path>
+            </svg>
+            <span class="relative z-10">Sign In</span>
           </a>
         </div>
         <!-- Authenticated state (desktop): Username text and avatar dropdown -->
@@ -44,8 +66,8 @@ import AuthNavClient from '../components/common/AuthNavClient';
         </div>
         
         <!-- Mobile menu button (show up to 910px) -->
-        <button class="hidden max-[910px]:inline-flex p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" id="mobile-menu-button">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button class="hidden max-[910px]:inline-flex p-2.5 rounded-xl bg-gradient-to-r from-teal/10 to-blue-500/10 hover:from-teal/20 hover:to-blue-500/20 border border-teal/20 transition-all duration-200 hover:scale-105" id="mobile-menu-button">
+          <svg class="w-5 h-5 text-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
           </svg>
         </button>
@@ -54,13 +76,13 @@ import AuthNavClient from '../components/common/AuthNavClient';
 
     <!-- Mobile Navigation -->
     <div class="hidden min-[911px]:hidden max-[910px]:block" id="mobile-menu">
-      <div class="px-2 pt-2 pb-3 space-y-1 bg-white dark:bg-charcoal border-t border-gray-200 dark:border-gray-700">
-        <a href="/" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Home</a>
-        <a href="/services" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Services</a>
-        <a href="/about" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">About</a>
-        <a href="/gallery" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Gallery</a>
-        <a href="/contact" class="block px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-teal">Contact</a>
-        <a href="/login" data-open-auth="login" class="block px-3 py-2 mt-1 text-teal border border-teal rounded-lg text-center hover:bg-teal/90 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-charcoal active:scale-[0.98] transition-all duration-150">Sign In</a>
+      <div class="px-3 pt-3 pb-4 space-y-2 bg-white/98 dark:bg-charcoal/98 backdrop-blur-md border-t border-gray-200/60 dark:border-gray-700/60 shadow-lg">
+        <a href="/" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Home</a>
+        <a href="/services" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Services</a>
+        <a href="/about" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">About</a>
+        <a href="/gallery" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Gallery</a>
+        <a href="/contact" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Contact</a>
+        <a href="/login" data-open-auth="login" class="block px-4 py-3 mt-3 text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl text-center font-medium shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200">Sign In</a>
       </div>
     </div>
   </nav>

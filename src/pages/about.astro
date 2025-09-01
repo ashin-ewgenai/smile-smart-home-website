@@ -10,15 +10,58 @@ import { StaggerContainer, StaggerItem } from '../components/ui/MotionIsland';
   
   <main class="pt-16">
     <!-- Hero Section -->
-    <section class="section-padding bg-gradient-to-br from-soft-gray via-white to-gray-100 dark:from-gray-900 dark:via-charcoal dark:to-gray-800">
-      <div class="container">
+    <section class="relative min-h-[96vh] md:min-h-[92vh] section-padding bg-gradient-to-br from-soft-gray via-white to-gray-100 dark:from-gray-900 dark:via-charcoal dark:to-gray-800 overflow-hidden flex items-center">
+      <!-- Dynamic Background Elements -->
+      <div class="absolute inset-0 opacity-8 dark:opacity-4">
+        <div class="absolute top-20 right-20 w-28 h-28 bg-gradient-to-r from-green-400 to-teal rounded-2xl rotate-12 animate-pulse"></div>
+        <div class="absolute bottom-24 left-16 w-20 h-20 border-2 border-blue-400/30 rounded-full animate-pulse" style="animation-delay: 1s;"></div>
+        <div class="absolute top-1/3 left-1/4 w-12 h-12 bg-purple-400/40 rounded-lg rotate-45 animate-pulse" style="animation-delay: 1.8s;"></div>
+        <div class="absolute bottom-1/3 right-1/3 w-8 h-8 bg-yellow-400 rounded-full animate-pulse" style="animation-delay: 0.5s;"></div>
+      </div>
+      
+      <div class="container relative z-10 py-0">
         <div class="max-w-4xl mx-auto text-center reveal-on-scroll">
+          <!-- Company Logo/Icon -->
+          <div class="inline-flex items-center justify-center w-24 h-24 bg-gradient-to-br from-teal/20 to-blue-500/20 dark:from-teal/30 dark:to-blue-500/30 rounded-3xl mb-8 mx-auto backdrop-blur-sm border border-white/20">
+            <svg class="w-12 h-12 text-teal" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12,2C13.1,2 14,2.9 14,4C14,5.1 13.1,6 12,6C10.9,6 10,5.1 10,4C10,2.9 10.9,2 12,2M21,9V7L12,2L3,7V9C3,14.55 6.84,19.74 12,21C17.16,19.74 21,14.55 21,9M12,4.5L18.5,7.5V9C18.5,13.39 15.86,17.53 12,18.5C8.14,17.53 5.5,13.39 5.5,9V7.5L12,4.5Z" />
+            </svg>
+          </div>
+          
           <h1 class="text-display font-bold text-charcoal dark:text-white mb-6">
-            About Smile Smart Homes
+            About <span class="bg-gradient-to-r from-teal to-blue-600 bg-clip-text text-transparent">Smile Smart Homes</span>
           </h1>
-          <p class="text-body-lg text-gray-600 dark:text-gray-300 mb-8">
+          <p class="text-body-lg text-gray-600 dark:text-gray-300 mb-8 max-w-3xl mx-auto">
             We're passionate about transforming homes with intelligent technology. Our expert team brings years of experience in smart home automation, security, and installation.
           </p>
+          
+          <!-- Trust Indicators -->
+          <div class="flex flex-wrap justify-center gap-4 mb-8">
+            <div class="flex items-center bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-full px-4 py-2 border border-white/20">
+              <div class="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mr-3">
+                <svg class="w-4 h-4 text-green-600 dark:text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                </svg>
+              </div>
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">500+ Homes</span>
+            </div>
+            <div class="flex items-center bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-full px-4 py-2 border border-white/20">
+              <div class="w-8 h-8 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mr-3">
+                <svg class="w-4 h-4 text-yellow-600 dark:text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"></path>
+                </svg>
+              </div>
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">98% Satisfaction</span>
+            </div>
+            <div class="flex items-center bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm rounded-full px-4 py-2 border border-white/20">
+              <div class="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mr-3">
+                <svg class="w-4 h-4 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                </svg>
+              </div>
+              <span class="text-sm font-medium text-gray-700 dark:text-gray-300">5+ Years</span>
+            </div>
+          </div>
         </div>
       </div>
     </section>
