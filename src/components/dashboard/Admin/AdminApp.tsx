@@ -1,6 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
-import { auth } from '../../../lib/firebase';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import DashboardLayout from './DashboardLayout';
 import AdminDashboard from './AdminDashboard';
@@ -23,18 +21,12 @@ const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => 
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (user) => {
-      try {
-        const userRole = localStorage.getItem('userRole');
-        const isAdminRole = userRole === 'admin' || userRole === 'Super Admin' || userRole === 'Admin';
-        setAllowed(!!user && isAdminRole);
-      } catch {
-        setAllowed(false);
-      } finally {
-        setReady(true);
-      }
-    });
-    return () => unsub();
+    try {
+      const userEmail = localStorage.getItem('userEmail');
+      const userRole = localStorage.getItem('userRole');
+      setAllowed(!!userEmail && userRole === 'admin');
+    } catch { setAllowed(false); }
+    setReady(true);
   }, []);
   if (!ready) return null;
   return allowed ? <>{children}</> : <Navigate to="/admin_login" replace />;

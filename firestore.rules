@@ -80,8 +80,7 @@ service cloud.firestore {
     // Anyone (including unauthenticated) may create a request, but no reads/updates/deletes
     match /contactRequests/{docId} {
       allow create: if isValidContactRequest();
-      allow read, update: if isAdmin();
-      allow delete: if isAdmin();
+      allow read, update, delete: if false;
 
       function isValidContactRequest() {
         // Only allow these fields
@@ -100,13 +99,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) &&
-        (
-          // Normalize role values to cover different capitalization/spellings used in the app
-          let role = get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role;
-          role == 'Admin' || role == 'admin' ||
-          role == 'Super Admin' || role == 'SuperAdmin' || role == 'superadmin' ||
-          role == 'Owner' || role == 'Manager' || role == 'Support'
-        );
+             get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role in ['Admin','SuperAdmin','Owner','Manager','Support'];
     }
   }
 }

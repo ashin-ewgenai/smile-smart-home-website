@@ -12,9 +12,10 @@ const AdminSidebar: React.FC = () => {
     // Convert full paths to relative paths for React Router with basename
     const relativePath = href.replace('/dashboard/admin', '') || '/';
     const active = inRouter && (
-      relativePath === '/'
+      href === '/dashboard/admin' 
         ? location.pathname === '/' || location.pathname === ''
-        : location.pathname === relativePath
+        : location.pathname === href.replace('/dashboard/admin', '') || 
+          (href === '/dashboard/admin/contact-submissions' && location.pathname === '/contact-submissions')
     );
     const cls = `${linkBase} ${active ? 'bg-gray-200 dark:bg-gray-700' : ''}`;
     return inRouter ? (

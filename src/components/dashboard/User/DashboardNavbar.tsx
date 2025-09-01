@@ -203,7 +203,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
             </a>
             {userType === 'admin' && (
               <a 
-                href="/dashboard/admin/users" 
+                href="/e" 
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => setIsMobileMenuOpen(false)}
               >

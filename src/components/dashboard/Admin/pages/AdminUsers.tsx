@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { auth, db } from '../../../../lib/firebase';
 import { accountsCollection, quotesCollection, supportTicketsCollection, userServiceRequestsCollection, quotesParentDoc, userServiceRequestsParentDoc, supportTicketsParentDoc, registerUserWithProfile, type Account } from '../../../../models/Collections';
 import { getDoc, getDocs, limit, query, where } from 'firebase/firestore';
+import AdminUserDetail from './AdminUserDetail';
 
 interface User { name: string; email: string }
 
@@ -28,6 +28,7 @@ type AlertsCount = {
 
 const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
   // alerts map keyed by email (lowercased)
   const [alertsMap, setAlertsMap] = useState<Record<string, AlertsCount>>({});
@@ -56,21 +57,15 @@ const AdminUsers: React.FC = () => {
     return () => { mounted = false; };
   }, []);
 
-  // Selected user detail is now opened as a full page under dashboard layout
+  // Toggle user detail view
   const openDetail = (email: string) => {
-    // Navigate to the dedicated page that renders within the main dashboard layout
-    // Path must match AdminApp route: "/contact-submissions" which renders AdminUserDetailPage
-    const url = `/dashboard/admin/contact-submissions?userEmail=${encodeURIComponent(email)}`;
-    try {
-      // Prefer SPA navigation if router is present
-      (window as any).history?.pushState?.({}, '', url);
-      // Dispatch a popstate for frameworks that listen to history changes
-      window.dispatchEvent(new PopStateEvent('popstate'));
-    } catch {
-      window.location.href = url;
-    }
+    setSelectedUser(email);
   };
-  // no local overlay, navigation only
+
+  // Handle back from user detail
+  const handleBack = () => {
+    setSelectedUser(null);
+  };
 
   // helper to resolve UID from Accounts by email
   async function resolveUidByEmail(email: string): Promise<string | null> {
@@ -246,25 +241,30 @@ const AdminUsers: React.FC = () => {
 
   return (
     <section className="bg-white/0 p-0">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Users</h1>
-          <button onClick={openAdd} className="inline-flex items-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-            </svg>
-            <span>Add User</span>
-          </button>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
-              </tr>
-            </thead>
+      {selectedUser ? (
+        <AdminUserDetail email={selectedUser} onBack={handleBack} />
+      ) : (
+        <>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between mb-4">
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Users</h1>
+              <button onClick={openAdd} className="inline-flex items-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+                  <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+                <span>Add User</span>
+              </button>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+                </tr>
+              </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {rows.map(({ name, email }) => (
                 <tr
@@ -313,9 +313,10 @@ const AdminUsers: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </div>
+        </>
+      )}
 
-      {/* User details open in dedicated page; no inline overlay here */}
+      {/* Add User Modal */}
 
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
