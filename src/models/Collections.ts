@@ -111,6 +111,28 @@ export function contactMessagePayload(input: ContactMessageInput): ContactMessag
   } as any;
 }
 
+// Contact Requests Collection (new, for notifications)
+export interface ContactRequest {
+  name?: string;
+  email?: string;
+  phone?: string;
+  service?: string;
+  message?: string;
+  createdAt?: Timestamp | null;
+  adminRead?: boolean;
+  [key: string]: any;
+}
+
+export const COLLECTION_CONTACT_REQUESTS = 'contactRequests';
+
+export function contactRequestsCollection(db: Firestore): CollectionReference<ContactRequest> {
+  return collection(db, COLLECTION_CONTACT_REQUESTS) as CollectionReference<ContactRequest>;
+}
+
+export function contactRequestDoc(db: Firestore, id: string): DocumentReference<ContactRequest> {
+  return doc(db, COLLECTION_CONTACT_REQUESTS, id) as DocumentReference<ContactRequest>;
+}
+
 // High-level helpers for components
 export async function findConsultationIdByEmail(db: Firestore, email: string): Promise<string | null> {
   try {

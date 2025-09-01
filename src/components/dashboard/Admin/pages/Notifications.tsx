@@ -1,22 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../../../../lib/firebase';
-import { query, orderBy, updateDoc, getDoc, getDocs, where, collectionGroup, type Timestamp } from 'firebase/firestore';
+import { query, orderBy, updateDoc, getDoc, getDocs, where, collectionGroup, onSnapshot, limit, type Timestamp } from 'firebase/firestore';
 import { 
   serviceRequestsCollection, 
   serviceRequestDoc, 
   usersCollection, 
   userDoc,
-  contactMessagesCollection,
+  contactRequestsCollection,
   plannerLeadsCollection,
   plannerLeadDoc,
   SUBCOLLECTION_QUOTE
 } from '../../../../models/Collections';
 import { showToast } from '../../../../lib/toast';
-import { contactMessageDoc, quoteDoc, supportTicketDoc } from '../../../../models/Collections';
+import { contactRequestDoc, quoteDoc, supportTicketDoc, estimationQuotesCollection, estimationQuoteDoc } from '../../../../models/Collections';
 
 type Priority = 'High' | 'Normal' | 'Low' | string;
 type Status = 'new' | 'ack' | 'done' | string;
-type NotificationType = 'service_request' | 'quote_request' | 'contact_message' | 'plan_lead' | 'support_ticket';
+type NotificationType = 'service_request' | 'quote_request' | 'contact_message' | 'plan_lead' | 'support_ticket' | 'estimation_quote';
 
 type UnifiedNotification = {
   id?: string;
@@ -80,16 +80,30 @@ const fmt = (ts?: Date | string | number | Timestamp | null) => {
 };
 
 const Notifications: React.FC = () => {
+  // Define isUnread at the top level of the component to avoid hoisting issues
+  const isUnread = (item: UnifiedNotification): boolean => {
+    // Prefer explicit adminRead: only considered read when true
+    if (item.adminRead === true) return false;
+    // For service requests, consider read if status is 'ack' or 'done'
+    if (item.type === 'service_request') {
+      const st = String(item.status || '').toLowerCase();
+      return !(st === 'ack' || st === 'done');
+    }
+    // For all others, missing adminRead or false => unread
+    return true;
+  };
+
   const [items, setItems] = useState<UnifiedNotification[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
 
   // cache user lookups
   const userCache = useMemo(() => new Map<string, { displayName: string; email: string } | null>(), []);
 
   useEffect(() => {
-    let unsub: undefined | (() => void);
+    let unsubs: Array<() => void> = [];
     const localKeyCandidates = ['serviceRequests', 'smile-service-requests', 'service_requests'];
 
     const tryLocal = () => {
@@ -173,77 +187,128 @@ const Notifications: React.FC = () => {
 
     (async () => {
       try {
-        // Fetch all notification types
-        const [serviceRequestsSnap, contactMessagesSnap, plannerLeadsSnap, quotesSnap, ticketsSnap] = await Promise.all([
-          getDocs(query(serviceRequestsCollection(db), orderBy('createdAt', 'desc'))),
-          getDocs(query(contactMessagesCollection(db), orderBy('createdAt', 'desc'))),
-          getDocs(query(plannerLeadsCollection(db), orderBy('createdAt', 'desc'))),
-          getDocs(query(collectionGroup(db, SUBCOLLECTION_QUOTE), orderBy('createdAt', 'desc'))),
-          getDocs(query(collectionGroup(db, 'ticket'), orderBy('createdAt', 'desc')))
-        ]);
-        
-        const allNotifications: UnifiedNotification[] = [
-          // Service Requests
-          ...serviceRequestsSnap.docs.map(d => ({
-            ...d.data(),
-            id: d.id,
-            type: 'service_request' as NotificationType
-          })),
-          // Contact Messages
-          ...contactMessagesSnap.docs.map(d => ({
-            ...d.data(),
-            id: d.id,
-            type: 'contact_message' as NotificationType
-          })),
-          // Plan Leads
-          ...plannerLeadsSnap.docs.map(d => ({
-            ...d.data(),
-            id: d.id,
-            type: 'plan_lead' as NotificationType
-          })),
-          // Quote Requests
-          ...quotesSnap.docs.map(d => ({
-            ...d.data(),
-            id: d.id,
-            type: 'quote_request' as NotificationType,
-            parentUid: d.ref.parent.parent?.id
-          })),
-          // Support Tickets (Reports issued by users)
-          ...ticketsSnap.docs.map(d => ({
-            ...d.data(),
-            id: d.id,
-            type: 'support_ticket' as NotificationType,
-            parentUid: d.ref.parent.parent?.id
-          })),
-        ];
-        
-        // Sort by creation date
-        allNotifications.sort((a, b) => {
+        // Fetch each source independently so one failure doesn't kill the page
+        const results: UnifiedNotification[] = [];
+        let failures = 0;
+
+        try {
+          const snap = await getDocs(query(serviceRequestsCollection(db), orderBy('createdAt', 'desc')));
+          results.push(...snap.docs.map(d => ({ ...d.data(), id: d.id, type: 'service_request' as NotificationType })));
+        } catch (err) {
+          failures++; console.warn('[notifications] service_requests failed:', err);
+        }
+
+        try {
+          const snap = await getDocs(query(contactRequestsCollection(db), orderBy('createdAt', 'desc')));
+          results.push(...snap.docs.map(d => ({ ...d.data(), id: d.id, type: 'contact_message' as NotificationType })));
+        } catch (err) {
+          failures++; console.warn('[notifications] contactRequests failed:', err);
+        }
+
+        try {
+          const snap = await getDocs(query(plannerLeadsCollection(db), orderBy('createdAt', 'desc')));
+          results.push(...snap.docs.map(d => ({ ...d.data(), id: d.id, type: 'plan_lead' as NotificationType })));
+        } catch (err) {
+          failures++; console.warn('[notifications] planner leads failed:', err);
+        }
+
+        try {
+          const snap = await getDocs(query(collectionGroup(db, SUBCOLLECTION_QUOTE), orderBy('createdAt', 'desc')));
+          results.push(...snap.docs.map(d => ({ ...d.data(), id: d.id, type: 'quote_request' as NotificationType, parentUid: d.ref.parent.parent?.id })));
+        } catch (err) {
+          failures++; console.warn('[notifications] quote_request (collectionGroup) failed:', err);
+        }
+
+        try {
+          const snap = await getDocs(query(collectionGroup(db, 'ticket'), orderBy('createdAt', 'desc')));
+          results.push(...snap.docs.map(d => ({ ...d.data(), id: d.id, type: 'support_ticket' as NotificationType, parentUid: d.ref.parent.parent?.id })));
+        } catch (err) {
+          failures++; console.warn('[notifications] support_ticket (collectionGroup) failed:', err);
+        }
+
+        // Sort and set
+        results.sort((a, b) => {
           const aTime = a.createdAt || a.created_at || a.ts || 0;
           const bTime = b.createdAt || b.created_at || b.ts || 0;
           return new Date(bTime as any).getTime() - new Date(aTime as any).getTime();
         });
-        
-        const enrichedList = await enrichWithUsers(allNotifications);
+
+        const enrichedList = await enrichWithUsers(results);
         setItems(enrichedList);
         setLoaded(true);
-        
-        // Cache for offline use
         try { localStorage.setItem('unified_notifications', JSON.stringify(enrichedList)); } catch {}
+
+        // If everything failed, fall back to local
+        if (failures >= 5) {
+          showToast('Using local data (no Firebase config).', 'warn');
+          tryLocal();
+          return;
+        }
+
+        // Real-time listeners (best-effort)
+        try {
+          const unsubscribeContacts = onSnapshot(
+            query(contactRequestsCollection(db), orderBy('createdAt', 'desc'), limit(50)),
+            async (snap) => {
+              const incoming: UnifiedNotification[] = snap.docs.map(d => ({ ...d.data(), id: d.id, type: 'contact_message' }));
+              const merged = await enrichWithUsers(mergeAndSort(itemsRef.current, incoming));
+              setItems(merged);
+            },
+            (err) => console.warn('[notifications] contacts onSnapshot error:', err)
+          );
+          unsubs.push(unsubscribeContacts);
+        } catch (err) {
+          console.warn('[notifications] contacts listener init failed:', err);
+        }
+
+        try {
+          const unsubscribeEstimations = onSnapshot(
+            query(estimationQuotesCollection(db), orderBy('createdAt', 'desc'), limit(50)),
+            async (snap) => {
+              const incoming: UnifiedNotification[] = snap.docs.map(d => ({ ...d.data(), id: d.id, type: 'estimation_quote' }));
+              const merged = await enrichWithUsers(mergeAndSort(itemsRef.current, incoming));
+              setItems(merged);
+            },
+            (err) => console.warn('[notifications] estimation quotes onSnapshot error:', err)
+          );
+          unsubs.push(unsubscribeEstimations);
+        } catch (err) {
+          console.warn('[notifications] estimation listener init failed:', err);
+        }
       } catch (e) {
-        console.warn('Failed to load notifications:', e);
+        console.warn('Failed to initialize notifications:', e);
         showToast('Using local data (no Firebase config).', 'warn');
         tryLocal();
       }
     })();
 
-    return () => { if (typeof unsub === 'function') unsub(); };
+    return () => { unsubs.forEach(u => { try { u(); } catch {} }); };
   }, [db, userCache]);
 
+  // Keep a ref of items for merging inside listeners
+  const [_, forceTick] = useState(0);
+  const itemsRef = React.useRef<UnifiedNotification[]>(items);
+  useEffect(() => { itemsRef.current = items; }, [items]);
+
+  function mergeAndSort(prev: UnifiedNotification[], incoming: UnifiedNotification[]) {
+    const map = new Map<string, UnifiedNotification>();
+    const keyOf = (x: UnifiedNotification) => `${x.type}:${x.id}`;
+    for (const x of prev) { if (x.id) map.set(keyOf(x), x); }
+    for (const x of incoming) { if (x.id) map.set(keyOf(x), { ...map.get(keyOf(x)), ...x }); }
+    const arr = Array.from(map.values());
+    arr.sort((a, b) => {
+      const aTime = a.createdAt || a.created_at || a.ts || 0;
+      const bTime = b.createdAt || b.created_at || b.ts || 0;
+      return new Date(bTime as any).getTime() - new Date(aTime as any).getTime();
+    });
+    return arr;
+  }
+
   const filteredItems = useMemo(() => {
-    if (filter === 'all') return items;
-    return items.filter(item => item.type === filter);
-  }, [items, filter]);
+    let list = filter === 'all' ? items : items.filter(item => item.type === filter);
+    if (unreadOnly) list = list.filter(isUnread);
+    return list;
+  }, [items, filter, unreadOnly]);
   
   const summary = useMemo(() => {
     const newCount = filteredItems.filter((x) => {
@@ -257,6 +322,8 @@ const Notifications: React.FC = () => {
     }).length;
     return `${filteredItems.length} notifications • ${newCount} new`;
   }, [filteredItems]);
+
+  const unreadCount = useMemo(() => items.filter(isUnread).length, [items]);
 
   const handleUpdate = async (id: string, action: 'ack' | 'done') => {
     try {
@@ -274,17 +341,29 @@ const Notifications: React.FC = () => {
       case 'contact_message': return '📧';
       case 'plan_lead': return '📋';
       case 'support_ticket': return '📣';
+      case 'estimation_quote': return '🧾';
       default: return '🔔';
     }
   };
   
-  const getNotificationTitle = (item: UnifiedNotification) => {
+  const getNotificationTitle = (item: UnifiedNotification): React.ReactNode => {
     switch (item.type) {
       case 'service_request': return `Service Request: ${item.service || 'Unknown'}`;
       case 'quote_request': return `New Quote Sent${item.location ? ` • ${item.location}` : ''}`;
-      case 'contact_message': return `Contact Message from ${item.name || 'Unknown'}`;
+      case 'contact_message': {
+        const nameOrEmail = item.name || item.email;
+        return nameOrEmail 
+          ? <>{'Contact Message from '}<span className="text-indigo-300 font-mono text-sm">{nameOrEmail}</span></>
+          : 'Contact Message from Unknown';
+      }
       case 'plan_lead': return 'New Plan Lead Created';
       case 'support_ticket': return `Report Issued${item.subject ? ` • ${item.subject}` : ''}`;
+      case 'estimation_quote': {
+        const email = item.customerEmail || item.userEmail || item.email;
+        return email 
+          ? <>{'Estimation Quote from '}<span className="text-indigo-300 font-mono text-sm">{email}</span></>
+          : 'Estimation Quote from Unknown';
+      }
       default: return 'Notification';
     }
   };
@@ -296,21 +375,11 @@ const Notifications: React.FC = () => {
       case 'contact_message': return `Service: ${item.service || 'N/A'} | Phone: ${item.phone || 'N/A'}`;
       case 'plan_lead': return 'A user requested a planning consultation';
       case 'support_ticket': return `Category: ${item.category || 'General'}${item.description ? ` • ${item.description}` : ''}`;
+      case 'estimation_quote': return 'A new estimation quote has been created';
       default: return '';
     }
   };
 
-  const isUnread = (item: UnifiedNotification) => {
-    // If explicit adminRead flag exists, use it
-    if (typeof item.adminRead !== 'undefined') return !item.adminRead;
-    // Otherwise infer: service requests with status 'new' are unread; others default to unread for 7 days
-    if (item.type === 'service_request') return (item.status || 'new') === 'new';
-    const createdAt = item.createdAt || item.created_at || item.ts;
-    if (!createdAt) return true;
-    const created = new Date(createdAt as any);
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    return created > weekAgo;
-  };
 
   const markAsRead = async (item: UnifiedNotification) => {
     const key = `${item.type}:${item.id}`;
@@ -323,7 +392,7 @@ const Notifications: React.FC = () => {
           break;
         }
         case 'contact_message': {
-          await updateDoc(contactMessageDoc(db, item.id), { adminRead: true });
+          await updateDoc(contactRequestDoc(db, item.id), { adminRead: true });
           break;
         }
         case 'plan_lead': {
@@ -336,8 +405,11 @@ const Notifications: React.FC = () => {
           break;
         }
         case 'support_ticket': {
-          if (!item.parentUid) throw new Error('Missing parent UID for ticket');
-          await updateDoc(supportTicketDoc(db, item.parentUid, item.id), { adminRead: true });
+          await updateDoc(supportTicketDoc(db, item.id), { adminRead: true });
+          break;
+        }
+        case 'estimation_quote': {
+          await updateDoc(estimationQuoteDoc(db, item.id), { adminRead: true });
           break;
         }
         default:
@@ -361,6 +433,19 @@ const Notifications: React.FC = () => {
       
       {/* Filter Tabs */}
       <div className="mb-6">
+        <div className="flex items-center justify-between mb-2">
+          <label className="flex items-center space-x-2 text-sm text-gray-300">
+            <input
+              type="checkbox"
+              className="accent-indigo-600"
+              checked={unreadOnly}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setUnreadOnly(e.target.checked)}
+              aria-label="Show Unread only"
+            />
+            <span>Show Unread only</span>
+            <span className="ml-2 px-2 py-0.5 rounded-full text-xs bg-indigo-900/40 text-indigo-200">{unreadCount}</span>
+          </label>
+        </div>
         <div className="flex space-x-1 bg-gray-800/50 p-1 rounded-lg">
           {(['all', 'service_request', 'quote_request', 'contact_message', 'plan_lead', 'support_ticket'] as const).map((filterType) => (
             <button
@@ -418,18 +503,13 @@ const Notifications: React.FC = () => {
                         }`}>
                           {item.type.replace('_', ' ').toUpperCase()}
                         </span>
+                        <span className={`px-2 py-1 text-xs rounded-full ${unread ? 'bg-indigo-600/30 text-indigo-200' : 'bg-gray-700 text-gray-300'}`}>
+                          {unread ? 'Unread' : 'Read'}
+                        </span>
                       </div>
-                      <p className="text-gray-400 mb-2">{getNotificationDescription(item)}</p>
-                      <div className="flex items-center space-x-4 text-sm text-gray-500">
-                        <span>👤 {user}</span>
-                        <span>📧 {userEmail}</span>
+                      <div className="flex items-center space-x-4 text-sm text-gray-500 mt-1">
                         <span>🕒 {fmt(createdAt)}</span>
                       </div>
-                      {item.message && (
-                        <div className="mt-3 p-3 bg-gray-800/50 rounded-lg">
-                          <p className="text-gray-300 text-sm">{item.message}</p>
-                        </div>
-                      )}
                       {item.details && (
                         <div className="mt-3 p-3 bg-gray-800/50 rounded-lg">
                           <p className="text-gray-300 text-sm">{item.details}</p>

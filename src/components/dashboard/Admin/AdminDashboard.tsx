@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText, ChevronDown, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
-import { COLLECTION_ACCOUNTS } from '../../../models/Collections';
+import { auth, db } from '../../../lib/firebase';
+import { COLLECTION_ACCOUNTS, registerUserWithProfile, type Account } from '../../../models/Collections';
 
 interface User {
   id: string;
@@ -89,6 +89,44 @@ const AdminDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [recentUsers, setRecentUsers] = useState<User[]>([]);
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
+  // Add User modal state (Option A)
+  const [showAdd, setShowAdd] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addPassword, setAddPassword] = useState('');
+  const [addRole, setAddRole] = useState<Account['Role']>('user');
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+  const addModalRef = useRef<HTMLDivElement | null>(null);
+
+  const openAdd = () => { setShowAdd(true); setAddError(null); };
+  const closeAdd = () => { setShowAdd(false); setAddName(''); setAddEmail(''); setAddPassword(''); setAddRole('user'); setAddError(null); };
+
+  useEffect(() => {
+    if (showAdd && addModalRef.current) {
+      addModalRef.current.focus();
+    }
+  }, [showAdd]);
+
+  async function handleAddSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!addEmail || !addPassword) return;
+    setAdding(true);
+    setAddError(null);
+    try {
+      await registerUserWithProfile(auth, db, {
+        email: addEmail,
+        password: addPassword,
+        fullName: addName || addEmail.split('@')[0],
+        role: addRole,
+      });
+      closeAdd();
+    } catch (err: any) {
+      setAddError(err?.message || 'Failed to add user');
+    } finally {
+      setAdding(false);
+    }
+  }
 
   // Fetch and process all users
   useEffect(() => {
@@ -271,7 +309,14 @@ const AdminDashboard: React.FC = () => {
                 className="absolute right-0 top-full mt-2 w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl ring-1 ring-black/10 dark:ring-white/10 border border-gray-200/70 dark:border-gray-700/60 z-30 overflow-hidden"
               >
                 <div className="p-0 divide-y divide-gray-100 dark:divide-gray-700">
-                  <a href="/dashboard/admin/users/add" role="menuitem" className="block px-3 py-2 text-sm leading-6 text-gray-900 dark:text-white hover:bg-teal-50 hover:text-teal-700 dark:hover:bg-gray-700 dark:hover:text-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">Add User</a>
+                  <a
+                    href="/dashboard/admin/users/add"
+                    role="menuitem"
+                    onClick={(e) => { e.preventDefault(); setIsQuickActionsOpen(false); openAdd(); }}
+                    className="block px-3 py-2 text-sm leading-6 text-gray-900 dark:text-white hover:bg-teal-50 hover:text-teal-700 dark:hover:bg-gray-700 dark:hover:text-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  >
+                    Add User
+                  </a>
                   <a href="/dashboard/admin/devices/add" role="menuitem" className="block px-3 py-2 text-sm leading-6 text-gray-900 dark:text-white hover:bg-teal-50 hover:text-teal-700 dark:hover:bg-gray-700 dark:hover:text-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">Add Device</a>
                 </div>
               </div>
@@ -376,8 +421,55 @@ const AdminDashboard: React.FC = () => {
           </div>
         </>
       )}
+
+      {/* Add User Modal (local to AdminDashboard) */}
+      {showAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={closeAdd} />
+          <div
+            ref={addModalRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            className="relative z-10 bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md p-6"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add User</h2>
+              <button onClick={closeAdd} className="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white">✕</button>
+            </div>
+            <form onSubmit={handleAddSubmit} className="space-y-4">
+              {addError && <div className="text-red-600 text-sm">{addError}</div>}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full name</label>
+                <input value={addName} onChange={e => setAddName(e.target.value)} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
+                <input type="email" required value={addEmail} onChange={e => setAddEmail(e.target.value)} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
+                <input type="password" required value={addPassword} onChange={e => setAddPassword(e.target.value)} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
+                <select value={addRole} onChange={e => setAddRole(e.target.value as Account['Role'])} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+                  <option value="user">user</option>
+                  <option value="admin">admin</option>
+                  <option value="Super Admin">Super Admin</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button type="button" onClick={closeAdd} className="px-3 py-2 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
+                <button type="submit" disabled={adding} className="px-3 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60">{adding ? 'Adding...' : 'Add User'}</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
-};
+}
 
 export default AdminDashboard;
