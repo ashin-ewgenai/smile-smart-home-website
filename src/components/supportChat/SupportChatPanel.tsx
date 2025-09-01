@@ -372,7 +372,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
               {claimed ? 'Human support connected' : 'Human support offline'}
             </div>
             {!claimed && (
-              <button onClick={requestHuman} className="text-xs px-2 py-1 rounded-full border border-rose-600 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/20">
+              <button onClick={requestHuman} className="text-xs px-2 py-1 rounded-full border border-teal-600 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 focus:outline-none focus:ring-2 focus:ring-teal-500">
                 Request human
               </button>
             )}

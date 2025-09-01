@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../../../../lib/firebase';
-import { collectionGroup, doc, onSnapshot, query, updateDoc, serverTimestamp, getDoc, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, updateDoc, serverTimestamp, getDoc, where } from 'firebase/firestore';
+import { supportTicketsCollection } from '../../../../models/Collections';
 // Admin complaints table (Recharts removed per request)
 
 type Ticket = {
@@ -30,15 +31,14 @@ const Reports: React.FC = () => {
     let unsub: undefined | (() => void);
     setLoading(true);
     try {
-      // Read all user tickets via collection group query over Support_Tickets/{uid}/Tickets_List
+      // Read all user tickets from flat Support_Tickets collection
       // We'll filter for 'in progress' status in the client to catch all case variations
       const qRef = query(
-        collectionGroup(db, 'Tickets_List')
+        supportTicketsCollection(db)
       );
       unsub = onSnapshot(qRef, async (snap) => {
         const arr: Ticket[] = snap.docs.map((d) => {
           const data = d.data() as any;
-          const parentUid = d.ref.parent.parent?.id; // Support_Tickets/{uid}/Tickets_List/{ticketId}
           return {
             id: d.id,
             subject: data.subject || '',
@@ -46,7 +46,7 @@ const Reports: React.FC = () => {
             description: data.description || '',
             status: data.status || 'Pending',
             createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || null),
-            userUid: parentUid,
+            userUid: data.uid, // uid field from flat collection
             imageUrl: data.imageUrl ?? null,
             adminReply: data.adminReply || '',
             adminRepliedAt: data.adminRepliedAt?.toDate ? data.adminRepliedAt.toDate() : (data.adminRepliedAt || null),
@@ -157,7 +157,7 @@ const Reports: React.FC = () => {
       if (!ticket.userUid) throw new Error('Missing user UID on ticket.');
       
       await updateDoc(
-        doc(db, 'Support_Tickets', ticket.userUid, 'Tickets_List', ticket.id),
+        doc(db, 'Support_Tickets', ticket.id),
         {
           status: newStatus,
           updatedAt: serverTimestamp(),

@@ -195,7 +195,7 @@ export const chatWithOpenAI = onCall({secrets: [OPENAI_API_KEY]}, async (request
   // Active tickets context
   let ticketContext = "";
   try {
-    const ticketsQuery = await db.collection("tickets").where("ownerUid", "==", uid).where("status", "!=", "closed").get();
+    const ticketsQuery = await db.collection("Support_Tickets").where("uid", "==", uid).where("status", "!=", "closed").get();
     const userTickets = ticketsQuery.docs.map((doc) => ({id: doc.id, ...doc.data()}));
     if (userTickets.length > 0) {
       const latest = userTickets[0] as any;
@@ -257,10 +257,10 @@ export const analyzeComplaint = onCall({secrets: [OPENAI_API_KEY]}, async (reque
   const ticketId = (request.data?.ticketId as string | undefined)?.trim();
   if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
 
-  const snap = await db.collection("tickets").doc(ticketId).get();
+  const snap = await db.collection("Support_Tickets").doc(ticketId).get();
   if (!snap.exists) throw new HttpsError("not-found", "Ticket not found");
   const t = snap.data() as any;
-  if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+  if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
 
   const apiKey = OPENAI_API_KEY.value();
   if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY not configured");
@@ -282,13 +282,13 @@ export const requestSerialImage = onCall(async (request) => {
   const ticketId = (request.data?.ticketId as string | undefined)?.trim();
   if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
 
-  const ref = db.collection("tickets").doc(ticketId);
+  const ref = db.collection("Support_Tickets").doc(ticketId);
   let attempts = 0;
   await db.runTransaction(async (tx) => {
     const s = await tx.get(ref);
     if (!s.exists) throw new HttpsError("not-found", "Ticket not found");
     const t = s.data() as any;
-    if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+    if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
     attempts = Number(t.imageUploadAttempts || 0);
     if (attempts >= 2) throw new HttpsError("failed-precondition", "Max image uploads reached");
     tx.set(ref, {imageUploadAttempts: attempts + 1, updatedAt: Date.now()}, {merge: true});
@@ -303,11 +303,11 @@ export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY]}, async 
   const imageUrl = (request.data?.imageUrl as string | undefined)?.trim();
   if (!ticketId || !imageUrl) throw new HttpsError("invalid-argument", "ticketId and imageUrl are required");
 
-  const tRef = db.collection("tickets").doc(ticketId);
+  const tRef = db.collection("Support_Tickets").doc(ticketId);
   const s = await tRef.get();
   if (!s.exists) throw new HttpsError("not-found", "Ticket not found");
   const t = s.data() as any;
-  if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+  if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
 
   const apiKey = OPENAI_API_KEY.value();
   if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY not configured");
@@ -344,11 +344,11 @@ export const verifySerialAndFetchDocs = onCall(async (request) => {
   const serial = (request.data?.serial as string | undefined)?.trim();
   if (!ticketId || !serial) throw new HttpsError("invalid-argument", "ticketId and serial are required");
 
-  const tRef = db.collection("tickets").doc(ticketId);
+  const tRef = db.collection("Support_Tickets").doc(ticketId);
   const tSnap = await tRef.get();
   if (!tSnap.exists) throw new HttpsError("not-found", "Ticket not found");
   const t = tSnap.data() as any;
-  if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+  if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
 
   const devSnap = await db.collection("devices").doc(serial).get();
   if (!devSnap.exists) return {valid: false, message: "This product is not recognized."};
@@ -370,11 +370,11 @@ export const suggestTroubleshootingStep = onCall({secrets: [OPENAI_API_KEY]}, as
   const docs = (request.data?.docs as string[] | undefined) || [];
   if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
 
-  const tRef = db.collection("tickets").doc(ticketId);
+  const tRef = db.collection("Support_Tickets").doc(ticketId);
   const tSnap = await tRef.get();
   if (!tSnap.exists) throw new HttpsError("not-found", "Ticket not found");
   const t = tSnap.data() as any;
-  if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+  if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
 
   const apiKey = OPENAI_API_KEY.value();
   if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY not configured");
@@ -403,11 +403,11 @@ export const resolveOrEscalate = onCall(async (request) => {
   const solved = Boolean(request.data?.solved);
   if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
 
-  const tRef = db.collection("tickets").doc(ticketId);
+  const tRef = db.collection("Support_Tickets").doc(ticketId);
   const snap = await tRef.get();
   if (!snap.exists) throw new HttpsError("not-found", "Ticket not found");
   const t = snap.data() as any;
-  if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+  if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
 
   const now = Date.now();
   if (solved) {
@@ -434,11 +434,11 @@ export const recordTicketFeedback = onCall(async (request) => {
   const comment = (request.data?.comment as string | undefined)?.trim() || "";
   if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
 
-  const tRef = db.collection("tickets").doc(ticketId);
+  const tRef = db.collection("Support_Tickets").doc(ticketId);
   const s = await tRef.get();
   if (!s.exists) throw new HttpsError("not-found", "Ticket not found");
   const t = s.data() as any;
-  if (t.ownerUid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+  if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
 
   await tRef.collection("feedback").add({rating, comment, ts: Date.now()});
   return {ok: true};

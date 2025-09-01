@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { auth, db } from '../../../../lib/firebase';
-import { accountsCollection, quotesCollection, supportTicketsCollection, userServiceRequestsCollection, quotesParentDoc, userServiceRequestsParentDoc, supportTicketsParentDoc, registerUserWithProfile, type Account } from '../../../../models/Collections';
+import { accountsCollection, quotesCollection, supportTicketsCollection, userServiceRequestsCollection, quotesParentDoc, userServiceRequestsParentDoc, registerUserWithProfile, type Account } from '../../../../models/Collections';
 import { getDoc, getDocs, limit, query, where } from 'firebase/firestore';
 import AdminUserDetail from './AdminUserDetail';
 
@@ -93,11 +93,10 @@ const AdminUsers: React.FC = () => {
         return empty;
       }
 
-      // Try to use aggregate fields on parent docs
-      const [qParent, sParent, tParent] = await Promise.all([
+      // Try to use aggregate fields on parent docs (tickets now use flat collection)
+      const [qParent, sParent] = await Promise.all([
         getDoc(quotesParentDoc(db, uid)),
         getDoc(userServiceRequestsParentDoc(db, uid)),
-        getDoc(supportTicketsParentDoc(db, uid)),
       ]);
 
       // Helper to compute unresolved from parent snapshot with given resolvedKey
@@ -112,14 +111,14 @@ const AdminUsers: React.FC = () => {
 
       let quotesUnresolved = unresolvedFromParent(qParent, 'approved_no');
       let servicesUnresolved = unresolvedFromParent(sParent, 'review_no');
-      let ticketsUnresolved = unresolvedFromParent(tParent, 'solved_no');
+      let ticketsUnresolved: number | null = null; // Always query flat collection
 
       let quotesResolved: number | null = qParent?.exists?.() ? Number((qParent.data() as any)?.approved_no ?? NaN) : null;
       let quotesTotal: number | null = qParent?.exists?.() ? Number((qParent.data() as any)?.total_no ?? NaN) : null;
       let servicesResolved: number | null = sParent?.exists?.() ? Number((sParent.data() as any)?.review_no ?? NaN) : null; // closed
       let servicesTotal: number | null = sParent?.exists?.() ? Number((sParent.data() as any)?.total_no ?? NaN) : null;
-      let ticketsResolved: number | null = tParent?.exists?.() ? Number((tParent.data() as any)?.solved_no ?? NaN) : null;
-      let ticketsTotal: number | null = tParent?.exists?.() ? Number((tParent.data() as any)?.total_no ?? NaN) : null;
+      let ticketsResolved: number | null = null;
+      let ticketsTotal: number | null = null;
 
       // Fallback to live queries if aggregates are missing
       if (quotesUnresolved === null) {
@@ -142,17 +141,16 @@ const AdminUsers: React.FC = () => {
         servicesResolved = closedSnap.size;
         servicesTotal = allSnap.size;
       }
-      if (ticketsUnresolved === null) {
-        const tCol = supportTicketsCollection(db, uid);
-        const [allSnap, solvedSnap] = await Promise.all([
-          getDocs(tCol),
-          // Support different status vocabularies; prefer 'Resolved'
-          getDocs(query(tCol, where('status', 'in', ['Resolved', 'closed'] as any))),
-        ]);
-        ticketsUnresolved = Math.max(0, allSnap.size - solvedSnap.size);
-        ticketsResolved = solvedSnap.size;
-        ticketsTotal = allSnap.size;
-      }
+      // Always query flat collection for tickets
+      const tCol = supportTicketsCollection(db);
+      const [allSnap, solvedSnap] = await Promise.all([
+        getDocs(query(tCol, where('uid', '==', uid))),
+        // Support different status vocabularies; prefer 'Resolved'
+        getDocs(query(tCol, where('uid', '==', uid), where('status', 'in', ['Resolved', 'closed'] as any))),
+      ]);
+      ticketsUnresolved = Math.max(0, allSnap.size - solvedSnap.size);
+      ticketsResolved = solvedSnap.size;
+      ticketsTotal = allSnap.size;
 
       const data: AlertsCount = {
         uid,

@@ -260,7 +260,7 @@ export const adminCloseTicket = onCall(async (request) => {
   if (role !== "Super Admin" && role !== "Admin") {
     throw new HttpsError("permission-denied", "Only admins can close tickets");
   }
-  await db.collection("tickets").doc(ticketId).set({status: "closed", updatedAt: Date.now()}, {merge: true});
+  await db.collection("Support_Tickets").doc(ticketId).set({status: "closed", updatedAt: Date.now()}, {merge: true});
   return {status: "closed"};
 });
 

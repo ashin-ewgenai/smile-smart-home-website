@@ -327,9 +327,9 @@ const SmartHomePlanner = () => {
             <h3 className="text-xl font-medium text-gray-900 dark:text-white">What's your budget range?</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {[
-                { label: 'Basic', range: '$500 - $1,500' },
-                { label: 'Standard', range: '$1,500 - $3,500' },
-                { label: 'Premium', range: '$3,500+' }
+                { label: 'Basic', range: '₹41,500 - ₹1,24,500' },
+                { label: 'Standard', range: '₹1,24,500 - ₹2,90,500' },
+                { label: 'Premium', range: '₹2,90,500+' }
               ].map((option) => (
                 <button
                   key={option.label}

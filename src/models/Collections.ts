@@ -337,11 +337,12 @@ export function quoteDoc(db: Firestore, uid: string, id: string): DocumentRefere
   return doc(db, COLLECTION_QUOTES_ROOT, uid, SUBCOLLECTION_QUOTE, id) as DocumentReference<QuoteItem>;
 }
 
-// Nested: supportTickets/{uid}/ticket
-export const COLLECTION_SUPPORT_TICKETS_ROOT = 'Support_Tickets';
-export const SUBCOLLECTION_TICKET = 'Tickets_List';
+// Flat: supportTickets collection with uid field
+export const COLLECTION_SUPPORT_TICKETS = 'Support_Tickets';
 
 export interface SupportTicket {
+  // User identification
+  uid: string;
   // New fields used by TicketCenter
   subject?: string;
   category?: 'Device Issue' | 'Connectivity' | 'Billing' | 'Other' | string;
@@ -355,14 +356,11 @@ export interface SupportTicket {
   [key: string]: any;
 }
 
-export function supportTicketsParentDoc(db: Firestore, uid: string): DocumentReference {
-  return doc(db, COLLECTION_SUPPORT_TICKETS_ROOT, uid);
+export function supportTicketsCollection(db: Firestore): CollectionReference<SupportTicket> {
+  return collection(db, COLLECTION_SUPPORT_TICKETS) as CollectionReference<SupportTicket>;
 }
-export function supportTicketsCollection(db: Firestore, uid: string): CollectionReference<SupportTicket> {
-  return collection(db, COLLECTION_SUPPORT_TICKETS_ROOT, uid, SUBCOLLECTION_TICKET) as CollectionReference<SupportTicket>;
-}
-export function supportTicketDoc(db: Firestore, uid: string, id: string): DocumentReference<SupportTicket> {
-  return doc(db, COLLECTION_SUPPORT_TICKETS_ROOT, uid, SUBCOLLECTION_TICKET, id) as DocumentReference<SupportTicket>;
+export function supportTicketDoc(db: Firestore, id: string): DocumentReference<SupportTicket> {
+  return doc(db, COLLECTION_SUPPORT_TICKETS, id) as DocumentReference<SupportTicket>;
 }
 
 // Nested: User_Devices/{uid}/Devices

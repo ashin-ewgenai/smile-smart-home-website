@@ -43,10 +43,12 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Support tickets: Support_Tickets/{uid}/Tickets_List/{ticketId}
-    // Allow authenticated user to read/write ONLY their own subtree
-    match /Support_Tickets/{uid}/Tickets_List/{ticketId} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+    // Support tickets: flat collection Support_Tickets/{ticketId}
+    // Allow authenticated user to read/write ONLY their own tickets (based on uid field)
+    match /Support_Tickets/{ticketId} {
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
+      allow update, delete: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
     }
 
     // Global support availability status

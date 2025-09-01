@@ -263,11 +263,11 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       setLoadingRelated(true);
       try {
         const uid: string = account.id;
-        // Fetch nested collections (primary)
+        // Fetch nested collections (primary) - tickets now use flat collection
         const [qSnapNested, sSnap, tSnap] = await Promise.all([
           getDocs(quotesCollection(db, uid)),
           getDocs(userServiceRequestsCollection(db, uid)),
-          getDocs(supportTicketsCollection(db, uid)),
+          getDocs(query(supportTicketsCollection(db), where('uid', '==', uid))),
         ]);
 
         // Also support a flat quotes collection that stores user UID in a field
@@ -459,7 +459,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         await updateDoc(ref as any, { status: editStatus });
         setServices((prev) => (prev || []).map((x) => (x.id === selected.id ? { ...x, status: editStatus } : x)));
       } else if (selected.type === 'tickets') {
-        const ref = supportTicketDoc(db, uid, selected.id);
+        const ref = supportTicketDoc(db, selected.id);
         await updateDoc(ref as any, { status: editStatus });
         setTickets((prev) => (prev || []).map((x) => (x.id === selected.id ? { ...x, status: editStatus } : x)));
       }
