@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, where, getDocs, getDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot, query, where, getDocs, getDoc, doc, Timestamp } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { userDevicesCollection } from '../../../models/Collections';
@@ -18,7 +18,11 @@ type DeviceDoc = {
   stock?: number | null;
   rating?: number | null;
   discount?: number | null;
-  warranty?: string | number | null;
+  warranty?: any | null;
+  warrantySource?: 'user' | 'device';
+  brand?: string;
+  description?: string;
+  documentationUrl?: string;
 };
 
 // --- Component ---
@@ -44,6 +48,89 @@ const AboutDevices: React.FC = () => {
       }
     }
     return null;
+  };
+
+  // Helper: extract user-specific warranty from userdevices doc
+  // Looks for serials: [{ serialNumber, warrantyExpiry }]
+  const getUserWarranty = (userData: any, serialHint?: string): any => {
+    try {
+      // 1) If serials array of maps exists, try to match by serialNumber
+      if (Array.isArray(userData?.serials)) {
+        const items = userData.serials as Array<any>;
+        if (serialHint) {
+          const found = items.find(it => (it?.serialNumber || it?.serial) === serialHint);
+          if (found && (found.warrantyExpiry || found.warrantyexpiry)) {
+            return found.warrantyExpiry ?? found.warrantyexpiry;
+          }
+        }
+        // If no match: pick a valid warranty from the list (prefer latest date)
+        let best: any = null;
+        let bestTime = -Infinity;
+        for (const it of items) {
+          const val = it?.warrantyExpiry ?? it?.warrantyexpiry ?? null;
+          if (!val) continue;
+          // Try to parse to time for comparison
+          let t = NaN;
+          if (val && typeof val === 'object' && typeof val.toDate === 'function') {
+            t = (val as Timestamp).toDate().getTime();
+          } else if (typeof val === 'number') {
+            const ms = val < 1e12 ? val * 1000 : val;
+            t = new Date(ms).getTime();
+          } else if (typeof val === 'string') {
+            t = Date.parse(val);
+          }
+          if (!Number.isNaN(t) && t > bestTime) {
+            bestTime = t;
+            best = val;
+          }
+        }
+        if (best !== null) return best;
+      }
+      // 2) Fallback to top-level fields on user doc
+      return (
+        userData?.warrantyExpiry ??
+        userData?.warrantyexpiry ??
+        userData?.warrantyDate ??
+        userData?.warrantyEnd ??
+        userData?.warranty_end ??
+        userData?.warranty ??
+        null
+      );
+    } catch {
+      return null;
+    }
+  };
+
+  // Helper: format warranty values from various possible Firestore shapes
+  const formatWarranty = (value: any): string => {
+    if (value === null || value === undefined) return '—';
+    try {
+      // Firestore Timestamp
+      if (value && typeof value === 'object' && typeof value.toDate === 'function') {
+        const d = (value as Timestamp).toDate();
+        return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+      }
+      // Number epoch (ms or s)
+      if (typeof value === 'number') {
+        const ms = value < 1e12 ? value * 1000 : value; // if seconds, convert to ms
+        const d = new Date(ms);
+        return isNaN(d.getTime()) ? String(value) : d.toLocaleDateString();
+      }
+      // String date
+      if (typeof value === 'string') {
+        const parsed = Date.parse(value);
+        if (Number.isNaN(parsed)) {
+          // Not a parseable date; show raw text
+          return value;
+        }
+        const d = new Date(parsed);
+        return isNaN(d.getTime()) ? value : d.toLocaleDateString();
+      }
+      // Fallback textual representation
+      return String(value);
+    } catch {
+      return '—';
+    }
   };
 
   // Track auth state
@@ -104,15 +191,31 @@ const AboutDevices: React.FC = () => {
           ref: d.ref.path
         })));
         
-        // Create a map of device ID to user device data
+        // Create helpers to join Devices -> userdevices
         const userDevicesMap = new Map(
           userDevicesSnap.docs.map(doc => [doc.id, doc.data()])
         );
+        const userDevicesArray = userDevicesSnap.docs.map(d => ({ id: d.id, data: d.data() as any }));
         
         // 3. Combine device data with user-specific data
         const deviceResults = devicesSnap.docs.map(doc => {
-          const deviceData = doc.data();
-          const userDeviceData = userDevicesMap.get(doc.id) || {};
+          const deviceData = doc.data() as any;
+          // Primary: direct ID match, else try linking fields from userdevices
+          let userDeviceData: any = userDevicesMap.get(doc.id) || null;
+          if (!userDeviceData) {
+            const byLink = userDevicesArray.find(ud =>
+              ud.data?.deviceId === doc.id ||
+              ud.data?.sourceDeviceId === doc.id
+            );
+            if (byLink) userDeviceData = byLink.data;
+          }
+          if (!userDeviceData && deviceData?.serial) {
+            const bySerial = userDevicesArray.find(ud =>
+              Array.isArray(ud.data?.serials) && ud.data.serials.includes(deviceData.serial)
+            );
+            if (bySerial) userDeviceData = bySerial.data;
+          }
+          if (!userDeviceData) userDeviceData = {};
           
           console.log(`Processing device ${doc.id}:`, { 
             deviceData, 
@@ -120,6 +223,21 @@ const AboutDevices: React.FC = () => {
             ref: doc.ref.path 
           });
           
+          // Prefer user warranty, especially when stored per-serial
+          const serialHint = (userDeviceData?.serialNumber) || deviceData?.serial;
+          const userWarranty = getUserWarranty(userDeviceData, serialHint);
+          const deviceWarranty = deviceData.warranty ?? null;
+          const chosenWarranty = userWarranty ?? deviceWarranty ?? null;
+          const chosenSource: 'user' | 'device' | undefined = (userWarranty != null) ? 'user' : ((deviceWarranty != null) ? 'device' : undefined);
+          console.log('Warranty selection', {
+            deviceId: doc.id,
+            serialHint,
+            userWarranty,
+            deviceWarranty,
+            chosenWarranty,
+            chosenSource,
+          });
+
           return {
             id: doc.id,
             deviceName: deviceData.deviceName || deviceData.name || 'Unnamed Device',
@@ -133,7 +251,11 @@ const AboutDevices: React.FC = () => {
             stock: typeof deviceData.stock === 'number' ? deviceData.stock : null,
             rating: typeof deviceData.rating === 'number' ? deviceData.rating : null,
             discount: typeof deviceData.discount === 'number' ? deviceData.discount : null,
-            warranty: userDeviceData.warrantyExpiry || deviceData.warranty || null,
+            warranty: chosenWarranty,
+            warrantySource: chosenSource,
+            brand: deviceData.brand || deviceData.manufacturer || deviceData.company || undefined,
+            description: deviceData.description || deviceData.details || deviceData.summary || undefined,
+            documentationUrl: deviceData.documentationUrl || deviceData.documentation || deviceData.docs || deviceData.manualUrl || deviceData.datasheetUrl || undefined,
           } as DeviceDoc;
         });
         
@@ -329,13 +451,14 @@ const AboutDevices: React.FC = () => {
                     </span>
                   </div>
                   
-                  {device.warranty && (
+                  {device.warranty !== null && device.warranty !== undefined && (
                     <div className="truncate">
                       <span className="text-gray-400">Warranty:</span>
-                      <span className="ml-1 text-gray-300">
-                        {typeof device.warranty === 'string' ? 
-                          new Date(device.warranty).toLocaleDateString() : 
-                          device.warranty}
+                      <span
+                        className="ml-1 text-gray-300"
+                        title={`source: ${device.warrantySource ?? 'none'} | raw: ${String(device.warranty)}`}
+                      >
+                        {formatWarranty(device.warranty as any)}
                       </span>
                     </div>
                   )}
@@ -424,27 +547,46 @@ const AboutDevices: React.FC = () => {
             )}
             <div className="px-4 py-4 text-sm">
               <div className="mb-2">
-                <span className="text-gray-400">Device ID:</span>
-                <span className="ml-2 font-mono text-gray-200 break-all">{selectedDevice.id}</span>
+                <span className="text-gray-400">Device Name:</span>
+                <span className="ml-2 text-gray-200">{selectedDevice.deviceName || selectedDevice.name || 'Unnamed Device'}</span>
               </div>
               <div className="mb-2">
-                <span className="text-gray-400">Serial:</span>
-                <span className="ml-2 text-gray-200">{selectedDevice.serial || 'N/A'}</span>
+                <span className="text-gray-400">Device Type:</span>
+                <span className="ml-2 text-gray-200">{selectedDevice.type || '—'}</span>
               </div>
+              {selectedDevice.brand && (
+                <div className="mb-2">
+                  <span className="text-gray-400">Brand:</span>
+                  <span className="ml-2 text-gray-200">{selectedDevice.brand}</span>
+                </div>
+              )}
               <div className="mb-2">
                 <span className="text-gray-400">Number of this device you own:</span>
-                <span className="ml-2 text-gray-200">
-                  {selectedDeviceCountLoading ? 'Loading…' : (selectedDeviceCount ?? '—')}
-                </span>
+                <span className="ml-2 text-gray-200">{selectedDeviceCountLoading ? 'Loading…' : (selectedDeviceCount ?? '—')}</span>
               </div>
-              {selectedDevice.warranty && (
+              {selectedDevice.price !== null && selectedDevice.price !== undefined && (
                 <div className="mb-2">
-                  <span className="text-gray-400">Warranty:</span>
-                  <span className="ml-2 text-gray-200">
-                    {typeof selectedDevice.warranty === 'string'
-                      ? new Date(selectedDevice.warranty).toLocaleDateString()
-                      : selectedDevice.warranty}
-                  </span>
+                  <span className="text-gray-400">Price:</span>
+                  <span className="ml-2 text-gray-200">${selectedDevice.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {selectedDevice.description && (
+                <div className="mb-2">
+                  <span className="text-gray-400">Description:</span>
+                  <span className="ml-2 text-gray-300">{selectedDevice.description}</span>
+                </div>
+              )}
+              {selectedDevice.documentationUrl && (
+                <div className="mb-2">
+                  <span className="text-gray-400">Documentation:</span>
+                  <a
+                    href={selectedDevice.documentationUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-2 text-blue-400 hover:underline break-all"
+                  >
+                    {selectedDevice.documentationUrl}
+                  </a>
                 </div>
               )}
               {userTotalDevices !== null && (

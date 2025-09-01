@@ -8,6 +8,7 @@ import QuoteForm from './QuoteForm';
 import AboutDevices from './AboutDevices';
 import UserBill from './UserBill';
 import TicketCenter from './TicketCenter';
+import ChangePassword from './ChangePassword';
 
 // Simple wrapper to show the Quote Portal within standard padding
 const QuotePortalPage: React.FC = () => (
@@ -34,6 +35,7 @@ const DashboardApp: React.FC = () => {
           <Route path="/dashboard/user/about-device" element={<AboutDevices />} />
           <Route path="/dashboard/user/bill" element={<UserBill />} />
           <Route path="/dashboard/user/profile" element={<UserProfile />} />
+          <Route path="/dashboard/user/change-password" element={<ChangePassword />} />
           <Route path="*" element={<Navigate to="/dashboard/user" replace />} />
         </Routes>
       </DashboardLayout>

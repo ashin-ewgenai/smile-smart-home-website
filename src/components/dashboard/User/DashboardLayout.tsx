@@ -83,6 +83,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
       )
     },
     {
+      href: `${base}/change-password`, key: 'change-password', label: 'Change Password', title: 'Change Password', match: `${base}/change-password`, icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+          <path d="M12 17a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z" />
+          <path d="M19 11V7a7 7 0 0 0-14 0v4" />
+          <rect x="5" y="11" width="14" height="10" rx="2" />
+        </svg>
+      )
+    },
+    {
       href: '#support-chat', key: 'support', label: 'Support Chat', title: 'Support Chat', match: '#support-chat', icon: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
           <path d="M21 15a4 4 0 0 1-4 4H7l-4 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />

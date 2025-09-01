@@ -3,8 +3,9 @@ import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, Wrench, Che
 import RequestServiceModal from './RequestServiceModal';
 import RequestStatusModal from './RequestStatusModal';
 import { db, auth } from '../../../lib/firebase';
-import { getDocs, query, orderBy, limit, getDoc } from 'firebase/firestore';
+import { getDocs, query, orderBy, limit, getDoc, collection, onSnapshot, doc } from 'firebase/firestore';
 import { userServiceRequestsCollection, userDoc } from '../../../models/Collections';
+import { onAuthStateChanged } from 'firebase/auth';
 
 interface DeviceStats {
   totalDevices: number;
@@ -105,6 +106,17 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   
   const [isLoading, setIsLoading] = useState(true);
 
+  // Per-type counts state
+  const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
+  const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
+  const [typeCountsLoading, setTypeCountsLoading] = useState<boolean>(false);
+
+  // Track auth state so we can read user subcollection
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null));
+    return () => unsub();
+  }, []);
+
   // Request Status modal state
   const [requestStatusOpen, setRequestStatusOpen] = useState(false);
   const [myRequests, setMyRequests] = useState<Array<{ id: string; service: string; device: string; priority: string; status: string; date?: string; time?: string; createdAt?: any }>>([]);
@@ -139,19 +151,93 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     }
   };
   
-  // Simulate fetching data
+  // Real-time: per-type counts and active/total devices
   useEffect(() => {
-    // In a real app, this would be an API call
-    setTimeout(() => {
-      setDeviceStats({
-        totalDevices: 8,
-        activeDevices: 7,
-        offlineDevices: 1
-      });
-      
+    if (!uid) {
       setIsLoading(false);
-    }, 1000);
-  }, []);
+      setTypeCounts({});
+      setDeviceStats({ totalDevices: 0, activeDevices: 0, offlineDevices: 0 });
+      return;
+    }
+
+    setTypeCountsLoading(true);
+    setIsLoading(true);
+
+    const ref = collection(db, 'userdevices', uid, 'devices');
+    const unsubscribe = onSnapshot(ref, async (snap) => {
+      // Active devices = number of device mappings for the user
+      const active = snap.size;
+
+      // Build per-type counts: sum by serial array length or numeric count fields
+      const counts: Record<string, number> = {};
+      const normalizeType = (t: string): string => {
+        const s = (t || '').toString().trim().toLowerCase();
+        if (!s) return 'Unknown';
+        if (['cctv','cctv camera','camera cctv','cctv cameras'].includes(s)) return 'CCTV';
+        if (['smart alarm','alarm','smart-alarm','smartalarm'].includes(s)) return 'Smart Alarm';
+        if (['wireless doorbell kits','wireless doorbell','doorbell','doorbell kit','doorbell kits'].includes(s)) return 'Wireless Doorbell Kits';
+        // Title-case fallback
+        return s.replace(/\b\w/g, (m) => m.toUpperCase());
+      };
+      const numFrom = (obj: any, keys: string[]): number | null => {
+        for (const k of keys) {
+          const v = obj?.[k];
+          if (typeof v === 'number' && Number.isFinite(v)) return v;
+          if (typeof v === 'string') {
+            const n = Number(v);
+            if (Number.isFinite(n)) return n;
+          }
+        }
+        return null;
+      };
+      snap.forEach((d) => {
+        const data: any = d.data();
+        const rawType = (data?.type ?? data?.deviceType ?? data?.category ?? data?.DeviceType ?? data?.Type ?? 'Unknown') as string;
+        const type = normalizeType(String(rawType || 'Unknown'));
+        let add = 0;
+        if (Array.isArray(data?.serials)) add = data.serials.length;
+        if (!add) {
+          const n = numFrom(data, ['deviceCount','DeviceCount','deviceCount1','DeviceCount1','count','Count','quantity','Quantity','qty','Qty','serialCount','SerialCount']);
+          add = n ?? 0;
+        }
+        if (!add) add = 1; // fallback, at least one device
+        counts[type] = (counts[type] ?? 0) + add;
+      });
+      setTypeCounts(counts);
+
+      // Try to read total devices owned from parent doc, else fallback to active
+      let total = active;
+      try {
+        const parent = await getDoc(doc(db, 'userdevices', uid));
+        if (parent.exists()) {
+          const pdata: any = parent.data();
+          const possible = [
+            'totalDevices','devicesCount','deviceCount','DeviceCount','deviceCount1','DeviceCount1','total','Total'
+          ];
+          for (const k of possible) {
+            const v = pdata?.[k];
+            if (typeof v === 'number' && Number.isFinite(v)) { total = v; break; }
+            if (typeof v === 'string') {
+              const n = Number(v);
+              if (Number.isFinite(n)) { total = n; break; }
+            }
+          }
+        }
+      } catch {}
+
+      setDeviceStats({ totalDevices: total, activeDevices: active, offlineDevices: Math.max(total - active, 0) });
+      setTypeCountsLoading(false);
+      setIsLoading(false);
+    }, () => {
+      // On error, clear counts but avoid crashing UI
+      setTypeCounts({});
+      setDeviceStats({ totalDevices: 0, activeDevices: 0, offlineDevices: 0 });
+      setTypeCountsLoading(false);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [uid, db]);
   
   const userDevices = [
     { id: 1, name: 'Living Room Camera', type: 'Camera', status: 'active', lastActivity: '5 minutes ago' },
@@ -229,40 +315,27 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
               </div>
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">Total Devices</span>
+                  <span className="text-gray-600 dark:text-gray-400">type of devices</span>
                   <span className="text-xl font-bold text-gray-900 dark:text-white">{deviceStats.totalDevices}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600 dark:text-gray-400">Active Devices</span>
                   <span className="text-xl font-bold text-teal-500">{deviceStats.activeDevices}</span>
                 </div>
-                <button
-                  type="button"
-                  onMouseEnter={() => {
-                    if (auth.currentUser) fetchMyRequests(false);
-                  }}
-                  onFocus={() => {
-                    if (auth.currentUser) fetchMyRequests(false);
-                  }}
-                  onClick={() => {
-                    const user = auth.currentUser;
-                    if (!user) {
-                      alert('Please sign in to view your service requests.');
-                      return;
-                    }
-                    // Open immediately, then refresh in background
-                    setRequestStatusOpen(true);
-                    fetchMyRequests(false);
-                  }}
-                  className="group w-full flex items-center justify-between px-5 py-4 rounded-lg border border-teal-600/60 text-teal-800 dark:text-teal-200 bg-teal-50/50 dark:bg-teal-900/10 hover:bg-teal-100/70 dark:hover:bg-teal-900/20 shadow-sm hover:shadow-md transition-all duration-200"
-                  aria-label="Open Request Status"
-                >
-                  <span className="text-gray-900 dark:text-white font-semibold">Request Status</span>
-                  <span className="inline-flex items-center gap-1 text-sm text-teal-700 dark:text-teal-300">
-                    View
-                    <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />
-                  </span>
-                </button>
+                {/* Per-type breakdown fetched from Firestore */}
+                {Object.keys(typeCounts).length > 0 && (
+                  <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white mb-2">total number of devices you owned</p>
+                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
+                      {Object.entries(typeCounts).map(([type, count]) => (
+                        <li key={type} className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400 truncate" title={type}>{type}</span>
+                          <span className="text-gray-900 dark:text-white font-medium">= {count}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             </div>
             
