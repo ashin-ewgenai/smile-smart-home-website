@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { Clock } from 'lucide-react';
 import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
 import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload } from '../../../models/Collections';
@@ -358,7 +359,10 @@ const EstimationTool: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Quote Management</h1>
         </div>
         <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+            {quotes.length > 0 && (
+              <Clock className="h-4 w-4 animate-spin" aria-hidden="true" />
+            )}
             {quotes.length} {quotes.length === 1 ? 'quote' : 'quotes'} pending
           </p>
         </div>

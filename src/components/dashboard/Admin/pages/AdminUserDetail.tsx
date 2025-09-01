@@ -8,6 +8,7 @@ import {
   userServiceRequestDoc,
   supportTicketsCollection,
   supportTicketDoc,
+  plannerLeadsCollection,
 } from '../../../../models/Collections';
 import { getDocs, getDoc, limit, query, where, updateDoc, doc, Timestamp, collection, onSnapshot } from 'firebase/firestore';
 import DeviceDetailsModal from '../components/DeviceDetailsModal';
@@ -32,6 +33,33 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const [openIds, setOpenIds] = useState<Record<string, boolean>>({});
   const toggleOpen = (id: string) => setOpenIds((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  // Planner Leads per contact email (lazy-loaded)
+  const [openPlanIds, setOpenPlanIds] = useState<Record<string, boolean>>({});
+  const [plannerLeadsByEmail, setPlannerLeadsByEmail] = useState<Record<string, any[]>>({});
+  const [plannerLeadsLoading, setPlannerLeadsLoading] = useState<Record<string, boolean>>({});
+  const togglePlanOpen = (key: string) => setOpenPlanIds((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  const loadPlannerLeadsForEmail = async (emailToCheck: string) => {
+    if (!emailToCheck) return;
+    if (plannerLeadsByEmail[emailToCheck] || plannerLeadsLoading[emailToCheck]) return;
+    setPlannerLeadsLoading((p) => ({ ...p, [emailToCheck]: true }));
+    try {
+      // Try match on 'email'
+      let res = await getDocs(query(plannerLeadsCollection(db), where('email', '==', emailToCheck)));
+      // If no docs, try alternative field 'userEmail'
+      if (res.empty) {
+        res = await getDocs(query(plannerLeadsCollection(db), where('userEmail', '==', emailToCheck)));
+      }
+      const items = res.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setPlannerLeadsByEmail((p) => ({ ...p, [emailToCheck]: items }));
+    } catch (e) {
+      console.error('Failed to load Planner_Leads for', emailToCheck, e);
+      setPlannerLeadsByEmail((p) => ({ ...p, [emailToCheck]: [] }));
+    } finally {
+      setPlannerLeadsLoading((p) => ({ ...p, [emailToCheck]: false }));
+    }
+  };
+
   // Related docs
   const [quotes, setQuotes] = useState<any[] | null>(null);
   const [services, setServices] = useState<any[] | null>(null);
@@ -49,6 +77,59 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const [editStatus, setEditStatus] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [estimation, setEstimation] = useState<any | null>(null);
+
+  // Render Smart Home plan text with sections and bullet lists (matches User PlanLeads view)
+  const renderPlanText = (text?: string) => {
+    const raw = (text || '').trim();
+    if (!raw) return <div className="text-gray-400">-</div>;
+    const lines = raw.split(/\r?\n/);
+    const elements: React.ReactNode[] = [];
+    let bufferList: string[] = [];
+
+    const flushList = () => {
+      if (bufferList.length > 0) {
+        elements.push(
+          <ul className="list-disc pl-6 space-y-1" key={`ul-${elements.length}`}>
+            {bufferList.map((li, idx) => (
+              <li key={idx} className="text-gray-200">{li}</li>
+            ))}
+          </ul>
+        );
+        bufferList = [];
+      }
+    };
+
+    lines.forEach((line, i) => {
+      const l = line.trim();
+      if (!l) {
+        flushList();
+        elements.push(<div key={`br-${i}`} className="h-3" />);
+        return;
+      }
+      if (l.startsWith('- ')) {
+        bufferList.push(l.replace(/^-\s*/, ''));
+        return;
+      }
+      const labelMatch = l.match(/^(.*?:)\s*(.*)$/);
+      if (labelMatch) {
+        flushList();
+        const [, label, rest] = labelMatch as RegExpMatchArray;
+        elements.push(
+          <div key={`lbl-${i}`} className="text-gray-200">
+            <span className="font-semibold text-white">{label} </span>
+            {rest}
+          </div>
+        );
+        return;
+      }
+      flushList();
+      elements.push(
+        <div key={`p-${i}`} className="text-gray-200">{l}</div>
+      );
+    });
+    flushList();
+    return <div className="space-y-1">{elements}</div>;
+  };
 
   // Derive email either from prop or URL param if not provided
   useEffect(() => {
@@ -541,6 +622,60 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                 <div className="text-gray-400">Created</div>
                                 <div className="text-gray-100">{fmt(dateFrom(r.createdAt))}</div>
                               </div>
+                            </div>
+
+                            {/* Plan Leads section */}
+                            <div className="mt-4 border-t border-gray-800 pt-3">
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-2 text-left text-sm text-gray-200 hover:text-white focus:outline-none"
+                                aria-expanded={!!openPlanIds[id]}
+                                aria-controls={`planleads-panel-${id}`}
+                                onClick={async () => {
+                                  const next = !openPlanIds[id];
+                                  togglePlanOpen(id);
+                                  if (next && r.email) await loadPlannerLeadsForEmail(r.email);
+                                }}
+                              >
+                                {/* file-plus icon */}
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+                                  <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+                                  <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                                  <path d="M9 15h6" />
+                                  <path d="M12 18v-6" />
+                                </svg>
+                                <span className="inline-flex items-center gap-2">Plan Leads</span>
+                              </button>
+                              {openPlanIds[id] && (
+                                <div id={`planleads-panel-${id}`} className="mt-3 pl-0 sm:pl-2">
+                                  {plannerLeadsLoading[r.email || ''] ? (
+                                    <div className="text-gray-400">Loading...</div>
+                                  ) : (plannerLeadsByEmail[r.email || ''] || []).length === 0 ? (
+                                    <div className="text-gray-400">No planner leads found for this email.</div>
+                                  ) : (
+                                    <div className="space-y-3">
+                                      {(plannerLeadsByEmail[r.email || ''] || []).map((lead) => (
+                                        <div key={lead.id} className="rounded border border-gray-800 p-3 bg-gray-900/40">
+                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                                            {Object.entries(lead).filter(([k]) => k !== 'id').map(([k, v]) => (
+                                              <div key={k} className="break-words">
+                                                <div className="text-gray-400">{k === 'planText' ? 'Recommeded setup' : k}</div>
+                                                <div className="text-gray-100">
+                                                  {k.toLowerCase().includes('created') || k.toLowerCase().includes('updated')
+                                                    ? fmt(dateFrom(v as any))
+                                                    : k === 'planText'
+                                                      ? renderPlanText(v as any)
+                                                      : String(v)}
+                                                </div>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           </div>
                         )}

@@ -18,6 +18,7 @@ export type DeviceFormValues = {
   brand?: string;
   warrantyValue?: number;
   warrantyUnit?: 'months' | 'years';
+  documentation?: string;
 };
 
 const initialState: DeviceFormValues = {
@@ -34,6 +35,7 @@ const initialState: DeviceFormValues = {
   brand: '',
   warrantyValue: undefined,
   warrantyUnit: 'months',
+  documentation: '',
 };
 
 export default function DeviceForm() {
@@ -55,6 +57,7 @@ export default function DeviceForm() {
     rating?: number;
     discount?: number;
     warranty?: string | number;
+    documentation?: string;
   };
   const [devices, setDevices] = useState<DeviceDoc[]>([]);
   const [loadingDevices, setLoadingDevices] = useState(true);
@@ -145,6 +148,7 @@ export default function DeviceForm() {
           rating: typeof data.rating === 'number' ? data.rating : (typeof data.rating === 'string' ? parseFloat(data.rating) : undefined),
           discount: typeof data.discount === 'number' ? data.discount : (typeof data.discount === 'string' ? parseFloat(data.discount) : undefined),
           warranty: data.warranty,
+          documentation: data.documentation ?? '',
         };
       });
       setDevices(list);
@@ -262,6 +266,7 @@ export default function DeviceForm() {
           description: values.description?.trim() || '',
           brand: values.brand?.trim() || '',
           warranty: formatWarranty(values.warrantyValue, values.warrantyUnit),
+          documentation: values.documentation?.trim() || '',
           createdAt: serverTimestamp(),
           createdByUid: auth?.currentUser?.uid ?? null,
           createdByEmail: auth?.currentUser?.email ?? null,
@@ -273,6 +278,7 @@ export default function DeviceForm() {
         if (!payload.modelNumber) delete payload.modelNumber;
         if (!payload.brand) delete payload.brand;
         if (!payload.warranty) delete payload.warranty;
+        if (!payload.documentation) delete payload.documentation;
         await addDoc(devicesCollection(db), payload);
         alert('Device added successfully.');
         setValues((v) => ({ ...initialState, assignedToEmail: v.assignedToEmail }));
@@ -329,6 +335,8 @@ export default function DeviceForm() {
     if (email) update.assignedToEmail = email; else update.assignedToEmail = deleteField();
     if (brand) update.brand = brand; else update.brand = deleteField();
     if (!warranty) update.warranty = deleteField();
+    const docu = (editValues.documentation ?? '').toString().trim();
+    if (docu) update.documentation = docu; else update.documentation = deleteField();
     await updateDoc(ref, update);
     setEditing(null);
   }, [editing, editValues, formatWarranty]);
@@ -572,6 +580,20 @@ export default function DeviceForm() {
           <option value="Active">Active</option>
           <option value="Inactive">Inactive</option>
         </select>
+      </div>
+
+      {/* Device Documentation */}
+      <div>
+        <label htmlFor="documentation" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Device Documentation</label>
+        <input
+          id="documentation"
+          name="documentation"
+          type="text"
+          placeholder="Link or notes for device documentation"
+          className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+          value={values.documentation ?? ''}
+          onChange={onChange}
+        />
       </div>
 
       <div className="flex items-center justify-end gap-3 pt-2">
