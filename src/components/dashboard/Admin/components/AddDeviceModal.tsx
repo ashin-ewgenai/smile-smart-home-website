@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef } from 'react';
 import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../../../lib/firebase';
 
@@ -32,6 +32,30 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'add' | 'remove'>('add');
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Add passive event listener for better touchpad scrolling
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (!container.contains(e.target as Node)) return;
+      
+      const isScrollingDown = e.deltaY > 0;
+      const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 1;
+      const isAtTop = container.scrollTop === 0;
+
+      if ((isScrollingDown && !isAtBottom) || (!isScrollingDown && !isAtTop)) {
+        e.stopPropagation();
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
   // Filters
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -161,57 +185,77 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
 
   if (!isOpen) return null;
 
+  // Handle wheel events for better touchpad support
+  const handleWheel = (e: React.WheelEvent) => {
+    const container = e.currentTarget;
+    const isScrollingDown = e.deltaY > 0;
+    const isAtBottom = container.scrollHeight - container.scrollTop <= container.clientHeight + 1;
+    const isAtTop = container.scrollTop === 0;
+
+    // Prevent page scroll when at the top/bottom of the container
+    if ((isScrollingDown && !isAtBottom) || (!isScrollingDown && !isAtTop)) {
+      e.stopPropagation();
+    }
+  };
 
   return (
-    <div className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${isOpen ? 'block' : 'hidden'}`}>
-      <div className="bg-gray-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-semibold text-white">
-            {viewMode === 'add' ? 'Add Devices' : 'Remove Devices'}
-          </h3>
-          <div className="flex items-center space-x-4">
-            <div className="flex rounded-md shadow-sm" role="group">
+    <div 
+      className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${isOpen ? 'flex' : 'hidden'}`}
+      onClick={onClose}
+    >
+      <div 
+        className="bg-gray-800 rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="p-6 pb-0 bg-gray-800 flex-shrink-0">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-xl font-semibold text-white">
+              {viewMode === 'add' ? 'Add Devices' : 'Remove Devices'}
+            </h3>
+            <div className="flex items-center space-x-4">
+              <div className="flex rounded-md shadow-sm" role="group">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('add')}
+                  className={`px-4 py-2 text-sm font-medium rounded-l-lg ${
+                    viewMode === 'add'
+                      ? 'bg-teal-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  Add Devices
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('remove')}
+                  className={`px-4 py-2 text-sm font-medium rounded-r-lg ${
+                    viewMode === 'remove'
+                      ? 'bg-red-600 text-white'
+                      : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  }`}
+                >
+                  Remove Devices
+                </button>
+              </div>
               <button
-                type="button"
-                onClick={() => setViewMode('add')}
-                className={`px-4 py-2 text-sm font-medium rounded-l-lg ${
-                  viewMode === 'add'
-                    ? 'bg-teal-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
+                onClick={onClose}
+                className="text-gray-400 hover:text-white"
               >
-                Add Devices
-              </button>
-              <button
-                type="button"
-                onClick={() => setViewMode('remove')}
-                className={`px-4 py-2 text-sm font-medium rounded-r-lg ${
-                  viewMode === 'remove'
-                    ? 'bg-red-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                }`}
-              >
-                Remove Devices
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-white"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
           </div>
-        </div>
 
-        {error && (
-          <div className="mb-4 p-3 bg-red-900/30 text-red-300 border border-red-700 rounded-md">
-            {error}
-          </div>
-        )}
+          {error && (
+            <div className="mb-4 p-3 bg-red-900/30 text-red-300 border border-red-700 rounded-md">
+              {error}
+            </div>
+          )}
 
-        <div className="space-y-4">
+          <div className="space-y-4 pb-4">
           {/* Toolbar: search + filters */}
           <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
             <div className="flex-1">
@@ -264,59 +308,103 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
 
           <div className="text-xs text-gray-400 -mt-2">{filteredDevices.length} of {devices.length} devices</div>
 
-          <div className="max-h-96 overflow-y-auto rounded-md border border-gray-700/70">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-400 border-b border-gray-700">
-                  <th className="py-2 pr-4">Select</th>
-                  <th className="py-2 pr-4">Name</th>
-                  <th className="py-2 pr-4">Type</th>
-                  <th className="py-2 pr-4">Model</th>
-                  <th className="py-2">Manufacturer</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredDevices.map((device) => (
-                  <tr 
-                    key={device.id}
-                    className={`border-b border-gray-700/50 hover:bg-gray-800/50 ${
-                      selectedDevices.includes(device.id)
-                        ? viewMode === 'add' 
-                          ? 'bg-teal-900 bg-opacity-20' 
-                          : 'bg-red-900 bg-opacity-20'
-                        : ''
-                    }`}
-                  >
-                    <td className="py-3 pr-4">
-                      <input
-                        type="checkbox"
-                        checked={selectedDevices.includes(device.id)}
-                        onChange={() => {
-                          setSelectedDevices((prev) =>
-                            prev.includes(device.id)
-                              ? prev.filter((id) => id !== device.id)
-                              : [...prev, device.id]
-                          );
-                        }}
-                        className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-teal-500 focus:ring-teal-500"
-                      />
-                    </td>
-                    <td className="py-3 pr-4 text-gray-100">{device.deviceName}</td>
-                    <td className="py-3 pr-4 text-gray-300">{device.type}</td>
-                    <td className="py-3 pr-4 text-gray-300">{device.modelNumber || '-'}</td>
-                    <td className="py-3 text-gray-300">{device.brand || '-'}</td>
-                  </tr>
-                ))}
-                {filteredDevices.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-gray-400">No devices match your filters.</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
           </div>
+        </div>
 
-          <div className="flex justify-between items-center pt-4 border-t border-gray-700">
+        {/* Scrollable content */}
+        <div 
+          ref={scrollContainerRef}
+          className="flex-1 overflow-y-auto px-6 py-4"
+          style={{
+            maxHeight: '50vh',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            WebkitOverflowScrolling: 'touch',
+            scrollBehavior: 'smooth',
+            overscrollBehavior: 'contain',
+            scrollbarWidth: 'thin',
+            msOverflowStyle: 'none',
+            touchAction: 'pan-y',
+            willChange: 'transform',
+            WebkitTransform: 'translateZ(0)'
+          }}
+        >
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-gray-800">
+              <tr className="text-left text-gray-400 border-b border-gray-700">
+                <th className="py-2 pr-4">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedDevices.length > 0 && selectedDevices.length === filteredDevices.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          // Select all visible devices
+                          const allVisibleIds = filteredDevices.map(d => d.id);
+                          setSelectedDevices(Array.from(new Set([...selectedDevices, ...allVisibleIds])));
+                        } else {
+                          // Unselect all visible devices
+                          const visibleIds = new Set(filteredDevices.map(d => d.id));
+                          setSelectedDevices(selectedDevices.filter(id => !visibleIds.has(id)));
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-teal-500 focus:ring-teal-500"
+                    />
+                    <span className="ml-2">
+                      {selectedDevices.length > 0 && selectedDevices.length === filteredDevices.length ? 'Unselect All' : 'Select All'}
+                    </span>
+                  </div>
+                </th>
+                <th className="py-2 pr-4">Name</th>
+                <th className="py-2 pr-4">Type</th>
+                <th className="py-2 pr-4">Model</th>
+                <th className="py-2">Manufacturer</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredDevices.map((device) => (
+                <tr 
+                  key={device.id}
+                  className={`border-b border-gray-700/50 hover:bg-gray-800/50 ${
+                    selectedDevices.includes(device.id)
+                      ? viewMode === 'add' 
+                        ? 'bg-teal-900 bg-opacity-20' 
+                        : 'bg-red-900 bg-opacity-20'
+                      : ''
+                  }`}
+                >
+                  <td className="py-3 pr-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedDevices.includes(device.id)}
+                      onChange={() => {
+                        setSelectedDevices((prev) =>
+                          prev.includes(device.id)
+                            ? prev.filter((id) => id !== device.id)
+                            : [...prev, device.id]
+                        );
+                      }}
+                      className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-teal-500 focus:ring-teal-500"
+                    />
+                  </td>
+                  <td className="py-3 pr-4 text-gray-100">{device.deviceName}</td>
+                  <td className="py-3 pr-4 text-gray-300">{device.type}</td>
+                  <td className="py-3 pr-4 text-gray-300">{device.modelNumber || '-'}</td>
+                  <td className="py-3 text-gray-300">{device.brand || '-'}</td>
+                </tr>
+              ))}
+              {filteredDevices.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-gray-400">No devices match your filters.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer */}
+        <div className="bg-gray-800 border-t border-gray-700 p-4">
+          <div className="flex justify-between items-center">
             <div className="text-sm text-gray-400">
               {selectedDevices.length} {selectedDevices.length === 1 ? 'device' : 'devices'} selected
             </div>

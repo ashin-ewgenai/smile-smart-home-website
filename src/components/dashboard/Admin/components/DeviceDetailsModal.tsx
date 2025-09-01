@@ -36,19 +36,15 @@ interface DeviceData {
   updatedAt?: string | Date;
 }
 
-export default function DeviceDetailsModal({ isOpen, onClose, deviceId, userId }: DeviceDetailsModalProps) {
+const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose, deviceId, userId }) => {
   const [device, setDevice] = useState<DeviceData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editedValue, setEditedValue] = useState('');
   const [numberOfDevices, setNumberOfDevices] = useState(1);
   const [editingSerials, setEditingSerials] = useState<SerialData[]>([]);
   const [warrantyControls, setWarrantyControls] = useState<{count: number; unit: 'months' | 'years'}[]>([]);
-
-  const handleSend = () => {
-    // Placeholder for sending a command/alert to the device
-    console.log('Send command clicked for device:', deviceId);
-  };
 
   // Helpers for warranty quick-set controls
   const toYMD = (d: Date) => {
@@ -90,59 +86,62 @@ export default function DeviceDetailsModal({ isOpen, onClose, deviceId, userId }
       if (!deviceId || !userId) return;
       
       setIsLoading(true);
+      setError(null);
+      
       try {
         // Get the device from the main Devices collection
         const deviceRef = doc(db, 'Devices', deviceId);
         const deviceDoc = await getDoc(deviceRef);
         
-        if (deviceDoc.exists()) {
-          const deviceData = deviceDoc.data();
-          
-          // Get user-specific device data (including serial number)
-          const userDeviceRef = doc(db, 'userdevices', userId, 'devices', deviceId);
-          const userDeviceDoc = await getDoc(userDeviceRef);
-          const userDeviceData = userDeviceDoc.exists() ? userDeviceDoc.data() : {};
-          
-          // Format the device data for display
-          // Set number of devices from user's device data or default to 1
-          const numDevices = userDeviceData.numberOfDevices || 1;
-          setNumberOfDevices(numDevices);
-            
-          // Initialize serials array with existing data or default values
-          const deviceSerials: SerialData[] = userDeviceData.serials?.map((s: any) => ({
-            serialNumber: s.serialNumber || '',
-            warrantyExpiry: s.warrantyExpiry || ''
-          })) || Array(numDevices).fill(null).map(() => ({
-            serialNumber: '',
-            warrantyExpiry: ''
-          }));
-            
-          // Use serial from user's device data if available, otherwise fallback to main device data
-          setDevice({
-            id: deviceDoc.id,
-            deviceName: deviceData.deviceName || 'Unnamed Device',
-            type: deviceData.type || 'Unknown',
-            modelNumber: deviceData.modelNumber || '-',
-            serial: userDeviceData.serial || deviceData.serial || '-',
-            serials: deviceSerials,
-            brand: deviceData.brand || '-',
-            description: deviceData.description || '-',
-            warranty: deviceData.warranty || 'No warranty',
-            status: deviceData.status || 'Active',
-            lastActiveAt: userDeviceData.lastActiveAt?.toDate?.() || null,
-            imageUrl: deviceData.imageUrl,
-            createdAt: deviceData.createdAt?.toDate?.().toISOString(),
-            createdByEmail: deviceData.createdByEmail,
-            stock: deviceData.stock,
-            isOnline: userDeviceData.isOnline || false,
-            addedAt: userDeviceData.addedAt
-          });
-            
-          // Initialize editingSerials with current serials or empty strings
-          setEditingSerials([...deviceSerials]);
+        if (!deviceDoc.exists()) {
+          throw new Error('Device not found');
         }
-      } catch (error) {
-        console.error('Error fetching device details:', error);
+        
+        // Get user-specific device data (including serial numbers)
+        const userDeviceRef = doc(db, 'userdevices', userId, 'devices', deviceId);
+        const userDeviceDoc = await getDoc(userDeviceRef);
+        const userDeviceData = userDeviceDoc.exists() ? userDeviceDoc.data() : {};
+        
+        // Format the device data for display
+        const baseDeviceData = {
+          id: deviceDoc.id,
+          ...deviceDoc.data()
+        } as DeviceData;
+        
+        // Merge user-specific data with base device data
+        const mergedDeviceData: DeviceData = {
+          ...baseDeviceData,
+          ...userDeviceData,
+          // Ensure serials is always an array
+          serials: userDeviceData.serials || []
+        };
+        
+        // Set number of devices from user's device data or default to 1
+        const numDevices = userDeviceData.numberOfDevices || 1;
+        
+        // Initialize serials array with existing data or default values
+        const deviceSerials: SerialData[] = userDeviceData.serials?.length > 0 
+          ? [...userDeviceData.serials]
+          : Array(numDevices).fill(null).map(() => ({
+              serialNumber: '',
+              warrantyExpiry: ''
+            }));
+        
+        // Update state with the fetched data
+        setDevice(mergedDeviceData);
+        setNumberOfDevices(numDevices);
+        setEditingSerials(deviceSerials);
+        
+        // Initialize warranty controls
+        const initialWarrantyControls = deviceSerials.map(() => ({
+          count: 12,
+          unit: 'months' as const
+        }));
+        setWarrantyControls(initialWarrantyControls);
+        
+      } catch (err) {
+        console.error('Error fetching device details:', err);
+        setError(err instanceof Error ? err.message : 'Failed to load device details');
       } finally {
         setIsLoading(false);
       }
@@ -249,329 +248,321 @@ export default function DeviceDetailsModal({ isOpen, onClose, deviceId, userId }
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-      <div className="w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl p-6 overflow-y-auto max-h-[90vh]">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-white">
-            Device Details
-          </h3>
-          <button 
-            onClick={onClose}
-            className="text-gray-300 hover:text-white text-xl rounded-full hover:bg-white/5 px-2 py-1"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-        </div>
+  // Add smooth scrolling behavior with proper TypeScript types
+  useEffect(() => {
+    const modalContent = document.querySelector('.modal-content') as HTMLElement | null;
+    
+    if (!modalContent) return;
+    
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      modalContent.scrollTop += e.deltaY;
+    };
+    
+    modalContent.addEventListener('wheel', handleWheel as EventListener, { passive: false });
+    
+    return () => {
+      modalContent.removeEventListener('wheel', handleWheel as EventListener);
+    };
+  }, []);
 
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-teal-500"></div>
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-start justify-center z-50 p-4 overflow-y-auto">
+      <div className="w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl my-8 flex flex-col max-h-[90vh]">
+        {/* Fixed Header */}
+        <div className="flex-none bg-gray-900 px-6 pt-6 pb-2 border-b border-gray-800">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white">
+              Device Details
+            </h3>
+            <button 
+              onClick={onClose}
+              className="text-gray-300 hover:text-white text-xl rounded-full hover:bg-white/5 px-2 py-1"
+              aria-label="Close"
+            >
+              ✕
+            </button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {/* Device Image + Send */}
-            {device?.imageUrl && (
-              <div className="flex justify-center mb-4">
-                <div className="flex items-start gap-4">
-                  <div className="w-28 h-28 md:w-32 md:h-32 rounded-full overflow-hidden border border-gray-700 ring-1 ring-gray-700 shadow-lg bg-gray-800">
+        </div>
+        
+        {/* Scrollable Content */}
+        <div className="modal-content p-6 overflow-y-auto flex-1">
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500"></div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Column - Device Image */}
+                <div className="flex justify-center items-start">
+                  {device?.imageUrl ? (
                     <img 
                       src={device.imageUrl} 
-                      alt={device.deviceName || 'Device Image'}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        // Fallback to a placeholder if image fails to load
-                        const target = e.target as HTMLImageElement;
-                        target.src = 'https://via.placeholder.com/200?text=No+Image';
-                        target.onerror = null; // Prevent infinite loop if placeholder also fails
-                      }}
+                      alt={device.deviceName || 'Device'} 
+                      className="h-56 w-56 object-cover rounded-full border-2 border-gray-700"
                     />
-                  </div>
-                  <button
-                    onClick={handleSend}
-                    className="hidden"
-                    title="Send command"
-                  />
+                  ) : (
+                    <div className="h-56 w-56 flex items-center justify-center bg-gray-800 rounded-full border-2 border-gray-700">
+                      <span className="text-gray-500">No Image</span>
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
-            
-            <div className="text-sm">
-              <div className="grid md:grid-cols-2 gap-6">
-              {/* Section: Device Overview */}
-              <div>
-                <h4 className="text-gray-300 font-medium mb-3">Device Overview</h4>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-gray-400">Device ID</div>
-                  <div className="col-span-2 text-gray-100 break-all">{device?.id || '-'}</div>
-            
-                <div className="text-gray-400">Device Name</div>
-                <div className="col-span-2 text-gray-100">{device?.deviceName || '-'}</div>
-
-                <div className="text-gray-400">Type</div>
-                <div className="col-span-2 text-gray-100">{device?.type || 'Unknown'}</div>
-
-                <div className="text-gray-400">Status</div>
-                <div className="col-span-2">
-                  {(() => {
-                    const raw = (device?.status || '').toLowerCase();
-                    const active = raw === 'active' || raw === 'online';
-                    const classes = active
-                      ? 'bg-green-500/15 text-green-400 border border-green-700'
-                      : 'bg-red-500/15 text-red-400 border border-red-700';
-                    return (
-                      <span className={`text-xs px-2.5 py-0.5 rounded-full ${classes}`}>
-                        {active ? 'Active' : 'Inactive'}
-                      </span>
-                    );
-                  })()}
-                </div>
-
-                <div className="text-gray-400">Model Number</div>
-                <div className="col-span-2 text-gray-100">{device?.modelNumber || '-'}</div>
-
-                <div className="text-gray-400">Brand</div>
-                <div className="col-span-2 text-gray-100">{device?.brand || '-'}</div>
-              </div>
-            </div>
-
-
-            {/* Section: Editable Fields */}
-            <div>
-              <h4 className="text-gray-300 font-medium mb-3">Editable Fields</h4>
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-gray-400">Serial Numbers</div>
-                <div className="col-span-2 space-y-3">
-                  {editingField === 'serials' ? (
-                    <div className="space-y-3">
-                      {Array.from({ length: numberOfDevices }).map((_, index) => (
-                        <div key={index} className="space-y-1">
-                          <div className="flex gap-2 items-center">
-                            <span className="text-gray-400 w-6">{index + 1}.</span>
-                            <input
-                              type="text"
-                              value={editingSerials[index]?.serialNumber || ''}
-                              onChange={(e) => {
-                                const newSerials = [...editingSerials];
-                                newSerials[index] = {
-                                  ...newSerials[index],
-                                  serialNumber: e.target.value
-                                };
-                                setEditingSerials(newSerials);
-                              }}
-                              className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm"
-                              placeholder={`Enter serial #${index + 1}`}
-                              autoFocus={index === 0}
-                            />
-                          </div>
-                          <div className="flex gap-2 items-center pl-8">
-                            <span className="text-xs text-gray-400 w-20">Warranty:</span>
-                            <input
-                              type="date"
-                              value={editingSerials[index]?.warrantyExpiry || ''}
-                              onChange={(e) => {
-                                const newSerials = [...editingSerials];
-                                newSerials[index] = {
-                                  ...newSerials[index],
-                                  warrantyExpiry: e.target.value
-                                };
-                                setEditingSerials(newSerials);
-                              }}
-                              className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                              min={new Date().toISOString().split('T')[0]}
-                            />
-                            <div className="flex items-center gap-1">
-                              <div className="flex items-center gap-1">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  value={warrantyControls[index]?.count ?? 12}
-                                  onChange={(e) => {
-                                    const val = Math.max(1, parseInt(e.target.value || '1'));
-                                    setWarrantyControls((prev) => {
-                                      const arr = [...prev];
-                                      arr[index] = { count: val, unit: arr[index]?.unit || 'months' };
-                                      return arr;
-                                    });
-                                  }}
-                                  className="w-16 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                                  title="Amount"
-                                />
-                                <select
-                                  value={warrantyControls[index]?.unit ?? 'months'}
-                                  onChange={(e) => {
-                                    const unit = (e.target.value as 'months' | 'years') || 'months';
-                                    setWarrantyControls((prev) => {
-                                      const arr = [...prev];
-                                      arr[index] = { count: arr[index]?.count || 12, unit };
-                                      return arr;
-                                    });
-                                  }}
-                                  className="bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-xs"
-                                  title="Unit"
-                                >
-                                  <option value="months">months</option>
-                                  <option value="years">years</option>
-                                </select>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const c = warrantyControls[index]?.count ?? 12;
-                                    const u = warrantyControls[index]?.unit ?? 'months';
-                                    const months = u === 'years' ? c * 12 : c;
-                                    setWarrantyMonths(index, months);
-                                  }}
-                                  className="px-2 py-1 text-xs bg-teal-700 hover:bg-teal-600 rounded border border-teal-600 text-white"
-                                  title="Apply custom warranty"
-                                >
-                                  Apply
-                                </button>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => clearWarranty(index)}
-                                className="px-2 py-1 text-xs bg-gray-800 hover:bg-gray-700 rounded border border-gray-700 text-gray-300"
-                                title="Clear warranty date"
-                              >
-                                Clear
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      <div className="flex gap-2 pt-2">
-                        <button
-                          onClick={() => handleSaveField('serials', editingSerials)}
-                          className="px-3 py-1 bg-teal-600 hover:bg-teal-700 rounded text-xs"
-                        >
-                          Save All
-                        </button>
-                        <button
-                          onClick={() => setEditingField(null)}
-                          className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-                        >
-                          Cancel
-                        </button>
+                
+                {/* Right Column - Device Details */}
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="sm:col-span-1 text-gray-400 whitespace-nowrap">Device Name</div>
+                    <div className="sm:col-span-2">
+                      <div className="text-gray-100 break-words">
+                        {device?.deviceName || 'N/A'}
                       </div>
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {device?.serials?.map((serial, index) => (
-                        <div key={index} className="space-y-1">
-                          <div className="flex items-center">
-                            <span className="text-gray-400 w-6">{index + 1}.</span>
-                            <span className="text-gray-100">{serial?.serialNumber || 'Not set'}</span>
-                          </div>
-                          {serial?.warrantyExpiry && (
-                            <div className="flex items-center text-xs text-gray-400 pl-6">
-                              <svg className="w-3.5 h-3.5 mr-1 text-gray-400" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" stroke="currentColor" strokeWidth="1.5" />
-                                <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                              </svg>
-                              <span className="mr-1">Warranty:</span>
-                              <span className="text-gray-300">
-                                {new Date(serial.warrantyExpiry).toLocaleDateString()}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      <button
-                        onClick={() => {
-                          setEditingField('serials');
-                          setEditingSerials(device?.serials?.map(s => ({
-                          serialNumber: s.serialNumber || '',
-                          warrantyExpiry: s.warrantyExpiry || ''
-                        })) || []);
-                          setWarrantyControls(Array.from({ length: numberOfDevices }, () => ({ count: 12, unit: 'months' })));
-                        }}
-                        className="mt-2 inline-flex items-center justify-center p-1.5 rounded-full text-teal-300 hover:text-teal-100 bg-teal-500/10 hover:bg-teal-500/15 ring-1 ring-inset ring-teal-500/30 hover:ring-teal-400/50 shadow-sm hover:shadow-teal-500/20 transition"
-                        title="Edit serial numbers"
-                        aria-label="Edit serial numbers"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                          <path d="M12 20h9"/>
-                          <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
-                        </svg>
-                      </button>
-                    </div>
-                  )}
-                </div>
 
-                <div className="text-gray-400">Number of Devices</div>
-                <div className="col-span-2 flex items-center">
-                  {editingField === 'numberOfDevices' ? (
-                    <div className="flex gap-2 w-full">
-                      <input
-                        type="number"
-                        min="1"
-                        value={editedValue}
-                        onChange={(e) => setEditedValue(e.target.value)}
-                        className="flex-1 bg-gray-800 border border-gray-600 rounded px-2 py-1 text-white text-sm"
-                        autoFocus
-                      />
-                      <button
-                        onClick={() => handleSaveField('numberOfDevices', editedValue)}
-                        className="px-2 py-1 bg-teal-600 hover:bg-teal-700 rounded text-xs"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => setEditingField(null)}
-                        className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-                      >
-                        Cancel
-                      </button>
+                    <div className="sm:col-span-1 text-gray-400">Type</div>
+                    <div className="sm:col-span-2 text-gray-100">{device?.type || 'N/A'}</div>
+
+                    <div className="sm:col-span-1 text-gray-400">Brand</div>
+                    <div className="sm:col-span-2 text-gray-100">{device?.brand || 'N/A'}</div>
+
+                    <div className="sm:col-span-1 text-gray-400">Model</div>
+                    <div className="sm:col-span-2 text-gray-100">{device?.modelNumber || 'N/A'}</div>
+                    
+                    <div className="sm:col-span-1 text-gray-400">Warranty</div>
+                    <div className="sm:col-span-2 text-gray-100">
+                      {device?.warranty || 'N/A'}
                     </div>
-                  ) : (
-                    <>
-                      <span className="text-gray-100">{numberOfDevices}</span>
-                      <button
-                        onClick={() => {
-                          setEditingField('numberOfDevices');
-                          setEditedValue(numberOfDevices.toString());
-                        }}
-                        className="ml-2 inline-flex items-center justify-center p-1.5 rounded-full text-teal-300 hover:text-teal-100 bg-teal-500/10 hover:bg-teal-500/15 ring-1 ring-inset ring-teal-500/30 hover:ring-teal-400/50 shadow-sm hover:shadow-teal-500/20 transition"
-                        title="Edit number of devices"
-                        aria-label="Edit number of devices"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                          <path d="M12 20h9"/>
-                          <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>
-                        </svg>
-                      </button>
-                    </>
-                  )}
+                  </div>
                 </div>
               </div>
-              {/* Close the Editable Fields section */}
-              </div>
-              </div>{/* end grid two-column */}
-
-              <div className="border-t border-gray-800" />
-
-              {/* Section: Metadata */}
-              <div>
-                <h4 className="text-gray-300 font-medium mb-3">Metadata</h4>
+              
+              {/* Editable Fields */}
+              <div className="mt-6">
+                <h4 className="text-gray-300 font-medium mb-4">Editable Fields</h4>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="text-gray-400">Warranty</div>
-                  <div className="col-span-2 text-gray-100">{device?.warranty || 'No warranty'}</div>
+                  <div className="text-gray-400">Number of Devices</div>
+                  <div className="col-span-2 flex items-center">
+                    {editingField === 'numberOfDevices' ? (
+                      <div className="space-y-3">
+                        <input
+                          type="number"
+                          value={numberOfDevices}
+                          onChange={(e) => setNumberOfDevices(Math.max(1, parseInt(e.target.value) || 1))}
+                          min="1"
+                          className="block w-full rounded-md border-gray-700 bg-gray-800 text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleSaveField('numberOfDevices', numberOfDevices)}
+                            className="px-3 py-1 bg-teal-600 hover:bg-teal-700 rounded text-xs text-white"
+                          >
+                            Save
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="px-3 py-1 bg-gray-600 hover:bg-gray-700 rounded text-xs text-white"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span>{numberOfDevices}</span>
+                        <button
+                          onClick={() => handleEditField('numberOfDevices', numberOfDevices.toString())}
+                          className="text-gray-400 hover:text-teal-400"
+                          title="Edit"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="h-4 w-4"
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
+                  <div className="text-gray-400">Serial Numbers</div>
+                  <div className="col-span-2 space-y-3">
+                    {editingField === 'serials' ? (
+                      <div className="space-y-3">
+                        {Array.from({ length: numberOfDevices }).map((_, index) => (
+                          <div key={index} className="space-y-1">
+                            <div className="flex gap-2 items-center">
+                              <span className="text-gray-400 w-6">{index + 1}.</span>
+                              <input
+                                type="text"
+                                value={editingSerials[index]?.serialNumber || ''}
+                                onChange={(e) => {
+                                  const newSerials = [...editingSerials];
+                                  if (!newSerials[index]) {
+                                    newSerials[index] = { serialNumber: '', warrantyExpiry: '' };
+                                  }
+                                  newSerials[index].serialNumber = e.target.value;
+                                  setEditingSerials(newSerials);
+                                }}
+                                placeholder="Enter serial number"
+                                className="block w-full rounded-md border-gray-700 bg-gray-800 text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                              />
+                            </div>
+                            <div className="flex gap-2 items-center pl-8">
+                              <span className="text-xs text-gray-400 w-20">Warranty:</span>
+                              <input
+                                type="date"
+                                value={editingSerials[index]?.warrantyExpiry || ''}
+                                onChange={(e) => {
+                                  const newSerials = [...editingSerials];
+                                  if (!newSerials[index]) {
+                                    newSerials[index] = { serialNumber: '', warrantyExpiry: '' };
+                                  }
+                                  newSerials[index].warrantyExpiry = e.target.value;
+                                  setEditingSerials(newSerials);
+                                }}
+                                className="block rounded-md border-gray-700 bg-gray-800 text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                              />
+                              <div className="flex flex-col gap-2">
+                                <div className="flex gap-1 items-center">
+                                  <input
+                                    type="number"
+                                    value={warrantyControls[index]?.count || 12}
+                                    onChange={(e) => {
+                                      const newControls = [...warrantyControls];
+                                      if (!newControls[index]) {
+                                        newControls[index] = { count: 12, unit: 'months' };
+                                      }
+                                      newControls[index].count = parseInt(e.target.value) || 0;
+                                      setWarrantyControls(newControls);
+                                    }}
+                                    min="1"
+                                    className="w-16 rounded-md border-gray-700 bg-gray-800 text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                                  />
+                                  <select
+                                    value={warrantyControls[index]?.unit || 'months'}
+                                    onChange={(e) => {
+                                      const newControls = [...warrantyControls];
+                                      if (!newControls[index]) {
+                                        newControls[index] = { count: 12, unit: 'months' };
+                                      }
+                                      newControls[index].unit = e.target.value as 'months' | 'years';
+                                      setWarrantyControls(newControls);
+                                    }}
+                                    className="rounded-md border-gray-700 bg-gray-800 text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                                  >
+                                    <option value="months">Months</option>
+                                    <option value="years">Years</option>
+                                  </select>
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => setWarrantyMonths(index, (warrantyControls[index]?.count || 12) * (warrantyControls[index]?.unit === 'years' ? 12 : 1))}
+                                    className="px-2 py-0.5 bg-teal-600 hover:bg-teal-700 rounded text-xs text-white"
+                                  >
+                                    Set
+                                  </button>
+                                  <button
+                                    onClick={() => clearWarranty(index)}
+                                    className="px-2 py-0.5 bg-gray-600 hover:bg-gray-700 rounded text-xs text-white"
+                                  >
+                                    Clear
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        <div className="mt-4 flex gap-3">
+                          <button
+                            onClick={() => handleSaveField('serials', editingSerials)}
+                            className="p-1.5 rounded-full text-teal-300 hover:text-teal-100 bg-teal-500/10 hover:bg-teal-500/15 ring-1 ring-inset ring-teal-500/30 hover:ring-teal-400/50 shadow-sm hover:shadow-teal-500/20 transition flex items-center gap-1.5 px-3"
+                            title="Save serial numbers"
+                            aria-label="Save serial numbers"
+                          >
+                            <span className="text-sm">Save</span>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="w-3.5 h-3.5"
+                            >
+                              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                              <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                              <polyline points="7 3 7 8 15 8"></polyline>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => setEditingField(null)}
+                            className="p-1.5 rounded-full text-gray-300 hover:text-gray-100 bg-gray-500/10 hover:bg-gray-500/15 ring-1 ring-inset ring-gray-500/30 hover:ring-gray-400/50 shadow-sm hover:shadow-gray-500/20 transition flex items-center gap-1.5 px-3"
+                            title="Cancel"
+                            aria-label="Cancel editing"
+                          >
+                            <span className="text-sm">Cancel</span>
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="w-3.5 h-3.5"
+                            >
+                              <line x1="18" y1="6" x2="6" y2="18"></line>
+                              <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {device?.serials?.map((serial, index) => (
+                          <div key={index} className="flex items-center gap-2">
+                            <span className="text-gray-400">{index + 1}.</span>
+                            <span className="text-gray-100">{serial.serialNumber}</span>
+                            {serial.warrantyExpiry && (
+                              <span className="text-xs text-gray-400">
+                                (Warranty: {new Date(serial.warrantyExpiry).toLocaleDateString()})
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                        <button
+                          onClick={() => setEditingField('serials')}
+                          className="mt-2 text-sm text-teal-400 hover:text-teal-300 flex items-center gap-1"
+                        >
+                          <span>Edit Serial Numbers</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Added On Section */}
+                <div className="grid grid-cols-3 gap-4 mt-4">
                   <div className="text-gray-400">Added On</div>
                   <div className="col-span-2 text-gray-300">
-                    {device?.addedAt
-                      ? new Date(device.addedAt as any).toLocaleDateString()
-                      : device?.createdAt
-                      ? new Date(device.createdAt as any).toLocaleDateString()
+                    {(device?.addedAt || device?.createdAt)
+                      ? new Date((device.addedAt || device.createdAt) as string).toLocaleDateString()
                       : 'N/A'}
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
-}
+};
+
+export default DeviceDetailsModal;
