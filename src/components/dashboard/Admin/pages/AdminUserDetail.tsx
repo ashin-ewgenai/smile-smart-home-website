@@ -555,7 +555,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       {/* Header */}
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between px-2 md:px-0">
-          <h2 className="text-lg font-semibold text-gray-100">Contact Submissions</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Submissions</h2>
           {onBack ? (
             <button type="button" onClick={onBack} className="text-teal-600 hover:underline">Back to Users</button>
           ) : (
@@ -657,7 +657,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                       {(plannerLeadsByEmail[r.email || ''] || []).map((lead) => (
                                         <div key={lead.id} className="rounded border border-gray-800 p-3 bg-gray-900/40">
                                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                                            {Object.entries(lead).filter(([k]) => k !== 'id').map(([k, v]) => (
+                                            {Object.entries(lead).filter(([k]) => k !== 'id' && k !== 'formData' && k !== 'updatedAt' && k !== 'email' && k !== 'recommendedAreas' && k !== 'complexity').map(([k, v]) => (
                                               <div key={k} className="break-words">
                                                 <div className="text-gray-400">{k === 'planText' ? 'Recommeded setup' : k}</div>
                                                 <div className="text-gray-100">

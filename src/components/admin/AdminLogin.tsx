@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import React, { useEffect, useState } from 'react';
+import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
 import { getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
@@ -16,6 +16,35 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // If already authenticated, redirect based on role and replace history to prevent Back returning here
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
+      try {
+        const snap = await getDoc(accountDoc(db, user.uid));
+        const data = snap.exists() ? (snap.data() as any) : undefined;
+        const role = data?.Role as Role | undefined;
+
+        // Enforce requiredRole if provided
+        if (requiredRole && role !== requiredRole) {
+          return; // stay on page; user can sign out or switch account
+        }
+
+        // Accept admin or Super Admin
+        if (role === 'Super Admin') {
+          try {
+            const maxAgeSeconds = 60 * 60 * 8;
+            document.cookie = `super_admin_session=1; path=/; max-age=${maxAgeSeconds}; samesite=lax`;
+          } catch {}
+          window.location.replace(`${SUPER_ADMIN_BASE_PATH}/dashboard`);
+        } else if (role === 'admin') {
+          window.location.replace('/dashboard/admin');
+        }
+      } catch {}
+    });
+    return () => unsub();
+  }, [requiredRole]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

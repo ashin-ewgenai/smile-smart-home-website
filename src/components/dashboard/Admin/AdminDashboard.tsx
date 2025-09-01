@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText, ChevronDown, TrendingUp, TrendingDown, Activity } from 'lucide-react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
@@ -180,6 +180,59 @@ const AdminDashboard: React.FC = () => {
     color: 'text-teal-500',
     data: [],
   }]);
+ 
+  // Animated count for the Users KPI
+  const [animatedUsersCount, setAnimatedUsersCount] = useState(0);
+  const animationRef = useRef<number | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const startValueRef = useRef<number>(0);
+
+  useEffect(() => {
+    // Determine the target count from the 'users' KPI
+    const usersKpi = kpis.find(k => k.key === 'users');
+    if (!usersKpi) return;
+    const rawTarget = typeof usersKpi.value === 'number' ? usersKpi.value : parseInt(String(usersKpi.value || 0), 10);
+    const target = Number.isFinite(rawTarget) ? rawTarget : 0;
+
+    // Respect reduced motion
+    if (typeof window !== 'undefined' && 'matchMedia' in window && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setAnimatedUsersCount(target);
+      return;
+    }
+
+    // Cancel any ongoing animation
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+    startTimeRef.current = null;
+    startValueRef.current = animatedUsersCount; // continue from current displayed value
+
+    const duration = 1200; // ms
+    const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+    const step = (timestamp: number) => {
+      if (startTimeRef.current === null) startTimeRef.current = timestamp;
+      const progress = Math.min((timestamp - startTimeRef.current) / duration, 1);
+      const eased = easeOutCubic(progress);
+      const current = Math.round(startValueRef.current + (target - startValueRef.current) * eased);
+      setAnimatedUsersCount(current);
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(step);
+      } else {
+        animationRef.current = null;
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(step);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+    };
+  }, [kpis]);
   
   const recentAlerts = [
     { id: 1, device: 'Living Room Camera', type: 'Motion Detected', time: '10:23 AM', date: 'Today' },
@@ -220,7 +273,6 @@ const AdminDashboard: React.FC = () => {
                 <div className="p-0 divide-y divide-gray-100 dark:divide-gray-700">
                   <a href="/dashboard/admin/users/add" role="menuitem" className="block px-3 py-2 text-sm leading-6 text-gray-900 dark:text-white hover:bg-teal-50 hover:text-teal-700 dark:hover:bg-gray-700 dark:hover:text-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">Add User</a>
                   <a href="/dashboard/admin/devices/add" role="menuitem" className="block px-3 py-2 text-sm leading-6 text-gray-900 dark:text-white hover:bg-teal-50 hover:text-teal-700 dark:hover:bg-gray-700 dark:hover:text-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">Add Device</a>
-                  <a href="/dashboard/admin/estimates" role="menuitem" className="block px-3 py-2 text-sm leading-6 text-gray-900 dark:text-white hover:bg-teal-50 hover:text-teal-700 dark:hover:bg-gray-700 dark:hover:text-teal-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500">Create Quote</a>
                 </div>
               </div>
             )}
@@ -246,7 +298,9 @@ const AdminDashboard: React.FC = () => {
                     <div>
                       <span className="text-base text-gray-600 dark:text-gray-400">{kpi.label}</span>
                       <div className="mt-2 flex items-end gap-3">
-                        <span className="text-4xl font-bold text-gray-900 dark:text-white">{kpi.value}</span>
+                        <span className="text-4xl font-bold text-gray-900 dark:text-white">
+                          {kpi.key === 'users' ? animatedUsersCount.toLocaleString() : kpi.value}
+                        </span>
                         <span className={`text-sm font-medium flex items-center ${isUp ? 'text-emerald-600' : 'text-red-500'}`}>
                           {isUp ? <TrendingUp className="h-5 w-5 mr-1" /> : <TrendingDown className="h-5 w-5 mr-1" />}
                           {isUp ? '+' : ''}{kpi.delta}

@@ -38,7 +38,7 @@ const PlanLeads: React.FC = () => {
   if (loading) {
     return (
       <section className="p-6">
-        <h1 className="text-2xl font-semibold text-white mb-4">Plan Leads</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Plan Leads</h1>
         <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6 text-gray-300">Loading…</div>
       </section>
     );
@@ -47,7 +47,7 @@ const PlanLeads: React.FC = () => {
   if (error) {
     return (
       <section className="p-6">
-        <h1 className="text-2xl font-semibold text-white mb-4">Plan Leads</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Plan Leads</h1>
         <div className="rounded-xl border border-red-800 bg-red-900/30 p-6 text-red-200">{error}</div>
       </section>
     );
@@ -111,7 +111,7 @@ const PlanLeads: React.FC = () => {
 
   return (
     <section className="p-6">
-      <h1 className="text-2xl font-semibold text-white mb-4">Plan Leads</h1>
+      <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Plan Leads</h1>
       <div className="rounded-xl border border-gray-800 bg-gray-900/50 divide-y divide-gray-800">
         {leads.length === 0 && (
           <div className="p-6 text-gray-400">No leads found.</div>
@@ -120,7 +120,7 @@ const PlanLeads: React.FC = () => {
           <div key={lead.id} className="p-6 flex flex-col gap-3">
             <button
               type="button"
-              className="text-left text-sm text-gray-400 hover:text-gray-200 flex items-center gap-2 focus:outline-none"
+              className="text-left text-sm text-gray-900 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-2 focus:outline-none"
               onClick={() =>
                 setOpenIds((prev) => {
                   // Accordion behavior: one open at a time; clicking the same closes all
