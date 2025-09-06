@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { db } from '../../../../lib/firebase';
 import { query, orderBy, updateDoc, getDoc, getDocs, where, collectionGroup, onSnapshot, limit, type Timestamp } from 'firebase/firestore';
 import { 
@@ -80,6 +81,47 @@ const fmt = (ts?: Date | string | number | Timestamp | null) => {
 };
 
 const Notifications: React.FC = () => {
+  const navigate = useNavigate();
+
+  const navigateToItem = (item: UnifiedNotification) => {
+    if (!item.id) return;
+    
+    // Mark as read when clicked
+    if (isUnread(item)) {
+      markAsRead(item);
+    }
+    
+    // Use the base path without /dashboard/admin since the router is already under that path
+    switch (item.type) {
+      case 'estimation_quote':
+        // Navigate to the estimates page with the quote ID
+        navigate(`/estimates?quoteId=${item.id}`);
+        break;
+      case 'contact_message':
+        // For contact messages, navigate to the contact submissions list
+        navigate('/contact-submissions');
+        break;
+      case 'service_request':
+        // For service requests, navigate to the service requests list with the ID
+        navigate(`/service-requests?id=${item.id}`);
+        break;
+      case 'quote_request':
+        // For quote requests, navigate to the quotes list with the ID
+        navigate(`/quotes?id=${item.id}`);
+        break;
+      case 'plan_lead':
+        // For plan leads, navigate to the plan leads list
+        navigate('/plan-leads');
+        break;
+      case 'support_ticket':
+        // For support tickets, navigate to the support tickets list with the ID
+        navigate(`/support/tickets?id=${item.id}`);
+        break;
+      default:
+        break;
+    }
+  };
+
   // Define isUnread at the top level of the component to avoid hoisting issues
   const isUnread = (item: UnifiedNotification): boolean => {
     // Prefer explicit adminRead: only considered read when true
@@ -249,31 +291,19 @@ const Notifications: React.FC = () => {
         try {
           const unsubscribeContacts = onSnapshot(
             query(contactRequestsCollection(db), orderBy('createdAt', 'desc'), limit(50)),
-            async (snap) => {
-              const incoming: UnifiedNotification[] = snap.docs.map(d => ({ ...d.data(), id: d.id, type: 'contact_message' }));
-              const merged = await enrichWithUsers(mergeAndSort(itemsRef.current, incoming));
-              setItems(merged);
+            (snapshot) => {
+              const updatedItems = snapshot.docs.map(doc => ({
+                ...doc.data(),
+                id: doc.id,
+                type: 'contact_message' as NotificationType
+              }));
+              setItems(prev => mergeAndSort(prev, updatedItems));
             },
             (err) => console.warn('[notifications] contacts onSnapshot error:', err)
           );
           unsubs.push(unsubscribeContacts);
         } catch (err) {
           console.warn('[notifications] contacts listener init failed:', err);
-        }
-
-        try {
-          const unsubscribeEstimations = onSnapshot(
-            query(estimationQuotesCollection(db), orderBy('createdAt', 'desc'), limit(50)),
-            async (snap) => {
-              const incoming: UnifiedNotification[] = snap.docs.map(d => ({ ...d.data(), id: d.id, type: 'estimation_quote' }));
-              const merged = await enrichWithUsers(mergeAndSort(itemsRef.current, incoming));
-              setItems(merged);
-            },
-            (err) => console.warn('[notifications] estimation quotes onSnapshot error:', err)
-          );
-          unsubs.push(unsubscribeEstimations);
-        } catch (err) {
-          console.warn('[notifications] estimation listener init failed:', err);
         }
       } catch (e) {
         console.warn('Failed to initialize notifications:', e);
@@ -305,8 +335,27 @@ const Notifications: React.FC = () => {
   }
 
   const filteredItems = useMemo(() => {
-    let list = filter === 'all' ? items : items.filter(item => item.type === filter);
-    if (unreadOnly) list = list.filter(isUnread);
+    let list = filter === 'all' ? [...items] : items.filter(item => item.type === filter);
+    
+    // Sort by read status (unread first) and then by date (newest first)
+    list.sort((a, b) => {
+      // First sort by read status (unread first)
+      const aUnread = isUnread(a);
+      const bUnread = isUnread(b);
+      if (aUnread !== bUnread) {
+        return aUnread ? -1 : 1;
+      }
+      
+      // Then sort by date (newest first)
+      const aTime = a.createdAt || a.created_at || a.ts || 0;
+      const bTime = b.createdAt || b.created_at || b.ts || 0;
+      return new Date(bTime as any).getTime() - new Date(aTime as any).getTime();
+    });
+    
+    if (unreadOnly) {
+      list = list.filter(isUnread);
+    }
+    
     return list;
   }, [items, filter, unreadOnly]);
   
@@ -353,7 +402,7 @@ const Notifications: React.FC = () => {
       case 'contact_message': {
         const nameOrEmail = item.name || item.email;
         return nameOrEmail 
-          ? <>{'Contact Message from '}<span className="text-indigo-300 font-mono text-sm">{nameOrEmail}</span></>
+          ? <><span className="text-sm text-gray-300">Contact Message from </span><span className="text-indigo-300 font-sans text-lg font-medium">{nameOrEmail}</span></>
           : 'Contact Message from Unknown';
       }
       case 'plan_lead': return 'New Plan Lead Created';
@@ -486,7 +535,18 @@ const Notifications: React.FC = () => {
             const unread = isUnread(item);
             
             return (
-              <div key={id} className={`rounded-xl border p-6 transition-colors ${unread ? 'border-indigo-700/50 bg-indigo-900/20 hover:bg-indigo-900/30' : 'border-gray-800 bg-gray-900/30 hover:bg-gray-900/50'}`}>
+              <div 
+              key={id} 
+              className={`rounded-xl border p-6 transition-colors ${unread ? 'border-indigo-700/50 bg-indigo-900/20 hover:bg-indigo-900/30' : 'border-gray-800 bg-gray-900/30 hover:bg-gray-900/50'} cursor-pointer`}
+              onClick={() => {
+                // Mark as read when clicked
+                if (unread) {
+                  markAsRead(item);
+                }
+                // Navigate to the appropriate page
+                navigateToItem(item);
+              }}
+            >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-4">
                     <div className="text-2xl">{getNotificationIcon(item.type)}</div>

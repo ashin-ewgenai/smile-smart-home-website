@@ -4,7 +4,7 @@ import DeviceForm from '../DeviceForm';
 const AddDevice: React.FC = () => {
   return (
     <section className="p-6">
-      <h1 className="text-2xl font-semibold text-white mb-4">Add Device</h1>
+      <h1 className="text-2xl font-semibold text-gray-800 dark:text-white mb-4">Add Device</h1>
       <DeviceForm />
     </section>
   );

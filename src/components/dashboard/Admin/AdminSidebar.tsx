@@ -2,7 +2,7 @@ import React from 'react';
 import { Settings, Users, LayoutDashboard, FilePlus, Cpu, UserCircle2, BarChart2, MessageCircle } from 'lucide-react';
 import { Link, useInRouterContext, useLocation } from 'react-router-dom';
 
-const linkBase = 'block px-3 py-2 rounded-md text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800';
+const linkBase = 'block px-3 py-2 rounded-md text-sm font-medium text-gray-800 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-800';
 
 const AdminSidebar: React.FC = () => {
   const inRouter = useInRouterContext();

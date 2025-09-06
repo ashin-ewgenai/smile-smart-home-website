@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Clock } from 'lucide-react';
-import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
 import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload } from '../../../models/Collections';
 import QuoteDetails from './QuoteDetails';
@@ -24,6 +25,7 @@ interface QuoteItem {
 }
 
 const EstimationTool: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [quotes, setQuotes] = useState<QuoteItem[]>([]);
   const [selectedQuote, setSelectedQuote] = useState<QuoteItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -32,12 +34,31 @@ const EstimationTool: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  // Reset to quote list when component mounts or route changes
+  // Load quotes and handle URL parameters
   React.useEffect(() => {
-    setSelectedQuote(null);
-    setShowCreateForm(false);
-    setValidationError(null);
-  }, []);
+    const loadQuoteFromUrl = async () => {
+      const quoteId = searchParams.get('quoteId');
+      if (quoteId) {
+        try {
+          const quoteDoc = await getDoc(estimationQuoteDoc(db, quoteId));
+          if (quoteDoc.exists()) {
+            const quoteData = quoteDoc.data();
+            setSelectedQuote({ ...quoteData, id: quoteDoc.id } as QuoteItem);
+            setShowCreateForm(false);
+          }
+        } catch (err) {
+          console.error('Error loading quote:', err);
+          setError('Failed to load the requested quote.');
+        }
+      } else {
+        setSelectedQuote(null);
+        setShowCreateForm(false);
+      }
+      setValidationError(null);
+    };
+
+    loadQuoteFromUrl();
+  }, [searchParams]);
 
   const [createForm, setCreateForm] = useState({
     // Basic
@@ -368,11 +389,11 @@ const EstimationTool: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
         {!selectedQuote && !showCreateForm && (
           <div className="lg:col-span-2">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="p-4 border-b border-gray-300 dark:border-gray-600">
                 <h2 className="text-lg font-medium text-gray-900 dark:text-white">Pending Quotes</h2>
               </div>
               {quotes.length === 0 ? (
@@ -380,11 +401,11 @@ const EstimationTool: React.FC = () => {
                   <p className="text-gray-500 dark:text-gray-400">No pending quotes found</p>
                 </div>
               ) : (
-                <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                <ul className="divide-y divide-gray-300 dark:divide-gray-600">
                   {quotes.map((quote) => (
                     <li 
                       key={quote.id} 
-                      className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                      className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-600 last:border-0"
                       onClick={() => handleQuoteSelect(quote)}
                     >
                       <div className="flex items-center">
