@@ -16,12 +16,18 @@ interface TicketNotificationButtonProps {
   userId: string | null;
   className?: string;
   onItemClick?: (item: RequestItem) => void;
+  disablePopup?: boolean;
+  onClick?: (e: React.MouseEvent) => void;
+  totalAlerts?: number;
 }
 
 export const TicketNotificationButton = ({
   userId,
   className = '',
   onItemClick,
+  disablePopup = false,
+  onClick,
+  totalAlerts: propTotalAlerts,
 }: TicketNotificationButtonProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [requests, setRequests] = useState<RequestItem[]>([]);
@@ -30,7 +36,8 @@ export const TicketNotificationButton = ({
   const unresolvedTickets = useTicketNotifications(userId);
   const unconfirmedQuotes = useUnconfirmedQuotesCount(userId);
   const unclosedServiceRequests = useUnclosedServiceRequestsCount(userId);
-  const totalAlerts = unresolvedTickets + unconfirmedQuotes + unclosedServiceRequests;
+  const calculatedTotalAlerts = unresolvedTickets + unconfirmedQuotes + unclosedServiceRequests;
+  const totalAlerts = typeof propTotalAlerts !== 'undefined' ? propTotalAlerts : calculatedTotalAlerts;
   const hasAlerts = totalAlerts > 0;
 
   // Close dropdown when clicking outside
@@ -123,7 +130,12 @@ export const TicketNotificationButton = ({
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    setIsOpen(!isOpen);
+    if (onClick) {
+      onClick(e);
+    }
+    if (!disablePopup) {
+      setIsOpen(!isOpen);
+    }
   };
   
   const handleItemClick = (e: React.MouseEvent, item: RequestItem) => {
@@ -181,8 +193,8 @@ export const TicketNotificationButton = ({
         )}
       </button>
 
-      {/* Simple Popup with request counts */}
-      {isOpen && hasAlerts && (
+      {/* Simple Popup with request counts - only show if not disabled */}
+      {!disablePopup && isOpen && hasAlerts && (
         <div className="absolute right-0 bottom-full mb-2 px-4 py-2 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 min-w-[180px]">
           <div className="space-y-1">
             {unresolvedTickets > 0 && (

@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { TicketNotificationButton } from '@/components/common/TicketNotificationButton';
 import { auth, db } from '../../../../lib/firebase';
 import { accountsCollection, quotesCollection, supportTicketsCollection, userServiceRequestsCollection, quotesParentDoc, userServiceRequestsParentDoc, registerUserWithProfile, type Account } from '../../../../models/Collections';
-import { getDoc, getDocs, limit, query, where } from 'firebase/firestore';
+import { collection, getDoc, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore';
 import AdminUserDetail from './AdminUserDetail';
 
 interface User { name: string; email: string }
@@ -14,12 +14,13 @@ type AlertsCount = {
   services: number;
   tickets: number;
   total: number;
-  // details for modal
+  // Optional fields for future use
   quotesResolved?: number;
-  quotesTotal?: number;
   servicesResolved?: number;
-  servicesTotal?: number;
   ticketsResolved?: number;
+  // Optional total fields (not used in current implementation)
+  quotesTotal?: number;
+  servicesTotal?: number;
   ticketsTotal?: number;
   loading?: boolean;
   error?: string | null;
@@ -33,6 +34,7 @@ const AdminUsers: React.FC = () => {
 
   // alerts map keyed by email (lowercased)
   const [alertsMap, setAlertsMap] = useState<Record<string, AlertsCount>>({});
+  const unsubscribeRefs = useRef<Record<string, (() => void)[]>>({});
 
   // removed add/edit/delete flows; only reading from Firebase
 
@@ -86,6 +88,7 @@ const AdminUsers: React.FC = () => {
       ...prev,
       [key]: { ...(prev[key] || { uid: null, quotes: 0, services: 0, tickets: 0, total: 0 }), loading: true, error: null },
     }));
+    
     try {
       const uid = (await resolveUidByEmail(email)) || '';
       if (!uid) {
@@ -94,78 +97,113 @@ const AdminUsers: React.FC = () => {
         return empty;
       }
 
-      // Try to use aggregate fields on parent docs (tickets now use flat collection)
-      const [qParent, sParent] = await Promise.all([
-        getDoc(quotesParentDoc(db, uid)),
-        getDoc(userServiceRequestsParentDoc(db, uid)),
+      // Set up real-time listeners for each collection
+      const quotesQuery = query(collection(db, 'quotes'), where('userUid', '==', uid));
+      const serviceRequestsQuery = query(collection(db, 'Service_Requests', uid, 'Requests_List'));
+      const ticketsQuery = query(collection(db, 'Support_Tickets'), where('uid', '==', uid));
+
+      // Unsubscribe from previous listeners if they exist
+      if (unsubscribeRefs.current[key]) {
+        unsubscribeRefs.current[key].forEach(unsubscribe => unsubscribe());
+      }
+
+      // Set up new listeners
+      const unsubscribes = [
+        onSnapshot(quotesQuery, (snapshot) => {
+          const count = snapshot.docs.filter(doc => {
+            const status = doc.data().status?.toString().toLowerCase();
+            return status !== 'confirmed';
+          }).length;
+          
+          setAlertsMap(prev => {
+            const current = prev[key] || { uid, quotes: 0, services: 0, tickets: 0, total: 0 };
+            const newTotal = count + current.services + current.tickets;
+            return {
+              ...prev,
+              [key]: {
+                ...current,
+                quotes: count,
+                total: newTotal
+              }
+            };
+          });
+        }),
+
+        onSnapshot(serviceRequestsQuery, (snapshot) => {
+          const count = snapshot.docs.filter(doc => {
+            const status = doc.data().status?.toString().toLowerCase();
+            return status !== 'closed' && status !== 'resolved';
+          }).length;
+          
+          setAlertsMap(prev => {
+            const current = prev[key] || { uid, quotes: 0, services: 0, tickets: 0, total: 0 };
+            const newTotal = current.quotes + count + current.tickets;
+            return {
+              ...prev,
+              [key]: {
+                ...current,
+                services: count,
+                total: newTotal
+              }
+            };
+          });
+        }),
+
+        onSnapshot(ticketsQuery, (snapshot) => {
+          const count = snapshot.docs.filter(doc => {
+            const status = doc.data().status?.toString().toLowerCase();
+            return status !== 'resolved' && status !== 'closed';
+          }).length;
+          
+          setAlertsMap(prev => {
+            const current = prev[key] || { uid, quotes: 0, services: 0, tickets: 0, total: 0 };
+            const newTotal = current.quotes + current.services + count;
+            return {
+              ...prev,
+              [key]: {
+                ...current,
+                tickets: count,
+                total: newTotal
+              }
+            };
+          });
+        })
+      ];
+
+      // Store unsubscribe functions
+      unsubscribeRefs.current[key] = unsubscribes;
+
+      // Initial data load
+      const [quotesSnapshot, servicesSnapshot, ticketsSnapshot] = await Promise.all([
+        getDocs(quotesQuery),
+        getDocs(serviceRequestsQuery),
+        getDocs(ticketsQuery)
       ]);
 
-      // Helper to compute unresolved from parent snapshot with given resolvedKey
-      const unresolvedFromParent = (snap: any, resolvedKey: 'approved_no' | 'review_no' | 'solved_no') => {
-        const d = snap?.exists?.() ? snap.data() as any : null;
-        if (!d) return null as number | null;
-        const total = Number(d.total_no ?? NaN);
-        const resolved = Number(d[resolvedKey] ?? NaN);
-        if (Number.isFinite(total) && Number.isFinite(resolved)) return Math.max(0, total - resolved);
-        return null as number | null;
-      };
+      const quotesUnresolved = quotesSnapshot.docs.filter(doc => {
+        const status = doc.data().status?.toString().toLowerCase();
+        return status !== 'confirmed';
+      }).length;
 
-      let quotesUnresolved = unresolvedFromParent(qParent, 'approved_no');
-      let servicesUnresolved = unresolvedFromParent(sParent, 'review_no');
-      let ticketsUnresolved: number | null = null; // Always query flat collection
+      const servicesUnresolved = servicesSnapshot.docs.filter(doc => {
+        const status = doc.data().status?.toString().toLowerCase();
+        return status !== 'closed' && status !== 'resolved';
+      }).length;
 
-      let quotesResolved: number | null = qParent?.exists?.() ? Number((qParent.data() as any)?.approved_no ?? NaN) : null;
-      let quotesTotal: number | null = qParent?.exists?.() ? Number((qParent.data() as any)?.total_no ?? NaN) : null;
-      let servicesResolved: number | null = sParent?.exists?.() ? Number((sParent.data() as any)?.review_no ?? NaN) : null; // closed
-      let servicesTotal: number | null = sParent?.exists?.() ? Number((sParent.data() as any)?.total_no ?? NaN) : null;
-      let ticketsResolved: number | null = null;
-      let ticketsTotal: number | null = null;
-
-      // Fallback to live queries if aggregates are missing
-      if (quotesUnresolved === null) {
-        const qCol = quotesCollection(db, uid);
-        const [allSnap, approvedSnap] = await Promise.all([
-          getDocs(qCol),
-          getDocs(query(qCol, where('status', '==', 'approved'))),
-        ]);
-        quotesUnresolved = Math.max(0, allSnap.size - approvedSnap.size);
-        quotesResolved = approvedSnap.size;
-        quotesTotal = allSnap.size;
-      }
-      if (servicesUnresolved === null) {
-        const sCol = userServiceRequestsCollection(db, uid);
-        const [allSnap, closedSnap] = await Promise.all([
-          getDocs(sCol),
-          getDocs(query(sCol, where('status', '==', 'closed'))),
-        ]);
-        servicesUnresolved = Math.max(0, allSnap.size - closedSnap.size);
-        servicesResolved = closedSnap.size;
-        servicesTotal = allSnap.size;
-      }
-      // Always query flat collection for tickets
-      const tCol = supportTicketsCollection(db);
-      const [allSnap, solvedSnap] = await Promise.all([
-        getDocs(query(tCol, where('uid', '==', uid))),
-        // Support different status vocabularies; prefer 'Resolved'
-        getDocs(query(tCol, where('uid', '==', uid), where('status', 'in', ['Resolved', 'closed'] as any))),
-      ]);
-      ticketsUnresolved = Math.max(0, allSnap.size - solvedSnap.size);
-      ticketsResolved = solvedSnap.size;
-      ticketsTotal = allSnap.size;
+      const ticketsUnresolved = ticketsSnapshot.docs.filter(doc => {
+        const status = doc.data().status?.toString().toLowerCase();
+        return status !== 'resolved' && status !== 'closed';
+      }).length;
 
       const data: AlertsCount = {
         uid,
-        quotes: quotesUnresolved ?? 0,
-        services: servicesUnresolved ?? 0,
-        tickets: ticketsUnresolved ?? 0,
-        total: (quotesUnresolved ?? 0) + (servicesUnresolved ?? 0) + (ticketsUnresolved ?? 0),
-        quotesResolved: Number.isFinite(quotesResolved as any) ? (quotesResolved as number) : undefined,
-        quotesTotal: Number.isFinite(quotesTotal as any) ? (quotesTotal as number) : undefined,
-        servicesResolved: Number.isFinite(servicesResolved as any) ? (servicesResolved as number) : undefined,
-        servicesTotal: Number.isFinite(servicesTotal as any) ? (servicesTotal as number) : undefined,
-        ticketsResolved: Number.isFinite(ticketsResolved as any) ? (ticketsResolved as number) : undefined,
-        ticketsTotal: Number.isFinite(ticketsTotal as any) ? (ticketsTotal as number) : undefined,
+        quotes: quotesUnresolved,
+        services: servicesUnresolved,
+        tickets: ticketsUnresolved,
+        total: quotesUnresolved + servicesUnresolved + ticketsUnresolved,
       };
+      
+      console.log(`Initial alerts for ${email}:`, data);
       setAlertsMap(prev => ({ ...prev, [key]: data }));
       return data;
     } catch (e: any) {
@@ -178,12 +216,30 @@ const AdminUsers: React.FC = () => {
   // prefetch alerts when users list loads/changes
   useEffect(() => {
     if (!users.length) return;
+    console.log('Fetching alerts for users:', users.map(u => u.email));
     users.forEach(u => {
       const key = u.email.toLowerCase();
       if (!alertsMap[key]) void fetchAlertsForEmail(u.email);
     });
+    
+    // Cleanup function to unsubscribe from all listeners
+    return () => {
+      Object.values(unsubscribeRefs.current).forEach(unsubscribes => {
+        unsubscribes.forEach(unsubscribe => unsubscribe());
+      });
+      unsubscribeRefs.current = {};
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users]);
+
+  // Debug: log alertsMap changes
+  useEffect(() => {
+    console.log('alertsMap updated:', Object.entries(alertsMap).map(([email, data]) => ({
+      email,
+      total: data.total,
+      loading: data.loading
+    })));
+  }, [alertsMap]);
 
   const rows = useMemo(() => users.map((u, idx) => ({ ...u, idx })), [users]);
 
@@ -290,10 +346,13 @@ const AdminUsers: React.FC = () => {
                         const iconClass = hasAlerts ? 'text-red-600' : 'text-gray-500 dark:text-gray-400';
                         const userId = counts?.uid || null;
                         return (
-                          <div onClick={(e) => { e.stopPropagation(); openAlertModal(email); }}>
+                          <div>
                             <TicketNotificationButton 
                               userId={userId}
                               className={btnClass}
+                              disablePopup={true}
+                              onClick={(e) => { e.stopPropagation(); openAlertModal(email); }}
+                              totalAlerts={total}
                               onItemClick={(item) => {
                                 // Handle item click - you can add specific logic based on item.type
                                 console.log('Item clicked:', item);
@@ -368,53 +427,41 @@ const AdminUsers: React.FC = () => {
 
             {/* Stats Grid */}
             <div className="p-4 space-y-4">
-              {/* Quotes Card */}
+              {/* Quotes */}
               <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-semibold text-gray-800 dark:text-gray-200">Quotes</h4>
-                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">
-                    {alertModal.counts.quotes} Unresolved
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-200">Pending Quotes</h4>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${alertModal.counts.quotes > 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'}`}>
+                    {alertModal.counts.quotes > 0 ? `${alertModal.counts.quotes} Pending` : 'All Clear'}
                   </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
-                  <div>Approved: <span className="font-medium text-gray-800 dark:text-gray-200">{alertModal.counts.quotesResolved ?? '0'}</span></div>
-                  <div className="text-right">Total: <span className="font-medium text-gray-800 dark:text-gray-200">{alertModal.counts.quotesTotal ?? '0'}</span></div>
                 </div>
               </div>
 
-              {/* Service Requests Card */}
+              {/* Service Requests */}
               <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-gray-800 dark:text-gray-200">Service Requests</h4>
-                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                    {alertModal.counts.services} Unresolved
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${alertModal.counts.services > 0 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'}`}>
+                    {alertModal.counts.services > 0 ? `${alertModal.counts.services} Pending` : 'All Clear'}
                   </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
-                  <div>Closed: <span className="font-medium text-gray-800 dark:text-gray-200">{alertModal.counts.servicesResolved ?? '0'}</span></div>
-                  <div className="text-right">Total: <span className="font-medium text-gray-800 dark:text-gray-200">{alertModal.counts.servicesTotal ?? '0'}</span></div>
                 </div>
               </div>
 
-              {/* Tickets Card */}
+              {/* Support Tickets */}
               <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-semibold text-gray-800 dark:text-gray-200">Tickets</h4>
-                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400">
-                    {alertModal.counts.tickets} Unresolved
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-200">Support Tickets</h4>
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${alertModal.counts.tickets > 0 ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'}`}>
+                    {alertModal.counts.tickets > 0 ? `${alertModal.counts.tickets} Pending` : 'All Clear'}
                   </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-400">
-                  <div>Solved: <span className="font-medium text-gray-800 dark:text-gray-200">{alertModal.counts.ticketsResolved ?? '0'}</span></div>
-                  <div className="text-right">Total: <span className="font-medium text-gray-800 dark:text-gray-200">{alertModal.counts.ticketsTotal ?? '0'}</span></div>
                 </div>
               </div>
 
               {/* Total Unresolved */}
-              <div className={`mt-4 p-4 rounded-xl ${alertModal.counts.total > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-gray-700/30'}`}>
+              <div className={`p-4 rounded-xl ${alertModal.counts.total > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'bg-green-50 dark:bg-green-900/20'}`}>
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-gray-800 dark:text-gray-200">Total Unresolved</span>
-                  <span className={`text-xl font-bold ${alertModal.counts.total > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-200'}`}>
+                  <span className="font-semibold text-gray-800 dark:text-gray-200">Total Pending Items</span>
+                  <span className={`text-xl font-bold ${alertModal.counts.total > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                     {alertModal.counts.total}
                   </span>
                 </div>
