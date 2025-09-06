@@ -6,9 +6,6 @@ import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebas
 import { triageChat } from '../../lib/chatbot';
 
 interface SupportChatPanelProps {
-  open: boolean;
-  onClose: () => void;
-  // New: enforce existing ticket for chatbot workflow
   ticketId?: string; // if undefined, chat will prompt user to raise a ticket first (bot mode)
   raiseTicketsHref?: string; // optional link target for the "Raise Tickets" page
 }
@@ -23,7 +20,7 @@ type ChatMsg = {
   uploading?: boolean;
 };
 
-const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, ticketId: providedTicketId, raiseTicketsHref }) => {
+const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedTicketId, raiseTicketsHref }) => {
   const [uid, setUid] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   // Global status kept if needed for future banners, but routing is claim-only
@@ -80,7 +77,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
       msgsUnsubRef.current = null;
     }
     async function setupOnline() {
-      if (!open || !uid || !sessionId) return;
+      if (!uid || !sessionId) return;
       const sessionRef = doc(db, 'chat_sessions', sessionId);
       const snap = await getDoc(sessionRef);
       if (!snap.exists()) {
@@ -129,7 +126,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
         msgsUnsubRef.current = null;
       }
     };
-  }, [open, uid, sessionId, claimed, isAuthenticated]);
+  }, [uid, sessionId, claimed, isAuthenticated]);
 
   const send = async () => {
     const content = input.trim();
@@ -362,49 +359,107 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
     } catch {}
   };
 
-  return (
-    <div className={`fixed inset-y-0 right-0 z-[70] w-full sm:w-[420px] max-w-full transform transition-transform duration-300 ${open ? 'translate-x-0' : 'translate-x-full'}`} role="dialog" aria-label="Support Chat">
-      <div className="h-full flex flex-col bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-700 shadow-xl">
-        <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className={`h-2.5 w-2.5 rounded-full ${claimed ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-            <div className="text-sm font-medium text-gray-800 dark:text-gray-100">
-              {claimed ? 'Human support connected' : 'Human support offline'}
+  // If not authenticated, show sign-in prompt
+  if (!isAuthenticated) {
+    return (
+      <section className="bg-gray-50 dark:bg-gray-900">
+          <div className="px-4 py-4 sm:px-6">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 flex items-center justify-center">
+                <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Smart Assistant</h2>
             </div>
-            {!claimed && (
-              <button onClick={requestHuman} className="text-xs px-2 py-1 rounded-full border border-teal-600 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-900/20 focus:outline-none focus:ring-2 focus:ring-teal-500">
-                Request human
-              </button>
-            )}
+            <p className="text-sm text-gray-600 dark:text-gray-400">Get instant help with your smart home devices</p>
           </div>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300">✕</button>
-        </div>
+          <div className="px-4 pb-6 sm:px-6">
+            <div className="text-center py-8">
+              <div className="mx-auto h-12 w-12 text-gray-400 mb-4">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Sign In Required</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Please sign in to access our smart assistant and get personalized support for your devices.
+              </p>
+            </div>
+          </div>
+        </section>
+    );
+  }
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-50 dark:bg-gray-950">
+  return (
+    <section className="bg-gray-50 dark:bg-gray-900">
+      <div className="px-4 py-4 sm:px-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="relative h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 flex items-center justify-center shadow-md">
+                <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </div>
+            </div>
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Smart Assistant</h2>
+              <div className="flex items-center gap-2 mt-1">
+                <div className={`h-2 w-2 rounded-full ${claimed ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                <span className="text-xs text-gray-600 dark:text-gray-400">
+                  {claimed ? 'Human support connected' : 'AI Assistant active'}
+                </span>
+                {!claimed && (
+                  <button onClick={requestHuman} className="text-xs px-2 py-1 rounded-full bg-teal-50 text-teal-700 hover:bg-teal-100 dark:bg-teal-900/20 dark:text-teal-300 dark:hover:bg-teal-900/40 transition-colors">
+                    Request human
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Chat Messages Area */}
+      <div className="px-4 sm:px-6">
+        <div
+          ref={scrollRef}
+          className="h-[calc(100vh-300px)] md:h-[calc(100vh-320px)] overflow-y-auto overscroll-y-contain py-4 pb-4 space-y-4 bg-gradient-to-b from-gray-50/50 to-white dark:from-gray-900/50 dark:to-gray-800 rounded-lg"
+          onWheel={(e) => { e.stopPropagation(); }}
+          style={{ WebkitOverflowScrolling: 'touch', touchAction: 'auto' as React.CSSProperties['touchAction'] }}
+        >
           {loading && (
-            <div className="text-xs text-gray-500">Loading conversation…</div>
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-teal-500"></div>
+              <span className="ml-2 text-sm text-gray-500">Loading conversation…</span>
+            </div>
           )}
           {!loading && messages.length === 0 && (
-            <div className="text-sm text-gray-700 dark:text-gray-200 space-y-2">
+            <div className="text-center py-8 px-4">
+              <div className="mx-auto h-12 w-12 text-teal-500 mb-4">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+              </div>
               {claimed ? (
-                <div>You are connected to our support team. Send your message to start.</div>
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Connected to Support</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">You're now connected to our support team. Send your message to start the conversation.</p>
+                </div>
               ) : (
-                <>
-                  <div>I'm here to make your life easier. Ask me anything!</div>
-                  {!isAuthenticated && (
-                    <div className="p-2 rounded-md border border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
-                      Please sign in to use the chat feature for personalized support.
-                    </div>
-                  )}
-                  {botNeedsTicket && isAuthenticated && (
-                    <div className="p-2 rounded-md border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-                      You can ask general questions here without a ticket. If you have an issue or complaint, please create a support ticket so our team can assist.
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Smart Home Assistant</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">I'm here to help with your smart home devices and answer any questions you have!</p>
+                  {botNeedsTicket && (
+                    <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200 text-sm">
+                      💡 For technical issues or complaints, please create a support ticket for personalized assistance.
                       {raiseTicketsHref && (
-                        <a href={raiseTicketsHref} className="ml-2 underline font-medium">Go to Raise Tickets</a>
+                        <a href={raiseTicketsHref} className="ml-2 underline font-medium hover:no-underline">Create Ticket</a>
                       )}
                     </div>
                   )}
-                </>
+                </div>
               )}
             </div>
           )}
@@ -417,18 +472,22 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
               const containerClass = isUser ? 'flex items-end justify-end' : 'flex items-end justify-start';
               let bubbleClass = '';
               if (isUser) {
-                bubbleClass = 'bg-teal text-white rounded-br-sm shadow';
+                bubbleClass = 'bg-gradient-to-r from-teal-500 to-blue-500 text-white shadow-lg';
               } else {
-                const parity = agentCount % 2; // alternate non-user backgrounds
-                bubbleClass = parity === 0
-                  ? 'bg-white dark:bg-gray-800 dark:text-gray-100 border border-gray-100 dark:border-gray-700 rounded-bl-sm shadow'
-                  : 'bg-gray-50 dark:bg-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-800 rounded-bl-sm shadow';
+                bubbleClass = 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600 shadow-md';
                 agentCount += 1;
               }
               return (
                 <div key={m.id || `${m.ts}-${m.role}-${(m.content||'').slice(0,8)}`} className={`${containerClass} ${roleChanged ? 'mt-4' : 'mt-1'} gap-2`}>
                   {!isUser && (
-                    <div className="h-7 w-7 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-800 dark:text-gray-100 select-none">S</div>
+                    <div className="relative">
+                      <div className="relative h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 flex items-center justify-center text-xs text-white font-medium shadow-md">
+                        {/* Sparkles icon */}
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4m10 10v4m-2-2h4M8 14l4-8 4 8-4 2-4-2z" />
+                        </svg>
+                      </div>
+                    </div>
                   )}
                   <div className="relative">
                     <div className={`max-w-[80vw] sm:max-w-[70%] rounded-2xl px-3 py-2 text-sm ${bubbleClass}`}>
@@ -469,16 +528,26 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
                     )}
                   </div>
                   {isUser && (
-                    <div className="h-7 w-7 rounded-full bg-teal text-white flex items-center justify-center text-[10px] select-none">You</div>
+                    <div className="relative">
+                      <div className="relative h-8 w-8 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 text-white flex items-center justify-center text-xs font-medium shadow-md">
+                        {/* User silhouette */}
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                      </div>
+                    </div>
                   )}
                 </div>
               );
             });
           })()}
         </div>
+      </div>
 
+      {/* Input Section at the bottom of the chat */}
+      <div className="px-4 pb-4 sm:px-6">
         <form
-          className="flex items-center gap-2"
+          className="flex items-center gap-3 mt-4"
           onSubmit={(e) => { e.preventDefault(); send(); }}
         >
           {/* Hidden file input for image pickup */}
@@ -489,35 +558,42 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ open, onClose, tick
             className="hidden"
             onChange={onFileSelected}
           />
+          {/* Image upload button on the left */}
           <button
             type="button"
             onClick={onPickImage}
-            className="inline-flex items-center justify-center h-9 w-9 rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+            className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors shadow-sm"
             title="Upload image"
-            disabled={botNeedsTicket}
+            disabled={botNeedsTicket || !isAuthenticated}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor">
-              <path d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm1 12 3.5-4.2a1 1 0 0 1 1.5 0L13 14l2.5-3a1 1 0 0 1 1.5 0L19 14v2H5Zm3-8a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/>
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </button>
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={claimed ? 'Type your message…' : isAuthenticated ? 'Ask your question…' : 'Please sign in to chat'}
-            className="flex-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 outline-none px-3 py-2 rounded-full border border-gray-200 dark:border-gray-700 focus:ring-2 focus:ring-teal"
-            disabled={!isAuthenticated && !claimed}
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || (!isAuthenticated && !claimed)}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-full border border-teal text-teal hover:bg-teal hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Send
-          </button>
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={claimed ? 'Type your message…' : 'Ask me anything about your smart home...'}
+              className="w-full bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 pl-4 pr-14 py-3.5 sm:py-4 rounded-full border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent shadow-sm"
+              disabled={!isAuthenticated}
+            />
+            {/* Send inside input with right arrow */}
+            <button
+              type="submit"
+              disabled={!input.trim() || !isAuthenticated}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center h-10 w-10 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white hover:from-teal-600 hover:to-blue-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl"
+            >
+              <svg className="h-5 w-5 rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {/* Paper plane icon rotated to send right */}
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              </svg>
+            </button>
+          </div>
         </form>
       </div>
-    </div>
+    </section>
   );
 };
 

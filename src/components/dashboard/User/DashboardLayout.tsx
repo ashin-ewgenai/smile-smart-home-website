@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useInRouterContext } from 'react-router-dom';
 import DashboardNavbar from './DashboardNavbar';
 import DashboardFooter from './DashboardFooter';
-import SupportChatPanel from '../../supportChat/SupportChatPanel';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -15,7 +14,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
   const [collapsed, setCollapsed] = useState(false);
   // Mount flag to avoid hydration mismatches for className/active states
   const [mounted, setMounted] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
   useEffect(() => {
     try {
       const saved = localStorage.getItem('sidebar_collapsed');
@@ -23,12 +21,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
       if (saved === '0') setCollapsed(false);
     } catch {}
     setMounted(true);
-  }, []);
-  // Listen for global 'open-chat' events (e.g., from mobile menu)
-  useEffect(() => {
-    const handler = () => setChatOpen(true);
-    window.addEventListener('open-chat', handler as EventListener);
-    return () => window.removeEventListener('open-chat', handler as EventListener);
   }, []);
   // Support both SPA (with Router) and non-SPA usage
   const inRouter = useInRouterContext();
@@ -92,7 +84,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
       )
     },
     {
-      href: '#support-chat', key: 'support', label: 'Support Chat', title: 'Support Chat', match: '#support-chat', icon: (
+      href: `${base}/support-chat`, key: 'support', label: 'Support Chat', title: 'Support Chat', match: `${base}/support-chat`, icon: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
           <path d="M21 15a4 4 0 0 1-4 4H7l-4 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
         </svg>
@@ -115,14 +107,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
         {!collapsed && <span className="truncate">{label}</span>}
       </>
     );
-    // Special-case: Support Chat is a toggle, not navigation
-    if (label === 'Support Chat') {
-      return (
-        <button type="button" title={title} className={common} onClick={() => setChatOpen(true)}>
-          {children}
-        </button>
-      );
-    }
+    // Support Chat is now a regular navigation item
     return inRouter ? (
       <Link to={href} title={title} className={common}>{children}</Link>
     ) : (
@@ -214,13 +199,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
         </main>
       </div>
       <DashboardFooter />
-      {userType === 'user' && (
-        <SupportChatPanel
-          open={chatOpen}
-          onClose={() => setChatOpen(false)}
-          raiseTicketsHref={`${base}/support-tickets`}
-        />
-      )}
       
     </div>
   );
