@@ -574,30 +574,52 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 <div className="text-gray-300">No contact requests.</div>
               )}
               {!loadingContactRequests && contactRequests.length > 0 && (
-                <div className="rounded-xl border border-gray-800 bg-gray-900/50 divide-y divide-gray-800">
-                  {contactRequests.map((r: any) => {
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {[...contactRequests]
+                    .sort((a, b) => {
+                      // Sort by read status (unread first) then by creation date (newest first)
+                      const aTime = a.createdAt?.seconds || a.createdAt?._seconds || 0;
+                      const bTime = b.createdAt?.seconds || b.createdAt?._seconds || 0;
+                      
+                      // If one is unread and the other isn't, sort unread first
+                      if (a.isRead !== b.isRead) {
+                        return a.isRead ? 1 : -1;
+                      }
+                      
+                      // If same read status, sort by time (newest first)
+                      return bTime - aTime;
+                    })
+                  .map((r: any) => {
                     const id = r.id as string;
                     const isOpen = !!openIds[id];
+                    const createdAt = r.createdAt ? (r.createdAt.toDate ? r.createdAt.toDate() : new Date(r.createdAt.seconds * 1000)) : null;
+                    
                     return (
-                      <div key={id} className="p-6 flex flex-col gap-3">
+                      <div key={id} className="bg-gray-800/50 rounded-lg border border-gray-700 overflow-hidden transition-all hover:border-teal-500/50">
                         <button
                           type="button"
-                          className="text-left text-sm text-gray-400 hover:text-gray-200 flex items-center gap-2 focus:outline-none"
+                          className="w-full text-left p-4 flex justify-between items-center hover:bg-gray-700/50 transition-colors"
                           aria-expanded={isOpen}
                           aria-controls={`contact-panel-${id}`}
                           onClick={() => toggleOpen(id)}
                         >
-                          <span
-                            className={`transition-transform duration-200 inline-block ${isOpen ? 'rotate-90' : 'rotate-0'}`}
-                            aria-hidden="true"
-                          >
-                            ▶
+                          <div className="flex-1 min-w-0">
+                            <h3 className="text-gray-200 font-medium truncate">{r.email || 'No Email'}</h3>
+                            {createdAt && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {createdAt.toLocaleDateString()} • {createdAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              </p>
+                            )}
+                          </div>
+                          <span className={`transition-transform duration-200 text-gray-500 ${isOpen ? 'rotate-90' : 'rotate-0'}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                            </svg>
                           </span>
-                          <span>{r.email || '—'}</span>
                         </button>
                         {isOpen && (
-                          <div id={`contact-panel-${id}`} className="text-sm text-gray-300 pl-6">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+                          <div id={`contact-panel-${id}`} className="text-sm text-gray-300 p-4 bg-gray-800/30">
+                            <div className="space-y-3">
                               <div>
                                 <div className="text-gray-400">Full Name</div>
                                 <div className="text-gray-100">{r.fullName || '—'}</div>
@@ -676,6 +698,17 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                   )}
                                 </div>
                               )}
+                            </div>
+                            <div className="mt-3 pt-3 border-t border-gray-700">
+                              <button 
+                                onClick={() => window.location.href = `mailto:${r.email}`}
+                                className="text-teal-400 hover:text-teal-300 text-sm flex items-center gap-1"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                Reply
+                              </button>
                             </div>
                           </div>
                         )}
