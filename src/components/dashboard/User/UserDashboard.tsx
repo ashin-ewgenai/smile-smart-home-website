@@ -7,6 +7,17 @@ import { getDocs, query, orderBy, limit, getDoc, collection, onSnapshot, doc } f
 import { userServiceRequestsCollection, userDoc } from '../../../models/Collections';
 import { onAuthStateChanged } from 'firebase/auth';
 
+interface Device {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  lastActivity: string;
+  warranty?: string;
+  modelNumber?: string;
+  brand?: string;
+}
+
 interface DeviceStats {
   totalDevices: number;
   activeDevices: number;
@@ -39,10 +50,119 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   const [reqDesc, setReqDesc] = useState<string>('');
   const [reqSuccess, setReqSuccess] = useState<string>('');
   const [reqError, setReqError] = useState<string>('');
+  const [userDeviceOptions, setUserDeviceOptions] = useState<Device[]>([]);
   const clearReqFeedback = () => {
     setReqSuccess('');
     setReqError('');
   };
+
+  // Fetch user's devices
+  useEffect(() => {
+    let isMounted = true;
+    
+    const fetchUserDevices = async (uid: string) => {
+      try {
+        
+        // Get user's devices from userdevices collection
+        const userDevicesRef = collection(db, 'userdevices', uid, 'devices');
+        // console.log('Querying user devices at path:', `userdevices/${uid}/devices`);
+        const userDevicesSnapshot = await getDocs(userDevicesRef);
+        
+        // console.log('User devices snapshot:', {
+        //   size: userDevicesSnapshot.size,
+        //   docs: userDevicesSnapshot.docs.map(d => ({
+        //     id: d.id,
+        //     data: d.data()
+        //   }))
+        // });
+        
+        // Process user's devices
+        const devices = await Promise.all(userDevicesSnapshot.docs.map(async (userDeviceDoc) => {
+          const deviceData = userDeviceDoc.data();
+          const deviceId = userDeviceDoc.id;
+          
+          try {
+            // Try to get device details from the main Devices collection
+            const deviceDoc = await getDoc(doc(db, 'Devices', deviceId));
+            
+            if (deviceDoc.exists()) {
+              const deviceInfo = deviceDoc.data();
+              // console.log('Found device in main collection:', {
+              //   id: deviceId,
+              //   data: deviceInfo,
+              //   type: deviceInfo.deviceType || deviceInfo.type || 'Unknown'
+              // });
+              
+              return {
+                id: deviceId,
+                name: deviceInfo.deviceName || deviceInfo.name || `Device ${deviceId}`,
+                type: deviceInfo.deviceType || deviceInfo.type || 'Unknown',
+                status: 'active',
+                lastActivity: 'Just now',
+                brand: deviceInfo.brand || deviceInfo.manufacturer || '',
+                modelNumber: deviceInfo.modelNumber || deviceInfo.model || '',
+                warranty: deviceInfo.warranty || deviceInfo.warrantyPeriod || ''
+              };
+            }
+            
+            // Fallback to using the document data directly if not found in main collection
+            const deviceType = deviceData.deviceType || deviceData.type || 
+                             (deviceData.data ? (deviceData.data.deviceType || deviceData.data.type) : null) || 
+                             'Unknown';
+            
+            // console.log('Device not found in main collection, using direct data:', {
+            //   id: deviceId,
+            //   data: deviceData,
+            //   type: deviceType
+            // });
+            
+            return {
+              id: deviceId,
+              name: deviceData.deviceName || deviceData.name || deviceData.data?.deviceName || deviceData.data?.name || `Device ${deviceId}`,
+              type: deviceType,
+              status: 'active',
+              lastActivity: 'Just now',
+              brand: deviceData.brand || deviceData.manufacturer || deviceData.data?.brand || deviceData.data?.manufacturer || '',
+              modelNumber: deviceData.modelNumber || deviceData.model || deviceData.data?.modelNumber || deviceData.data?.model || '',
+              warranty: deviceData.warranty || deviceData.warrantyPeriod || deviceData.data?.warranty || deviceData.data?.warrantyPeriod || ''
+            };
+          } catch (error) {
+            // console.error('Error processing device:', error);
+            return null;
+          }
+        }));
+        
+        // Filter out any null values
+        const validDevices = devices.filter((d): d is NonNullable<typeof d> => d !== null);
+        // console.log('Processed user devices:', validDevices);
+        
+        if (isMounted) {
+          // Update both userDeviceOptions and userDevices with the same data
+          setUserDeviceOptions(validDevices);
+          
+          // Set the first device as default if none selected
+          if (validDevices.length > 0 && !reqDevice) {
+            // console.log('Setting default device:', validDevices[0]);
+            setReqDevice(validDevices[0].id);
+          }
+        }
+      } catch (error) {
+        // console.error('Error fetching user devices:', error);
+      }
+    };
+    
+    // Get current user
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        fetchUserDevices(user.uid);
+      }
+    });
+    
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
+  }, [reqDevice]);
 
   useEffect(() => {
     let cancelled = false;
@@ -239,14 +359,18 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     return () => unsubscribe();
   }, [uid, db]);
   
-  const userDevices = [
-    { id: 1, name: 'Living Room Camera', type: 'Camera', status: 'active', lastActivity: '5 minutes ago' },
-    { id: 2, name: 'Front Door Lock', type: 'Smart Lock', status: 'active', lastActivity: '15 minutes ago' },
-    { id: 3, name: 'Kitchen Thermostat', type: 'Thermostat', status: 'active', lastActivity: '30 minutes ago' },
-    { id: 4, name: 'Bedroom Light', type: 'Smart Light', status: 'active', lastActivity: '1 hour ago' },
-    { id: 5, name: 'Garage Door', type: 'Door Sensor', status: 'offline', lastActivity: '2 days ago' },
-  ];
-  const formDeviceOptions = userDevices.map(u => u.name);
+  // console.log('userDeviceOptions:', userDeviceOptions);
+  
+  const userDevices: Device[] = userDeviceOptions.map((device, index) => ({
+    id: device.id || String(index + 1),
+    name: device.name,
+    type: device.type || 'Device',
+    status: device.status || 'active',
+    lastActivity: device.lastActivity || 'Just now',
+    brand: device.brand || '',
+    modelNumber: device.modelNumber || '',
+    warranty: device.warranty || ''
+  }));
   
   // Warranty helpers
   const formatDate = (d: Date) => d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: '2-digit' });
@@ -263,32 +387,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     if (days > 365) return `${(days / 365).toFixed(1)} years`;
     return `${days} days`;
   };
-  
-  const recentActivities = [
-    { id: 1, device: 'Front Door Lock', action: 'Unlocked', time: '10:23 AM', date: 'Today', user: 'You' },
-    { id: 2, device: 'Living Room Camera', action: 'Motion Detected', time: '09:45 AM', date: 'Today', user: 'System' },
-    { id: 3, device: 'Kitchen Thermostat', action: 'Temperature Changed to 72°F', time: '08:30 AM', date: 'Today', user: 'You' },
-    { id: 4, device: 'Bedroom Light', action: 'Turned On', time: '07:15 AM', date: 'Today', user: 'You' },
-    { id: 5, device: 'Front Door Lock', action: 'Locked', time: '11:50 PM', date: 'Yesterday', user: 'You' },
-  ];
 
-  // Mock payments data
-  const payments = [
-    { id: 'INV-2025-0001', date: '2025-01-05', plan: 'monthly' as const, service: 'tv' as const, device: 'Living Room TV', paymentMethod: 'full' as const, label: 'TV Monthly Pass', amount: 9.99, status: 'paid' as const },
-    { id: 'INV-2025-0002', date: '2025-02-05', plan: 'monthly' as const, service: 'internet' as const, device: 'Home Router', paymentMethod: 'full' as const, label: 'Internet Monthly Pass', amount: 19.99, status: 'paid' as const },
-    { id: 'INV-2025-0003', date: '2025-03-05', plan: 'monthly' as const, service: 'internet' as const, device: 'Home Router', paymentMethod: 'full' as const, label: 'Internet Monthly Pass', amount: 19.99, status: 'due' as const },
-    { id: 'INV-2025-Y001', date: '2025-01-01', plan: 'yearly' as const, service: 'warranty' as const, device: 'Kitchen Thermostat', paymentMethod: 'full' as const, label: 'Yearly Device Warranty', amount: 79.0, status: 'paid' as const },
-    { id: 'INV-2025-I010', date: '2025-02-20', plan: 'instalment' as const, service: 'warranty' as const, device: 'Living Room Camera', paymentMethod: 'installments' as const, label: 'Camera Warranty Installment 1/6', amount: 49.0, status: 'paid' as const },
-    { id: 'INV-2025-I011', date: '2025-03-20', plan: 'instalment' as const, service: 'warranty' as const, device: 'Living Room Camera', paymentMethod: 'installments' as const, label: 'Camera Warranty Installment 2/6', amount: 49.0, status: 'due' as const },
-    { id: 'INV-2025-OT01', date: '2025-03-10', plan: 'onetime' as const, service: 'tv' as const, device: 'Living Room TV', paymentMethod: 'full' as const, label: 'Movie Rental (One-time)', amount: 4.99, status: 'paid' as const },
-    { id: 'INV-2025-OT02', date: '2025-04-02', plan: 'onetime' as const, service: 'warranty' as const, device: 'Front Door Lock', paymentMethod: 'full' as const, label: 'One-time Service Visit', amount: 29.0, status: 'due' as const },
-    { id: 'INV-2025-IN01', date: '2025-04-10', plan: 'onetime' as const, service: 'installation' as const, device: 'Bedroom Light', paymentMethod: 'full' as const, label: 'Smart Light Installation', amount: 59.0, status: 'paid' as const },
-    { id: 'INV-2025-MA01', date: '2025-04-15', plan: 'yearly' as const, service: 'maintenance' as const, device: 'Living Room Camera', paymentMethod: 'full' as const, label: 'Annual Maintenance Plan', amount: 39.0, status: 'paid' as const },
-    { id: 'INV-2025-TR01', date: '2025-04-18', plan: 'onetime' as const, service: 'troubleshooting' as const, device: 'Garage Door', paymentMethod: 'full' as const, label: 'Troubleshooting Visit', amount: 25.0, status: 'due' as const },
-  ];
-
-  const deviceOptions = Array.from(new Set(payments.map((p) => p.device)));
-  
   return (
     <>
     <div>
@@ -400,39 +499,48 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                   <thead className="bg-slate-100/80 dark:bg-slate-700/80 backdrop-blur supports-backdrop-blur:backdrop-blur sticky top-0 z-10">
                     <tr>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Device Name</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Brand</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Model</th>
                       <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Type</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Warranty Start</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Warranty End</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Remaining</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Renewal Date</th>
+                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Warranty</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {userDevices.map((device) => {
-                      // Demo start date per device; replace with real warranty start if available
-                      const start = addDays(new Date('2024-08-01'), device.id * 30);
-                      let end = addDays(start, 365);
-                      let renewal = end;
-                      // Override for specific device (id 4) to show 2030 as requested
-                      if (device.id === 4) {
-                        end = new Date('2030-11-29');
-                        renewal = end;
-                      }
-                      return (
-                        <tr key={device.id} className="odd:bg-transparent even:bg-gray-50 dark:even:bg-gray-800/60 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white">{device.name}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-500 dark:text-gray-400">{device.type}</div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{formatDate(start)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{formatDate(end)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{remainingText(end)}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{formatDate(renewal)}</td>
-                        </tr>
-                      );
-                    })}
+                    {userDevices.length > 0 ? (
+                      userDevices.map((device) => (
+                      <tr key={device.id} className="odd:bg-transparent even:bg-gray-50 dark:even:bg-gray-800/60 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white">{device.name}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {device.brand || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {device.modelNumber || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {device.type || 'Unknown'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-500 dark:text-gray-400">
+                            {device.warranty || 'N/A'}
+                          </div>
+                        </td>
+                      </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={2} className="px-6 py-4 text-center text-sm text-gray-500">
+                          No devices found
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -453,10 +561,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     </div>
     {/* Support Tickets modal removed here; now rendered globally in DashboardLayout */}
 
+    {/* console.log('Rendering RequestServiceModal with deviceOptions:', userDeviceOptions.map(device => device.name)) */}
     <RequestServiceModal
       open={serviceRequestOpen}
       onClose={() => setServiceRequestOpen(false)}
-      deviceOptions={formDeviceOptions}
+      deviceOptions={userDeviceOptions.map(device => device.name)}
     />
     </>
   );
