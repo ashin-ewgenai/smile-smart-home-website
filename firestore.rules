@@ -2,9 +2,32 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isCurrentUser(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role in ['Admin', 'Super Admin'];
+    }
+
     // Users collection (existing project may already have rules; keep permissive here)
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if isCurrentUser(uid);
+    }
+
+    // Accounts collection - user role information
+    match /Accounts/{uid} {
+      allow read: if isCurrentUser(uid) || isAdmin();
+      allow create: if isAdmin(); // Admins and Super Admins can create accounts
+      allow update: if isAdmin(); // Admins and Super Admins can update accounts
+      allow delete: if isAdmin(); // Admins and Super Admins can delete accounts
     }
 
     // Chat sessions stored at top-level: chat_sessions/{sessionId}
@@ -13,17 +36,9 @@ service cloud.firestore {
 
       function isOwner() {
         // On create, `ownerUid` comes from request.resource
-        return request.auth != null && (
+        return isSignedIn() && (
           request.resource.data.ownerUid == request.auth.uid ||
           resource.data.ownerUid == request.auth.uid
-        );
-      }
-
-      // Admin roles are stored in Accounts collection under field `Role`
-      function isAdmin() {
-        return request.auth != null && (
-          get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role == "Admin" ||
-          get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role == "Super Admin"
         );
       }
 
@@ -33,49 +48,81 @@ service cloud.firestore {
       }
     }
 
+    // Devices collection
+    match /devices/{deviceId} {
+      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
+      allow create, update, delete: if isAdmin(); // Admins and Super Admins can manage devices
+    }
+
     // Quotes: top-level collection `quotes/{quoteId}`
     // - Authenticated users can create a quote only for themselves (userUid must match request.auth.uid)
     // - Authenticated users can read only their own quotes
-    // - Admins can read/update/delete any quote
+    // - Admins can read/update any quote
+    // - Admins can delete quotes
     match /quotes/{quoteId} {
-      allow create: if request.auth != null && request.resource.data.userUid == request.auth.uid;
-      allow read: if request.auth != null && (resource.data.userUid == request.auth.uid || isAdmin());
-      allow update, delete: if isAdmin();
+      allow create: if isSignedIn() && request.resource.data.userUid == request.auth.uid &&
+        // Validate required fields and types
+        request.resource.data.keys().hasAll(['userUid', 'details', 'status', 'createdAt']) &&
+        request.resource.data.userUid is string &&
+        request.resource.data.details is string && request.resource.data.details.size() > 0 &&
+        request.resource.data.status == 'pending' &&
+        request.resource.data.createdAt is timestamp;
+      allow read: if isSignedIn() && (resource.data.userUid == request.auth.uid || isAdmin());
+      allow update: if isAdmin();
+      allow delete: if isAdmin(); // Admins and Super Admins can delete quotes
     }
 
     // Support tickets: flat collection Support_Tickets/{ticketId}
     // Allow authenticated user to read/write ONLY their own tickets (based on uid field)
     match /Support_Tickets/{ticketId} {
-      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
-      allow read: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
-      allow update, delete: if request.auth != null && (resource.data.uid == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid &&
+        // Validate required fields
+        request.resource.data.keys().hasAll(['uid', 'complaint', 'status', 'createdAt']) &&
+        request.resource.data.uid is string &&
+        request.resource.data.complaint is string && request.resource.data.complaint.size() > 0 &&
+        request.resource.data.status in ['open', 'pending', 'resolved', 'closed', 'Cancelled'] &&
+        request.resource.data.createdAt is timestamp;
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow update: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      allow delete: if isAdmin(); // Admins and Super Admins can delete tickets
     }
 
     // Global support availability status
-    // support_status/global -> { online: boolean, updatedAt: number, updatedAt: number, updatedBy: uid }
+    // support_status/global -> { online: boolean, updatedAt: number, updatedBy: uid }
     match /support_status/{docId} {
-      allow read: if request.auth != null; // any signed-in user can read status
-      allow write: if isAdmin(); // only Admin/Super Admin can toggle
-
-      function isAdmin() {
-        return request.auth != null && (
-          get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role == "Admin" ||
-          get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role == "Super Admin"
-        );
-      }
+      allow read: if isSignedIn(); // any signed-in user can read status
+      allow write: if isAdmin(); // Admins and Super Admins can toggle
     }
 
     // Per-user human claim: when true, humans handle this user's chat (AI disabled)
     match /support_claims/{uid} {
-      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow read: if isCurrentUser(uid) || isAdmin();
       allow write: if isAdmin();
     }
 
     // Per-user human request: user can raise, admin can clear
     match /support_requests/{uid} {
-      allow read: if request.auth != null && (request.auth.uid == uid || isAdmin());
-      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow read: if isCurrentUser(uid) || isAdmin();
+      allow create, update: if isCurrentUser(uid);
       allow delete: if isAdmin();
+    }
+
+    // Rate limiting collection for chat functions
+    match /rate_limits/{uid} {
+      allow read, write: if isCurrentUser(uid) || isAdmin();
+    }
+
+    // Admin notifications
+    match /admin_notifications/{notificationId} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn(); // Functions can create notifications
+      allow update, delete: if isAdmin();
+    }
+
+    // Product documentation
+    match /product_docs/{docId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin(); // Admins and Super Admins can manage product docs
     }
 
     // Public contact form submissions: create-only into contactRequests
@@ -97,11 +144,6 @@ service cloud.firestore {
           && (!request.resource.data.keys().hasAny(['phone']) || request.resource.data.phone is string || request.resource.data.phone == null)
           && (!request.resource.data.keys().hasAny(['service']) || request.resource.data.service is string || request.resource.data.service == null);
       }
-    }
-
-    function isAdmin() {
-      return exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role in ['Admin','SuperAdmin','Owner','Manager','Support'];
     }
   }
 }

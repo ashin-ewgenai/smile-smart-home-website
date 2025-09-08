@@ -181,14 +181,38 @@ const AdminSupportApp: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-screen min-h-0 grid grid-rows-[auto,1fr]">
-      <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
-        <div className="text-sm text-gray-700 dark:text-gray-200">Support Center</div>
-        {/* Global toggle removed per request; routing is per-user claim only */}
+    <div className="w-full h-screen min-h-0 grid grid-rows-[auto,1fr] bg-gray-50 dark:bg-gray-950">
+      <div className="flex items-center justify-between px-4 py-3 sm:px-6 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/70 backdrop-blur">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <div className="relative h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 flex items-center justify-center shadow-md">
+              <svg className="h-4 w-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </div>
+          </div>
+          <div>
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Support Center</h2>
+            <div className="flex items-center gap-2 mt-1">
+              <div className={`h-2 w-2 rounded-full ${selectedOwner && claims[selectedOwner] ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+              <span className="text-xs text-gray-600 dark:text-gray-400">
+                {selectedOwner ? (claims[selectedOwner] ? 'Human support connected' : 'AI viewing only') : 'Select a conversation'}
+              </span>
+            </div>
+          </div>
+        </div>
+        <button
+          onClick={toggleClaim}
+          disabled={!selectedOwner}
+          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors border ${selectedOwner && claims[selectedOwner] ? 'border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40' : 'border-gray-400 text-gray-700 bg-gray-50 hover:bg-gray-100 dark:text-gray-300 dark:bg-gray-800/40 dark:hover:bg-gray-800/60'}`}
+        >
+          <span className={`h-2 w-2 rounded-full ${selectedOwner && claims[selectedOwner] ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+          {selectedOwner && claims[selectedOwner] ? 'Human On' : 'Human Off'}
+        </button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-[260px,1fr] min-h-0">
-        <aside className="border-r border-gray-200 dark:border-gray-700 overflow-y-auto">
-          <div className="p-2 text-xs uppercase text-gray-500">Conversations</div>
+        <aside className="border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-white dark:bg-gray-900">
+          <div className="p-3 text-[11px] uppercase tracking-wide text-gray-500">Conversations</div>
           <ul>
             {conversations.map((c) => (
               <li key={c.ownerUid}>
@@ -222,18 +246,10 @@ const AdminSupportApp: React.FC = () => {
           </ul>
         </aside>
         <section className="flex flex-col min-h-0">
-          <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-            <div className="text-sm text-gray-800 dark:text-gray-100 truncate">{selectedOwner ? `Chat with ${ownerLabel}` : 'Select a conversation'}</div>
-            <button
-              onClick={toggleClaim}
-              disabled={!selectedOwner}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md border ${claims[selectedOwner || ''] ? 'border-emerald-600 text-emerald-600' : 'border-gray-400 text-gray-700'} hover:bg-gray-100 dark:hover:bg-gray-800`}
-            >
-              <span className={`h-2 w-2 rounded-full ${claims[selectedOwner || ''] ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-              {claims[selectedOwner || ''] ? 'Human On' : 'Human Off'}
-            </button>
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white/60 dark:bg-gray-900/50">
+            <div className="text-sm sm:text-base text-gray-800 dark:text-gray-100 truncate">{selectedOwner ? `Chat with ${ownerLabel}` : 'Select a conversation'}</div>
           </div>
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 bg-gray-50 dark:bg-gray-950">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-gradient-to-b from-gray-50/60 to-white dark:from-gray-900/50 dark:to-gray-800">
             {!selectedOwner && (
               <div className="text-sm text-gray-500">Pick a conversation from the left to view messages.</div>
             )}
@@ -250,12 +266,14 @@ const AdminSupportApp: React.FC = () => {
                 const container = isAgent ? 'flex items-end justify-end' : 'flex items-end justify-start';
                 let bubble = '';
                 if (isAgent) {
-                  bubble = isAI ? 'bg-indigo-600 text-white rounded-br-sm shadow' : 'bg-teal text-white rounded-br-sm shadow';
+                  bubble = isAI
+                    ? 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-lg'
+                    : 'bg-gradient-to-r from-teal-500 to-blue-500 text-white shadow-lg';
                 } else {
                   const parity = otherCount % 2;
                   bubble = parity === 0
-                    ? 'bg-white dark:bg-gray-800 dark:text-gray-100 border border-gray-100 dark:border-gray-700 rounded-bl-sm shadow'
-                    : 'bg-gray-50 dark:bg-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-800 rounded-bl-sm shadow';
+                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-600 shadow-md'
+                    : 'bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700 shadow-md';
                   otherCount += 1;
                 }
                 return (
@@ -263,16 +281,18 @@ const AdminSupportApp: React.FC = () => {
                     className={`${container} ${roleChanged ? 'mt-4' : 'mt-1'} gap-2`}
                   >
                     {!isAgent && (
-                      <div className="h-7 w-7 rounded-full bg-gray-300 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-800 dark:text-gray-100 select-none">U</div>
+                      <div className="relative">
+                        <div className="relative h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 flex items-center justify-center text-xs text-white font-medium shadow-md">U</div>
+                      </div>
                     )}
                     <div className="relative">
                       <div className={`max-w-[80vw] sm:max-w-[70%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${bubble}`}>
                         {isAI && (
-                          <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-900/20 border border-indigo-400/40 text-white mr-2 align-middle">AI</span>
+                          <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/20 border border-white/30 text-white mr-2 align-middle">AI</span>
                         )}
                         {m.imageUrl ? (
                           <a href={m.imageUrl} target="_blank" rel="noreferrer" className="block group">
-                            <img src={m.imageUrl} alt="uploaded" className={`max-h-64 rounded-md ${isAgent ? (isAI ? 'border border-white/20' : 'border border-white/20') : 'border border-gray-200 dark:border-gray-600'}`} />
+                            <img src={m.imageUrl} alt="uploaded" className={`max-h-64 rounded-md ${isAgent ? 'border border-white/20' : 'border border-gray-200 dark:border-gray-600'}`} />
                             {m.content && <div className="mt-1">{m.content}</div>}
                           </a>
                         ) : (
@@ -285,16 +305,16 @@ const AdminSupportApp: React.FC = () => {
                       </div>
                       {/* bubble tail */}
                       {isAgent ? (
-                        <div className={`absolute -right-1 bottom-2 h-2 w-2 rotate-45 ${isAI ? 'bg-indigo-600' : 'bg-teal'}`}></div>
+                        <div className={`absolute -right-1 bottom-2 h-2 w-2 rotate-45 ${isAI ? 'bg-blue-600' : 'bg-blue-500'}`}></div>
                       ) : (
-                        <div className={`absolute -left-1 bottom-2 h-2 w-2 rotate-45 ${bubble.replace('rounded-bl-sm','').replace('rounded-2xl','')}`}></div>
+                        <div className={`absolute -left-1 bottom-2 h-2 w-2 rotate-45 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600`}></div>
                       )}
                     </div>
                     {isAgent && (
                       isAI ? (
-                        <div className="h-7 w-7 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[10px] select-none">🤖</div>
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 text-white flex items-center justify-center text-xs select-none">🤖</div>
                       ) : (
-                        <div className="h-7 w-7 rounded-full bg-teal text-white flex items-center justify-center text-[10px] select-none">A</div>
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white flex items-center justify-center text-xs select-none">A</div>
                       )
                     )}
                   </div>
@@ -303,12 +323,12 @@ const AdminSupportApp: React.FC = () => {
             })()}
           </div>
           <form
-            className="p-3 border-t border-gray-200 dark:border-gray-700 flex items-center gap-2"
+            className="p-3 sm:p-4 border-t border-gray-200 dark:border-gray-700 flex items-center gap-2 bg-white/70 dark:bg-gray-900/60"
             onSubmit={(e) => { e.preventDefault(); send(); }}
           >
             <input
               type="text"
-              className="flex-1 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-500 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal"
+              className="flex-1 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-500 px-3 py-2 rounded-full border border-gray-300 dark:border-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
               placeholder={selectedOwner ? (claims[selectedOwner] ? 'Type a message…' : 'Toggle Human On to reply') : 'Select a conversation to reply'}
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -317,7 +337,7 @@ const AdminSupportApp: React.FC = () => {
             <button
               type="submit"
               disabled={!input.trim() || !selectedOwner || !claims[selectedOwner]}
-              className="px-4 py-2 rounded-md bg-teal text-white disabled:opacity-50"
+              className="px-4 py-2 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white disabled:opacity-50 shadow"
             >
               Send
             </button>

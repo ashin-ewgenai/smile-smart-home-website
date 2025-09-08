@@ -3,11 +3,19 @@ import { auth, db, functions, storage } from '../../lib/firebase';
 import { addDoc, collection, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { triageChat } from '../../lib/chatbot';
+// Removed unused triageChat import - functionality integrated into chatWithOpenAI
 
 interface SupportChatPanelProps {
   ticketId?: string; // if undefined, chat will prompt user to raise a ticket first (bot mode)
   raiseTicketsHref?: string; // optional link target for the "Raise Tickets" page
+}
+
+interface TicketData {
+  subject?: string;
+  description?: string;
+  needsSerial?: boolean;
+  analysisResult?: string;
+  [key: string]: any;
 }
 
 type ChatMsg = {
@@ -29,6 +37,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
+  const [ticketData, setTicketData] = useState<TicketData | null>(null);
+  const [ticketLoading, setTicketLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const msgsUnsubRef = useRef<null | (() => void)>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -68,6 +78,104 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     });
     return () => unsub();
   }, [uid]);
+
+  // Fetch ticket data if ticketId is provided
+  useEffect(() => {
+    if (!providedTicketId) {
+      setTicketData(null);
+      return;
+    }
+
+    setTicketLoading(true);
+    const unsub = onSnapshot(doc(db, 'Support_Tickets', providedTicketId), (snap) => {
+      if (snap.exists()) {
+        setTicketData(snap.data() as TicketData);
+      } else {
+        setTicketData(null);
+      }
+      setTicketLoading(false);
+    });
+
+    return () => unsub();
+  }, [providedTicketId]);
+
+  // Fetch and analyze ticket data
+  useEffect(() => {
+    // If ticketId is provided, fetch that specific ticket
+    if (providedTicketId) {
+      setTicketLoading(true);
+      const unsub = onSnapshot(doc(db, 'Support_Tickets', providedTicketId), (snap) => {
+        if (snap.exists()) {
+          setTicketData(snap.data() as TicketData);
+        } else {
+          setTicketData(null);
+        }
+        setTicketLoading(false);
+      });
+
+      return () => unsub();
+    }
+    // If no ticketId provided, fetch and analyze the latest unresolved ticket
+    else if (uid && messages.length === 0) {
+      const fetchAndAnalyzeTicket = async () => {
+        try {
+          setTicketLoading(true);
+          const analyzeTicket = httpsCallable(functions, 'analyzeUserUnresolvedTicket');
+          const result = await analyzeTicket({});
+          const data = result.data as any;
+          
+          if (data.status === 'no_unresolved_tickets') {
+            setTicketData(null);
+            // Show a message that there are no unresolved tickets
+            const noTicketMsg: ChatMsg = {
+              role: 'agent',
+              content: 'You don\'t have any unresolved tickets at the moment. If you need help, please create a new support ticket.',
+              ts: Date.now(),
+            };
+            setMessages([noTicketMsg]);
+          } else if (data.status === 'analyzed' || data.status === 'already_analyzed') {
+            // Set ticket data
+            setTicketData({
+              subject: data.subject,
+              needsSerial: data.needsSerial,
+              initialSolution: data.initialSolution
+            });
+            
+            // Show initial solution
+            const solutionMsg: ChatMsg = {
+              role: 'assistant',
+              content: data.initialSolution,
+              ts: Date.now(),
+            };
+            setMessages([solutionMsg]);
+            
+            // If needs serial, add image prompt
+            if (data.needsSerial) {
+              const imageMsg: ChatMsg = {
+                role: 'agent',
+                content: '📷 Please click the image button below to upload a photo of your device showing the serial number.',
+                ts: Date.now() + 1,
+              };
+              setMessages(prev => [...prev, imageMsg]);
+            }
+          }
+        } catch (error) {
+          console.error('Failed to analyze user ticket:', error);
+          // Show error message
+          const errorMsg: ChatMsg = {
+            role: 'agent',
+            content: 'Sorry, I\'m having trouble accessing your ticket information. Please try again later.',
+            ts: Date.now(),
+          };
+          setMessages([errorMsg]);
+        } finally {
+          setTicketLoading(false);
+        }
+      };
+
+      fetchAndAnalyzeTicket();
+    }
+  }, [providedTicketId, uid, messages.length]);
 
   // Online (human) vs Offline (bot) mode handling
   useEffect(() => {
@@ -128,10 +236,62 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     };
   }, [uid, sessionId, claimed, isAuthenticated]);
 
+  // Check if we need to show initial solution or prompt for device image after ticket analysis
+  useEffect(() => {
+    if (!providedTicketId || !ticketData || messages.length > 0) return;
+    
+    // Show initial solution if available
+    if (ticketData.initialSolution) {
+      const solutionMsg: ChatMsg = {
+        role: 'assistant',
+        content: ticketData.initialSolution,
+        ts: Date.now(),
+      };
+      
+      setMessages([solutionMsg]);
+      
+      // If ticket also needs serial number, add image prompt
+      if (ticketData.needsSerial) {
+        const imageMsg: ChatMsg = {
+          role: 'agent',
+          content: '📷 Please click the image button below to upload a photo of your device showing the serial number.',
+          ts: Date.now() + 1,
+        };
+        
+        setMessages(prev => [...prev, imageMsg]);
+      }
+    }
+    // If no initial solution but needs serial, prompt for image
+    else if (ticketData.needsSerial) {
+      const promptMsg: ChatMsg = {
+        role: 'agent',
+        content: 'To better assist you with your issue, we need to verify your device. Please upload a clear photo of your device showing the serial number.',
+        ts: Date.now(),
+      };
+      
+      const imageMsg: ChatMsg = {
+        role: 'agent',
+        content: '📷 Please click the image button below to upload a photo of your device showing the serial number.',
+        ts: Date.now() + 1,
+      };
+      
+      setMessages([promptMsg, imageMsg]);
+    }
+  }, [providedTicketId, ticketData, messages.length]);
+
   const send = async () => {
     const content = input.trim();
     if (!content) return;
     setInput('');
+
+    // Check if we're waiting for user confirmation about ticket status
+    const isWaitingForConfirmation = messages.some(msg => msg.content === 'WAITING_FOR_CONFIRMATION');
+    
+    if (isWaitingForConfirmation) {
+      // Handle user's confirmation response
+      handleTicketConfirmation(content);
+      return;
+    }
 
     if (claimed) {
       // Human online: send to Firestore live chat
@@ -165,20 +325,33 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         const res = await call(payload);
         const reply = (res?.data as any)?.reply as string | undefined;
         
-        // Check if AI detected a complaint and show ticket CTA
-        if (reply?.startsWith('COMPLAINT_DETECTED:')) {
+        // Check if AI detected a complaint and ask user if they've raised a ticket
+        // Only show the complaint-detected flow once per conversation
+        const complaintAlreadyShown = messages.some(
+          (m) => m.role !== 'user' && (m.content?.includes('Have you already raised a support ticket for this issue?') || m.content === 'WAITING_FOR_CONFIRMATION')
+        );
+
+        if (reply?.startsWith('COMPLAINT_DETECTED:') && !complaintAlreadyShown) {
           const cleanReply = reply.replace('COMPLAINT_DETECTED:', '').trim();
           const botMsg: ChatMsg = { role: 'assistant', content: cleanReply, ts: Date.now() };
           setMessages((prev) => [...prev, botMsg]);
           
-          // Show ticket creation CTA
-          const ctaMsg: ChatMsg = { 
+          // Ask user if they've already raised a ticket for this issue
+          const confirmMsg: ChatMsg = { 
             role: 'agent', 
-            content: '🎫 It looks like you have a support issue. Would you like to create a support ticket for faster assistance?', 
-            ts: Date.now() + 1,
-            showTicketCTA: true
+            content: 'Have you already raised a support ticket for this issue? Please confirm with "Yes" if you have, or "No" if you haven\'t.', 
+            ts: Date.now() + 1
           };
-          setMessages((prev) => [...prev, ctaMsg]);
+          setMessages((prev) => [...prev, confirmMsg]);
+          
+          // Add special flag to indicate we're waiting for user confirmation
+          const waitingMsg: ChatMsg = { 
+            role: 'agent', 
+            content: 'WAITING_FOR_CONFIRMATION', 
+            ts: Date.now() + 2,
+            showTicketCTA: false
+          };
+          setMessages((prev) => [...prev, waitingMsg]);
         } else if (reply?.includes('Please upload an image of your device')) {
           // AI is requesting device image for serial number extraction
           const botMsg: ChatMsg = { role: 'assistant', content: reply, ts: Date.now() };
@@ -203,40 +376,26 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       return;
     }
 
-    // If unauthenticated user, use triageChat for basic FAQs only
+    // If unauthenticated user, show sign-in prompt for support
     if (!providedTicketId && !isAuthenticated) {
       const userMsg: ChatMsg = { role: 'user', content, ts: Date.now() };
       setMessages((prev) => {
         const next = [...prev, userMsg];
-        try { localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next)); } catch {}
+        localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next));
         return next;
       });
-      try {
-        const res = await triageChat(content);
-        if (res.kind === 'faq' || res.kind === 'general') {
-          const botMsg: ChatMsg = { role: 'assistant', content: res.answer || 'Here to help with any quick questions.', ts: Date.now() };
-          setMessages((prev) => {
-            const next = [...prev, botMsg];
-            try { localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next)); } catch {}
-            return next;
-          });
-        } else {
-          const infoMsg: ChatMsg = { role: 'agent', content: 'This looks like a support issue. Please sign in and create a support ticket for assistance.', ts: Date.now() };
-          setMessages((prev) => {
-            const next = [...prev, infoMsg];
-            try { localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next)); } catch {}
-            return next;
-          });
-        }
-      } catch (error) {
-        console.error('Triage chat error:', error);
-        const errMsg: ChatMsg = { role: 'agent', content: 'Please sign in to use the chat feature.', ts: Date.now() };
-        setMessages((prev) => {
-          const next = [...prev, errMsg];
-          try { localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next)); } catch {}
-          return next;
-        });
-      }
+      
+      // Direct to sign-in for personalized support
+      const authMsg: ChatMsg = { 
+        role: 'agent', 
+        content: 'Please sign in to get personalized support assistance with your smart home devices.', 
+        ts: Date.now() 
+      };
+      setMessages((prev) => {
+        const next = [...prev, authMsg];
+        localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next));
+        return next;
+      });
       return;
     }
 
@@ -349,6 +508,102 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     });
   };
 
+  const handleTicketConfirmation = async (userResponse: string) => {
+    // Remove the waiting confirmation message
+    setMessages(prev => prev.filter(msg => msg.content !== 'WAITING_FOR_CONFIRMATION'));
+    
+    const lowerResponse = userResponse.toLowerCase();
+    
+    if (lowerResponse.includes('yes') || lowerResponse.includes('yeah') || lowerResponse.includes('yep') || lowerResponse.includes('sure')) {
+      // User has raised a ticket, check for active unresolved tickets
+      const userMsg: ChatMsg = { role: 'user', content: userResponse, ts: Date.now() };
+      setMessages(prev => [...prev, userMsg]);
+      
+      const checkingMsg: ChatMsg = { 
+        role: 'agent', 
+        content: 'Checking your existing ticket... please wait a moment.', 
+        ts: Date.now() + 1
+      };
+      setMessages(prev => [...prev, checkingMsg]);
+      
+      try {
+        // Check for active unresolved tickets
+        const checkTicket = httpsCallable(functions, 'checkActiveUnresolvedTicket');
+        const result = await checkTicket({});
+        const data = result.data as any;
+        
+        // Remove the checking message
+        setMessages(prev => prev.filter(msg => msg.content !== 'Checking your existing ticket... please wait a moment.'));
+        
+        if (data.hasActiveTicket) {
+          // User already has an active ticket, provide solution for it
+          const solutionMsg: ChatMsg = { 
+            role: 'agent', 
+            content: `I see you already have an active support ticket about "${data.subject}". Let me help you with that issue.`, 
+            ts: Date.now() + 2
+          };
+          setMessages(prev => [...prev, solutionMsg]);
+          
+          // Auto-analyze the existing ticket
+          const analyzeTicket = httpsCallable(functions, 'analyzeUserUnresolvedTicket');
+          const analyzeResult = await analyzeTicket({});
+          const analyzeData = analyzeResult.data as any;
+          
+          if (analyzeData.status === 'analyzed' || analyzeData.status === 'already_analyzed') {
+            const solutionMsg: ChatMsg = { 
+              role: 'assistant', 
+              content: analyzeData.initialSolution, 
+              ts: Date.now() + 3
+            };
+            setMessages(prev => [...prev, solutionMsg]);
+            
+            // If needs serial, add image prompt
+            if (analyzeData.needsSerial) {
+              const imageMsg: ChatMsg = { 
+                role: 'agent', 
+                content: '📷 Please click the image button below to upload a photo of your device showing the serial number.', 
+                ts: Date.now() + 4
+              };
+              setMessages(prev => [...prev, imageMsg]);
+            }
+          }
+        } else {
+          // No active ticket found despite user saying they raised one
+          const errorMsg: ChatMsg = { 
+            role: 'agent', 
+            content: 'I couldn\'t find an active ticket for you. Please create a new support ticket for this issue.', 
+            ts: Date.now() + 2,
+            showTicketCTA: true
+          };
+          setMessages(prev => [...prev, errorMsg]);
+        }
+      } catch (error) {
+        console.error('Failed to check for active tickets:', error);
+        // Remove the checking message and show error
+        setMessages(prev => prev.filter(msg => msg.content !== 'Checking your existing ticket... please wait a moment.'));
+        
+        const errorMsg: ChatMsg = { 
+          role: 'agent', 
+          content: 'Sorry, I\'m having trouble checking your ticket information. Please try again later.', 
+          ts: Date.now() + 2
+        };
+        setMessages(prev => [...prev, errorMsg]);
+      }
+    } else {
+      // User hasn't raised a ticket, show CTA to create one
+      const userMsg: ChatMsg = { role: 'user', content: userResponse, ts: Date.now() };
+      setMessages(prev => [...prev, userMsg]);
+      
+      const ctaMsg: ChatMsg = { 
+        role: 'agent', 
+        content: '🎫 It looks like you have a support issue. Would you like to create a support ticket for faster assistance?', 
+        ts: Date.now() + 1,
+        showTicketCTA: true
+      };
+      setMessages(prev => [...prev, ctaMsg]);
+    }
+  };
+  
   const requestHuman = async () => {
     if (!uid) return;
     try {
