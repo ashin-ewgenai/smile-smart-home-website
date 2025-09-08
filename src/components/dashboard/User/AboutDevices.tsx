@@ -224,7 +224,7 @@ const AboutDevices: React.FC = () => {
           });
           
           // Prefer user warranty, especially when stored per-serial
-          const serialHint = (userDeviceData?.serialNumber) || deviceData?.serial;
+          const serialHint = (userDeviceData?.serialNumber) || (userDeviceData?.serial) || (Array.isArray(userDeviceData?.serials) ? userDeviceData.serials[0] : undefined) || deviceData?.serial;
           const userWarranty = getUserWarranty(userDeviceData, serialHint);
           const deviceWarranty = deviceData.warranty ?? null;
           const chosenWarranty = userWarranty ?? deviceWarranty ?? null;
@@ -238,13 +238,40 @@ const AboutDevices: React.FC = () => {
             chosenSource,
           });
 
+          // Resolve serial with priority: userdevices -> devices
+          const resolveSerial = () => {
+            // Try common field names on user device doc
+            const possible = [
+              userDeviceData?.serial,
+              userDeviceData?.serialNumber,
+              userDeviceData?.Serial,
+              userDeviceData?.SerialNumber,
+              userDeviceData?.serial_no,
+              userDeviceData?.serialNo,
+              userDeviceData?.SerialNo,
+            ].filter(Boolean);
+            if (possible.length && typeof possible[0] === 'string') return possible[0] as string;
+            // Try array of serials
+            if (Array.isArray(userDeviceData?.serials) && userDeviceData.serials.length > 0) {
+              const first = userDeviceData.serials[0];
+              if (typeof first === 'string') return first;
+              if (first && typeof first === 'object') {
+                return (first.serialNumber || first.serial || first.code || first.id) ?? undefined;
+              }
+            }
+            // Fallback to device collection
+            return deviceData?.serial ?? undefined;
+          };
+
+          const resolvedSerial = resolveSerial();
+
           return {
             id: doc.id,
             deviceName: deviceData.deviceName || deviceData.name || 'Unnamed Device',
             name: deviceData.name,
             type: deviceData.type,
             status: userDeviceData.status || deviceData.status || 'Active',
-            serial: userDeviceData.serialNumber || deviceData.serial || 'N/A',
+            serial: resolvedSerial || 'N/A',
             modelNumber: deviceData.modelNumber,
             imageUrl: deviceData.imageUrl,
             price: typeof deviceData.price === 'number' ? deviceData.price : null,
@@ -424,9 +451,6 @@ const AboutDevices: React.FC = () => {
                     <h3 className="text-sm font-semibold text-white truncate" title={device.deviceName || device.name || 'Unnamed Device'}>
                       {device.deviceName || device.name || 'Unnamed Device'}
                     </h3>
-                    <p className="text-xs text-gray-400 truncate">
-                      {device.type || 'Unknown type'}{device.modelNumber ? ` • ${device.modelNumber}` : ''}
-                    </p>
                   </div>
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
                     device.status === 'Active' ? 'bg-green-900/30 text-green-400 border border-green-800' :
@@ -495,9 +519,6 @@ const AboutDevices: React.FC = () => {
                   )}
                 </div>
                 
-                <div className="mt-3 text-xs text-gray-500">
-                  <span className="text-gray-400">Document ID:</span> {device.id}
-                </div>
                 <div className="mt-2 flex justify-end space-x-2">
                   <button
                     onClick={() => openDetails(device)}
