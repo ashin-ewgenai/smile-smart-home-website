@@ -63,23 +63,23 @@ function ChangePassword() {
   };
 
   return (
-    <div className="max-w-md w-full mx-auto p-4 sm:p-6 bg-white rounded-lg shadow">
-      <h2 className="text-xl font-semibold mb-4 text-black">Change Password</h2>
+    <div className="max-w-md w-full mx-auto p-0">
+      <h2 className="text-xl font-semibold mb-4 text-white">Change Password</h2>
 
       {error && (
-        <div className="mb-3 rounded border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm">{error}</div>
+        <div className="mb-3 rounded border border-red-200 bg-red-50 text-red-700 px-3 py-2 text-sm dark:border-red-800 dark:bg-red-900/40 dark:text-red-200">{error}</div>
       )}
       {success && (
-        <div className="mb-3 rounded border border-green-200 bg-green-50 text-green-700 px-3 py-2 text-sm">{success}</div>
+        <div className="mb-3 rounded border border-green-200 bg-green-50 text-green-700 px-3 py-2 text-sm dark:border-green-800 dark:bg-green-900/40 dark:text-green-200">{success}</div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-4 text-black">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium mb-1 text-black" htmlFor="oldPassword">Old password</label>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300" htmlFor="oldPassword">Old password</label>
           <input
             id="oldPassword"
             type="password"
-            className="w-full rounded border px-3 py-2 focus:outline-none focus:ring text-black"
+            className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
             value={oldPassword}
             onChange={(e) => setOldPassword(e.target.value)}
             autoComplete="current-password"
@@ -88,11 +88,11 @@ function ChangePassword() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1 text-black" htmlFor="newPassword">New password</label>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300" htmlFor="newPassword">New password</label>
           <input
             id="newPassword"
             type="password"
-            className="w-full rounded border px-3 py-2 focus:outline-none focus:ring text-black"
+            className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             autoComplete="new-password"
@@ -101,11 +101,11 @@ function ChangePassword() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1 text-black" htmlFor="confirmPassword">Confirm new password</label>
+          <label className="block text-sm font-medium mb-1 text-gray-700 dark:text-gray-300" htmlFor="confirmPassword">Confirm new password</label>
           <input
             id="confirmPassword"
             type="password"
-            className="w-full rounded border px-3 py-2 focus:outline-none focus:ring text-black"
+            className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             autoComplete="new-password"
@@ -116,13 +116,13 @@ function ChangePassword() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full inline-flex items-center justify-center rounded bg-blue-600 text-white py-2 font-medium hover:bg-blue-700 disabled:opacity-60"
+          className="w-full inline-flex items-center justify-center px-5 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white font-medium border-2 border-teal-700 hover:border-teal-800 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-teal-500"
         >
           {loading ? 'Changing…' : 'Change Password'}
         </button>
       </form>
 
-      <p className="text-xs mt-3 text-black">You may be asked to log in again if required for security.</p>
+      <p className="text-xs mt-3 text-gray-600 dark:text-gray-400">You may be asked to log in again if required for security.</p>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Save, User, Bell, Shield, Globe, Moon, Sun, Home } from 'lucide-react';
+import { Save, User, Bell, Shield, Globe, Moon, Sun, Home, Lock } from 'lucide-react';
+import ChangePassword from './ChangePassword';
 
 const UserSettings: React.FC = () => {
   const [darkMode, setDarkMode] = useState(false);
@@ -10,6 +11,7 @@ const UserSettings: React.FC = () => {
   const [saveStatus, setSaveStatus] = useState('');
   const [userName, setUserName] = useState('User');
   const [userEmail, setUserEmail] = useState('');
+  const [showChangePassword, setShowChangePassword] = useState(false);
   
   // Get user info and preferences from localStorage
   useEffect(() => {
@@ -140,6 +142,45 @@ const UserSettings: React.FC = () => {
                 className="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
               />
             </div>
+          </div>
+        </div>
+
+        {/* Security Settings */}
+        <div className="bg-gray-900/60 backdrop-blur rounded-2xl shadow-lg p-6 border border-gray-800">
+          <h2 className="text-xl font-semibold text-white flex items-center mb-4">
+            <Shield className="mr-2 h-5 w-5 text-emerald-400" />
+            Security
+          </h2>
+          {/* Clickable field to reveal Change Password */}
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setShowChangePassword((v) => !v)}
+              className="w-full flex items-center justify-between rounded-xl border border-gray-700 bg-gray-800/60 px-4 py-3 text-left hover:border-emerald-500/60 hover:bg-gray-800 transition"
+              aria-expanded={showChangePassword}
+            >
+              <div className="flex items-center gap-3">
+                <Lock className="h-4 w-4 text-emerald-400" />
+                <div>
+                  <p className="text-sm font-medium text-white">Change Password</p>
+                  <p className="text-xs text-gray-400">Update your account password</p>
+                </div>
+              </div>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className={`h-5 w-5 text-gray-400 transition-transform ${showChangePassword ? 'rotate-180' : ''}`}
+                viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+
+            {showChangePassword && (
+              <div className="max-w-2xl">
+                <ChangePassword />
+              </div>
+            )}
           </div>
         </div>
 

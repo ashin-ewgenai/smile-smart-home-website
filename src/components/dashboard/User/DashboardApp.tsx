@@ -37,7 +37,6 @@ const DashboardApp: React.FC = () => {
           <Route path="/dashboard/user/about-device" element={<AboutDevices />} />
           <Route path="/dashboard/user/bill" element={<UserBill />} />
           <Route path="/dashboard/user/profile" element={<UserProfile />} />
-          <Route path="/dashboard/user/change-password" element={<ChangePassword />} />
           <Route path="*" element={<Navigate to="/dashboard/user" replace />} />
         </Routes>
       </DashboardLayout>
