@@ -23,19 +23,11 @@ export function useUnconfirmedQuotesCount(userId: string | null) {
         return status !== 'confirmed';
       });
       
-      console.log('Quotes update:', {
-        total: querySnapshot.docs.length,
-        unconfirmed: unconfirmed.length,
-        quotes: querySnapshot.docs.map(d => ({
-          id: d.id,
-          status: d.data().status,
-          quoteType: d.data().quoteType
-        }))
-      });
-      
       setUnconfirmedCount(unconfirmed.length);
     }, (error) => {
-      console.error('Error listening to quotes updates:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error listening to quotes updates:', error);
+      }
     });
 
     return () => unsubscribe();

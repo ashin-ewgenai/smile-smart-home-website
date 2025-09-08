@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
+import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Wrench } from 'lucide-react';
 
@@ -11,6 +12,9 @@ interface RequestItem {
   date?: string;
   time?: string;
   createdAt?: any;
+  adminResponse?: string;
+  response?: string;
+  message?: string;
 }
 
 interface Props {
@@ -23,19 +27,91 @@ interface Props {
 
 const RequestStatusModal: React.FC<Props> = ({ open, onClose, myRequests, reqListLoading, reqListError }) => {
   const [selectedReq, setSelectedReq] = useState<RequestItem | null>(null);
+  
   // Lock background/body scroll when modal is open
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
+    
+    // Save current scroll position
+    const scrollY = window.scrollY;
+    const body = document.body;
+    const html = document.documentElement;
+    
+    // Lock the body scroll
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.overflow = 'hidden';
+    html.style.overflow = 'hidden';
+    
+    // Prevent touch events from reaching document
+    const preventDefault = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      const isScrollable = target.closest('.modal-scroll-content');
+      if (!isScrollable) {
+        e.preventDefault();
+      }
+    };
+    
+    document.addEventListener('touchmove', preventDefault, { passive: false });
+
+    // Prevent background scroll from touchpads/mouse wheels when outside modal content
+    const onWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInsideScrollable = target?.closest?.('.modal-scroll-content');
+      if (!isInsideScrollable) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('wheel', onWheel, { passive: false });
+    
+    return () => {
+      // Restore body styles and scroll position
+      const scrollY = body.style.top;
+      body.style.position = '';
+      body.style.top = '';
+      body.style.left = '';
+      body.style.right = '';
+      body.style.overflow = '';
+      html.style.overflow = '';
+      window.scrollTo(0, parseInt(scrollY || '0') * -1);
+      
+      // Remove event listener
+      document.removeEventListener('touchmove', preventDefault);
+      document.removeEventListener('wheel', onWheel as EventListener);
+    };
   }, [open]);
 
-  return open ? createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" role="dialog" aria-modal="true" aria-label="Request Status">
-      <div className="relative w-full max-w-5xl">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200/80 dark:border-gray-700/80 ring-1 ring-black/5 overflow-hidden transform transition-all duration-200 ease-out">
-          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-750/40">
+  const handleClose = useCallback(() => {
+    onClose();
+    setSelectedReq(null);
+  }, [onClose]);
+
+  if (!open) return null;
+
+  const MainModal = () => (
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto"
+      role="dialog" 
+      aria-modal="true" 
+      aria-label="Request Status"
+      onClick={onClose}
+      onWheel={(e) => {
+        // If wheel happens on overlay and not inside scrollable content, block it
+        const target = e.target as HTMLElement;
+        const isScrollable = target.closest('.modal-scroll-content');
+        if (!isScrollable && e.cancelable) {
+          e.preventDefault();
+        }
+      }}
+    >
+      <div 
+        className="w-full max-w-5xl max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200/80 dark:border-gray-700/80 ring-1 ring-black/5 overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0 flex justify-between items-center bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-750/40">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Your Service Requests</h2>
             <button onClick={onClose} className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 focus:ring-offset-white dark:focus:ring-offset-gray-800 transition" aria-label="Close">
               <X className="h-4 w-4" />
@@ -45,10 +121,48 @@ const RequestStatusModal: React.FC<Props> = ({ open, onClose, myRequests, reqLis
           {reqListError && (
             <div className="mx-6 mt-4 rounded-md bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 px-4 py-3">{reqListError}</div>
           )}
-          <div
-            className="max-h-[70vh] overflow-y-auto overscroll-contain touch-pan-y"
-            onWheel={(e) => { e.stopPropagation(); }}
-            onTouchMove={(e) => { e.stopPropagation(); }}
+          <div className="overflow-y-auto flex-1">
+            <div 
+              className="modal-scroll-content px-6 py-4"
+              style={{
+                maxHeight: 'calc(90vh - 120px)',
+                overscrollBehavior: 'contain',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'rgba(156, 163, 175, 0.5) transparent',
+                touchAction: 'pan-y',
+                msOverflowStyle: 'none',
+                overflowY: 'auto',
+                willChange: 'transform',
+                WebkitTransform: 'translateZ(0)',
+                transform: 'translateZ(0)'
+              }}
+              onWheel={(e) => {
+                // Keep wheel inside the modal and prevent scroll chaining at edges
+                e.stopPropagation();
+                const el = e.currentTarget as HTMLDivElement;
+                const { scrollTop, scrollHeight, clientHeight } = el;
+                const atTop = scrollTop <= 0;
+                const atBottom = Math.ceil(scrollTop + clientHeight) >= scrollHeight;
+                if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) {
+                  // Prevent bubbling to body when overscrolling
+                  if (e.cancelable) e.preventDefault();
+                }
+              }}
+              onTouchMove={(e) => {
+                e.stopPropagation();
+                const target = e.target as HTMLElement;
+                const scrollable = target.closest('.modal-scroll-content');
+                if (scrollable) {
+                  const { scrollTop, scrollHeight, clientHeight } = scrollable;
+                  const isAtTop = scrollTop === 0 && e.touches[0].clientY > 0;
+                  const isAtBottom = Math.ceil(scrollTop + clientHeight) >= scrollHeight - 1 && e.touches[0].clientY < 0;
+                  
+                  if ((isAtTop || isAtBottom) && e.cancelable) {
+                    e.preventDefault();
+                  }
+                }
+              }}
           >
             {reqListLoading ? (
               <div className="flex items-center justify-center py-16">
@@ -104,69 +218,77 @@ const RequestStatusModal: React.FC<Props> = ({ open, onClose, myRequests, reqLis
                 </tbody>
               </table>
             )}
-          </div>
-        </div>
-      </div>
-      {/* Details popup */}
-      {selectedReq && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Request Details">
-          <div className="relative w-full max-w-xl">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Request Details</h3>
-                <button
-                  onClick={() => setSelectedReq(null)}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                >
-                  <X className="h-4 w-4" />
-                  <span className="text-sm font-medium">Close</span>
-                </button>
-              </div>
-              <div
-                className="max-h-[70vh] overflow-y-auto overscroll-contain touch-pan-y px-5 py-4 text-sm text-gray-700 dark:text-gray-200"
-                onWheel={(e) => { e.stopPropagation(); }}
-                onTouchMove={(e) => { e.stopPropagation(); }}
-              >
-                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
-                  <div>
-                    <dt className="text-gray-500 dark:text-gray-400">Created</dt>
-                    <dd>{((selectedReq as any).createdAt?.toDate ? (selectedReq as any).createdAt.toDate() as Date : undefined)?.toLocaleString() || '-'}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-gray-500 dark:text-gray-400">Service</dt>
-                    <dd className="capitalize">{selectedReq.service}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-gray-500 dark:text-gray-400">Device</dt>
-                    <dd>{selectedReq.device}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-gray-500 dark:text-gray-400">Priority</dt>
-                    <dd className="capitalize">{selectedReq.priority}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-gray-500 dark:text-gray-400">Preferred</dt>
-                    <dd>{(selectedReq as any).date || '--'} {(selectedReq as any).time || ''}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-gray-500 dark:text-gray-400">Status</dt>
-                    <dd className="capitalize">{selectedReq.status}</dd>
-                  </div>
-                </dl>
-                <div className="mt-4">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Admin Response</h4>
-                  <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-line bg-gray-50 dark:bg-gray-700/40 border border-gray-200 dark:border-gray-700 rounded-md p-3">
-                    {(selectedReq as any).adminResponse || (selectedReq as any).response || (selectedReq as any).message || 'No response yet.'}
-                  </p>
-                </div>
-              </div>
             </div>
           </div>
         </div>
-      )}
-    </div>,
+      </div>
+    </div>
+  );
+
+  const DetailsModal = (): ReactNode => (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Request Details">
+      <div className="relative w-full max-w-xl">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">Request Details</h3>
+            <button
+              onClick={() => setSelectedReq(null)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500"
+            >
+              <X className="h-4 w-4" />
+              <span className="text-sm font-medium">Close</span>
+            </button>
+          </div>
+          <div
+            className="max-h-[70vh] overflow-y-auto overscroll-contain touch-pan-y px-5 py-4 text-sm text-gray-700 dark:text-gray-200"
+            onWheel={(e) => { e.stopPropagation(); }}
+            onTouchMove={(e) => { e.stopPropagation(); }}
+          >
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
+              <div>
+                <dt className="text-gray-500 dark:text-gray-400">Created</dt>
+                <dd>{((selectedReq as any)?.createdAt?.toDate ? (selectedReq as any).createdAt.toDate() as Date : undefined)?.toLocaleString() || '-'}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500 dark:text-gray-400">Service</dt>
+                <dd className="capitalize">{selectedReq?.service}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500 dark:text-gray-400">Device</dt>
+                <dd>{selectedReq?.device}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500 dark:text-gray-400">Priority</dt>
+                <dd className="capitalize">{selectedReq?.priority}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500 dark:text-gray-400">Preferred</dt>
+                <dd>{(selectedReq as any)?.date || '--'} {(selectedReq as any)?.time || ''}</dd>
+              </div>
+              <div>
+                <dt className="text-gray-500 dark:text-gray-400">Status</dt>
+                <dd className="capitalize">{selectedReq?.status}</dd>
+              </div>
+            </dl>
+            <div className="mt-4">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Admin Response</h4>
+              <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-line bg-gray-50 dark:bg-gray-700/40 border border-gray-200 dark:border-gray-700 rounded-md p-3">
+                {(selectedReq as any)?.adminResponse || (selectedReq as any)?.response || (selectedReq as any)?.message || 'No response yet.'}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return createPortal(
+    <>
+      <MainModal />
+      {selectedReq && <DetailsModal />}
+    </>,
     document.body
-  ) : null;
+  );
 };
 
 export default RequestStatusModal;

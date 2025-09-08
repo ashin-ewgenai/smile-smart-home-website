@@ -289,7 +289,6 @@ const Reports: React.FC = () => {
                       className="text-xs px-3 py-1.5 rounded-md border border-gray-700 bg-gray-900 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
                     >
                       <option value="Pending">Pending</option>
-                      <option value="In Progress">In Progress</option>
                       <option value="Resolved">Resolved</option>
                     </select>
                   </div>

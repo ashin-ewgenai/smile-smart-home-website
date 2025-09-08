@@ -17,18 +17,11 @@ export function useUnclosedServiceRequestsCount(userId: string | null) {
     );
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      console.log('Service requests update:', {
-        total: querySnapshot.docs.length,
-        requests: querySnapshot.docs.map(d => ({
-          id: d.id,
-          status: d.data().status,
-          title: d.data().title || 'Untitled Request'
-        }))
-      });
-      
       setUnclosedCount(querySnapshot.docs.length);
     }, (error) => {
-      console.error('Error listening to service requests:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error listening to service requests:', error);
+      }
     });
 
     return () => unsubscribe();

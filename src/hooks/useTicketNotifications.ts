@@ -25,19 +25,11 @@ export function useTicketNotifications(userId: string | null) {
         return status !== 'resolved' && status !== 'closed';
       });
       
-      console.log('Tickets update:', {
-        total: querySnapshot.docs.length,
-        unresolved: unresolved.length,
-        tickets: querySnapshot.docs.map(d => ({
-          id: d.id,
-          status: d.data().status,
-          title: d.data().subject || d.data().title
-        }))
-      });
-      
       setUnresolvedCount(unresolved.length);
     }, (error) => {
-      console.error('Error listening to ticket updates:', error);
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error listening to ticket updates:', error);
+      }
     });
 
     // Clean up the listener when the component unmounts

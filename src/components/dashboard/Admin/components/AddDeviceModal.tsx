@@ -56,6 +56,51 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
       container.removeEventListener('wheel', handleWheel);
     };
   }, []);
+
+  // Lock background/body scroll when modal is open and prevent background wheel/touch
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollY = window.scrollY;
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.overflow = 'hidden';
+    html.style.overflow = 'hidden';
+
+    const onTouchMove = (e: TouchEvent) => {
+      const target = e.target as HTMLElement;
+      const isScrollable = target.closest('.modal-scroll-content');
+      if (!isScrollable) {
+        e.preventDefault();
+      }
+    };
+    const onWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInsideScrollable = target?.closest?.('.modal-scroll-content');
+      if (!isInsideScrollable) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('wheel', onWheel, { passive: false });
+
+    return () => {
+      body.style.position = '';
+      body.style.top = '';
+      body.style.left = '';
+      body.style.right = '';
+      body.style.overflow = '';
+      html.style.overflow = '';
+      window.scrollTo(0, scrollY);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('wheel', onWheel as EventListener);
+    };
+  }, [isOpen]);
   // Filters
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -199,11 +244,26 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
   };
 
   return (
-    <div 
+    <div
       className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${isOpen ? 'flex' : 'hidden'}`}
       onClick={onClose}
+      onWheel={(e) => {
+        const target = e.target as HTMLElement;
+        const isScrollable = target.closest('.modal-scroll-content');
+        if (!isScrollable) {
+          // Avoid preventDefault on React's passive wheel listener; block bubbling only.
+          e.stopPropagation();
+        }
+      }}
+      onTouchMove={(e) => {
+        const target = e.target as HTMLElement;
+        const isScrollable = target.closest('.modal-scroll-content');
+        if (!isScrollable) {
+          e.preventDefault();
+        }
+      }}
     >
-      <div 
+      <div
         className="bg-gray-800 rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
@@ -248,7 +308,6 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
               </button>
             </div>
           </div>
-
           {error && (
             <div className="mb-4 p-3 bg-red-900/30 text-red-300 border border-red-700 rounded-md">
               {error}
@@ -256,186 +315,172 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
           )}
 
           <div className="space-y-4 pb-4">
-          {/* Toolbar: search + filters */}
-          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
-            <div className="flex-1">
-              <label className="block text-xs text-gray-400 mb-1">Search</label>
-              <div className="relative">
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by name, type, model, brand..."
-                  className="w-full bg-gray-700/80 text-gray-100 placeholder-gray-400 border border-gray-600 rounded-md pl-9 pr-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
-                />
-                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">🔎</span>
+            {/* Toolbar: search + filters */}
+            <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+              <div className="flex-1">
+                <label className="block text-xs text-gray-400 mb-1">Search</label>
+                <div className="relative">
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search by name, type, model, brand..."
+                    className="w-full bg-gray-700/80 text-gray-100 placeholder-gray-400 border border-gray-600 rounded-md pl-9 pr-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                  />
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">🔎</span>
+                </div>
               </div>
+              <div className="sm:w-52">
+                <label className="block text-xs text-gray-400 mb-1">Type</label>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value)}
+                  className="w-full bg-gray-700/80 text-gray-100 border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                >
+                  <option value="">All</option>
+                  {allTypes.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="sm:w-52">
+                <label className="block text-xs text-gray-400 mb-1">Brand</label>
+                <select
+                  value={brandFilter}
+                  onChange={(e) => setBrandFilter(e.target.value)}
+                  className="w-full bg-gray-700/80 text-gray-100 border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                >
+                  <option value="">All</option>
+                  {allBrands.map(b => (
+                    <option key={b} value={b}>{b}</option>
+                  ))}
+                </select>
+              </div>
+              {(search || typeFilter || brandFilter) && (
+                <button
+                  onClick={() => { setSearch(''); setTypeFilter(''); setBrandFilter(''); }}
+                  className="sm:self-auto self-stretch px-3 py-2 text-sm rounded-md bg-gray-700 hover:bg-gray-600 text-white"
+                >
+                  Clear
+                </button>
+              )}
             </div>
-            <div className="sm:w-52">
-              <label className="block text-xs text-gray-400 mb-1">Type</label>
-              <select
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-                className="w-full bg-gray-700/80 text-gray-100 border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              >
-                <option value="">All</option>
-                {allTypes.map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-            <div className="sm:w-52">
-              <label className="block text-xs text-gray-400 mb-1">Brand</label>
-              <select
-                value={brandFilter}
-                onChange={(e) => setBrandFilter(e.target.value)}
-                className="w-full bg-gray-700/80 text-gray-100 border border-gray-600 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500"
-              >
-                <option value="">All</option>
-                {allBrands.map(b => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
-            </div>
-            {(search || typeFilter || brandFilter) && (
-              <button
-                onClick={() => { setSearch(''); setTypeFilter(''); setBrandFilter(''); }}
-                className="sm:self-auto self-stretch px-3 py-2 text-sm rounded-md bg-gray-700 hover:bg-gray-600 text-white"
-              >
-                Clear
-              </button>
-            )}
+
+            <div className="text-xs text-gray-400 -mt-2">{filteredDevices.length} of {devices.length} devices</div>
+
           </div>
 
-          <div className="text-xs text-gray-400 -mt-2">{filteredDevices.length} of {devices.length} devices</div>
-
-          </div>
         </div>
 
         {/* Scrollable content */}
         <div 
-          ref={scrollContainerRef}
-          className="flex-1 overflow-y-auto px-6 py-4"
-          style={{
-            maxHeight: '50vh',
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            WebkitOverflowScrolling: 'touch',
-            scrollBehavior: 'smooth',
-            overscrollBehavior: 'contain',
-            scrollbarWidth: 'thin',
-            msOverflowStyle: 'none',
-            touchAction: 'pan-y',
-            willChange: 'transform',
-            WebkitTransform: 'translateZ(0)'
-          }}
-        >
-          <table className="w-full text-sm">
-            <thead className="sticky top-0 bg-gray-800">
-              <tr className="text-left text-gray-400 border-b border-gray-700">
-                <th className="py-2 pr-4">
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={selectedDevices.length > 0 && selectedDevices.length === filteredDevices.length}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          // Select all visible devices
-                          const allVisibleIds = filteredDevices.map(d => d.id);
-                          setSelectedDevices(Array.from(new Set([...selectedDevices, ...allVisibleIds])));
-                        } else {
-                          // Unselect all visible devices
-                          const visibleIds = new Set(filteredDevices.map(d => d.id));
-                          setSelectedDevices(selectedDevices.filter(id => !visibleIds.has(id)));
-                        }
-                      }}
-                      className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-teal-500 focus:ring-teal-500"
-                    />
-                    <span className="ml-2">
-                      {selectedDevices.length > 0 && selectedDevices.length === filteredDevices.length ? 'Unselect All' : 'Select All'}
-                    </span>
-                  </div>
-                </th>
-                <th className="py-2 pr-4">Name</th>
-                <th className="py-2 pr-4">Type</th>
-                <th className="py-2 pr-4">Model</th>
-                <th className="py-2">Manufacturer</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredDevices.map((device) => (
-                <tr 
-                  key={device.id}
-                  className={`border-b border-gray-700/50 hover:bg-gray-800/50 ${
-                    selectedDevices.includes(device.id)
-                      ? viewMode === 'add' 
-                        ? 'bg-teal-900 bg-opacity-20' 
-                        : 'bg-red-900 bg-opacity-20'
-                      : ''
-                  }`}
-                >
-                  <td className="py-3 pr-4">
-                    <input
-                      type="checkbox"
-                      checked={selectedDevices.includes(device.id)}
-                      onChange={() => {
-                        setSelectedDevices((prev) =>
-                          prev.includes(device.id)
-                            ? prev.filter((id) => id !== device.id)
-                            : [...prev, device.id]
-                        );
-                      }}
-                      className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-teal-500 focus:ring-teal-500"
-                    />
-                  </td>
-                  <td className="py-3 pr-4 text-gray-100">{device.deviceName}</td>
-                  <td className="py-3 pr-4 text-gray-300">{device.type}</td>
-                  <td className="py-3 pr-4 text-gray-300">{device.modelNumber || '-'}</td>
-                  <td className="py-3 text-gray-300">{device.brand || '-'}</td>
-                </tr>
-              ))}
-              {filteredDevices.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-8 text-center text-gray-400">No devices match your filters.</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer */}
-        <div className="bg-gray-800 border-t border-gray-700 p-4">
-          <div className="flex justify-between items-center">
-            <div className="text-sm text-gray-400">
-              {selectedDevices.length} {selectedDevices.length === 1 ? 'device' : 'devices'} selected
-            </div>
-            <div className="flex space-x-3">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-sm rounded-md bg-gray-700 hover:bg-gray-600 text-white"
+        ref={scrollContainerRef}
+        className="modal-scroll-content flex-1 overflow-y-auto px-6 py-4"
+        style={{
+          maxHeight: '50vh',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          WebkitOverflowScrolling: 'touch',
+          scrollBehavior: 'smooth',
+          overscrollBehavior: 'contain',
+          scrollbarWidth: 'thin',
+          msOverflowStyle: 'none',
+          touchAction: 'pan-y',
+          willChange: 'transform',
+          WebkitTransform: 'translateZ(0)'
+        }}
+        onWheel={(e) => {
+          // Keep wheel events contained within the modal; edge-case prevention handled by non-passive native listener.
+          e.stopPropagation();
+        }}
+      >
+        <table className="w-full text-sm">
+          <thead className="sticky top-0 bg-gray-800">
+            <tr className="text-left text-gray-400 border-b border-gray-700">
+              <th className="py-2 pr-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedDevices.length > 0 && selectedDevices.length === filteredDevices.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        // Select all visible devices
+                        const allVisibleIds = filteredDevices.map((d) => d.id);
+                        setSelectedDevices(Array.from(new Set([...selectedDevices, ...allVisibleIds])));
+                      } else {
+                        // Unselect all visible devices
+                        const visibleIds = new Set(filteredDevices.map((d) => d.id));
+                        setSelectedDevices(selectedDevices.filter((id) => !visibleIds.has(id)));
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-teal-500 focus:ring-teal-500"
+                  />
+                  <span className="ml-2">
+                    {selectedDevices.length > 0 && selectedDevices.length === filteredDevices.length ? 'Unselect All' : 'Select All'}
+                  </span>
+                </div>
+              </th>
+              <th className="py-2 pr-4">Name</th>
+              <th className="py-2 pr-4">Type</th>
+              <th className="py-2 pr-4">Model</th>
+              <th className="py-2">Manufacturer</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredDevices.map((device) => (
+              <tr
+                key={device.id}
+                className={`border-b border-gray-700/50 hover:bg-gray-800/50 ${
+                  selectedDevices.includes(device.id)
+                    ? viewMode === 'add'
+                      ? 'bg-teal-900 bg-opacity-20'
+                      : 'bg-red-900 bg-opacity-20'
+                    : ''
+                }`}
               >
-                Cancel
-              </button>
-              {viewMode === 'add' ? (
-                <button
-                  onClick={handleAddDevices}
-                  disabled={selectedDevices.length === 0}
-                  className="px-4 py-2 text-sm rounded-md bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Add Selected Devices
-                </button>
-              ) : (
-                <button
-                  onClick={handleRemoveDevices}
-                  disabled={selectedDevices.length === 0}
-                  className="px-4 py-2 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Remove Selected Devices
-                </button>
-              )}
-            </div>
+                <td className="py-3 pr-4">
+                  <input
+                    type="checkbox"
+                    checked={selectedDevices.includes(device.id)}
+                    onChange={() => {
+                      setSelectedDevices((prev) =>
+                        prev.includes(device.id)
+                          ? prev.filter((id) => id !== device.id)
+                          : [...prev, device.id]
+                      );
+                    }}
+                    className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-teal-500 focus:ring-teal-500"
+                  />
+                </td>
+                <td className="py-3 pr-4 text-gray-100">{device.deviceName}</td>
+                <td className="py-3 pr-4 text-gray-300">{device.type}</td>
+                <td className="py-3 pr-4 text-gray-300">{device.modelNumber || '-'}</td>
+                <td className="py-3 text-gray-300">{device.brand || '-'}</td>
+              </tr>
+            ))}
+            {filteredDevices.length === 0 && (
+              <tr>
+                <td colSpan={5} className="py-8 text-center text-gray-400">No devices match your filters.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Footer */}
+      <div className="bg-gray-800 border-t border-gray-700 p-4">
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-gray-400">{selectedDevices.length} {selectedDevices.length === 1 ? 'device' : 'devices'} selected</div>
+          <div className="flex space-x-3">
+            <button onClick={onClose} className="px-4 py-2 text-sm rounded-md bg-gray-700 hover:bg-gray-600 text-white">Cancel</button>
+            {viewMode === 'add' ? (
+              <button onClick={handleAddDevices} disabled={selectedDevices.length === 0} className="px-4 py-2 text-sm rounded-md bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">Add Selected Devices</button>
+            ) : (
+              <button onClick={handleRemoveDevices} disabled={selectedDevices.length === 0} className="px-4 py-2 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white disabled:opacity-50 disabled:cursor-not-allowed">Remove Selected Devices</button>
+            )}
           </div>
         </div>
       </div>
     </div>
-  );
+  </div>
+);
 }

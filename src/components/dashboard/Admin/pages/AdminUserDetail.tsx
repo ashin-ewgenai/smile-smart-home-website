@@ -78,6 +78,51 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const [saving, setSaving] = useState(false);
   const [estimation, setEstimation] = useState<any | null>(null);
 
+  // Lock background scroll and prevent background wheel/touch when the centered details modal is open
+  useEffect(() => {
+    if (!drawerOpen) return;
+
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollY = window.scrollY;
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.overflow = 'hidden';
+    html.style.overflow = 'hidden';
+
+    const onWheel = (e: WheelEvent) => {
+      const target = e.target as HTMLElement | null;
+      const inside = target?.closest?.('.modal-scroll-content');
+      if (!inside) {
+        e.preventDefault();
+      }
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      const target = e.target as HTMLElement | null;
+      const inside = target?.closest?.('.modal-scroll-content');
+      if (!inside) {
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('wheel', onWheel, { passive: false });
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+
+    return () => {
+      body.style.position = '';
+      body.style.top = '';
+      body.style.left = '';
+      body.style.right = '';
+      body.style.overflow = '';
+      html.style.overflow = '';
+      window.scrollTo(0, scrollY);
+      document.removeEventListener('wheel', onWheel as EventListener);
+      document.removeEventListener('touchmove', onTouchMove);
+    };
+  }, [drawerOpen]);
+
   // Render Smart Home plan text with sections and bullet lists (matches User PlanLeads view)
   const renderPlanText = (text?: string) => {
     const raw = (text || '').trim();
@@ -506,8 +551,8 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
     quotes: ['pending', 'confirmed'],
     // Service Requests -> open, in process, closed
     services: ['open', 'in process', 'closed'],
-    // Support Tickets -> pending, resolved, in progress
-    tickets: ['pending', 'resolved', 'in progress'],
+    // Support Tickets -> pending, resolved
+    tickets: ['pending', 'resolved'],
     // Devices -> online, offline
     devices: ['online', 'offline'],
   };
@@ -887,8 +932,44 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       {drawerOpen && selected && (
         <div className="fixed inset-0 z-40">
           <div className="absolute inset-0 bg-black/50" onClick={closeDetails} />
-          <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-5 overflow-y-auto max-h-[90vh]">
+          <div
+            className="absolute inset-0 flex items-center justify-center p-4"
+            onWheel={(e) => {
+              const target = e.target as HTMLElement;
+              const isScrollable = target.closest('.modal-scroll-content');
+              if (!isScrollable && e.cancelable) {
+                e.preventDefault();
+              }
+            }}
+            onTouchMove={(e) => {
+              const target = e.target as HTMLElement;
+              const isScrollable = target.closest('.modal-scroll-content');
+              if (!isScrollable) {
+                e.preventDefault();
+              }
+            }}
+          >
+            <div
+              className="modal-scroll-content w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-5 overflow-y-auto max-h-[90vh]"
+              style={{
+                overscrollBehavior: 'contain',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'thin',
+                msOverflowStyle: 'none',
+                touchAction: 'pan-y'
+              }}
+              onWheel={(e) => {
+                // Keep wheel inside and prevent scroll chaining at edges
+                e.stopPropagation();
+                const el = e.currentTarget as HTMLDivElement;
+                const { scrollTop, scrollHeight, clientHeight } = el;
+                const atTop = scrollTop <= 0;
+                const atBottom = Math.ceil(scrollTop + clientHeight) >= scrollHeight;
+                if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) {
+                  if (e.cancelable) e.preventDefault();
+                }
+              }}
+            >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-white">{selected.type === 'quotes' ? 'Quote' : selected.type === 'services' ? 'Service Request' : 'Support Ticket'} Details</h3>
                 <button onClick={closeDetails} className="text-gray-300 hover:text-white">✕</button>

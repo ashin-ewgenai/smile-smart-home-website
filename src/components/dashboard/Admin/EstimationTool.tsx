@@ -176,7 +176,7 @@ const EstimationTool: React.FC = () => {
         });
       } catch (estimationError) {
         // Estimation quote might not exist yet, that's okay
-        console.log('Estimation quote not found, only updated original quote');
+        // Removed console.log
       }
       
       // Update local state
@@ -252,7 +252,7 @@ const EstimationTool: React.FC = () => {
       });
 
       // Save estimation quote
-      console.log('Saving payload with originalQuoteId:', payload.originalQuoteId);
+      // Removed sensitive console.log
       await setDoc(estimationQuoteDoc(db, estimationId), payload);
       
       // Only update original quote status when sending to customer (Confirmed)

@@ -203,7 +203,7 @@ const AdminUsers: React.FC = () => {
         total: quotesUnresolved + servicesUnresolved + ticketsUnresolved,
       };
       
-      console.log(`Initial alerts for ${email}:`, data);
+      // Removed sensitive console.log
       setAlertsMap(prev => ({ ...prev, [key]: data }));
       return data;
     } catch (e: any) {
@@ -216,7 +216,7 @@ const AdminUsers: React.FC = () => {
   // prefetch alerts when users list loads/changes
   useEffect(() => {
     if (!users.length) return;
-    console.log('Fetching alerts for users:', users.map(u => u.email));
+    // Removed logging of user emails
     users.forEach(u => {
       const key = u.email.toLowerCase();
       if (!alertsMap[key]) void fetchAlertsForEmail(u.email);
@@ -232,13 +232,11 @@ const AdminUsers: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users]);
 
-  // Debug: log alertsMap changes
+  // Debug: log alertsMap changes - removed sensitive data logging
   useEffect(() => {
-    console.log('alertsMap updated:', Object.entries(alertsMap).map(([email, data]) => ({
-      email,
-      total: data.total,
-      loading: data.loading
-    })));
+    if (process.env.NODE_ENV === 'development') {
+      console.log('alertsMap updated with', Object.keys(alertsMap).length, 'users');
+    }
   }, [alertsMap]);
 
   const rows = useMemo(() => users.map((u, idx) => ({ ...u, idx })), [users]);
@@ -354,8 +352,7 @@ const AdminUsers: React.FC = () => {
                               onClick={(e) => { e.stopPropagation(); openAlertModal(email); }}
                               totalAlerts={total}
                               onItemClick={(item) => {
-                                // Handle item click - you can add specific logic based on item.type
-                                console.log('Item clicked:', item);
+                                // Handle item click - removed console.log
                               }}
                             />
                           </div>
