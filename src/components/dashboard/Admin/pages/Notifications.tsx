@@ -121,15 +121,12 @@ const Notifications: React.FC = () => {
   };
 
   const filteredItems = useMemo(() => {
-    console.log('Filtering items. Total items:', items.length, 'Filter:', filter, 'Unread only:', unreadOnly);
+    console.log('Filtering items. Total items:', items.length, 'Items:', items);
+    console.log('Current filter:', filter, 'Unread only:', unreadOnly);
     const filtered = items.filter(item => {
       const matchesFilter = filter === 'all' || item.type === filter;
       const matchesUnread = !unreadOnly || isUnread(item);
-      const include = matchesFilter && matchesUnread;
-      if (item.type === 'support_ticket') {
-        console.log('Support ticket:', item.id, 'matchesFilter:', matchesFilter, 'matchesUnread:', matchesUnread, 'include:', include);
-      }
-      return include;
+      return matchesFilter && matchesUnread;
     });
 
     // Sort with unread messages at the top, then by timestamp (newest first within each group)
@@ -157,47 +154,25 @@ const Notifications: React.FC = () => {
       case 'service_request':
         return `Service Request: ${item.service || 'Unknown'}`;
       case 'support_ticket': {
-        // First check if we have a UID and try to get email from cache
-        let email: string = 'Unknown Sender';
-        
-        if (item.uid && userCache[item.uid]?.email) {
-          const cachedEmail = userCache[item.uid]?.email;
-          if (cachedEmail) {
-            email = cachedEmail;
-          }
-        } else {
-          // Fallback to checking possible email fields in order of priority
-          const possibleEmails = [
-            item.userEmail,
-            item.email,
-            item.fromEmail,
-            item.customerEmail,
-            (item.customer && 'email' in item.customer) ? (item.customer as { email?: string }).email : null,
-            (typeof item.user === 'object' && item.user && 'email' in item.user) ? (item.user as { email: string }).email : null,
-            typeof item.user === 'string' ? item.user : null
-          ].filter((e): e is string => Boolean(e && typeof e === 'string' && e.includes('@')));
-          
-          if (possibleEmails.length > 0) {
-            email = possibleEmails[0];
-          }
-        }
-        
-        // Get display name from cache or item
-        const displayName = (
-          (item.uid && userCache[item.uid]?.displayName) ||
-          item.displayName ||
-          item.userName ||
-          (email !== 'Unknown Sender' ? email.split('@')[0] : 'User')
-        );
+        const email = item.email || item.userEmail || 'Unknown Sender';
+        const displayName = item.fullName || item.name || email.split('@')[0];
+        const service = item.service ? ` • ${item.service}` : '';
         
         return (
           <>
-            <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">REPORT</span>
+            <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
+              {item.status === 'pending' ? 'NEW REPORT' : 'REPORT'}
+            </span>
             <span className="mx-2 text-blue-600 dark:text-gray-400">from</span>
-            <span className="text-gray-900 dark:text-indigo-300 font-mono text-sm">{email}</span>
-            {displayName && (
-              <p className="text-xs text-gray-400 truncate mt-0.5">
-                {displayName}
+            <span className="text-gray-900 dark:text-indigo-300 font-medium">
+              {displayName}
+            </span>
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {service}
+            </span>
+            {item.message && (
+              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">
+                {item.message}
               </p>
             )}
           </>
@@ -255,31 +230,6 @@ const Notifications: React.FC = () => {
             <span className="text-gray-900 dark:text-indigo-300 font-sans text-lg font-medium">
               {email}
             </span>
-          </>
-        );
-      }
-      case 'support_ticket': {
-        // Try to get user data from cache first
-        const userData = item.uid ? userCache[item.uid] : null;
-        const displayEmail = userData?.email || 
-                           item.email || 
-                           item.userEmail || 
-                           item.fromEmail || 
-                           (typeof item.user === 'string' ? item.user : item.user?.email) || 
-                           'Unknown User';
-        
-        return (
-          <>
-            <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">REPORT</span>
-            <span className="mx-2 text-blue-600 dark:text-gray-400">from</span>
-            <span className="text-gray-900 dark:text-indigo-300 font-sans text-lg font-medium">
-              {displayEmail}
-            </span>
-            {userData?.displayName && (
-              <p className="text-xs text-gray-400 truncate mt-0.5">
-                {userData.displayName}
-              </p>
-            )}
           </>
         );
       }
@@ -436,6 +386,43 @@ const Notifications: React.FC = () => {
     }
   };
 
+  // Function to fetch support tickets from Contact_Messages collection
+  const fetchSupportTickets = async () => {
+    try {
+      console.log('Fetching support tickets from Contact_Messages collection...');
+      const contactMessagesRef = collection(db, 'Contact_Messages');
+      const q = query(contactMessagesRef, orderBy('createdAt', 'desc'), limit(50));
+      const snapshot = await getDocs(q);
+      
+      console.log(`Found ${snapshot.docs.length} support tickets`);
+      
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        console.log('Processing support ticket:', doc.id, data);
+        
+        return {
+          id: doc.id,
+          ...data,
+          type: 'support_ticket' as const,
+          timestamp: data.createdAt?.toMillis?.() || Date.now(),
+          // Map common fields
+          email: data.email || data.userEmail || '',
+          userEmail: data.email || data.userEmail || '',
+          message: data.message || data.description || '',
+          // Ensure we have a title/name for display
+          title: data.service ? `Support: ${data.service}` : 'Support Request',
+          // Map status with a default
+          status: data.status || 'pending',
+          // Map name field if available
+          name: data.name || data.userName || data.displayName || ''
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching support tickets:', error);
+      return [];
+    }
+  };
+
   // Function to fetch plan leads
   const fetchPlanLeads = async () => {
     try {
@@ -566,6 +553,17 @@ const Notifications: React.FC = () => {
         const results: UnifiedNotification[] = [];
         let failures = 0;
 
+        // Fetch support tickets
+        try {
+          const supportTickets = await fetchSupportTickets();
+          console.log('Fetched support tickets:', supportTickets);
+          results.push(...supportTickets);
+          console.log('Results after adding support tickets:', results);
+        } catch (err) {
+          console.error('Error fetching support tickets:', err);
+          failures++;
+        }
+
         // Fetch quote requests from the quotes collection
         try {
           const quotes = await fetchQuoteRequests();
@@ -625,32 +623,6 @@ const Notifications: React.FC = () => {
           failures++;
         }
 
-        try {
-          const snap = await getDocs(collectionGroup(db, 'ticket'));
-          const tickets = snap.docs.map(d => {
-            const data = d.data();
-            return {
-              ...data,
-              id: d.id,
-              type: 'support_ticket' as NotificationType,
-              parentUid: d.ref.parent.parent?.id,
-              // Map email fields from the ticket data
-              email: data.email || data.userEmail || data.user?.email,
-              userEmail: data.userEmail || data.email || data.user?.email,
-              // Ensure we have a timestamp for sorting
-              timestamp: data.createdAt?.toMillis() || data.timestamp || Date.now(),
-              // Include subject and description for display
-              subject: data.subject || 'New Report',
-              description: data.description || data.message || ''
-            };
-          });
-          // Sort by timestamp in descending order
-          tickets.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-          results.push(...tickets);
-        } catch (err) {
-          failures++;
-        }
-
         // Sort and set
         results.sort((a, b) => {
           const aTime = a.createdAt || a.created_at || a.ts || 0;
@@ -671,11 +643,11 @@ const Notifications: React.FC = () => {
         }
 
         // Add real-time listeners
-        const setupRealtimeListeners = async () => {
-          // Listen for new service requests without orderBy to avoid index requirements
+        const setupRealtimeListeners = () => {
+          // Listen for new service requests
           const serviceRequestsQuery = query(
             collectionGroup(db, 'service_requests'),
-            limit(50) // Keep limit to prevent loading too many documents
+            limit(50)
           );
 
           const unsub1 = onSnapshot(serviceRequestsQuery, (snapshot) => {
@@ -693,226 +665,11 @@ const Notifications: React.FC = () => {
             setItems(prev => {
               const filtered = prev.filter(x => x.type !== 'service_request');
               const merged = [...newItems, ...filtered];
-              // Sort by timestamp in descending order on the client side
               return merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
             });
           });
           unsubs.push(unsub1);
           
-          // Listen for new support tickets without orderBy to avoid index requirements
-          const supportTicketsQuery = query(
-            collection(db, 'Support_Tickets'),
-            limit(50) // Keep limit to prevent loading too many documents
-          );
-
-          const unsubTickets = onSnapshot(supportTicketsQuery, 
-            (snapshot) => {
-              try {
-                console.log('Support tickets snapshot:', snapshot.docs.length, 'tickets');
-                
-                // Process support tickets with user email lookup
-                const processSupportTickets = async (docs: any[]) => {
-                  const processedTickets = [];
-                  
-                  for (const doc of docs) {
-                    const data = doc.data();
-                    
-                    // Get the user ID from the most likely fields
-                    const userId = data.userId || data.uid || (typeof data.user === 'string' ? data.user : null);
-                    let displayName = data.displayName || data.userName || 'User';
-                    let email = 'Unknown Sender';
-                    
-                    // Try to get user data from cache first
-                    if (userId && userCache[userId]) {
-                      // Use cached data if available
-                      email = userCache[userId]?.email || email;
-                      displayName = userCache[userId]?.displayName || displayName;
-                      console.log('Using cached data for user', userId, ':', { email, displayName });
-                    } 
-                    
-                    // If no email in cache or no cache, try to fetch from Accounts collection
-                    if ((!email || email === 'Unknown Sender') && userId) {
-                      try {
-                        const userDocRef = doc(db, 'Accounts', userId);
-                        const userDoc = await getDoc(userDocRef);
-                        
-                        if (userDoc.exists()) {
-                          const userData = userDoc.data() as UserData;
-                          if (userData?.email) {
-                            const userEmail = userData.email;
-                            const userName = userData.displayName || userData.name || displayName;
-                          
-                            email = userEmail;
-                            displayName = userName;
-                            
-                            // Create cache update object
-                            const userCacheUpdate = { 
-                              email: userEmail,
-                              displayName: userName,
-                              name: userData.name || ''
-                            };
-                            
-                            // Immediately update local cache for this request
-                            setUserCache(prev => ({
-                              ...prev,
-                              [userId]: userCacheUpdate
-                            }));
-                            
-                            // Also update the cache in the database for future use
-                            const userCacheRef = doc(db, 'UserCache', userId);
-                            await setDoc(userCacheRef, userCacheUpdate, { merge: true });
-                            
-                            console.log('Fetched and cached user data from Accounts:', { 
-                              userId, 
-                              email, 
-                              displayName 
-                            });
-                          }
-                        }
-                      } catch (error) {
-                        console.error('Error fetching user data from Accounts:', error);
-                      }
-                    }
-                    
-                    // If still no email found, try direct fields as fallback
-                    if (email === 'Unknown Sender') {
-                      const possibleEmails = [
-                        data.userEmail,
-                        data.email,
-                        data.fromEmail,
-                        data.user?.email,
-                        data.customerEmail,
-                        data.customer?.email,
-                        data.user?.email // Check nested user email
-                      ].filter(e => e && typeof e === 'string' && e.includes('@'));
-                      
-                      if (possibleEmails.length > 0) {
-                        email = possibleEmails[0];
-                        
-                        // Update display name if we found an email but no display name
-                        if (displayName === 'User' && email !== 'Unknown Sender') {
-                          displayName = email.split('@')[0];
-                        }
-                      }
-                    }
-                    
-                    console.log('Selected email for ticket', doc.id, ':', email, 'from user ID:', userId);
-                    
-                    // Create ticket with all available data
-                    const ticket: UnifiedNotification = {
-                      id: doc.id,
-                      ...data,
-                      type: 'support_ticket',
-                      parentUid: doc.ref.parent?.parent?.id,
-                      email: email,
-                      userEmail: email,
-                      fromEmail: email,
-                      timestamp: data.createdAt?.toMillis?.() || data.timestamp || Date.now(),
-                      subject: data.subject || 'New Report',
-                      description: data.description || data.message || '',
-                      uid: userId,
-                      userId: userId,
-                      displayName: displayName,
-                      // Ensure all required fields are present
-                      adminRead: data.adminRead || false,
-                      createdAt: data.createdAt || new Date(),
-                      created_at: data.created_at || new Date()
-                    };
-                    
-                    console.log('Processed ticket:', ticket);
-                    processedTickets.push(ticket);
-                  }
-                  
-                  return processedTickets;
-                };
-
-                // Process tickets and update state
-                processSupportTickets(snapshot.docs).then(processedTickets => {
-                  // Get unique user IDs for cache population
-                  const userIds = new Set<string>();
-                  processedTickets.forEach(ticket => {
-                    const uid = ticket.uid || ticket.userId;
-                    if (uid && !userCache[uid]?.email) {
-                      userIds.add(uid);
-                    }
-                  });
-
-                  // Fetch user data from Accounts collection for all unique UIDs
-                  if (userIds.size > 0) {
-                    const userPromises = Array.from(userIds).map(uid => 
-                      getDoc(doc(db, 'Accounts', uid)).then(accountDoc => {
-                        if (accountDoc.exists()) {
-                          const accountData = accountDoc.data();
-                          console.log('Fetched account data for UID:', uid, accountData);
-                          return { 
-                            uid, 
-                            email: accountData.email,
-                            displayName: accountData.displayName || accountData.name || ''
-                          };
-                        }
-                        console.log('No account found for UID:', uid);
-                        // Fallback to users collection if not found in Accounts
-                        return getDoc(doc(db, 'users', uid)).then(userDoc => {
-                          if (userDoc.exists()) {
-                            const userData = userDoc.data();
-                            console.log('Fetched user data (fallback) for UID:', uid, userData);
-                            return { 
-                              uid, 
-                              email: userData.email,
-                              displayName: userData.displayName || userData.name || ''
-                            };
-                          }
-                          return null;
-                        });
-                      }).catch(error => {
-                        console.error('Error fetching user data for UID:', uid, error);
-                        return { uid };
-                      })
-                    );
-
-                    Promise.all(userPromises).then(users => {
-                      const newUserCache = { ...userCache };
-                      users.forEach(user => {
-                        if (!user) return; // Skip null/undefined users
-                        
-                        // Type guard to check if user has required properties
-                        const hasEmail = 'email' in user && user.email;
-                        const hasUid = 'uid' in user && user.uid;
-                        
-                        if (hasEmail && hasUid) {
-                          newUserCache[user.uid] = {
-                            email: user.email,
-                            displayName: ('displayName' in user) ? user.displayName : undefined
-                          };
-                        }
-                      });
-                      setUserCache(newUserCache);
-                    });
-                  }
-
-                  // Update items with processed tickets
-                  setItems(prevItems => {
-                    const existingIds = new Set(prevItems.map(i => i.id));
-                    const newTickets = processedTickets.filter(t => !existingIds.has(t.id));
-                    return [...newTickets, ...prevItems];
-                  });
-                }).catch(error => {
-                  console.error('Error processing support tickets:', error);
-                });
-              } catch (error) {
-                console.error('Error in support tickets listener:', error);
-              }
-            },
-            (error) => {
-              console.error('Error in support tickets listener:', error);
-            }
-          );
-          unsubs.push(unsubTickets);
-          
-          return () => {
-            unsubs.forEach(unsub => unsub());
-          };
-
           // Listen for new contact requests
           const unsubscribeContacts = onSnapshot(
             query(contactRequestsCollection(db), orderBy('createdAt', 'desc'), limit(50)),
@@ -924,10 +681,17 @@ const Notifications: React.FC = () => {
               }));
               setItems(prev => mergeAndSort(prev, updatedItems));
             },
-            () => {}
+            (error) => {
+              console.error('Error in contact requests listener:', error);
+            }
           );
           unsubs.push(unsubscribeContacts);
+          
+          return () => {
+            unsubs.forEach(unsub => { try { unsub(); } catch {} });
+          };
         };
+        
         setupRealtimeListeners();
       } catch (e) {
         showToast('Using local data (no Firebase config).', 'warn');

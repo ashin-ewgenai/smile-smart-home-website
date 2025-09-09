@@ -145,5 +145,18 @@ service cloud.firestore {
           && (!request.resource.data.keys().hasAny(['service']) || request.resource.data.service is string || request.resource.data.service == null);
       }
     }
+
+    // Contact messages from the website
+    match /Contact_Messages/{messageId} {
+      // Allow admins to read all contact messages
+      allow read: if isAdmin();
+      // Allow creation of new contact messages (from the website)
+      allow create: if request.resource.data.keys().hasAll(['email', 'message', 'createdAt'])
+        && request.resource.data.email is string
+        && request.resource.data.message is string
+        && request.resource.data.createdAt is timestamp;
+      // Allow admins to update status of messages
+      allow update: if isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'adminRead']);
+    }
   }
 }
