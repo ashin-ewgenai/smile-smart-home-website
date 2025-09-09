@@ -3,7 +3,7 @@ import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, Wrench, Che
 import RequestServiceModal from './RequestServiceModal';
 import RequestStatusModal from './RequestStatusModal';
 import { db, auth } from '../../../lib/firebase';
-import { getDocs, query, orderBy, limit, getDoc, collection, onSnapshot, doc } from 'firebase/firestore';
+import { getDocs, query, orderBy, limit, getDoc, collection, onSnapshot, doc, where } from 'firebase/firestore';
 import { userServiceRequestsCollection, userDoc } from '../../../models/Collections';
 import { onAuthStateChanged } from 'firebase/auth';
 
@@ -63,10 +63,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     const fetchUserDevices = async (uid: string) => {
       try {
         
-        // Get user's devices from userdevices collection
-        const userDevicesRef = collection(db, 'userdevices', uid, 'devices');
-        // console.log('Querying user devices at path:', `userdevices/${uid}/devices`);
-        const userDevicesSnapshot = await getDocs(userDevicesRef);
+        // Get user's devices from flat User_Devices collection
+        const userDevicesRef = collection(db, 'User_Devices');
+        const userDevicesQuery = query(userDevicesRef, where('uid', '==', uid));
+        // console.log('Querying user devices for uid:', uid);
+        const userDevicesSnapshot = await getDocs(userDevicesQuery);
         
         // console.log('User devices snapshot:', {
         //   size: userDevicesSnapshot.size,
@@ -283,8 +284,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     setTypeCountsLoading(true);
     setIsLoading(true);
 
-    const ref = collection(db, 'userdevices', uid, 'devices');
-    const unsubscribe = onSnapshot(ref, async (snap) => {
+    const ref = collection(db, 'User_Devices');
+    const userQuery = query(ref, where('uid', '==', uid));
+    const unsubscribe = onSnapshot(userQuery, async (snap) => {
       // Active devices = number of device mappings for the user
       const active = snap.size;
 
@@ -325,24 +327,20 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
       });
       setTypeCounts(counts);
 
-      // Try to read total devices owned from parent doc, else fallback to active
-      let total = active;
+      // Calculate total devices from flat collection counts
+      let total = 0;
       try {
-        const parent = await getDoc(doc(db, 'userdevices', uid));
-        if (parent.exists()) {
-          const pdata: any = parent.data();
-          const possible = [
-            'totalDevices','devicesCount','deviceCount','DeviceCount','deviceCount1','DeviceCount1','total','Total'
-          ];
-          for (const k of possible) {
-            const v = pdata?.[k];
-            if (typeof v === 'number' && Number.isFinite(v)) { total = v; break; }
-            if (typeof v === 'string') {
-              const n = Number(v);
-              if (Number.isFinite(n)) { total = n; break; }
-            }
+        snap.forEach((d) => {
+          const data: any = d.data();
+          let add = 0;
+          if (Array.isArray(data?.serials)) add = data.serials.length;
+          if (!add) {
+            const n = numFrom(data, ['deviceCount','DeviceCount','deviceCount1','DeviceCount1','count','Count','quantity','Quantity','qty','Qty','serialCount','SerialCount']);
+            add = n ?? 0;
           }
-        }
+          if (!add) add = 1; // fallback, at least one device
+          total += add;
+        });
       } catch {}
 
       setDeviceStats({ totalDevices: total, activeDevices: active, offlineDevices: Math.max(total - active, 0) });

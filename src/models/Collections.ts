@@ -385,11 +385,12 @@ export function supportTicketDoc(db: Firestore, id: string): DocumentReference<S
   return doc(db, COLLECTION_SUPPORT_TICKETS, id) as DocumentReference<SupportTicket>;
 }
 
-// Nested: User_Devices/{uid}/Devices
-export const COLLECTION_USER_DEVICES_ROOT = 'User_Devices';
-export const SUBCOLLECTION_USER_DEVICES = 'Devices';
+// Flat: User_Devices collection with uid field
+export const COLLECTION_USER_DEVICES = 'User_Devices';
 
 export interface UserDevice {
+  // User identification
+  uid: string;
   // linkage
   sourceDeviceId?: string; // id of the document in top-level Devices
 
@@ -400,18 +401,16 @@ export interface UserDevice {
   [key: string]: any; // allow copied fields from Devices document
 }
 
-export function userDevicesParentDoc(db: Firestore, uid: string): DocumentReference {
-  return doc(db, COLLECTION_USER_DEVICES_ROOT, uid);
+export function userDevicesCollection(db: Firestore): CollectionReference<UserDevice> {
+  return collection(db, COLLECTION_USER_DEVICES) as CollectionReference<UserDevice>;
 }
-export function userDevicesCollection(db: Firestore, uid: string): CollectionReference<UserDevice> {
-  return collection(db, COLLECTION_USER_DEVICES_ROOT, uid, SUBCOLLECTION_USER_DEVICES) as CollectionReference<UserDevice>;
-}
-export function userDeviceDoc(db: Firestore, uid: string, id: string): DocumentReference<UserDevice> {
-  return doc(db, COLLECTION_USER_DEVICES_ROOT, uid, SUBCOLLECTION_USER_DEVICES, id) as DocumentReference<UserDevice>;
+export function userDeviceDoc(db: Firestore, id: string): DocumentReference<UserDevice> {
+  return doc(db, COLLECTION_USER_DEVICES, id) as DocumentReference<UserDevice>;
 }
 
-export function userDevicePayloadFromDevice(device: Device & { id?: string }): UserDevice & { UpdatedAt: FieldValue; status: string; DeviceCount: number } {
+export function userDevicePayloadFromDevice(device: Device & { id?: string }, uid: string): UserDevice & { UpdatedAt: FieldValue; status: string; DeviceCount: number } {
   return {
+    uid,
     sourceDeviceId: device.id,
     deviceName: device.deviceName,
     name: device.name,

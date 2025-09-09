@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
-import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, getDocs, setDoc, updateDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { db } from '../../../../lib/firebase';
 
 interface AddDeviceModalProps {
@@ -129,9 +129,10 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
         ...doc.data()
       } as Device));
 
-      // Get user's current devices
-      const userDevicesSnapshot = await getDocs(collection(db, 'userdevices', userId, 'devices'));
-      const userDeviceIds = new Set(userDevicesSnapshot.docs.map(doc => doc.id));
+      // Get user's current devices from flat collection
+      const userDevicesQuery = query(collection(db, 'User_Devices'), where('uid', '==', userId));
+      const userDevicesSnapshot = await getDocs(userDevicesQuery);
+      const userDeviceIds = new Set(userDevicesSnapshot.docs.map(doc => (doc.data() as any).sourceDeviceId || doc.id));
 
       if (viewMode === 'add') {
         // In add mode, show only devices not assigned to the user
@@ -184,17 +185,19 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
 
     try {
       setError(null);
-      const batch = [];
+      const batch: Promise<any>[] = [];
       const now = new Date().toISOString();
 
       for (const deviceId of selectedDevices) {
-        const deviceRef = doc(db, 'userdevices', userId, 'devices', deviceId);
+        const deviceRef = doc(collection(db, 'User_Devices'));
         batch.push(
           setDoc(deviceRef, {
-            deviceId,
+            uid: userId,
+            sourceDeviceId: deviceId,
             addedAt: now,
-            updatedAt: now
-          }, { merge: true })
+            updatedAt: now,
+            isOnline: false
+          })
         );
       }
 
@@ -212,11 +215,21 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
 
     try {
       setError(null);
-      const batch = [];
+      const batch: Promise<any>[] = [];
 
       for (const deviceId of selectedDevices) {
-        const deviceRef = doc(db, 'userdevices', userId, 'devices', deviceId);
-        batch.push(deleteDoc(deviceRef));
+        // Query for user devices with matching sourceDeviceId
+        const userDevicesQuery = query(
+          collection(db, 'User_Devices'), 
+          where('uid', '==', userId),
+          where('sourceDeviceId', '==', deviceId)
+        );
+        const userDevicesSnapshot = await getDocs(userDevicesQuery);
+        
+        // Delete all matching documents
+        userDevicesSnapshot.docs.forEach(doc => {
+          batch.push(deleteDoc(doc.ref));
+        });
       }
 
       await Promise.all(batch);

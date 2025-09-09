@@ -181,8 +181,9 @@ const AdminSupportApp: React.FC = () => {
   };
 
   return (
-    <div className="w-full h-screen min-h-0 grid grid-rows-[auto,1fr] bg-gray-50 dark:bg-gray-950">
-      <div className="flex items-center justify-between px-4 py-3 sm:px-6 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/70 backdrop-blur">
+    <section className="p-4 sm:p-6">
+      <div className="max-w-7xl mx-auto rounded-xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/60 backdrop-blur overflow-hidden">
+      <div className="flex items-center justify-between px-4 py-3 sm:px-6 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/70">
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="relative h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 flex items-center justify-center shadow-md">
@@ -223,7 +224,7 @@ const AdminSupportApp: React.FC = () => {
                   {(() => {
                     const meta = userMeta[c.ownerUid] || {};
                     const primary = meta.name || meta.email || c.ownerUid;
-                    const uidLine = c.ownerUid;
+                    const uidLine = '';
                     const dateLine = c.updatedAt ? new Date(c.updatedAt).toLocaleString() : '';
                     return (
                       <>
@@ -233,7 +234,7 @@ const AdminSupportApp: React.FC = () => {
                             <span className="ml-2 inline-flex items-center justify-center text-[10px] px-1.5 py-0.5 rounded-full bg-rose-600 text-white">Requested</span>
                           )}
                         </div>
-                        <div className="text-[11px] text-gray-500 truncate">{uidLine}{dateLine ? ` · ${dateLine}` : ''}</div>
+                        <div className="text-[11px] text-gray-500 truncate">{dateLine}</div>
                       </>
                     );
                   })()}
@@ -245,11 +246,16 @@ const AdminSupportApp: React.FC = () => {
             )}
           </ul>
         </aside>
-        <section className="flex flex-col min-h-0">
+        <section className="flex flex-col min-h-0 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white/60 dark:bg-gray-900/50">
             <div className="text-sm sm:text-base text-gray-800 dark:text-gray-100 truncate">{selectedOwner ? `Chat with ${ownerLabel}` : 'Select a conversation'}</div>
           </div>
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 bg-gradient-to-b from-gray-50/60 to-white dark:from-gray-900/50 dark:to-gray-800">
+          <div
+            ref={scrollRef}
+            className="flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-4 space-y-3 bg-gradient-to-b from-gray-50/60 to-white dark:from-gray-900/50 dark:to-gray-800 max-h-[70vh]"
+            onWheel={(e) => { e.stopPropagation(); }}
+            style={{ WebkitOverflowScrolling: 'touch', touchAction: 'auto' as React.CSSProperties['touchAction'] }}
+          >
             {!selectedOwner && (
               <div className="text-sm text-gray-500">Pick a conversation from the left to view messages.</div>
             )}
@@ -267,7 +273,7 @@ const AdminSupportApp: React.FC = () => {
                 let bubble = '';
                 if (isAgent) {
                   bubble = isAI
-                    ? 'bg-gradient-to-r from-indigo-500 to-blue-600 text-white shadow-lg'
+                    ? 'bg-gradient-to-r from-teal-500 to-blue-500 text-white shadow-lg'
                     : 'bg-gradient-to-r from-teal-500 to-blue-500 text-white shadow-lg';
                 } else {
                   const parity = otherCount % 2;
@@ -287,9 +293,6 @@ const AdminSupportApp: React.FC = () => {
                     )}
                     <div className="relative">
                       <div className={`max-w-[80vw] sm:max-w-[70%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap ${bubble}`}>
-                        {isAI && (
-                          <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/20 border border-white/30 text-white mr-2 align-middle">AI</span>
-                        )}
                         {m.imageUrl ? (
                           <a href={m.imageUrl} target="_blank" rel="noreferrer" className="block group">
                             <img src={m.imageUrl} alt="uploaded" className={`max-h-64 rounded-md ${isAgent ? 'border border-white/20' : 'border border-gray-200 dark:border-gray-600'}`} />
@@ -305,14 +308,16 @@ const AdminSupportApp: React.FC = () => {
                       </div>
                       {/* bubble tail */}
                       {isAgent ? (
-                        <div className={`absolute -right-1 bottom-2 h-2 w-2 rotate-45 ${isAI ? 'bg-blue-600' : 'bg-blue-500'}`}></div>
+                        <div className={`absolute -right-1 bottom-2 h-2 w-2 rotate-45 ${isAI ? 'bg-blue-500' : 'bg-blue-500'}`}></div>
                       ) : (
                         <div className={`absolute -left-1 bottom-2 h-2 w-2 rotate-45 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600`}></div>
                       )}
                     </div>
                     {isAgent && (
                       isAI ? (
-                        <div className="h-8 w-8 rounded-full bg-gradient-to-r from-indigo-500 to-blue-600 text-white flex items-center justify-center text-xs select-none">🤖</div>
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white flex items-center justify-center select-none">
+                          <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/20 border border-white/30 text-white">AI</span>
+                        </div>
                       ) : (
                         <div className="h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white flex items-center justify-center text-xs select-none">A</div>
                       )
@@ -344,7 +349,8 @@ const AdminSupportApp: React.FC = () => {
           </form>
         </section>
       </div>
-    </div>
+      </div>
+    </section>
   );
 };
 
