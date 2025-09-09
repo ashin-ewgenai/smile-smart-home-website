@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { auth, db } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs, limit } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs, limit, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+
 import type { DocumentData } from 'firebase/firestore';
 
 // ... (existing imports)
@@ -108,6 +109,8 @@ type QuoteDoc = {
   adminReply?: string;
 } & DocumentData;
 
+const MAX_QUOTES = 4;
+
 export default function QuoteForm({ userEmail: emailProp, className = '', onSubmitted }: QuoteFormProps) {
   const userEmail = useMemo(() => emailProp ?? (typeof window !== 'undefined' ? localStorage.getItem('userEmail') : null), [emailProp]);
   const [hydrated, setHydrated] = useState(false);
@@ -135,12 +138,21 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
   const [quotesError, setQuotesError] = useState<string | null>(null);
   const [showOldQuotes, setShowOldQuotes] = useState(false);
   const [currentUid, setCurrentUid] = useState<string | null>(auth.currentUser?.uid ?? null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Active quotes (exclude Cancelled) for submission limit
+  const activeQuotesCount = useMemo(() => {
+    return quotes.filter((q) => (q.status || 'Pending') !== 'Cancelled').length;
+  }, [quotes]);
 
   // Modal state for viewing a quote + estimation
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<QuoteDoc | null>(null);
   const [estimation, setEstimation] = useState<any | null>(null);
   const [estLoading, setEstLoading] = useState(false);
+
+  // Deletion state for pending quotes
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const openQuoteModal = async (q: QuoteDoc) => {
     setSelectedQuote(q);
@@ -167,6 +179,78 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     } catch {}
     finally {
       setEstLoading(false);
+    }
+  };
+
+  // Cancel a pending quote (soft delete)
+  const handleCancelQuote = async (q: QuoteDoc) => {
+    if (!q?.id) return;
+    if ((q.status || 'Pending') !== 'Pending') {
+      showToast('Only pending quotes can be cancelled.');
+      return;
+    }
+    if (!auth.currentUser) {
+      setSubmitError('Please sign in to cancel your quote.');
+      try {
+        // @ts-ignore
+        if (typeof window !== 'undefined' && (window as any).__authOpen) (window as any).__authOpen('login');
+      } catch {}
+      return;
+    }
+    const confirmed = typeof window !== 'undefined' ? window.confirm('Cancel this quote? You can undo later.') : true;
+    if (!confirmed) return;
+    try {
+      setUpdatingId(q.id);
+      await updateDoc(doc(db, 'quotes', q.id), {
+        status: 'Cancelled',
+        cancelledAt: serverTimestamp(),
+        cancelledByUid: auth.currentUser?.uid ?? null,
+      } as any);
+      showToast('Quote cancelled.');
+    } catch (error: any) {
+      console.error('Failed to cancel quote:', error);
+      if (error?.code === 'permission-denied') {
+        setSubmitError("You don't have permission to cancel this quote.");
+      } else {
+        setSubmitError(error?.message || 'Failed to cancel quote.');
+      }
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  // Reopen a cancelled quote
+  const handleReopenQuote = async (q: QuoteDoc) => {
+    if (!q?.id) return;
+    if ((q.status || 'Pending') !== 'Cancelled') {
+      showToast('Only cancelled quotes can be reopened.');
+      return;
+    }
+    if (!auth.currentUser) {
+      setSubmitError('Please sign in to reopen your quote.');
+      try {
+        // @ts-ignore
+        if (typeof window !== 'undefined' && (window as any).__authOpen) (window as any).__authOpen('login');
+      } catch {}
+      return;
+    }
+    try {
+      setUpdatingId(q.id);
+      await updateDoc(doc(db, 'quotes', q.id), {
+        status: 'Pending',
+        reopenedAt: serverTimestamp(),
+        reopenedByUid: auth.currentUser?.uid ?? null,
+      } as any);
+      showToast('Quote reopened.');
+    } catch (error: any) {
+      console.error('Failed to reopen quote:', error);
+      if (error?.code === 'permission-denied') {
+        setSubmitError("You don't have permission to reopen this quote.");
+      } else {
+        setSubmitError(error?.message || 'Failed to reopen quote.');
+      }
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -366,6 +450,14 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       return;
     }
 
+    // Enforce max quotes per user (only count active quotes)
+    if (activeQuotesCount >= MAX_QUOTES) {
+      const msg = `You have reached the maximum of ${MAX_QUOTES} quotes. Please wait for a response or delete an existing quote before submitting a new one.`;
+      setSubmitError(msg);
+      showToast(msg);
+      return;
+    }
+
     setSubmitting(true);
     try {
       const quoteData = {
@@ -430,6 +522,38 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleDeleteQuote = async (q: QuoteDoc) => {
+    if (!q?.id) return;
+    if ((q.status || 'Pending') !== 'Pending') {
+      showToast('Only pending quotes can be removed.');
+      return;
+    }
+    if (!auth.currentUser) {
+      setSubmitError('Please sign in to remove your quote.');
+      try {
+        // @ts-ignore
+        if (typeof window !== 'undefined' && window.__authOpen) window.__authOpen('login');
+      } catch {}
+      return;
+    }
+    const confirmed = typeof window !== 'undefined' ? window.confirm('Remove this pending quote? This action cannot be undone.') : true;
+    if (!confirmed) return;
+    try {
+      setDeletingId(q.id);
+      await deleteDoc(doc(db, 'quotes', q.id));
+      showToast('Quote removed.');
+    } catch (error: any) {
+      console.error('Failed to delete quote:', error);
+      if (error?.code === 'permission-denied') {
+        setSubmitError('You don\'t have permission to remove this quote.');
+      } else {
+        setSubmitError(error?.message || 'Failed to remove quote.');
+      }
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -703,6 +827,13 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         </div>
       </div>
 
+      {/* Submission limit banner (active quotes only) */}
+      {currentUid && activeQuotesCount >= MAX_QUOTES && (
+        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20 p-4 text-amber-900 dark:text-amber-200">
+          You have reached the maximum of {MAX_QUOTES} quotes. Please wait for a response or remove an existing quote before submitting a new one.
+        </div>
+      )}
+
       <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm">
         {renderStep()}
 
@@ -731,9 +862,9 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
             <button
               type="submit"
               className="px-5 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-              disabled={submitting}
+              disabled={submitting || activeQuotesCount >= MAX_QUOTES}
             >
-              {submitting ? 'Submitting...' : 'Submit Quote'}
+              {submitting ? 'Submitting...' : (activeQuotesCount >= MAX_QUOTES ? 'Limit Reached' : 'Submit Quote')}
             </button>
           )}
         </div>
@@ -783,8 +914,34 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                         {created ? created.toLocaleString() : '—'} · Status: {q.status || 'Pending'}
                       </div>
                     </div>
-                    <div className="text-sm text-gray-600 dark:text-gray-300">
-                      Budget: {q.budgetCurrency || 'INR'} {q.budget || ''}
+                    <div className="flex items-center gap-3">
+                      <div className="text-sm text-gray-600 dark:text-gray-300">
+                        Budget: {q.budgetCurrency || 'INR'} {q.budget || ''}
+                      </div>
+                      {(q.status || 'Pending') === 'Pending' && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleCancelQuote(q); }}
+                          disabled={updatingId === q.id}
+                          className="text-sm px-3 py-1 rounded-lg border border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/20 disabled:opacity-60"
+                          aria-label="Cancel quote"
+                          title="Cancel quote"
+                        >
+                          {updatingId === q.id ? 'Cancelling…' : 'Cancel'}
+                        </button>
+                      )}
+                      {(q.status || 'Pending') === 'Cancelled' && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); handleReopenQuote(q); }}
+                          disabled={updatingId === q.id}
+                          className="text-sm px-3 py-1 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/20 disabled:opacity-60"
+                          aria-label="Reopen quote"
+                          title="Reopen quote"
+                        >
+                          {updatingId === q.id ? 'Reopening…' : 'Undo Cancel'}
+                        </button>
+                      )}
                     </div>
                   </div>
                   {q.details && (
