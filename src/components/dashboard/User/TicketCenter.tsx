@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 
 // Firebase
 import { auth, db, storage, functions } from '../../../lib/firebase';
-import { addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp, getDocs, where, updateDoc, doc } from 'firebase/firestore';
+import { addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp, getDocs, where, updateDoc, doc, collection } from 'firebase/firestore';
 import { supportTicketsCollection, supportTicketDoc } from '../../../models/Collections';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -27,12 +27,15 @@ type Ticket = {
   status: TicketStatus;
   createdAt: string; // ISO string
   imageUrl?: string;
+  ticketNumber?: string;
 };
 
 const TicketCenter: React.FC = () => {
   // Form state
   const [subject, setSubject] = useState('');
-  const [category, setCategory] = useState<'Device Issue' | 'Connectivity' | 'Billing' | 'Other'>('Device Issue');
+  const [category, setCategory] = useState<'Device Issue' | 'Connectivity' | 'App/Portal Issue' | 'Feature Request' | 'Installation/Setup' | 'Other'>('Device Issue');
+  const [devices, setDevices] = useState<{ id: string; name: string; type?: string }[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [description, setDescription] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
 
@@ -166,6 +169,30 @@ const TicketCenter: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Fetch user devices if 'Device Issue' is selected and userUid is present
+  useEffect(() => {
+    if (category === 'Device Issue' && userUid) {
+      const fetchDevices = async () => {
+        try {
+          const q = query(collection(db, 'User_Devices'), where('uid', '==', userUid));
+          const snap = await getDocs(q);
+          const devs = snap.docs.map(d => ({
+            id: d.id,
+            name: (d.data() as any).deviceName || (d.data() as any).name || 'Unnamed Device',
+            type: (d.data() as any).deviceType || (d.data() as any).type || ''
+          }));
+          setDevices(devs);
+        } catch {
+          setDevices([]);
+        }
+      };
+      fetchDevices();
+    } else {
+      setDevices([]);
+      setSelectedDeviceId('');
+    }
+  }, [category, userUid]);
+
   // Handle submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -192,16 +219,27 @@ const TicketCenter: React.FC = () => {
         uploadedImageUrl = await getDownloadURL(ref);
       }
 
-      // Create the ticket document in Firestore
+      // Generate ticket number client-side
+      const currentYear = new Date().getFullYear();
+      const timestamp = Date.now();
+      const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+      const ticketNumber = `SMH-${currentYear}-${timestamp.toString().slice(-3)}${randomSuffix.slice(-2)}`;
+      
+      // Create ticket with generated number
       const payload: any = {
         uid: userUid,
+        ticketNumber,
         subject: subject.trim(),
         category,
         description: description.trim(),
         status: 'Pending',
+        priority: 'medium',
         createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       };
       if (uploadedImageUrl) payload.imageUrl = uploadedImageUrl;
+      if (category === 'Device Issue' && selectedDeviceId) payload.deviceId = selectedDeviceId;
+      
       const ticketRef = await addDoc(supportTicketsCollection(db), payload);
       const ticketId = ticketRef.id;
 
@@ -211,15 +249,7 @@ const TicketCenter: React.FC = () => {
       setDescription('');
       setImageFile(null);
       setErrors(null);
-      setSuccessMsg('Ticket raised successfully');
-      
-      // Auto-analyze the new ticket
-      try {
-        const analyzeTicket = httpsCallable(functions, 'analyzeUserUnresolvedTicket');
-        await analyzeTicket({});
-      } catch (error) {
-        console.error('Failed to auto-analyze ticket:', error);
-      }
+      setSuccessMsg(`Ticket ${ticketNumber} created successfully!`);
       
       // Switch to chat view with the newly created ticket
       setNewlyCreatedTicketId(ticketId);
@@ -227,7 +257,8 @@ const TicketCenter: React.FC = () => {
     } catch (e) {
       // Surface minimal error state in form-level message via fetchError slot
       console.error(e);
-      setFetchError((e as any)?.message || 'Unable to raise ticket');
+      setFetchError('Failed to raise ticket. Please try again.');
+    } finally {
       setSubmitting(false);
     }
   };
@@ -355,16 +386,35 @@ const TicketCenter: React.FC = () => {
                     <select
                       id="ticket-category"
                       value={category}
-                      onChange={(e) => setCategory(e.target.value as Ticket['category'])}
+                      onChange={(e) => setCategory(e.target.value as 'Device Issue' | 'Connectivity' | 'Other')}
                       className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                       required
                     >
                       <option>Device Issue</option>
                       <option>Connectivity</option>
-                      <option>Billing</option>
                       <option>Other</option>
                     </select>
                   </div>
+
+                  {category === 'Device Issue' && devices.length > 0 && (
+                    <div className="form-group">
+                      <label htmlFor="ticket-device" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Device
+                      </label>
+                      <select
+                        id="ticket-device"
+                        value={selectedDeviceId}
+                        onChange={e => setSelectedDeviceId(e.target.value)}
+                        className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                        required
+                      >
+                        <option value="" disabled>Select your device</option>
+                        {devices.map(device => (
+                          <option key={device.id} value={device.id}>{device.name}{device.type ? ` (${device.type})` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
 
                   <div className="form-group">
                     <label htmlFor="ticket-description" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -435,7 +485,12 @@ const TicketCenter: React.FC = () => {
                 <li key={t.id} className="py-3">
                   <div className="flex items-start justify-between">
                     <div className="min-w-0 pr-4 flex-1">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{t.subject}</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="px-2 py-1 bg-blue-600 text-white text-xs font-mono rounded font-semibold">
+                          {t.ticketNumber || `#${t.id.toString().slice(-6).toUpperCase()}`}
+                        </span>
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{t.subject}</p>
+                      </div>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
                         <span className="inline-flex items-center px-2 py-0.5 rounded bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200">
                           {t.category}

@@ -617,6 +617,28 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between px-2 md:px-0">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Submissions</h2>
+          {account?.id && (
+            <button
+              className="ml-4 px-3 py-1.5 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white"
+              onClick={async () => {
+                if (!window.confirm('Are you sure you want to clear ALL chat history for this user? This cannot be undone.')) return;
+                try {
+                  // Dynamically import firebase/functions for browser
+                  const { getFunctions, httpsCallable } = await import('firebase/functions');
+                  const { firebaseApp } = await import('../../../../lib/firebase');
+                  const functions = getFunctions(firebaseApp);
+                  const clearChat = httpsCallable(functions, 'adminClearUserChat');
+                  await clearChat({ uid: account.Uid });
+                  alert('Chat history cleared for this user.');
+                } catch (e: any) {
+                  console.error('Clear chat error:', e);
+                  alert('Failed to clear chat: ' + (e?.message || e?.code || e));
+                }
+              }}
+            >
+              🗑️ Clear Chat
+            </button>
+          )}
           {onBack ? (
             <button type="button" onClick={onBack} className="text-teal-600 hover:underline">Back to Users</button>
           ) : (

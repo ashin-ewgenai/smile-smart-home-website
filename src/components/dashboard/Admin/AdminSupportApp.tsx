@@ -202,14 +202,41 @@ const AdminSupportApp: React.FC = () => {
             </div>
           </div>
         </div>
-        <button
-          onClick={toggleClaim}
-          disabled={!selectedOwner}
-          className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors border ${selectedOwner && claims[selectedOwner] ? 'border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40' : 'border-gray-400 text-gray-700 bg-gray-50 hover:bg-gray-100 dark:text-gray-300 dark:bg-gray-800/40 dark:hover:bg-gray-800/60'}`}
-        >
-          <span className={`h-2 w-2 rounded-full ${selectedOwner && claims[selectedOwner] ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-          {selectedOwner && claims[selectedOwner] ? 'Human On' : 'Human Off'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleClaim}
+            disabled={!selectedOwner}
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors border ${selectedOwner && claims[selectedOwner] ? 'border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40' : 'border-gray-400 text-gray-700 bg-gray-50 hover:bg-gray-100 dark:text-gray-300 dark:bg-gray-800/40 dark:hover:bg-gray-800/60'}`}
+          >
+            <span className={`h-2 w-2 rounded-full ${selectedOwner && claims[selectedOwner] ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+            {selectedOwner && claims[selectedOwner] ? 'Human On' : 'Human Off'}
+          </button>
+          
+          {/* Admin Clear Chat Button */}
+          {selectedOwner && (
+            <button
+              className="px-3 py-1.5 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white flex items-center gap-1"
+              onClick={async () => {
+                if (!window.confirm('Are you sure you want to clear ALL chat history for this user? This cannot be undone.')) return;
+                try {
+                  const { getFunctions, httpsCallable } = await import('firebase/functions');
+                  const { firebaseApp } = await import('../../../lib/firebase');
+                  const functions = getFunctions(firebaseApp);
+                  const clearChat = httpsCallable(functions, 'adminClearUserChat');
+                  await clearChat({ uid: selectedOwner });
+                  alert('Chat history cleared for this user.');
+                  // Refresh messages
+                  setMsgs([]);
+                } catch (e: any) {
+                  console.error('Clear chat error:', e);
+                  alert('Failed to clear chat: ' + (e?.message || e?.code || e));
+                }
+              }}
+            >
+              🗑️ Clear Chat
+            </button>
+          )}
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-[260px,1fr] min-h-0">
         <aside className="border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-white dark:bg-gray-900">

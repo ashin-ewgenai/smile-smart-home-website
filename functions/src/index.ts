@@ -9,13 +9,14 @@ setGlobalOptions({region: "us-central1", maxInstances: 10});
 
 // Re-export chatbot callable functions (moved to separate module)
 export * from "./chatbot";
+export * from "./adminClearUserChat";
 
 // Initialize Admin SDK once
 if (!getApps().length) {
   initializeApp();
 }
 
-const db = getFirestore();
+export const db = getFirestore();
 const adminAuth = getAuth();
 
 // Callable function to delete both Auth user and Firestore account doc

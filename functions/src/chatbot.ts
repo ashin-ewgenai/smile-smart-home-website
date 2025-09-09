@@ -1,10 +1,10 @@
-import {onCall, HttpsError, CallableRequest} from "firebase-functions/v2/https";
-import {defineSecret} from "firebase-functions/params";
-import {initializeApp, getApps} from "firebase-admin/app";
-import {getFirestore} from "firebase-admin/firestore";
+import { onCall, CallableRequest } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
 
 // Declare global fetch to satisfy TypeScript without DOM lib in Node runtimes
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 declare const fetch: any;
 
 // Secret for OpenAI
@@ -18,74 +18,91 @@ if (!getApps().length) {
 // Firestore reference shared by chatbot functions
 const db = getFirestore();
 
-// ===== Consolidated rate limiting utility =====
-const applyRateLimit = async (uid: string, cooldownMs: number, windowMs: number, maxPerWindow: number, useFirestore = true) => {
-  if (useFirestore) {
-    // Firestore-based rate limiting for authenticated users
-    const rlRef = db.collection("rate_limits").doc(uid);
-    const nowTs = Date.now();
+// ===== CENTRALIZED CONFIGURATION =====
+const CONFIG = {
+  RATE_LIMIT: {
+    COOLDOWN_MS: 3000,
+    WINDOW_MS: 60000,
+    MAX_PER_WINDOW: 15
+  },
+  OPENAI: {
+    MODEL: "gpt-4o-mini",
+    TEMPERATURE: 0.4,
+    MAX_TOKENS: 500
+  },
+  COLLECTIONS: {
+    DEVICES: "User_Devices", // Standardize on User_Devices
+    TICKETS: "Support_Tickets",
+    CHAT_SESSIONS: "chat_sessions",
+    RATE_LIMITS: "rate_limits"
+  }
+};
+
+// ===== UTILITY FUNCTIONS =====
+
+/**
+ * Consolidated rate limiting utility with better error handling
+ */
+async function applyRateLimit(uid: string): Promise<void> {
+  const rlRef = db.collection(CONFIG.COLLECTIONS.RATE_LIMITS).doc(uid);
+  const nowTs = Date.now();
+  
+  try {
     await db.runTransaction(async (tx) => {
       const snap = await tx.get(rlRef);
-      const data = (snap.exists ? (snap.data() as any) : {}) || {};
+      const data = snap.exists ? (snap.data() as any) : {};
       const lastTs = Number(data.lastTs ?? 0);
       const windowStart = Number(data.windowStart ?? 0);
       const count = Number(data.count ?? 0);
-      if (nowTs - lastTs < cooldownMs) {
-        const waitSec = Math.ceil((cooldownMs - (nowTs - lastTs)) / 1000);
+      
+      if (nowTs - lastTs < CONFIG.RATE_LIMIT.COOLDOWN_MS) {
+        const waitSec = Math.ceil((CONFIG.RATE_LIMIT.COOLDOWN_MS - (nowTs - lastTs)) / 1000);
         throw new HttpsError("resource-exhausted", `Please wait ${waitSec}s before trying again.`);
       }
-      if (nowTs - windowStart >= windowMs) {
-        tx.set(rlRef, {lastTs: nowTs, windowStart: nowTs, count: 1}, {merge: true});
+      
+      if (nowTs - windowStart >= CONFIG.RATE_LIMIT.WINDOW_MS) {
+        tx.set(rlRef, { lastTs: nowTs, windowStart: nowTs, count: 1 }, { merge: true });
       } else {
-        if (count >= maxPerWindow) {
+        if (count >= CONFIG.RATE_LIMIT.MAX_PER_WINDOW) {
           throw new HttpsError("resource-exhausted", "Rate limit exceeded. Try again in a minute.");
         }
-        tx.set(rlRef, {lastTs: nowTs, count: count + 1}, {merge: true});
+        tx.set(rlRef, { lastTs: nowTs, count: count + 1 }, { merge: true });
       }
     });
-  } else {
-    // In-memory rate limiting for unauthenticated users (legacy triageChat)
-    const triageRateMap: Map<string, number[]> = new Map();
-    const now = Date.now();
-    const recent = (triageRateMap.get(uid) || []).filter((t) => now - t < windowMs);
-    if (recent.length > 0 && now - recent[recent.length - 1] < cooldownMs) {
-      const waitSec = Math.ceil((cooldownMs - (now - recent[recent.length - 1])) / 1000);
-      throw new HttpsError("resource-exhausted", `Please wait ${waitSec}s before trying again.`);
-    }
-    if (recent.length >= maxPerWindow) {
-      throw new HttpsError("resource-exhausted", "Rate limit exceeded. Try again in a minute.");
-    }
-    recent.push(now);
-    triageRateMap.set(uid, recent);
+  } catch (error) {
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Rate limiting failed");
   }
-};
+}
+
 
 /**
  * DEPRECATED: triageChat function - functionality now integrated into chatWithOpenAI
  * Keeping for backward compatibility but should be removed in future versions
  */
-export const triageChat = onCall({secrets: [OPENAI_API_KEY]}, async (request: CallableRequest) => {
+export const triageChat = onCall({ secrets: [OPENAI_API_KEY] }, async (request: CallableRequest) => {
   console.warn("triageChat is deprecated. Use chatWithOpenAI instead.");
   const authCtx = request.auth;
   const message = (request.data?.message as string | undefined)?.trim();
   if (!message) throw new HttpsError("invalid-argument", "message is required");
 
   const uid = authCtx?.uid || `anon_${request.rawRequest.ip || "unknown"}`;
-  await applyRateLimit(uid, 3000, 60000, 10, false);
+  await applyRateLimit(uid);
 
   // Simplified response - redirect to main chat
-  return {kind: "complaint", answer: "Please use the main chat for assistance."} as const;
+  return { kind: "complaint", answer: "Please use the main chat for assistance." } as const;
 });
 
 // ===== Full chat with OpenAI including Firestore persistence =====
-// request.data: { messages: {role:'system'|'user'|'assistant', content:string}[], model?: string, sessionId?: string }
-// response: { reply: string, sessionId: string }
-export const chatWithOpenAI = onCall({secrets: [OPENAI_API_KEY]}, async (request: CallableRequest) => {
+// request.data: { messages: {role:'system'|'user'|'assistant', content:string}[], model?: string, sessionId?: string, ticketId?: string }
+// response: { reply: string, sessionId: string, requiresTicket?: boolean, ticketDetails?: any, deviceSelection?: any }
+export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY] }, async (request: CallableRequest) => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
 
-  const msgs = request.data?.messages as Array<{role: string; content: string}> | undefined;
+  const msgs = request.data?.messages as Array<{ role: string; content: string }> | undefined;
   const model = (request.data?.model as string | undefined) || "gpt-4o-mini";
+  const providedTicketId = (request.data?.ticketId as string | undefined)?.trim();
   let sessionId: string = (request.data?.sessionId as string | undefined)?.trim() || "";
 
   if (!sessionId && authCtx?.uid) {
@@ -113,7 +130,7 @@ export const chatWithOpenAI = onCall({secrets: [OPENAI_API_KEY]}, async (request
   // Apply consolidated rate limiting
   const uid = authCtx.uid;
   try {
-    await applyRateLimit(uid, 3000, 60000, 15, true);
+    await applyRateLimit(uid);
   } catch (e) {
     if (e instanceof HttpsError && e.code === "resource-exhausted") throw e;
   }
@@ -131,60 +148,62 @@ export const chatWithOpenAI = onCall({secrets: [OPENAI_API_KEY]}, async (request
         model,
         type: "ai",
       },
-      {merge: true},
+      { merge: true },
     );
     const lastUser = [...clean].reverse().find((m) => m.role === "user");
     if (lastUser) {
-      await sessionsCol.doc(sessionId).collection("messages").add({role: "user", content: lastUser.content, ts: now});
+      await sessionsCol.doc(sessionId).collection("messages").add({ role: "user", content: lastUser.content, ts: now });
     }
   } catch {}
 
   // Device context for better answers
-  const devicesQuery = await db.collection("devices").where("ownerUid", "==", uid).get();
-  const userDevices = devicesQuery.docs.map((doc) => ({id: doc.id, ...(doc.data() as Record<string, unknown>)})) as Array<{ id: string; deviceName?: string }>;
-  const deviceContext = userDevices.length > 0 ? `User has the following devices installed: ${userDevices.map((d) => d.deviceName || "Unknown Device").join(", ")}.` : "";
+  const devicesQuery = await db.collection("User_Devices").where("uid", "==", uid).get();
+  const userDevices = devicesQuery.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) })) as Array<{ id: string; deviceName?: string; name?: string }>;
+  const deviceContext = userDevices.length > 0 ? `User has the following devices installed: ${userDevices.map((d) => d.deviceName || d.name || "Unknown Device").join(", ")}.` : "";
 
   // Enhanced active tickets context with all required fields
   let ticketContext = "";
+  let activeTicket = null;
+
   try {
-    const ticket = await fetchLatestUnresolvedTicket(uid);
-    
-    if (ticket) {
-      const { ticketId, data: ticketData } = ticket;
-      
+    // Use provided ticket ID or fetch latest unresolved ticket
+    if (providedTicketId) {
+      const ticketDoc = await db.collection("Support_Tickets").doc(providedTicketId).get();
+      const ticketData = ticketDoc.data();
+      if (ticketDoc.exists && ticketData && ticketData.uid === uid) {
+        activeTicket = { ticketId: providedTicketId, data: ticketData as any };
+      }
+    } else {
+      activeTicket = await fetchLatestUnresolvedTicket(uid);
+    }
+
+    if (activeTicket) {
+      const { ticketId, data: ticketData } = activeTicket;
+
       // Extract all required fields from your workflow requirements
       const category = ticketData.category || "General";
       const subject = ticketData.subject || "No subject";
       const description = ticketData.description || ticketData.complaint || ticketData.issue || "No description";
       const status = ticketData.status || "Pending";
       const priority = ticketData.priority || "medium";
-      const createdAt = ticketData.createdAt?.toDate?.()?.toLocaleDateString() || "Unknown date";
-      
       // Device information
       const deviceType = ticketData.deviceType || "Unknown device";
       const deviceModel = ticketData.deviceModel || "";
       const deviceSerial = ticketData.deviceSerial || "";
       const deviceInfo = `${deviceType}${deviceModel ? ` ${deviceModel}` : ""}${deviceSerial ? ` (Serial: ${deviceSerial})` : ""}`;
-      
-      // Troubleshooting history
-      const troubleshootingAttempts = ticketData.troubleshootingAttempts || 0;
-      const lastSuggestion = ticketData.lastSuggestion || "";
-      const analysisResult = ticketData.analysisResult || ticketData.initialSolution || "";
-      
-      // Build comprehensive context
+
+      // Build comprehensive context with ticket number
+      const ticketNumber = ticketData.ticketNumber || `#${ticketId.slice(-6).toUpperCase()}`;
       ticketContext = `\n\nACTIVE TICKET CONTEXT:
 ` +
+        `- Ticket Number: ${ticketNumber}\n` +
         `- Ticket ID: #${ticketId}\n` +
         `- Status: ${status} | Priority: ${priority}\n` +
         `- Category: ${category}\n` +
         `- Subject: "${subject}"\n` +
-        `- Issue Description: "${description}"\n` +
+        `- Description: "${description}"\n` +
         `- Device: ${deviceInfo}\n` +
-        `- Created: ${createdAt}\n` +
-        `- Troubleshooting Attempts: ${troubleshootingAttempts}/3\n` +
-        (lastSuggestion ? `- Last Suggestion: "${lastSuggestion}"\n` : "") +
-        (analysisResult ? `- AI Analysis: "${analysisResult.slice(0, 200)}..."\n` : "") +
-        `\nIMPORTANT: Acknowledge this existing ticket and provide relevant assistance based on the context above.`;
+        `\n\nIMPORTANT: Always acknowledge this ticket context in your response.`;
     }
   } catch (error) {
     console.warn("Failed to fetch ticket context:", error);
@@ -196,18 +215,28 @@ export const chatWithOpenAI = onCall({secrets: [OPENAI_API_KEY]}, async (request
 
 IMPORTANT RULES:
 1. ONLY answer questions related to smart home devices, automation, IoT, home security, lighting, climate control, entertainment systems, and Smile Smart Homes products/services.
-2. If asked about anything unrelated, respond: "Sorry, I don't know how I could help you with that. I'm a support assistant for Smile Smart Homes. Please make queries only related to smart home automation and our products."
+2. If asked about product warranty, device info, or similar support topics, do your best to answer based on the user's device/ticket context. If you don't know the answer, politely guide the user to check their device documentation, warranty card, or contact Smile Smart Homes support for warranty details. Only respond with 'Sorry, I don't know how I could help you with that.' if the question is truly unrelated to smart home products or services.
 3. Analyze each user message to determine if it's a COMPLAINT or GENERAL QUERY.
 4. If the message is unclear, ask ONE concise clarifying question (<=20 words).
 5. If no prior assistant message exists, begin with a brief greeting.
 
+WORKFLOW RULES:
+- For NEW COMPLAINTS without active ticket: Respond with "REQUIRES_TICKET:" followed by explanation
+- For users WITH active ticket: First respond with "TICKET_VERIFICATION:" to confirm ticket details
+- After ticket verification: Respond with "DEVICE_SELECTION:" to prompt device selection
+- For GENERAL QUERIES: Provide helpful answers
+- NEVER ask for ticket numbers - always automatically fetch unresolved tickets
+- If active ticket context is provided, ALWAYS acknowledge the existing ticket first
+- Consider troubleshooting history to avoid repeating failed solutions
+- If troubleshooting attempts are at 3/3, suggest escalation to human support
+- When device needs serial verification: Ask user to upload image of device serial number
+
 RESPONSE FORMAT:
-- For COMPLAINTS: Start with "COMPLAINT_DETECTED:" then next step or clarifying question.
-- For GENERAL QUERIES: Provide helpful answers.
-- If active ticket context is provided, ALWAYS acknowledge the existing ticket first and provide relevant assistance.
-- Consider troubleshooting history to avoid repeating failed solutions.
-- If troubleshooting attempts are at 3/3, suggest escalation to human support.
-- Keep responses concise and professional.
+- For complaints needing ticket: Start response with "REQUIRES_TICKET:" followed by explanation
+- For ticket verification: Start response with "TICKET_VERIFICATION:" followed by confirmation message
+- For device selection: Start response with "DEVICE_SELECTION:" followed by prompt to select device
+- For serial verification: Ask user to "Please upload an image of your device showing the serial number"
+- Keep responses concise and professional
 
 USER CONTEXT:
 ${deviceContext}${ticketContext}`,
@@ -218,8 +247,8 @@ ${deviceContext}${ticketContext}`,
   try {
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: {"Content-Type": "application/json", Authorization: `Bearer ${apiKey}`},
-      body: JSON.stringify({model, messages: messagesWithSystem, temperature: 0.4, max_tokens: 500}),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model, messages: messagesWithSystem, temperature: 0.4, max_tokens: 500 }),
     } as any);
     if (!resp.ok) throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
     const data = await resp.json();
@@ -237,37 +266,111 @@ ${deviceContext}${ticketContext}`,
     } catch {}
 
     try {
-      await sessionsCol.doc(sessionId).collection("messages").add({role: "assistant", content, ts: Date.now()});
-      await sessionsCol.doc(sessionId).set({updatedAt: Date.now(), status: "active"}, {merge: true});
+      await sessionsCol.doc(sessionId).collection("messages").add({ role: "assistant", content, ts: Date.now() });
+      await sessionsCol.doc(sessionId).set({ updatedAt: Date.now(), status: "active" }, { merge: true });
     } catch {}
 
-    // Enhanced response with ticket context awareness
+    // Enhanced response with workflow handling
     let enhancedReply = content;
-    
+    let requiresTicket = false;
+    let ticketDetails = null;
+    let deviceSelection = null;
+
+    // Handle workflow responses
+    if (content.startsWith('REQUIRES_TICKET:')) {
+      requiresTicket = true;
+      enhancedReply = content.replace('REQUIRES_TICKET:', '').trim();
+    } else if (content.startsWith('TICKET_VERIFICATION:') && activeTicket) {
+      const ticketNumber = activeTicket.data.ticketNumber || `#${activeTicket.ticketId.slice(-6).toUpperCase()}`;
+      ticketDetails = {
+        ticketId: activeTicket.ticketId,
+        ticketNumber: ticketNumber,
+        subject: activeTicket.data.subject,
+        description: activeTicket.data.description,
+        category: activeTicket.data.category,
+        status: activeTicket.data.status,
+        createdAt: activeTicket.data.createdAt?.toDate?.()?.toLocaleDateString()
+      };
+      enhancedReply = content.replace('TICKET_VERIFICATION:', '').trim();
+    } else if (content.startsWith('DEVICE_SELECTION:')) {
+      // Fetch user devices for selection
+      try {
+        const devicesQuery = await db.collection("User_Devices").where("uid", "==", uid).get();
+        const devices = devicesQuery.docs.map(doc => {
+          const data = doc.data();
+          return {
+            id: doc.id,
+            name: data.deviceName || data.name || 'Unknown Device',
+            type: data.deviceType || data.type || 'Unknown Type',
+            model: data.deviceModel || data.model || '',
+            serial: data.deviceSerial || data.serial || ''
+          };
+        });
+        deviceSelection = { devices };
+        enhancedReply = content.replace('DEVICE_SELECTION:', '').trim();
+      } catch (error) {
+        console.warn('Failed to fetch devices:', error);
+      }
+    }
+
+    // Auto-trigger ticket verification for users with active tickets
+    if (activeTicket && !requiresTicket && !ticketDetails && !deviceSelection) {
+      // Check if this is the first interaction or a complaint
+      const isFirstInteraction = clean.filter(m => m.role === 'assistant').length === 0;
+      const isComplaint = content.toLowerCase().includes('issue') || 
+                          content.toLowerCase().includes('problem') || 
+                          content.toLowerCase().includes('not working') || 
+                          content.toLowerCase().includes('broken') || 
+                          content.toLowerCase().includes('help') ||
+                          content.toLowerCase().includes('fix');
+      
+      // If AI didn't trigger verification but should have
+      if ((isFirstInteraction || isComplaint) && !content.includes('TICKET_VERIFICATION')) {
+        const ticketNumber = activeTicket.data.ticketNumber || `#${activeTicket.ticketId.slice(-6).toUpperCase()}`;
+        ticketDetails = {
+          ticketId: activeTicket.ticketId,
+          ticketNumber: ticketNumber,
+          subject: activeTicket.data.subject,
+          description: activeTicket.data.description,
+          category: activeTicket.data.category,
+          status: activeTicket.data.status,
+          createdAt: activeTicket.data.createdAt?.toDate?.()?.toLocaleDateString()
+        };
+        enhancedReply = `I found your active support ticket ${ticketNumber}. Let me verify the details with you first:`;
+      }
+    }
+
     // If there's an active ticket and AI didn't acknowledge it, add acknowledgment
-    if (ticketContext && !content.toLowerCase().includes('ticket') && !content.startsWith('COMPLAINT_DETECTED:')) {
+    if (ticketContext && !content.toLowerCase().includes('ticket') && !content.startsWith('COMPLAINT_DETECTED:') && !content.startsWith('REQUIRES_TICKET:')) {
       const ticketMatch = ticketContext.match(/Ticket ID: #([^\n]+)/);
       const subjectMatch = ticketContext.match(/Subject: "([^"]+)"/);
       if (ticketMatch && subjectMatch) {
         enhancedReply = `I see you have an active ticket #${ticketMatch[1]} about "${subjectMatch[1]}". ${content}`;
       }
     }
-    
-    return {reply: enhancedReply, sessionId};
+
+    return {
+      reply: enhancedReply,
+      sessionId,
+      ...(requiresTicket && { requiresTicket: true }),
+      ...(ticketDetails && { ticketDetails }),
+      ...(deviceSelection && { deviceSelection })
+    };
   } catch (e) {
-    const err = e as {message?: string};
+    const err = e as { message?: string };
     try {
-      await sessionsCol.doc(sessionId).set({status: "error", updatedAt: Date.now()}, {merge: true});
-      await sessionsCol.doc(sessionId).collection("messages").add({role: "assistant", content: `Exception: ${err?.message || "Chat call failed"}`, ts: Date.now(), error: true});
+      await sessionsCol.doc(sessionId).set({ status: "error", updatedAt: Date.now() }, { merge: true });
+      await sessionsCol.doc(sessionId).collection("messages").add({ role: "assistant", content: `Exception: ${err?.message || "Chat call failed"}`, ts: Date.now(), error: true });
     } catch {}
     throw new HttpsError("internal", err?.message || "Chat call failed");
   }
 });
 
+
 // ===== Ticket-related helper callables used by chatbot workflow =====
 // DEPRECATED: analyzeComplaint function - replaced by analyzeUserUnresolvedTicket
 // Keeping for backward compatibility but functionality is redundant
-export const analyzeComplaint = onCall({secrets: [OPENAI_API_KEY]}, async (request) => {
+export const analyzeComplaint = onCall({ secrets: [OPENAI_API_KEY] }, async (request) => {
   console.warn("analyzeComplaint is deprecated. Use analyzeUserUnresolvedTicket instead.");
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
@@ -279,7 +382,7 @@ export const analyzeComplaint = onCall({secrets: [OPENAI_API_KEY]}, async (reque
   if (!ticket) {
     return { analysis: "No active ticket found for analysis." };
   }
-  
+
   return { analysis: `Ticket found: ${ticket.data.subject || 'No subject'}. Please use the main chat interface for assistance.` };
 });
 
@@ -298,13 +401,14 @@ export const requestSerialImage = onCall(async (request) => {
     if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
     attempts = Number(t.imageUploadAttempts || 0);
     if (attempts >= 2) throw new HttpsError("failed-precondition", "Max image uploads reached");
-    tx.set(ref, {imageUploadAttempts: attempts + 1, updatedAt: Date.now()}, {merge: true});
+    tx.set(ref, { imageUploadAttempts: attempts + 1, updatedAt: Date.now(), imageUploadAllowed: true }, { merge: true });
   });
-  return {allowed: true, remaining: Math.max(0, 2 - (attempts + 1))};
+  return { allowed: true, remaining: Math.max(0, 2 - (attempts + 1)) };
 });
 
 // ===== Consolidated ticket fetching utility =====
-const fetchLatestUnresolvedTicket = async (uid: string) => {
+// Utility function to fetch the latest unresolved ticket for a user
+async function fetchLatestUnresolvedTicket(uid: string) {
   try {
     const ticketsQuery = await db.collection("Support_Tickets")
       .where("uid", "==", uid)
@@ -531,6 +635,139 @@ export const recordTicketFeedback = onCall(async (request) => {
 
   await tRef.collection("feedback").add({rating, comment, ts: Date.now()});
   return {ok: true};
+});
+
+// ===== Device selection and ticket workflow functions =====
+export const selectDeviceForTicket = onCall(async (request: CallableRequest) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+  
+  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
+  const deviceId = (request.data?.deviceId as string | undefined)?.trim();
+  
+  if (!ticketId || !deviceId) {
+    throw new HttpsError("invalid-argument", "ticketId and deviceId are required");
+  }
+
+  try {
+    // Verify ticket ownership
+    const ticketRef = db.collection("Support_Tickets").doc(ticketId);
+    const ticketDoc = await ticketRef.get();
+    
+    if (!ticketDoc.exists) {
+      throw new HttpsError("not-found", "Ticket not found");
+    }
+    
+    const ticketData = ticketDoc.data();
+    if (!ticketData || ticketData.uid !== authCtx.uid) {
+      throw new HttpsError("permission-denied", "Not your ticket");
+    }
+
+    // Verify device ownership using User_Devices collection
+    const deviceRef = db.collection(CONFIG.COLLECTIONS.DEVICES).doc(deviceId);
+    const deviceDoc = await deviceRef.get();
+    
+    if (!deviceDoc.exists) {
+      throw new HttpsError("not-found", "Device not found");
+    }
+    
+    const deviceData = deviceDoc.data();
+    if (!deviceData || deviceData.uid !== authCtx.uid) {
+      throw new HttpsError("permission-denied", "Not your device");
+    }
+
+    // Update ticket with selected device information
+    await ticketRef.update({
+      deviceId: deviceId,
+      deviceType: deviceData.deviceType || "Unknown",
+      deviceModel: deviceData.deviceModel || deviceData.model || "",
+      deviceName: deviceData.deviceName || deviceData.name || "Unknown Device",
+      deviceSerial: deviceData.deviceSerial || deviceData.serial || "",
+      updatedAt: Date.now()
+    });
+
+    return {
+      success: true,
+      device: {
+        id: deviceId,
+        name: deviceData.deviceName || deviceData.name || "Unknown Device",
+        type: deviceData.deviceType || "Unknown",
+        model: deviceData.deviceModel || deviceData.model || ""
+      }
+    };
+  } catch (error) {
+    console.error("Error selecting device for ticket:", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Failed to select device");
+  }
+});
+
+export const getTicketVerificationDetails = onCall(async (request: CallableRequest) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+  
+  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
+  
+  if (!ticketId) {
+    throw new HttpsError("invalid-argument", "ticketId is required");
+  }
+
+  try {
+    const ticketRef = db.collection("Support_Tickets").doc(ticketId);
+    const ticketDoc = await ticketRef.get();
+    
+    if (!ticketDoc.exists) {
+      throw new HttpsError("not-found", "Ticket not found");
+    }
+    
+    const ticketData = ticketDoc.data();
+    if (!ticketData || ticketData.uid !== authCtx.uid) {
+      throw new HttpsError("permission-denied", "Not your ticket");
+    }
+
+    return {
+      ticketId: ticketId,
+      subject: ticketData.subject || "No subject",
+      description: ticketData.description || "No description",
+      category: ticketData.category || "General",
+      status: ticketData.status || "Pending",
+      createdAt: ticketData.createdAt?.toDate?.()?.toLocaleDateString() || "Unknown date",
+      deviceInfo: {
+        type: ticketData.deviceType || null,
+        model: ticketData.deviceModel || null,
+        name: ticketData.deviceName || null,
+        serial: ticketData.deviceSerial || null
+      }
+    };
+  } catch (error) {
+    console.error("Error getting ticket verification details:", error);
+    if (error instanceof HttpsError) throw error;
+    throw new HttpsError("internal", "Failed to get ticket details");
+  }
+});
+
+export const getUserDevicesForSelection = onCall(async (request: CallableRequest) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+
+  try {
+    const devicesQuery = await db.collection("devices")
+      .where("ownerUid", "==", authCtx.uid)
+      .get();
+
+    const devices = devicesQuery.docs.map(doc => ({
+      id: doc.id,
+      name: doc.data().deviceName || doc.data().name || "Unknown Device",
+      type: doc.data().deviceType || "Unknown Type",
+      model: doc.data().deviceModel || doc.data().model || "",
+      serial: doc.data().deviceSerial || doc.data().serial || ""
+    }));
+
+    return { devices };
+  } catch (error) {
+    console.error("Error fetching user devices:", error);
+    throw new HttpsError("internal", "Failed to fetch devices");
+  }
 });
 
 // ===== Fetch and analyze latest unresolved ticket for a user =====
