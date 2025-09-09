@@ -30,13 +30,85 @@ type AlertsCount = {
 
 const AdminUsers: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [nameFilter, setNameFilter] = useState('');
+  const [emailFilter, setEmailFilter] = useState('');
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [addEmail, setAddEmail] = useState('');
+  const [addPassword, setAddPassword] = useState('');
+  const [addRole, setAddRole] = useState<Account['Role']>('user');
+  const [adding, setAdding] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [alertModal, setAlertModal] = useState<{email: string; counts: AlertsCount} | null>(null);
+  const [showAlert, setShowAlert] = useState(false);
+  const [alertData, setAlertData] = useState<{email: string; counts: AlertsCount} | null>(null);
+
+  const closeAdd = () => setShowAdd(false);
+  const closeAlertModal = () => {
+    setShowAlert(false);
+    setAlertData(null);
+  };
+  
+  const openAlertModal = (email: string) => {
+    const counts = alertsMap[email.toLowerCase()] || { quotes: 0, services: 0, tickets: 0, total: 0 };
+    setShowAlert(true);
+    setAlertData({ email, counts });
+  };
+
+  const handleAddSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAdding(true);
+    setAddError('');
+    
+    try {
+      // Add user logic here
+      await registerUserWithProfile(auth, db, {
+        email: addEmail,
+        password: addPassword,
+        fullName: addName,
+        role: addRole,
+      });
+      
+      // Refresh users list
+      const snap = await getDocs(query(accountsCollection(db), where('Role', '==', 'user')));
+      const list: User[] = snap.docs.map(d => {
+        const data: any = d.data();
+        const email = data?.Email || data?.email;
+        const name = data?.FullName || data?.Name || data?.name || (email ? String(email).split('@')[0] : '');
+        return email ? { name, email } : null;
+      }).filter(Boolean) as User[];
+      
+      setUsers(list);
+      setFilteredUsers(list);
+      closeAdd();
+    } catch (error: any) {
+      setAddError(error.message || 'Failed to add user');
+    } finally {
+      setAdding(false);
+    }
+  };
 
   // alerts map keyed by email (lowercased)
   const [alertsMap, setAlertsMap] = useState<Record<string, AlertsCount>>({});
   const unsubscribeRefs = useRef<Record<string, (() => void)[]>>({});
 
-  // removed add/edit/delete flows; only reading from Firebase
+  // Apply filters whenever nameFilter, emailFilter, or users change
+  useEffect(() => {
+    const filtered = users.filter(user => {
+      const nameMatch = user.name.toLowerCase().includes(nameFilter.toLowerCase());
+      const emailMatch = user.email.toLowerCase().includes(emailFilter.toLowerCase());
+      return nameMatch && emailMatch;
+    });
+    setFilteredUsers(filtered);
+  }, [nameFilter, emailFilter, users]);
+
+  // Clear all filters
+  const clearFilters = () => {
+    setNameFilter('');
+    setEmailFilter('');
+  };
 
   // Load users from Firebase Accounts
   useEffect(() => {
@@ -51,7 +123,10 @@ const AdminUsers: React.FC = () => {
           const name = data?.FullName || data?.Name || data?.name || (email ? String(email).split('@')[0] : '');
           return email ? { name, email } : null;
         }).filter(Boolean) as User[];
-        if (mounted) setUsers(list);
+        if (mounted) {
+          setUsers(list);
+          setFilteredUsers(list);
+        }
       } catch (e) {
         if (mounted) setUsers([]);
       }
@@ -234,142 +309,203 @@ const AdminUsers: React.FC = () => {
 
   // Debug: log alertsMap changes - removed sensitive data logging
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('alertsMap updated with', Object.keys(alertsMap).length, 'users');
-    }
+    // This effect is intentionally left empty as we don't need to log anything
   }, [alertsMap]);
 
-  const rows = useMemo(() => users.map((u, idx) => ({ ...u, idx })), [users]);
-
-  // removed add/edit/delete handlers
-
-  // modal for showing alert breakdown
-  const [alertModal, setAlertModal] = useState<{ email: string; counts: AlertsCount } | null>(null);
-  const openAlertModal = async (email: string) => {
-    const counts = alertsMap[email.toLowerCase()] || (await fetchAlertsForEmail(email));
-    setAlertModal({ email, counts });
-  };
-  const closeAlertModal = () => setAlertModal(null);
-
-  // Add User modal state
-  const [showAdd, setShowAdd] = useState(false);
-  const [addName, setAddName] = useState('');
-  const [addEmail, setAddEmail] = useState('');
-  const [addPassword, setAddPassword] = useState('');
-  const [addRole, setAddRole] = useState<Account['Role']>('user');
-  const [adding, setAdding] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
-
-  const openAdd = () => { setShowAdd(true); setAddError(null); };
-  const closeAdd = () => { setShowAdd(false); setAddName(''); setAddEmail(''); setAddPassword(''); setAddRole('user'); setAddError(null); };
-
-  async function handleAddSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!addEmail || !addPassword) return;
-    setAdding(true);
-    setAddError(null);
-    try {
-      await registerUserWithProfile(auth, db, {
-        email: addEmail,
-        password: addPassword,
-        fullName: addName || addEmail.split('@')[0],
-        role: addRole,
-      });
-      // Refresh users
-      const snap = await getDocs(query(accountsCollection(db), where('Role', '==', 'user')));
-      const list: User[] = snap.docs.map(d => {
-        const data: any = d.data();
-        const email = data?.Email || data?.email;
-        const name = data?.FullName || data?.Name || data?.name || (email ? String(email).split('@')[0] : '');
-        return email ? { name, email } : null;
-      }).filter(Boolean) as User[];
-      setUsers(list);
-      closeAdd();
-    } catch (err: any) {
-      setAddError(err?.message || 'Failed to add user');
-    } finally {
-      setAdding(false);
-    }
+  if (selectedUser) {
+    return (
+      <AdminUserDetail 
+        email={selectedUser}
+        onBack={handleBack}
+      />
+    );
   }
 
   return (
-    <section className="bg-white/0 p-0">
-      {selectedUser ? (
-        <AdminUserDetail email={selectedUser} onBack={handleBack} />
-      ) : (
-        <>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Users</h1>
-              <button onClick={openAdd} className="inline-flex items-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                  <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-                </svg>
-                <span>Add User</span>
-              </button>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-700">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {rows.map(({ name, email }) => (
-                <tr
-                  key={email}
-                  onClick={() => openDetail(email)}
-                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-                  title="View user details"
-                >
-                  <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm font-medium text-gray-900 dark:text-white">{name}</div></td>
-                  <td className="px-6 py-4 whitespace-nowrap"><div className="text-sm text-gray-500 dark:text-gray-400">{email}</div></td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <div className="flex items-center justify-end w-full">
-                      {(() => {
-                        const counts = alertsMap[email.toLowerCase()];
-                        const loading = !counts || counts.loading;
-                        if (loading) {
-                          return (
-                            <div className="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" aria-label="Loading alerts" title="Loading alerts" />
-                          );
-                        }
-                        const total = counts?.total || 0;
-                        const hasAlerts = total > 0;
-                        const btnClass = 'bg-white dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700';
-                        const iconClass = hasAlerts ? 'text-red-600' : 'text-gray-500 dark:text-gray-400';
-                        const userId = counts?.uid || null;
-                        return (
-                          <div>
-                            <TicketNotificationButton 
-                              userId={userId}
-                              className={btnClass}
-                              disablePopup={true}
-                              onClick={(e) => { e.stopPropagation(); openAlertModal(email); }}
-                              totalAlerts={total}
-                              onItemClick={(item) => {
-                                // Handle item click - removed console.log
-                              }}
-                            />
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+      <div className="flex flex-col space-y-4 mb-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Users</h1>
+          <button
+            onClick={() => setShowAdd(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
+              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            <span>Add User</span>
+          </button>
         </div>
-        </>
-      )}
-
-      {/* Add User Modal */}
-
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label htmlFor="name-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Filter by Name
+            </label>
+            <input
+              type="text"
+              id="name-filter"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500 dark:bg-gray-700 dark:text-white"
+              placeholder="Search by name..."
+              value={nameFilter}
+              onChange={(e) => setNameFilter(e.target.value)}
+            />
+          </div>
+          <div>
+            <label htmlFor="email-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Filter by Email
+            </label>
+            <input
+              type="text"
+              id="email-filter"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500 dark:bg-gray-700 dark:text-white"
+              placeholder="Search by email..."
+              value={emailFilter}
+              onChange={(e) => setEmailFilter(e.target.value)}
+            />
+          </div>
+          <div className="flex items-end">
+            <button
+              onClick={clearFilters}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+            >
+              Clear Filters
+            </button>
+          </div>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-700">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {filteredUsers.length === 0 ? (
+              <tr>
+                <td colSpan={3} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                  {users.length === 0 ? 'No users found' : 'No users match the current filters'}
+                </td>
+              </tr>
+            ) : (
+              filteredUsers.map((user) => {
+                const alerts = alertsMap[user.email.toLowerCase()] || { quotes: 0, services: 0, tickets: 0, total: 0 };
+                return (
+                  <tr
+                    key={user.email}
+                    onClick={() => openDetail(user.email)}
+                    className="group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                    title="View user details"
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500 dark:text-gray-400">{user.email}</div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <div className="flex items-center justify-end space-x-1">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1">
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // TODO: Implement edit functionality
+                              console.log('Edit user:', user.email);
+                            }}
+                            className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 focus:outline-none"
+                            aria-label="Edit user"
+                            title="Edit user"
+                          >
+                            <svg 
+                              xmlns="http://www.w3.org/2000/svg" 
+                              width="20" 
+                              height="20" 
+                              viewBox="0 0 24 24" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              strokeWidth="2" 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round" 
+                              className="lucide lucide-pencil"
+                            >
+                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                              <path d="m13.5 6.5 4 4" />
+                            </svg>
+                          </button>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // TODO: Implement delete functionality
+                              console.log('Delete user:', user.email);
+                            }}
+                            className="p-1.5 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 focus:outline-none"
+                            aria-label="Delete user"
+                            title="Delete user"
+                          >
+                            <svg 
+                              xmlns="http://www.w3.org/2000/svg" 
+                              width="20" 
+                              height="20" 
+                              viewBox="0 0 24 24" 
+                              fill="none" 
+                              stroke="currentColor" 
+                              strokeWidth="2" 
+                              strokeLinecap="round" 
+                              strokeLinejoin="round" 
+                              className="lucide lucide-trash-2"
+                            >
+                              <path d="M3 6h18" />
+                              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                              <line x1="10" x2="10" y1="11" y2="17" />
+                              <line x1="14" x2="14" y1="11" y2="17" />
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="relative">
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openAlertModal(user.email);
+                          }}
+                          className={`p-1.5 focus:outline-none ${alerts.total > 0 ? 'text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white'}`}
+                          aria-label="View alerts"
+                        >
+                          <svg 
+                            xmlns="http://www.w3.org/2000/svg" 
+                            width="24" 
+                            height="24" 
+                            viewBox="0 0 24 24" 
+                            fill={alerts.total > 0 ? 'currentColor' : 'none'}
+                            stroke="currentColor" 
+                            strokeWidth="2" 
+                            strokeLinecap="round" 
+                            strokeLinejoin="round" 
+                            className="lucide lucide-bell h-5 w-5"
+                          >
+                            <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+                            <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />
+                          </svg>
+                          {alerts.total > 0 && (
+                            <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 w-4 rounded-full bg-red-500 text-white text-[10px] font-medium">
+                              {alerts.total > 9 ? '9+' : alerts.total}
+                            </span>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+      
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={closeAdd} />
@@ -409,7 +545,7 @@ const AdminUsers: React.FC = () => {
         </div>
       )}
 
-      {alertModal && (
+      {showAlert && alertData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div 
             className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-200" 
@@ -419,7 +555,7 @@ const AdminUsers: React.FC = () => {
             {/* Header */}
             <div className="px-6 pt-6 pb-2">
               <h3 className="text-xl font-bold text-gray-900 dark:text-white">Alerts Summary</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{alertModal.email}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{alertData.email}</p>
             </div>
 
             {/* Stats Grid */}
@@ -428,38 +564,38 @@ const AdminUsers: React.FC = () => {
               <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-gray-800 dark:text-gray-200">Pending Quotes</h4>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${alertModal.counts.quotes > 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'}`}>
-                    {alertModal.counts.quotes > 0 ? `${alertModal.counts.quotes} Pending` : 'All Clear'}
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${alertData.counts.quotes > 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'}`}>
+                    {alertData.counts.quotes > 0 ? `${alertData.counts.quotes} Pending` : 'All Clear'}
                   </span>
                 </div>
               </div>
 
-              {/* Service Requests */}
+              {/* Services */}
               <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-gray-800 dark:text-gray-200">Service Requests</h4>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${alertModal.counts.services > 0 ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400' : 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'}`}>
-                    {alertModal.counts.services > 0 ? `${alertModal.counts.services} Pending` : 'All Clear'}
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${alertData.counts.services > 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'}`}>
+                    {alertData.counts.services > 0 ? `${alertData.counts.services} Active` : 'None'}
                   </span>
                 </div>
               </div>
 
-              {/* Support Tickets */}
+              {/* Tickets */}
               <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-gray-800 dark:text-gray-200">Support Tickets</h4>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${alertModal.counts.tickets > 0 ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400' : 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'}`}>
-                    {alertModal.counts.tickets > 0 ? `${alertModal.counts.tickets} Pending` : 'All Clear'}
+                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${alertData.counts.tickets > 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400' : 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'}`}>
+                    {alertData.counts.tickets > 0 ? `${alertData.counts.tickets} Open` : 'None'}
                   </span>
                 </div>
               </div>
 
-              {/* Total Unresolved */}
-              <div className={`p-4 rounded-xl ${alertModal.counts.total > 0 ? 'bg-red-50 dark:bg-red-900/20' : 'bg-green-50 dark:bg-green-900/20'}`}>
+              {/* Total */}
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-xl p-4">
                 <div className="flex items-center justify-between">
-                  <span className="font-semibold text-gray-800 dark:text-gray-200">Total Pending Items</span>
-                  <span className={`text-xl font-bold ${alertModal.counts.total > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
-                    {alertModal.counts.total}
+                  <h4 className="font-semibold text-gray-800 dark:text-gray-200">Total Pending Items</h4>
+                  <span className={`text-xl font-bold ${alertData.counts.total > 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
+                    {alertData.counts.total}
                   </span>
                 </div>
               </div>
@@ -477,7 +613,7 @@ const AdminUsers: React.FC = () => {
           </div>
         </div>
       )}
-    </section>
+    </div>
   );
 };
 

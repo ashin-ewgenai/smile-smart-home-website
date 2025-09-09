@@ -167,14 +167,6 @@ const Notifications: React.FC = () => {
             <span className="text-gray-900 dark:text-indigo-300 font-medium">
               {displayName}
             </span>
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              {service}
-            </span>
-            {item.message && (
-              <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 line-clamp-2">
-                {item.message}
-              </p>
-            )}
           </>
         );
       }
@@ -797,14 +789,20 @@ const Notifications: React.FC = () => {
             const unread = isUnread(item);
             
             return (
-              <div 
+              <a 
                 key={id} 
-                className={`rounded-xl border p-6 transition-colors ${unread ? 'border-indigo-700/50 bg-indigo-900/20 hover:bg-indigo-900/30 dark:border-indigo-700/50 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30' : 'border-gray-300 bg-white/80 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/30 dark:hover:bg-gray-900/50'}`}
+                href={`/dashboard/admin/reports?id=${id}`}
+                className={`block rounded-xl border p-6 transition-colors ${unread ? 'border-indigo-700/50 bg-indigo-900/20 hover:bg-indigo-900/30 dark:border-indigo-700/50 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30' : 'border-gray-300 bg-white/80 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/30 dark:hover:bg-gray-900/50'}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Let the default anchor behavior handle the navigation
+                }}
               >
                 <div className="flex items-start justify-between">
                   <div 
                     className="flex-1 cursor-pointer"
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.stopPropagation();
                       if (unread) {
                         markAsRead(item);
                       }
@@ -853,7 +851,7 @@ const Notifications: React.FC = () => {
                     )}
                   </div>
                 </div>
-              </div>
+              </a>
             );
           })}
         </div>
