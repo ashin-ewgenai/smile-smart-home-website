@@ -16,6 +16,7 @@ interface Device {
   modelNumber: string;
   brand: string;
   description?: string;
+  documentation?: string;
   warranty?: string;
   status?: string;
   stock?: number;
@@ -151,6 +152,30 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
     }
   };
 
+  // Remove any User_Devices docs for this user that no longer have a matching Devices doc
+  const cleanOrphanedUserDevices = async () => {
+    try {
+      const [devicesSnapshot, userDevicesSnapshot] = await Promise.all([
+        getDocs(collection(db, 'Devices')),
+        getDocs(query(collection(db, 'User_Devices'), where('uid', '==', userId)))
+      ]);
+      const validDeviceIds = new Set(devicesSnapshot.docs.map(d => d.id));
+      const deletions: Promise<any>[] = [];
+      userDevicesSnapshot.docs.forEach(docSnap => {
+        const data = docSnap.data() as any;
+        const sid = data?.sourceDeviceId;
+        if (!sid || !validDeviceIds.has(sid)) {
+          deletions.push(deleteDoc(docSnap.ref));
+        }
+      });
+      if (deletions.length) {
+        await Promise.all(deletions);
+      }
+    } catch (e) {
+      console.error('Error cleaning orphaned user devices:', e);
+    }
+  };
+
   // Fetch devices when modal opens or view mode changes
   useEffect(() => {
     fetchDevices();
@@ -189,11 +214,20 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
       const now = new Date().toISOString();
 
       for (const deviceId of selectedDevices) {
+        // Find the device details from our loaded list to copy extra fields
+        const source = devices.find(d => d.id === deviceId);
         const deviceRef = doc(collection(db, 'User_Devices'));
         batch.push(
           setDoc(deviceRef, {
             uid: userId,
             sourceDeviceId: deviceId,
+            // Copy additional metadata from /Devices
+            brand: source?.brand ?? '',
+            description: source?.description ?? '',
+            deviceName: source?.deviceName ?? '',
+            documentation: (source as any)?.documentation ?? '',
+            modelNumber: source?.modelNumber ?? '',
+            type: source?.type ?? '',
             addedAt: now,
             updatedAt: now,
             isOnline: false
@@ -202,6 +236,8 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
       }
 
       await Promise.all(batch);
+      // Also clean up any orphaned user device docs that cannot be selected in the UI
+      await cleanOrphanedUserDevices();
       onDeviceAdded();
       onClose();
     } catch (err) {
@@ -230,6 +266,19 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
         userDevicesSnapshot.docs.forEach(doc => {
           batch.push(deleteDoc(doc.ref));
         });
+
+        // Additionally, handle legacy records where the User_Devices doc id equals the deviceId
+        // (older entries that didn't set sourceDeviceId)
+        try {
+          const legacyRef = doc(collection(db, 'User_Devices'), deviceId);
+          const legacySnap = await getDocs(query(collection(db, 'User_Devices'), where('uid', '==', userId)));
+          const legacyDoc = legacySnap.docs.find(d => d.id === deviceId);
+          if (legacyDoc) {
+            batch.push(deleteDoc(legacyDoc.ref));
+          }
+        } catch {
+          // no-op if not found
+        }
       }
 
       await Promise.all(batch);
