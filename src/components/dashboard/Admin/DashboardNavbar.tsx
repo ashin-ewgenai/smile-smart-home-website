@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, User, LogOut, Settings, Bell, ArrowLeft } from 'lucide-react';
+import { Menu, X, User, LogOut, Bell, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { handleLogout } from './LogoutHandler';
 import DarkModeToggle from '../../ui/DarkModeToggle';
@@ -165,26 +165,6 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                 <p className="font-medium">{actualUserName}</p>
                 <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{userType}</p>
               </div>
-              <Link 
-                to={`/dashboard/${userType}/profile`} 
-                className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" 
-                role="menuitem"
-              >
-                <div className="flex items-center">
-                  <User className="mr-2 h-4 w-4" />
-                  Profile
-                </div>
-              </Link>
-              <Link 
-                to={`/dashboard/${userType}/settings`} 
-                className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" 
-                role="menuitem"
-              >
-                <div className="flex items-center">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
-                </div>
-              </Link>
               <button 
                 onClick={handleLogout}
                 className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" 
@@ -208,18 +188,6 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               <p className="font-medium">{actualUserName}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{userType}</p>
             </div>
-            <Link 
-              to={`/dashboard/${userType}/profile`} 
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              Profile
-            </Link>
-            <Link 
-              to={`/dashboard/${userType}/settings`} 
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              Settings
-            </Link>
             <button 
               onClick={handleLogout}
               className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -264,12 +232,6 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Plan Leads
-                </Link>
-                <Link 
-                  to="/dashboard/admin/settings" 
-                  className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  Settings
                 </Link>
                 <Link 
                   to="/dashboard/admin/estimates" 

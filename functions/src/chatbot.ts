@@ -412,8 +412,8 @@ export const verifySerialAndFetchDocs = onCall(async (request) => {
   let supportDocs: any[] = [];
   
   try {
-    // Primary: Fetch user-specific device documents
-    const userDeviceDocsSnap = await db.collection("user_devices").doc(deviceUID).collection("support_docs").get();
+    // Primary: Fetch user-specific device documents from flat collection
+    const userDeviceDocsSnap = await db.collection("User_Devices").where("uid", "==", authCtx.uid).where("sourceDeviceId", "==", deviceUID).get();
     if (!userDeviceDocsSnap.empty) {
       supportDocs = userDeviceDocsSnap.docs.map(doc => ({id: doc.id, ...doc.data()}));
     } else {

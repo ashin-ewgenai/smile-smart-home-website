@@ -314,15 +314,17 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
     
     const fetchDevices = async () => {
       try {
-        // Get user's devices
-        const userDevicesSnapshot = await getDocs(collection(db, 'userdevices', account.id, 'devices'));
+        // Get user's devices from flat collection
+        const userDevicesQuery = query(collection(db, 'User_Devices'), where('uid', '==', account.id));
+        const userDevicesSnapshot = await getDocs(userDevicesQuery);
         
         // Process each device to get details from the main Devices collection
         const devicesPromises = userDevicesSnapshot.docs.map(async (deviceDoc) => {
           const deviceData = deviceDoc.data();
           try {
-            // Get device details from main Devices collection
-            const deviceDetailsSnapshot = await getDoc(doc(db, 'Devices', deviceDoc.id));
+            // Get device details from main Devices collection using sourceDeviceId
+            const sourceDeviceId = deviceData.sourceDeviceId || deviceDoc.id;
+            const deviceDetailsSnapshot = await getDoc(doc(db, 'Devices', sourceDeviceId));
             if (deviceDetailsSnapshot.exists()) {
               const deviceDetails = deviceDetailsSnapshot.data() as {
                 deviceName?: string;
@@ -368,8 +370,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
     };
 
     // Set up real-time listener for device changes
+    const userDevicesQuery = query(collection(db, 'User_Devices'), where('uid', '==', account.id));
     const unsubscribe = onSnapshot(
-      collection(db, 'userdevices', account.id, 'devices'),
+      userDevicesQuery,
       () => fetchDevices(),
       (error) => {
         console.error('Error in devices snapshot:', error);
@@ -562,10 +565,20 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
     
     if (selected.type === 'devices') {
       try {
-        await updateDoc(doc(db, 'userdevices', account?.id, 'devices', selected.id), {
-          isOnline: editStatus === 'online',
-          updatedAt: Timestamp.now()
-        });
+        // Update device in flat collection
+        const userDevicesQuery = query(
+          collection(db, 'User_Devices'), 
+          where('uid', '==', account?.id),
+          where('sourceDeviceId', '==', selected.id)
+        );
+        const userDevicesSnapshot = await getDocs(userDevicesQuery);
+        
+        if (!userDevicesSnapshot.empty) {
+          await updateDoc(userDevicesSnapshot.docs[0].ref, {
+            isOnline: editStatus === 'online',
+            updatedAt: Timestamp.now()
+          });
+        }
         closeDetails();
       } catch (error) {
         console.error('Error updating device status:', error);

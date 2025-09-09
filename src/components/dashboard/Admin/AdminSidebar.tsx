@@ -75,12 +75,6 @@ const AdminSidebar: React.FC = () => {
           Support Center
         </span>
       </Item>
-      <Item href="/dashboard/admin/settings">
-        <span className="inline-flex items-center gap-2">
-          <Settings className="h-4 w-4" />
-          Settings
-        </span>
-      </Item>
     </nav>
   );
 };

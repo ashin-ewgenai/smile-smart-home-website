@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../../../lib/firebase';
 
 interface DeviceDetailsModalProps {
@@ -97,10 +97,14 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
           throw new Error('Device not found');
         }
         
-        // Get user-specific device data (including serial numbers)
-        const userDeviceRef = doc(db, 'userdevices', userId, 'devices', deviceId);
-        const userDeviceDoc = await getDoc(userDeviceRef);
-        const userDeviceData = userDeviceDoc.exists() ? userDeviceDoc.data() : {};
+        // Get user-specific device data from flat collection
+        const userDevicesQuery = query(
+          collection(db, 'User_Devices'),
+          where('uid', '==', userId),
+          where('sourceDeviceId', '==', deviceId)
+        );
+        const userDevicesSnapshot = await getDocs(userDevicesQuery);
+        const userDeviceData = userDevicesSnapshot.empty ? {} : userDevicesSnapshot.docs[0].data();
         
         // Format the device data for display
         const baseDeviceData = {
@@ -186,7 +190,61 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
     if (!deviceId || !userId) return;
     
     try {
-      const userDeviceRef = doc(db, 'userdevices', userId, 'devices', deviceId);
+      // Get reference to user device in flat collection
+      const userDevicesQuery = query(
+        collection(db, 'User_Devices'),
+        where('uid', '==', userId),
+        where('sourceDeviceId', '==', deviceId)
+      );
+      const userDevicesSnapshot = await getDocs(userDevicesQuery);
+      
+      if (userDevicesSnapshot.empty) {
+        // Create new user device document if it doesn't exist
+        const newUserDeviceRef = doc(collection(db, 'User_Devices'));
+        const updateData: any = {
+          uid: userId,
+          sourceDeviceId: deviceId,
+          addedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        if (field === 'serial') {
+          updateData.serial = value;
+        } else if (field === 'numberOfDevices') {
+          const numValue = Math.max(1, parseInt(value) || 1);
+          updateData.numberOfDevices = numValue;
+          
+          // Initialize serials array
+          const newSerials = Array(numValue).fill(null).map(() => ({
+            serialNumber: '',
+            warrantyExpiry: ''
+          }));
+          updateData.serials = newSerials;
+        } else if (field === 'serials') {
+          const num = Array.isArray(value) ? value.length : 1;
+          updateData.serials = value;
+          updateData.numberOfDevices = num;
+        }
+        
+        await setDoc(newUserDeviceRef, updateData);
+        
+        // Update local state
+        if (field === 'serial') {
+          setDevice(prev => ({ ...prev!, serial: value }));
+        } else if (field === 'numberOfDevices') {
+          setNumberOfDevices(updateData.numberOfDevices);
+          setDevice(prev => prev ? { ...prev, serials: updateData.serials } : null);
+          setEditingSerials([...updateData.serials]);
+        } else if (field === 'serials') {
+          setNumberOfDevices(updateData.numberOfDevices);
+          setDevice(prev => prev ? { ...prev, serials: [...value] } : null);
+        }
+        
+        setEditingField(null);
+        return;
+      }
+      
+      const userDeviceRef = userDevicesSnapshot.docs[0].ref;
       
       // Prepare update data based on field
       const updateData: any = {
