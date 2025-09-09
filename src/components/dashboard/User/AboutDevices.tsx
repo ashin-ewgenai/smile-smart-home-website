@@ -151,11 +151,12 @@ const AboutDevices: React.FC = () => {
         setLoading(true);
         console.log(`Fetching devices for user: ${uid}`);
         
-        // 1. Get all device IDs from user's devices subcollection
-        const userDevicesRef = collection(db, 'userdevices', uid, 'devices');
-        console.log('User devices ref path:', userDevicesRef.path);
+        // 1. Get all user devices from flat collection
+        const userDevicesRef = collection(db, 'User_Devices');
+        const userDevicesQuery = query(userDevicesRef, where('uid', '==', uid));
+        console.log('User devices query for uid:', uid);
         
-        const userDevicesSnap = await getDocs(userDevicesRef);
+        const userDevicesSnap = await getDocs(userDevicesQuery);
         console.log('User devices subcollection docs:', userDevicesSnap.docs.map(d => ({
           id: d.id,
           data: d.data(),
@@ -169,20 +170,20 @@ const AboutDevices: React.FC = () => {
           return;
         }
         
-        // 2. Get all device details in a single query using 'in' operator
-        const deviceIds = userDevicesSnap.docs.map(doc => doc.id);
-        console.log('Device IDs to fetch:', deviceIds);
+        // 2. Get all device details using sourceDeviceId from user devices
+        const sourceDeviceIds = userDevicesSnap.docs.map(doc => doc.data().sourceDeviceId).filter(Boolean);
+        console.log('Source Device IDs to fetch:', sourceDeviceIds);
         
-        if (deviceIds.length === 0) {
-          console.log('No device IDs found in user devices');
+        if (sourceDeviceIds.length === 0) {
+          console.log('No source device IDs found in user devices');
           setDevices([]);
           setLoading(false);
           return;
         }
         
-        // Get device details from main Devices collection
+        // Get device details from main Devices collection using sourceDeviceId
         const devicesRef = collection(db, 'Devices');
-        const devicesQuery = query(devicesRef, where('__name__', 'in', deviceIds));
+        const devicesQuery = query(devicesRef, where('__name__', 'in', sourceDeviceIds));
         const devicesSnap = await getDocs(devicesQuery);
         
         console.log('Fetched devices from main collection:', devicesSnap.docs.map(d => ({
@@ -191,31 +192,23 @@ const AboutDevices: React.FC = () => {
           ref: d.ref.path
         })));
         
-        // Create helpers to join Devices -> userdevices
+        // Create helpers to join Devices -> User_Devices using sourceDeviceId
         const userDevicesMap = new Map(
-          userDevicesSnap.docs.map(doc => [doc.id, doc.data()])
+          userDevicesSnap.docs.map(doc => [doc.data().sourceDeviceId, doc.data()])
         );
         const userDevicesArray = userDevicesSnap.docs.map(d => ({ id: d.id, data: d.data() as any }));
         
         // 3. Combine device data with user-specific data
         const deviceResults = devicesSnap.docs.map(doc => {
           const deviceData = doc.data() as any;
-          // Primary: direct ID match, else try linking fields from userdevices
-          let userDeviceData: any = userDevicesMap.get(doc.id) || null;
-          if (!userDeviceData) {
-            const byLink = userDevicesArray.find(ud =>
-              ud.data?.deviceId === doc.id ||
-              ud.data?.sourceDeviceId === doc.id
-            );
-            if (byLink) userDeviceData = byLink.data;
-          }
-          if (!userDeviceData && deviceData?.serial) {
-            const bySerial = userDevicesArray.find(ud =>
-              Array.isArray(ud.data?.serials) && ud.data.serials.includes(deviceData.serial)
-            );
-            if (bySerial) userDeviceData = bySerial.data;
-          }
-          if (!userDeviceData) userDeviceData = {};
+          // Get user device data using sourceDeviceId mapping
+          let userDeviceData: any = userDevicesMap.get(doc.id) || {};
+          
+          console.log(`Device ${doc.id} mapping:`, {
+            deviceId: doc.id,
+            userDeviceData,
+            hasUserData: !!userDeviceData
+          });
           
           console.log(`Processing device ${doc.id}:`, { 
             deviceData, 
@@ -301,8 +294,9 @@ const AboutDevices: React.FC = () => {
     fetchUserDevices();
     
     // Set up real-time updates for user's devices
-    const userDevicesRef = collection(db, 'userdevices', uid, 'devices');
-    const unsubscribe = onSnapshot(userDevicesRef, 
+    const userDevicesRef = collection(db, 'User_Devices');
+    const userDevicesQuery = query(userDevicesRef, where('uid', '==', uid));
+    const unsubscribe = onSnapshot(userDevicesQuery, 
       () => fetchUserDevices(),
       (error) => {
         console.error('Error in real-time update:', error);
@@ -321,19 +315,14 @@ const AboutDevices: React.FC = () => {
     if (!uid) return;
     try {
       setSelectedDeviceCountLoading(true);
-      const ref = doc(db, 'userdevices', uid, 'devices', device.id);
-      console.log('[AboutDevices] Fetching per-device count from:', ref.path);
-      let snap = await getDoc(ref);
-      if (!snap.exists()) {
-        // Fallbacks: try sourceDeviceId or deviceId linking back to Devices doc id
-        console.warn('[AboutDevices] Direct doc not found; falling back to queries by sourceDeviceId/deviceId');
-        const devsCol = collection(db, 'userdevices', uid, 'devices');
-        let qSnap = await getDocs(query(devsCol, where('sourceDeviceId', '==', device.id)));
-        if (qSnap.empty) {
-          qSnap = await getDocs(query(devsCol, where('deviceId', '==', device.id)));
-        }
-        snap = qSnap.docs[0] ?? snap; // use first match if any
+      // Query flat collection for this user's device
+      const userDevicesCol = collection(db, 'User_Devices');
+      let qSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid), where('sourceDeviceId', '==', device.id)));
+      if (qSnap.empty) {
+        qSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid), where('deviceId', '==', device.id)));
       }
+      const snap = qSnap.docs[0];
+      console.log('[AboutDevices] Fetching per-device count from flat collection for device:', device.id);
       if (snap.exists()) {
         const data: any = snap.data();
         console.log('[AboutDevices] Device doc data (resolved):', data);
@@ -347,16 +336,21 @@ const AboutDevices: React.FC = () => {
         setSelectedDeviceCount(null);
       }
 
-      // Also fetch total device count from parent userdevices doc if available
-      const parentRef = doc(db, 'userdevices', uid);
-      console.log('[AboutDevices] Fetching total device count from:', parentRef.path);
-      const parentSnap = await getDoc(parentRef);
-      if (parentSnap.exists()) {
-        const pdata: any = parentSnap.data();
-        console.log('[AboutDevices] User parent doc data:', pdata);
-        const totalAliases = ['totalDevices','devicesCount','deviceCount','DeviceCount','deviceCount1','DeviceCount1','total','Total'];
-        const totalParsed = coerceNumberFromKeys(pdata, totalAliases);
-        if (totalParsed !== null) setUserTotalDevices(totalParsed);
+      // Calculate total device count from flat collection
+      try {
+        const allUserDevicesSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid)));
+        let totalCount = 0;
+        allUserDevicesSnap.docs.forEach(doc => {
+          const data = doc.data();
+          const countAliases = ['deviceCount','DeviceCount','deviceCount1','DeviceCount1','count','Count','quantity','Quantity','qty','Qty'];
+          const parsed = coerceNumberFromKeys(data, countAliases);
+          const count = parsed ?? (Array.isArray(data.serials) ? data.serials.length : 1);
+          totalCount += count;
+        });
+        setUserTotalDevices(totalCount);
+        console.log('[AboutDevices] Calculated total device count:', totalCount);
+      } catch (e) {
+        console.warn('[AboutDevices] Failed to calculate total device count:', e);
       }
     } catch (e) {
       console.error('Failed to fetch selected device count', e);
