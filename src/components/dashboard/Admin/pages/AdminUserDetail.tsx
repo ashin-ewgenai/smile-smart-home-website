@@ -624,7 +624,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
 
       {/* Profile card */}
       <div className="max-w-6xl mx-auto mt-4">
-        <div className="bg-gray-800/80 backdrop-blur rounded-xl shadow-lg border border-gray-700 p-6">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 dark:bg-gray-900 dark:border-gray-700">
           {!email && (
             <div className="space-y-4">
               {loadingContactRequests && <div className="text-gray-300">Loading...</div>}
@@ -653,16 +653,16 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     const createdAt = r.createdAt ? (r.createdAt.toDate ? r.createdAt.toDate() : new Date(r.createdAt.seconds * 1000)) : null;
                     
                     return (
-                      <div key={id} className="bg-gray-800/50 rounded-lg border border-gray-700 overflow-hidden transition-all hover:border-teal-500/50">
+                      <div key={id} className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all hover:border-teal-500/50 hover:bg-gray-50 dark:bg-gray-800/50 dark:border-gray-700">
                         <button
                           type="button"
-                          className="w-full text-left p-4 flex justify-between items-center hover:bg-gray-700/50 transition-colors"
+                          className="w-full text-left p-4 flex justify-between items-center hover:bg-gray-50 transition-colors dark:hover:bg-gray-700/50"
                           aria-expanded={isOpen}
                           aria-controls={`contact-panel-${id}`}
                           onClick={() => toggleOpen(id)}
                         >
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-gray-200 font-medium truncate">{r.email || 'No Email'}</h3>
+                            <h3 className="font-medium truncate text-gray-900 dark:text-gray-200">{r.email || 'No Email'}</h3>
                             {createdAt && (
                               <p className="text-xs text-gray-500 mt-1">
                                 {createdAt.toLocaleDateString()} • {createdAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
@@ -676,31 +676,31 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                           </span>
                         </button>
                         {isOpen && (
-                          <div id={`contact-panel-${id}`} className="text-sm text-gray-300 p-4 bg-gray-800/30">
+                          <div id={`contact-panel-${id}`} className="text-sm text-gray-700 p-4 bg-gray-50 dark:text-gray-300 dark:bg-gray-800/30">
                             <div className="space-y-3">
                               <div>
-                                <div className="text-gray-400">Full Name</div>
-                                <div className="text-gray-100">{r.fullName || '—'}</div>
+                                <div className="text-gray-500">Full Name</div>
+                                <div className="text-gray-900 dark:text-gray-100">{r.fullName || '—'}</div>
                               </div>
                               <div>
-                                <div className="text-gray-400">Email</div>
-                                <div className="text-gray-100 break-all">{r.email || '—'}</div>
+                                <div className="text-gray-500">Email</div>
+                                <div className="text-gray-900 dark:text-gray-100 break-all">{r.email || '—'}</div>
                               </div>
                               <div>
-                                <div className="text-gray-400">Phone</div>
-                                <div className="text-gray-100">{r.phone || '—'}</div>
+                                <div className="text-gray-500">Phone</div>
+                                <div className="text-gray-900 dark:text-gray-100">{r.phone || '—'}</div>
                               </div>
                               <div>
-                                <div className="text-gray-400">Service</div>
-                                <div className="text-gray-100">{r.service || '—'}</div>
+                                <div className="text-gray-500">Service</div>
+                                <div className="text-gray-900 dark:text-gray-100">{r.service || '—'}</div>
                               </div>
                               <div className="sm:col-span-2">
-                                <div className="text-gray-400">Message</div>
-                                <div className="text-gray-100 whitespace-pre-wrap break-words">{r.message || '—'}</div>
+                                <div className="text-gray-500">Message</div>
+                                <div className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">{r.message || '—'}</div>
                               </div>
                               <div>
-                                <div className="text-gray-400">Created</div>
-                                <div className="text-gray-100">{fmt(dateFrom(r.createdAt))}</div>
+                                <div className="text-gray-500">Created</div>
+                                <div className="text-gray-900 dark:text-gray-100">{fmt(dateFrom(r.createdAt))}</div>
                               </div>
                             </div>
 
@@ -735,11 +735,11 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                   ) : (
                                     <div className="space-y-3">
                                       {(plannerLeadsByEmail[r.email || ''] || []).map((lead) => (
-                                        <div key={lead.id} className="rounded border border-gray-800 p-3 bg-gray-900/40">
+                                        <div key={lead.id} className="rounded-lg border border-gray-800 p-4 bg-gray-900/70 text-white dark:bg-gray-900/40 dark:text-gray-100">
                                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                                             {Object.entries(lead).filter(([k]) => k !== 'id' && k !== 'formData' && k !== 'updatedAt' && k !== 'email' && k !== 'recommendedAreas' && k !== 'complexity').map(([k, v]) => (
                                               <div key={k} className="break-words">
-                                                <div className="text-gray-400">{k === 'planText' ? 'Recommeded setup' : k}</div>
+                                                <div className="text-gray-300">{k === 'planText' ? 'Recommeded setup' : k}</div>
                                                 <div className="text-gray-100">
                                                   {k.toLowerCase().includes('created') || k.toLowerCase().includes('updated')
                                                     ? fmt(dateFrom(v as any))
@@ -798,7 +798,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       {/* Tabs */}
       {account?.id && (
         <div className="max-w-6xl mx-auto mt-6">
-          <div className="flex justify-between items-center border-b border-gray-700">
+          <div className="flex justify-between items-center border-b border-gray-800 bg-gray-900 rounded-t-xl px-2 sm:px-3 py-2 dark:bg-transparent dark:border-gray-700">
             <div className="flex gap-2">
               {([
                 { key: 'quotes', label: `Quotes (${quotes?.length ?? 0})` },
@@ -811,8 +811,8 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 onClick={() => setActiveTab(t.key)}
                 className={`px-4 py-2 text-sm rounded-t-md border border-b-0 ${
                   activeTab === t.key
-                    ? 'bg-gray-800 text-white border-gray-700'
-                    : 'bg-gray-800/40 text-gray-300 hover:bg-gray-700/50 border-transparent'
+                    ? 'bg-gray-900 text-white border-gray-800 dark:bg-gray-800 dark:border-gray-700'
+                    : 'bg-gray-900/70 text-gray-200 hover:bg-gray-900 border-transparent dark:bg-gray-800/40 dark:text-gray-300 dark:hover:bg-gray-700/50'
                 }`}
               >
                 {t.label}
@@ -829,7 +829,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
             )}
           </div>
 
-          <div className="bg-gray-800/60 border border-gray-700 rounded-b-md rounded-tr-md p-2 md:p-4">
+          <div className="bg-gray-900/80 border border-gray-800 rounded-b-md rounded-tr-md p-2 md:p-4 dark:bg-gray-800/60 dark:border-gray-700">
             {loadingRelated && <div className="text-gray-300">Loading...</div>}
             {!loadingRelated && lists[activeTab].length === 0 && (
               <div className="text-gray-300">No items.</div>

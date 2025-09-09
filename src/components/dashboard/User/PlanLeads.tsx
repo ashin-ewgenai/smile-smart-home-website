@@ -121,8 +121,8 @@ const PlanLeads: React.FC = () => {
     <div className="p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Plan Leads</h1>
-          <span className="text-sm text-gray-400">{leads.length} total leads</span>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Plan Leads</h1>
+          <span className="text-sm text-gray-700 dark:text-gray-400">{leads.length} total leads</span>
         </div>
       </div>
       
@@ -138,10 +138,10 @@ const PlanLeads: React.FC = () => {
                 <div 
                   key={lead.id} 
                   onClick={() => handleLeadClick(lead)}
-                  className={`group relative rounded-lg border border-gray-800 p-4 transition-colors duration-200
+                  className={`group relative rounded-lg border p-4 transition-colors duration-200 shadow-sm
                     ${openId === lead.id 
-                      ? 'bg-gray-800/70 border-blue-500/30' 
-                      : 'bg-gray-900/40 hover:bg-gray-900/60'}`}
+                      ? 'bg-gray-50 border-blue-600/40 dark:bg-gray-950 dark:border-blue-600/50' 
+                      : 'bg-white hover:bg-gray-50 border-gray-200 dark:bg-gray-950 dark:hover:bg-gray-900 dark:border-gray-900'}`}
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => e.key === 'Enter' && handleLeadClick(lead)}
@@ -151,15 +151,15 @@ const PlanLeads: React.FC = () => {
                   <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-white">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
                           {lead.email || 'Unknown Email'}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-400 truncate mt-0.5">
+                      <p className="text-xs text-gray-600 dark:text-gray-300 truncate mt-0.5">
                         {lead.complexity} Plan • {lead.formData?.spaceType || 'N/A'}
                       </p>
                     </div>
-                    <span className="text-xs text-gray-500 whitespace-nowrap">
+                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                       {lead.updatedAt 
                         ? new Date(
                             typeof lead.updatedAt === 'object' && 'toDate' in lead.updatedAt 
@@ -177,12 +177,12 @@ const PlanLeads: React.FC = () => {
                   </div>
                   <div className="space-y-3">
                     <div>
-                      <p className="text-sm text-gray-300 line-clamp-2">
+                      <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
                         {lead.formData?.goals?.join(', ') || 'No goals specified'}
                       </p>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-blue-400">
+                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
                         {openId === lead.id ? 'Hide details' : 'View details'}
                       </span>
                     </div>
@@ -191,9 +191,9 @@ const PlanLeads: React.FC = () => {
                   {openId === lead.id && (
                     <div 
                       id={`lead-panel-${lead.id}`}
-                      className="pt-3 mt-3 border-t border-gray-800"
+                      className="pt-3 mt-3 border-t border-gray-200 dark:border-gray-800"
                     >
-                      <div className="text-sm text-gray-300 space-y-3">
+                      <div className="text-sm text-gray-700 dark:text-gray-300 space-y-3">
                         {renderPlan(lead)}
                       </div>
                     </div>

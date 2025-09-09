@@ -284,9 +284,9 @@ const AdminDashboard: React.FC = () => {
   
   return (
     <div>
-      <div className="mb-6">
+      <div className="mb-6 rounded-2xl bg-gradient-to-r from-white to-gray-50 border border-gray-200 shadow-sm dark:bg-transparent dark:border-transparent px-4 py-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
-        <div className="flex items-center justify-between">
+        <div className="mt-2 flex items-center justify-between">
           <p className="text-gray-600 dark:text-gray-400">Welcome to your admin dashboard</p>
           <div className="relative inline-block">
             <button
@@ -296,7 +296,7 @@ const AdminDashboard: React.FC = () => {
               aria-haspopup="menu"
               aria-expanded={isQuickActionsOpen}
               aria-controls="quick-actions-menu"
-              className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-900 dark:text-white bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-900 dark:text-white bg-white dark:bg-gray-700 rounded-md border border-gray-300 dark:border-gray-600 shadow-sm hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500"
             >
               Quick Actions
               <ChevronDown className={`h-4 w-4 transition-transform ${isQuickActionsOpen ? 'rotate-180' : ''}`} />
@@ -306,7 +306,7 @@ const AdminDashboard: React.FC = () => {
                 id="quick-actions-menu"
                 role="menu"
                 aria-labelledby="quick-actions-button"
-                className="absolute right-0 top-full mt-2 w-full bg-white dark:bg-gray-800 rounded-lg shadow-xl ring-1 ring-black/10 dark:ring-white/10 border border-gray-200/70 dark:border-gray-700/60 z-30 overflow-hidden"
+                className="absolute right-0 top-full mt-2 w-full bg-white/95 backdrop-blur-sm dark:bg-gray-800 rounded-lg shadow-xl ring-1 ring-black/10 dark:ring-white/10 border border-gray-200/70 dark:border-gray-700/60 z-30 overflow-hidden"
               >
                 <div className="p-0 divide-y divide-gray-100 dark:divide-gray-700">
                   <a
@@ -338,7 +338,7 @@ const AdminDashboard: React.FC = () => {
               const Icon = kpi.icon as any;
               const isUp = kpi.delta >= 0;
               const cardInner = (
-                <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border border-gray-200 dark:border-gray-700 h-full flex flex-col">
+                <div className="bg-white/95 dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow p-6 border border-gray-200 dark:border-gray-700 h-full flex flex-col">
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="text-base text-gray-600 dark:text-gray-400">{kpi.label}</span>
@@ -352,7 +352,7 @@ const AdminDashboard: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    <div className={`p-3 rounded-md ${kpi.color.replace('text-', 'bg-').replace('-500', '-100')} dark:bg-gray-700`}>
+                    <div className={`p-3 rounded-md ${kpi.color.replace('text-', 'bg-').replace('-500', '-100')} dark:bg-gray-700`}> 
                       <Icon className={`h-6 w-6 ${kpi.color}`} />
                     </div>
                   </div>
@@ -386,7 +386,7 @@ const AdminDashboard: React.FC = () => {
           
           <div className="grid grid-cols-1 gap-6">
             {/* Recent Users */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="bg-white/95 dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Users</h2>
                 <a href="/dashboard/admin/users" className="text-sm text-teal-600 dark:text-teal-400 hover:underline">View All</a>

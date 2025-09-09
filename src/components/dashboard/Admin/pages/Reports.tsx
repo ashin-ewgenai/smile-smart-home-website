@@ -173,11 +173,11 @@ const Reports: React.FC = () => {
     <div className="p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Support Tickets</h1>
-          <span className="text-sm text-gray-400">{visible.length} active tickets</span>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Support Tickets</h1>
+          <span className="text-sm text-gray-700 dark:text-gray-400">{visible.length} active tickets</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-300">Sort by:</span>
+          <span className="text-sm text-gray-700 dark:text-gray-300">Sort by:</span>
           <div className="inline-flex rounded-md shadow-sm" role="group">
             <button
               type="button"
@@ -185,7 +185,7 @@ const Reports: React.FC = () => {
               className={`px-3 py-1.5 text-xs font-medium rounded-l-md ${
                 sortOrder === 'newest'
                   ? 'bg-teal-600 text-white'
-                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
               } transition-colors`}
             >
               Newest First
@@ -196,7 +196,7 @@ const Reports: React.FC = () => {
               className={`px-3 py-1.5 text-xs font-medium rounded-r-md ${
                 sortOrder === 'oldest'
                   ? 'bg-teal-600 text-white'
-                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
               } transition-colors`}
             >
               Oldest First
@@ -218,22 +218,22 @@ const Reports: React.FC = () => {
       ) : (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {visible.map((ticket) => (
-            <div key={ticket.id} className="group relative rounded-lg border border-gray-800 bg-gray-900/40 p-4 hover:bg-gray-900/60 transition-colors duration-200">
+            <div key={ticket.id} className="group relative rounded-lg border p-4 transition-colors duration-200 shadow-sm bg-white border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900/40 dark:hover:bg-gray-900/60">
               {/* Header with user info and timestamp */}
               <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-white">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
                       {userCache[ticket.userUid!]?.displayName || 'User'}
                     </span>
                   </div>
                   {userCache[ticket.userUid!]?.email && (
-                    <p className="text-xs text-gray-400 truncate mt-0.5">
+                    <p className="text-xs text-gray-600 dark:text-gray-400 truncate mt-0.5">
                       {userCache[ticket.userUid!]?.email}
                     </p>
                   )}
                 </div>
-                <span className="text-xs text-gray-500 whitespace-nowrap">
+                <span className="text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap">
                   {fmt(ticket.createdAt)}
                 </span>
               </div>
@@ -242,10 +242,10 @@ const Reports: React.FC = () => {
               <div className="space-y-3">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-medium text-white">{ticket.subject}</h4>
-                    <span className="text-xs text-gray-400">• {ticket.category}</span>
+                    <h4 className="text-sm font-medium text-gray-900 dark:text-white">{ticket.subject}</h4>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">• {ticket.category}</span>
                   </div>
-                  <p className="mt-1 text-sm text-gray-300 line-clamp-3" title={ticket.description}>
+                  <p className="mt-1 text-sm text-gray-700 dark:text-gray-300 line-clamp-3" title={ticket.description}>
                     {ticket.description}
                   </p>
                 </div>
@@ -264,15 +264,15 @@ const Reports: React.FC = () => {
 
                 {/* Admin reply section */}
                 {(ticket.adminReply || ticket.adminRepliedAt) && (
-                  <div className="mt-3 p-3 rounded-md bg-gray-900/50 border border-gray-800">
-                    <div className="flex items-center justify-between text-xs text-gray-400 mb-1">
+                  <div className="mt-3 p-3 rounded-md bg-gray-50 border border-gray-200 dark:bg-gray-900/50 dark:border-gray-800">
+                    <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
                       <span>Admin response</span>
                       {ticket.adminRepliedAt && (
                         <span>{fmt(ticket.adminRepliedAt)}</span>
                       )}
                     </div>
                     {ticket.adminReply && (
-                      <p className="text-sm text-gray-200 mt-1 whitespace-pre-wrap">
+                      <p className="text-sm text-gray-800 dark:text-gray-200 mt-1 whitespace-pre-wrap">
                         {ticket.adminReply}
                       </p>
                     )}
@@ -282,11 +282,11 @@ const Reports: React.FC = () => {
                 {/* Status update */}
                 <div className="mt-3 pt-3 border-t border-gray-800">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-gray-300">Update Status</span>
+                    <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Update Status</span>
                     <select
                       value={ticket.status}
                       onChange={(e) => updateTicketStatus(ticket, e.target.value)}
-                      className="text-xs px-3 py-1.5 rounded-md border border-gray-700 bg-gray-900 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors"
+                      className="text-xs px-3 py-1.5 rounded-md border border-gray-300 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition-colors dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
                     >
                       <option value="Pending">Pending</option>
                       <option value="Resolved">Resolved</option>

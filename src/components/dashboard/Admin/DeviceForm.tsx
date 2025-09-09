@@ -424,7 +424,7 @@ export default function DeviceForm() {
             type="text"
             required
             placeholder="e.g., Living Room Camera"
-            className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+            className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
             value={values.name}
             onChange={onChange}
           />
@@ -437,7 +437,7 @@ export default function DeviceForm() {
             id="type"
             name="type"
             required
-            className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+            className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
             value={values.type}
             onChange={onChange}
           >
@@ -456,7 +456,7 @@ export default function DeviceForm() {
             name="serial"
             type="text"
             placeholder="e.g., SN123456"
-            className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+            className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
             value={values.serial ?? ''}
             onChange={onChange}
           />
@@ -472,7 +472,7 @@ export default function DeviceForm() {
             name="brand"
             type="text"
             placeholder="e.g., Samsung"
-            className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+            className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
             value={values.brand ?? ''}
             onChange={onChange}
           />
@@ -503,14 +503,14 @@ export default function DeviceForm() {
               min="0"
               step="1"
               placeholder="e.g., 12"
-              className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+              className="block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
               value={typeof values.warrantyValue === 'number' ? values.warrantyValue : ''}
               onChange={(e) => setValues((v) => ({ ...v, warrantyValue: e.target.value === '' ? undefined : Number(e.target.value) }))}
             />
             <select
               id="warrantyUnit"
               name="warrantyUnit"
-              className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2 col-span-2"
+              className="block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2 col-span-2"
               value={values.warrantyUnit ?? 'months'}
               onChange={(e) => setValues((v) => ({ ...v, warrantyUnit: (e.target.value as 'months' | 'years') }))}
             >
@@ -532,7 +532,7 @@ export default function DeviceForm() {
             min="0"
             step="0.01"
             placeholder="e.g., 99.99"
-            className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+            className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
             value={values.price ?? ''}
             onChange={(e) => setValues(v => ({ ...v, price: e.target.value === '' ? undefined : Number(e.target.value) }))}
           />
@@ -546,7 +546,7 @@ export default function DeviceForm() {
             min="0"
             step="1"
             placeholder="e.g., 10"
-            className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+            className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
             value={values.stock ?? ''}
             onChange={onStockChange}
           />
@@ -562,7 +562,7 @@ export default function DeviceForm() {
           name="description"
           rows={3}
           placeholder="Short description of the device"
-          className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+          className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
           value={values.description ?? ''}
           onChange={onDescriptionChange}
         />
@@ -573,7 +573,7 @@ export default function DeviceForm() {
         <select
           id="status"
           name="status"
-          className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+          className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
           value={values.status}
           onChange={onChange}
         >
@@ -590,7 +590,7 @@ export default function DeviceForm() {
           name="documentation"
           type="text"
           placeholder="Link or notes for device documentation"
-          className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+          className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
           value={values.documentation ?? ''}
           onChange={onChange}
         />
@@ -643,7 +643,7 @@ export default function DeviceForm() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredDevices.map((d) => (
-              <div key={d.id} className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 flex gap-3">
+              <div key={d.id} className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 p-4 flex gap-3 transition-shadow hover:shadow-md dark:hover:shadow-lg hover:border-gray-300 dark:hover:border-gray-600">
                 {d.imageUrl ? (
                   <img src={d.imageUrl} alt={d.name} className="w-20 h-20 object-cover rounded" />
                 ) : (
@@ -652,7 +652,7 @@ export default function DeviceForm() {
                 <div className="min-w-0">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{d.name}</h3>
-                    <span className={`text-xs px-2 py-0.5 rounded ${d.status === 'Active' ? 'bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'}`}>{d.status}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded ${d.status === 'Active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'}`}>{d.status}</span>
                   </div>
                   <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 truncate">Type: {d.type || '-'}</div>
                   {(typeof d.price !== 'undefined') && (
