@@ -284,7 +284,7 @@ const AdminDashboard: React.FC = () => {
   
   return (
     <div>
-      <div className="mb-6 rounded-2xl bg-gradient-to-r from-white to-gray-50 border border-gray-200 shadow-sm dark:bg-transparent dark:border-transparent px-4 py-4">
+      <div className="mb-6 rounded-2xl bg-gradient-to-r from-white to-gray-50 border border-gray-200 shadow-sm dark:bg-none dark:bg-gray-900/80 dark:border-gray-700 px-4 py-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
         <div className="mt-2 flex items-center justify-between">
           <p className="text-gray-600 dark:text-gray-400">Welcome to your admin dashboard</p>
