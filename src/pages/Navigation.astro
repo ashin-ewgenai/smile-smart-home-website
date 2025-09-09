@@ -66,7 +66,7 @@ import AuthNavClient from '../components/common/AuthNavClient';
         </div>
         
         <!-- Mobile menu button (show up to 910px) -->
-        <button class="hidden max-[910px]:inline-flex p-2.5 rounded-xl bg-gradient-to-r from-teal/10 to-blue-500/10 hover:from-teal/20 hover:to-blue-500/20 border border-teal/20 transition-all duration-200 hover:scale-105" id="mobile-menu-button">
+        <button class="hidden max-[910px]:inline-flex p-2.5 rounded-xl bg-gradient-to-r from-teal/10 to-blue-500/10 hover:from-teal/20 hover:to-blue-500/20 border border-teal/20 transition-all duration-200 hover:scale-105" id="mobile-menu-button" aria-controls="mobile-menu" aria-expanded="false">
           <svg class="w-5 h-5 text-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
           </svg>
@@ -75,7 +75,7 @@ import AuthNavClient from '../components/common/AuthNavClient';
     </div>
 
     <!-- Mobile Navigation -->
-    <div class="hidden min-[911px]:hidden max-[910px]:block" id="mobile-menu">
+    <div class="hidden overflow-hidden max-h-0 opacity-0 transition-all duration-300 ease-out" id="mobile-menu">
       <div class="px-3 pt-3 pb-4 space-y-2 bg-white/98 dark:bg-charcoal/98 backdrop-blur-md border-t border-gray-200/60 dark:border-gray-700/60 shadow-lg">
         <a href="/" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Home</a>
         <a href="/services" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Services</a>
@@ -103,34 +103,90 @@ import AuthNavClient from '../components/common/AuthNavClient';
     filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
   }
   
-  /* Desktop hover behavior */
-  @media (hover: hover) and (pointer: fine) {
-    #mobile-menu-button:hover + #mobile-menu,
-    #mobile-menu:hover {
-      display: block !important;
-    }
-  }
-  
-  /* Mobile click behavior */
-  #mobile-menu {
-    display: none;
-  }
-  
-  #mobile-menu.active {
-    display: block;
-  }
+  /* No hover-override; visibility is controlled by JS via classes */
 </style>
 
 <script>
-  // Mobile click handler
-  document.addEventListener('DOMContentLoaded', () => {
-    const menuButton = document.getElementById('mobile-menu-button');
-    const mobileMenu = document.getElementById('mobile-menu');
-    
-    menuButton?.addEventListener('click', () => {
-      mobileMenu?.classList.toggle('active');
+  // Mobile click handler with aria + outside click close + smooth transitions.
+  // Re-initialize on Astro view transitions.
+  (function(){
+    const init = () => {
+      if ((window as any).__mobileMenuInit) return;
+      (window as any).__mobileMenuInit = true;
+
+      const menuButton = document.getElementById('mobile-menu-button');
+      const mobileMenu = document.getElementById('mobile-menu');
+
+      const closeMenu = () => {
+        if (!mobileMenu) return;
+        // Animate close
+        mobileMenu.style.maxHeight = '0px';
+        mobileMenu.style.opacity = '0';
+        document.documentElement.classList.remove('overflow-hidden');
+        document.body.classList.remove('overflow-hidden');
+        menuButton?.setAttribute('aria-expanded', 'false');
+        const onEnd = () => {
+          mobileMenu.classList.add('hidden');
+          mobileMenu.classList.remove('block');
+          mobileMenu.removeEventListener('transitionend', onEnd);
+        };
+        mobileMenu.addEventListener('transitionend', onEnd);
+      };
+
+      menuButton?.addEventListener('click', (e) => {
+        if (!mobileMenu) return;
+        e.stopPropagation();
+        const isHidden = mobileMenu.classList.contains('hidden');
+        if (isHidden) {
+          // Prepare and animate open
+          mobileMenu.classList.remove('hidden');
+          mobileMenu.classList.add('block');
+          // Force reflow to ensure transition runs
+          void mobileMenu.offsetHeight;
+          mobileMenu.style.maxHeight = mobileMenu.scrollHeight + 'px';
+          mobileMenu.style.opacity = '1';
+          document.documentElement.classList.add('overflow-hidden');
+          document.body.classList.add('overflow-hidden');
+          menuButton.setAttribute('aria-expanded', 'true');
+          const onOpenEnd = () => {
+            // Allow content growth without jump after open
+            mobileMenu.style.maxHeight = 'none';
+            mobileMenu.removeEventListener('transitionend', onOpenEnd);
+          };
+          mobileMenu.addEventListener('transitionend', onOpenEnd);
+        } else {
+          closeMenu();
+        }
+      });
+
+      document.addEventListener('click', (e) => {
+        if (!mobileMenu || !menuButton) return;
+        const target = e.target as HTMLElement;
+        if (target.closest('#mobile-menu') || target.closest('#mobile-menu-button')) return;
+        closeMenu();
+      });
+
+      // Close when clicking a link inside the mobile menu
+      mobileMenu?.addEventListener('click', (e) => {
+        const t = e.target as HTMLElement | null;
+        if (t && t.closest('a')) {
+          closeMenu();
+        }
+      });
+
+      // Close on resize to desktop
+      window.addEventListener('resize', () => {
+        if (window.innerWidth >= 911) closeMenu();
+      });
+    };
+
+    document.addEventListener('DOMContentLoaded', init);
+    document.addEventListener('astro:page-load', () => {
+      // Allow re-init after swaps
+      (window as any).__mobileMenuInit = false;
+      init();
     });
-  });
+  })();
 </script>
 
 <script>
