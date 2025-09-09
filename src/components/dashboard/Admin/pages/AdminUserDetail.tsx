@@ -538,7 +538,10 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
 
   const openDetails = (type: TabKey, id: string, data: any) => {
     if (type === 'devices' && account?.id) {
-      setSelectedDevice({ id, userId: account.id });
+      // For devices, prefer opening the modal with the actual Devices/{id},
+      // using sourceDeviceId when present on the user device row.
+      const deviceIdToOpen = (data?.sourceDeviceId as string) || id;
+      setSelectedDevice({ id: deviceIdToOpen, userId: account.id });
       return;
     }
     setSelected({ type, id, data });
@@ -782,13 +785,13 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
           {!loading && !error && account && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <div className="text-2xl font-semibold text-white">{account.FullName || '—'}</div>
-                <div className="text-lg text-gray-300">{account.Email || '—'}</div>
+                <div className="text-2xl font-semibold text-gray-900 dark:text-white">{account.FullName || '—'}</div>
+                <div className="text-lg text-gray-700 dark:text-gray-300">{account.Email || '—'}</div>
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="text-gray-400">UID</div><div className="text-gray-100 truncate" title={account.Uid}>{account.Uid}</div>
-                <div className="text-gray-400">Role</div><div className="text-gray-100">{account.Role}</div>
-                <div className="text-gray-400">Status</div><div className="text-gray-100">{account.Status}</div>
+                <div className="text-gray-500 dark:text-gray-400">UID</div><div className="text-gray-900 dark:text-gray-100 truncate" title={account.Uid}>{account.Uid}</div>
+                <div className="text-gray-500 dark:text-gray-400">Role</div><div className="text-gray-900 dark:text-gray-100">{account.Role}</div>
+                <div className="text-gray-500 dark:text-gray-400">Status</div><div className="text-gray-900 dark:text-gray-100">{account.Status}</div>
               </div>
             </div>
           )}
@@ -798,7 +801,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       {/* Tabs */}
       {account?.id && (
         <div className="max-w-6xl mx-auto mt-6">
-          <div className="flex justify-between items-center border-b border-gray-800 bg-gray-900 rounded-t-xl px-2 sm:px-3 py-2 dark:bg-transparent dark:border-gray-700">
+          <div className="flex justify-between items-center border-b border-gray-200 bg-white rounded-t-xl px-2 sm:px-3 py-2 dark:bg-transparent dark:border-gray-700">
             <div className="flex gap-2">
               {([
                 { key: 'quotes', label: `Quotes (${quotes?.length ?? 0})` },
@@ -811,8 +814,8 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 onClick={() => setActiveTab(t.key)}
                 className={`px-4 py-2 text-sm rounded-t-md border border-b-0 ${
                   activeTab === t.key
-                    ? 'bg-gray-900 text-white border-gray-800 dark:bg-gray-800 dark:border-gray-700'
-                    : 'bg-gray-900/70 text-gray-200 hover:bg-gray-900 border-transparent dark:bg-gray-800/40 dark:text-gray-300 dark:hover:bg-gray-700/50'
+                    ? 'bg-white text-gray-900 border-gray-200 dark:bg-gray-800 dark:border-gray-700 dark:text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-50 border-transparent dark:bg-gray-800/40 dark:text-gray-300 dark:hover:bg-gray-700/50'
                 }`}
               >
                 {t.label}
@@ -829,7 +832,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
             )}
           </div>
 
-          <div className="bg-gray-900/80 border border-gray-800 rounded-b-md rounded-tr-md p-2 md:p-4 dark:bg-gray-800/60 dark:border-gray-700">
+          <div className="bg-white border border-gray-200 rounded-b-md rounded-tr-md p-2 md:p-4 dark:bg-gray-800/60 dark:border-gray-700">
             {loadingRelated && <div className="text-gray-300">Loading...</div>}
             {!loadingRelated && lists[activeTab].length === 0 && (
               <div className="text-gray-300">No items.</div>
@@ -839,7 +842,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="text-left text-xs text-gray-400 uppercase">
+                    <tr className="text-left text-xs uppercase text-gray-600 dark:text-gray-400">
                       {activeTab === 'devices' ? (
                         <>
                           <th className="py-2 pr-4">Device Name</th>
@@ -876,12 +879,12 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                           <tr
                             key={row.id}
                             onClick={() => openDetails('devices', row.id, row)}
-                            className="cursor-pointer border-b border-gray-700/70 hover:bg-gray-700/40"
+                            className="cursor-pointer border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700/70 dark:hover:bg-gray-700/40"
                           >
-                            <td className="py-2 pr-4 text-gray-100">
+                            <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">
                               {row.deviceName || 'Unnamed Device'}
                             </td>
-                            <td className="py-2 pr-4 text-gray-300">{row.type || 'Unknown'}</td>
+                            <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{row.type || 'Unknown'}</td>
                           </tr>
                         );
                       }
@@ -891,13 +894,13 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                           <tr
                             key={row.id}
                             onClick={() => openDetails('tickets', row.id, row)}
-                            className={`cursor-pointer border-b border-gray-700/70 hover:bg-gray-700/40 ${isUnread ? 'font-semibold' : ''}`}
+                            className={`cursor-pointer border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700/70 dark:hover:bg-gray-700/40 ${isUnread ? 'font-semibold' : ''}`}
                           >
-                            <td className="py-2 pr-4 text-gray-100">
+                            <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">
                               {row.subject || row.title || 'No Subject'}
                             </td>
                             <td className="py-2 pr-4">{statusBadge(status)}</td>
-                            <td className="py-2 pr-4 text-gray-300">{fmt(dateFrom(created))}</td>
+                            <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{fmt(dateFrom(created))}</td>
                           </tr>
                         );
                       }
@@ -907,13 +910,13 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                           <tr
                             key={row.id}
                             onClick={() => openDetails('services', row.id, row)}
-                            className={`cursor-pointer border-b border-gray-700/70 hover:bg-gray-700/40 ${isUnread ? 'font-semibold' : ''}`}
+                            className={`cursor-pointer border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700/70 dark:hover:bg-gray-700/40 ${isUnread ? 'font-semibold' : ''}`}
                           >
-                            <td className="py-2 pr-4 text-gray-100">
+                            <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">
                               {row.service || row.category || 'Uncategorized Service'}
                             </td>
                             <td className="py-2 pr-4">{statusBadge(status)}</td>
-                            <td className="py-2 pr-4 text-gray-300">{fmt(dateFrom(created))}</td>
+                            <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{fmt(dateFrom(created))}</td>
                           </tr>
                         );
                       }
@@ -923,13 +926,13 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                         <tr
                           key={row.id}
                           onClick={() => openDetails(activeTab as any, row.id, row)}
-                          className={`cursor-pointer border-b border-gray-700/70 hover:bg-gray-700/40 ${isUnread ? 'font-semibold' : ''}`}
+                          className={`cursor-pointer border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700/70 dark:hover:bg-gray-700/40 ${isUnread ? 'font-semibold' : ''}`}
                         >
-                          <td className="py-2 pr-4 text-gray-100 truncate max-w-[14rem]" title={row.quoteType || row.type || row.id}>
+                          <td className="py-2 pr-4 text-gray-900 dark:text-gray-100 truncate max-w-[14rem]" title={row.quoteType || row.type || row.id}>
                             {row.quoteType || row.type || '—'}
                           </td>
                           <td className="py-2 pr-4">{statusBadge(status)}</td>
-                          <td className="py-2 pr-4 text-gray-300">{fmt(dateFrom(created))}</td>
+                          <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{fmt(dateFrom(created))}</td>
                         </tr>
                       );
                     })}

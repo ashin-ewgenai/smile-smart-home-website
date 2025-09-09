@@ -328,16 +328,16 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-start justify-center z-50 p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-2xl shadow-2xl my-8 flex flex-col max-h-[90vh]">
+      <div className="w-full max-w-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl my-8 flex flex-col max-h-[90vh]">
         {/* Fixed Header */}
-        <div className="flex-none bg-gray-900 px-6 pt-6 pb-2 border-b border-gray-800">
+        <div className="flex-none bg-white dark:bg-gray-900 px-6 pt-6 pb-2 border-b border-gray-200 dark:border-gray-800">
           <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold text-white">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               Device Details
             </h3>
             <button 
               onClick={onClose}
-              className="text-gray-300 hover:text-white text-xl rounded-full hover:bg-white/5 px-2 py-1"
+              className="text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white text-xl rounded-full hover:bg-black/5 dark:hover:bg-white/5 px-2 py-1"
               aria-label="Close"
             >
               ✕
@@ -360,11 +360,11 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                     <img 
                       src={device.imageUrl} 
                       alt={device.deviceName || 'Device'} 
-                      className="h-56 w-56 object-cover rounded-full border-2 border-gray-700"
+                      className="h-56 w-56 object-cover rounded-full border-2 border-gray-200 dark:border-gray-700"
                     />
                   ) : (
-                    <div className="h-56 w-56 flex items-center justify-center bg-gray-800 rounded-full border-2 border-gray-700">
-                      <span className="text-gray-500">No Image</span>
+                    <div className="h-56 w-56 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-full border-2 border-gray-200 dark:border-gray-700">
+                      <span className="text-gray-500 dark:text-gray-400">No Image</span>
                     </div>
                   )}
                 </div>
@@ -372,24 +372,24 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                 {/* Right Column - Device Details */}
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="sm:col-span-1 text-gray-400 whitespace-nowrap">Device Name</div>
+                    <div className="sm:col-span-1 text-gray-600 dark:text-gray-400 whitespace-nowrap">Device Name</div>
                     <div className="sm:col-span-2">
-                      <div className="text-gray-100 break-words">
+                      <div className="text-gray-900 dark:text-gray-100 break-words">
                         {device?.deviceName || 'N/A'}
                       </div>
                     </div>
 
-                    <div className="sm:col-span-1 text-gray-400">Type</div>
-                    <div className="sm:col-span-2 text-gray-100">{device?.type || 'N/A'}</div>
+                    <div className="sm:col-span-1 text-gray-600 dark:text-gray-400">Type</div>
+                    <div className="sm:col-span-2 text-gray-900 dark:text-gray-100">{device?.type || 'N/A'}</div>
 
-                    <div className="sm:col-span-1 text-gray-400">Brand</div>
-                    <div className="sm:col-span-2 text-gray-100">{device?.brand || 'N/A'}</div>
+                    <div className="sm:col-span-1 text-gray-600 dark:text-gray-400">Brand</div>
+                    <div className="sm:col-span-2 text-gray-900 dark:text-gray-100">{device?.brand || 'N/A'}</div>
 
-                    <div className="sm:col-span-1 text-gray-400">Model</div>
-                    <div className="sm:col-span-2 text-gray-100">{device?.modelNumber || 'N/A'}</div>
+                    <div className="sm:col-span-1 text-gray-600 dark:text-gray-400">Model</div>
+                    <div className="sm:col-span-2 text-gray-900 dark:text-gray-100">{device?.modelNumber || 'N/A'}</div>
                     
-                    <div className="sm:col-span-1 text-gray-400">Warranty</div>
-                    <div className="sm:col-span-2 text-gray-100">
+                    <div className="sm:col-span-1 text-gray-600 dark:text-gray-400">Warranty</div>
+                    <div className="sm:col-span-2 text-gray-900 dark:text-gray-100">
                       {device?.warranty || 'N/A'}
                     </div>
                   </div>
@@ -398,9 +398,9 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
               
               {/* Editable Fields */}
               <div className="mt-6">
-                <h4 className="text-gray-300 font-medium mb-4">Editable Fields</h4>
+                <h4 className="text-gray-700 dark:text-gray-300 font-medium mb-4">Editable Fields</h4>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="text-gray-400">Number of Devices</div>
+                  <div className="text-gray-600 dark:text-gray-400">Number of Devices</div>
                   <div className="col-span-2 flex items-center">
                     {editingField === 'numberOfDevices' ? (
                       <div className="space-y-3">
@@ -409,7 +409,7 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                           value={numberOfDevices}
                           onChange={(e) => setNumberOfDevices(Math.max(1, parseInt(e.target.value) || 1))}
                           min="1"
-                          className="block w-full rounded-md border-gray-700 bg-gray-800 text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                          className="block w-full rounded-md border-gray-300 bg-white text-gray-900 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                         />
                         <div className="flex gap-2">
                           <button
@@ -420,7 +420,7 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                           </button>
                           <button
                             onClick={handleCancelEdit}
-                            className="px-3 py-1 bg-gray-600 hover:bg-gray-700 rounded text-xs text-white"
+                            className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded text-xs dark:bg-gray-600 dark:hover:bg-gray-700 dark:text-white"
                           >
                             Cancel
                           </button>
@@ -428,10 +428,10 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                       </div>
                     ) : (
                       <div className="flex items-center gap-2">
-                        <span>{numberOfDevices}</span>
+                        <span className="text-gray-900 dark:text-gray-100">{numberOfDevices}</span>
                         <button
                           onClick={() => handleEditField('numberOfDevices', numberOfDevices.toString())}
-                          className="text-gray-400 hover:text-teal-400"
+                          className="text-gray-600 hover:text-teal-600 dark:text-gray-400 dark:hover:text-teal-400"
                           title="Edit"
                         >
                           <svg
@@ -447,7 +447,7 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                     )}
                   </div>
 
-                  <div className="text-gray-400">Serial Numbers</div>
+                  <div className="text-gray-600 dark:text-gray-400">Serial Numbers</div>
                   <div className="col-span-2 space-y-3">
                     {editingField === 'serials' ? (
                       <div className="space-y-3">
@@ -467,7 +467,7 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                                   setEditingSerials(newSerials);
                                 }}
                                 placeholder="Enter serial number"
-                                className="block w-full rounded-md border-gray-700 bg-gray-800 text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                                className="block w-full rounded-md border-gray-300 bg-white text-gray-900 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                               />
                             </div>
                             <div className="flex gap-2 items-center pl-8">
@@ -483,7 +483,7 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                                   newSerials[index].warrantyExpiry = e.target.value;
                                   setEditingSerials(newSerials);
                                 }}
-                                className="block rounded-md border-gray-700 bg-gray-800 text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                                className="block rounded-md border-gray-300 bg-white text-gray-900 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                               />
                               <div className="flex flex-col gap-2">
                                 <div className="flex gap-1 items-center">
@@ -499,7 +499,7 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                                       setWarrantyControls(newControls);
                                     }}
                                     min="1"
-                                    className="w-16 rounded-md border-gray-700 bg-gray-800 text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                                    className="w-16 rounded-md border-gray-300 bg-white text-gray-900 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                                   />
                                   <select
                                     value={warrantyControls[index]?.unit || 'months'}
@@ -511,7 +511,7 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                                       newControls[index].unit = e.target.value as 'months' | 'years';
                                       setWarrantyControls(newControls);
                                     }}
-                                    className="rounded-md border-gray-700 bg-gray-800 text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                                    className="rounded-md border-gray-300 bg-white text-gray-900 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                                   >
                                     <option value="months">Months</option>
                                     <option value="years">Years</option>
@@ -526,7 +526,7 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                                   </button>
                                   <button
                                     onClick={() => clearWarranty(index)}
-                                    className="px-2 py-0.5 bg-gray-600 hover:bg-gray-700 rounded text-xs text-white"
+                                    className="px-2 py-0.5 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded text-xs dark:bg-gray-600 dark:hover:bg-gray-700 dark:text-white"
                                   >
                                     Clear
                                   </button>
@@ -560,7 +560,7 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                           </button>
                           <button
                             onClick={() => setEditingField(null)}
-                            className="p-1.5 rounded-full text-gray-300 hover:text-gray-100 bg-gray-500/10 hover:bg-gray-500/15 ring-1 ring-inset ring-gray-500/30 hover:ring-gray-400/50 shadow-sm hover:shadow-gray-500/20 transition flex items-center gap-1.5 px-3"
+                            className="p-1.5 rounded-full text-gray-700 hover:text-gray-900 bg-gray-500/10 hover:bg-gray-500/15 ring-1 ring-inset ring-gray-300 hover:ring-gray-400 shadow-sm transition flex items-center gap-1.5 px-3 dark:text-gray-300 dark:hover:text-gray-100 dark:ring-gray-500/30 dark:hover:ring-gray-400/50"
                             title="Cancel"
                             aria-label="Cancel editing"
                           >
@@ -586,7 +586,7 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                         {device?.serials?.map((serial, index) => (
                           <div key={index} className="flex items-center gap-2">
                             <span className="text-gray-400">{index + 1}.</span>
-                            <span className="text-gray-100">{serial.serialNumber}</span>
+                            <span className="text-gray-900 dark:text-gray-100">{serial.serialNumber}</span>
                             {serial.warrantyExpiry && (
                               <span className="text-xs text-gray-400">
                                 (Warranty: {new Date(serial.warrantyExpiry).toLocaleDateString()})
@@ -596,7 +596,7 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                         ))}
                         <button
                           onClick={() => setEditingField('serials')}
-                          className="mt-2 text-sm text-teal-400 hover:text-teal-300 flex items-center gap-1"
+                          className="mt-2 text-sm text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 flex items-center gap-1"
                         >
                           <span>Edit Serial Numbers</span>
                         </button>
@@ -607,8 +607,8 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                 
                 {/* Added On Section */}
                 <div className="grid grid-cols-3 gap-4 mt-4">
-                  <div className="text-gray-400">Added On</div>
-                  <div className="col-span-2 text-gray-300">
+                  <div className="text-gray-600 dark:text-gray-400">Added On</div>
+                  <div className="col-span-2 text-gray-900 dark:text-gray-300">
                     {(device?.addedAt || device?.createdAt)
                       ? new Date((device.addedAt || device.createdAt) as string).toLocaleDateString()
                       : 'N/A'}
