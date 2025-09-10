@@ -82,7 +82,14 @@ import AuthNavClient from '../components/common/AuthNavClient';
         <a href="/about" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">About</a>
         <a href="/gallery" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Gallery</a>
         <a href="/contact" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Contact</a>
-        <a href="/login" data-open-auth="login" class="block px-4 py-3 mt-3 text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl text-center font-medium shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200">Sign In</a>
+        <!-- Mobile auth: Sign In (hidden when authed by AuthNavClient) -->
+        <a href="/login" data-open-auth="login" data-auth="signin-mobile" class="block px-4 py-3 mt-3 text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl text-center font-medium shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200">Sign In</a>
+
+        <!-- Mobile auth: User button (shown when authed by AuthNavClient) -->
+        <button type="button" data-auth="user-mobile" style="display:none" class="hidden w-full px-4 py-3 mt-3 text-teal bg-teal/10 hover:bg-teal/20 rounded-xl text-center font-semibold transition-all duration-200">Hi there</button>
+
+        <!-- Mobile auth: Logout (shown when authed by AuthNavClient) -->
+        <button type="button" data-auth="logout-mobile" style="display:none" class="hidden w-full px-4 py-3 mt-2 text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-600/10 dark:hover:bg-red-600/20 rounded-xl text-center font-medium transition-all duration-200">Sign out</button>
       </div>
     </div>
   </nav>
@@ -170,7 +177,7 @@ import AuthNavClient from '../components/common/AuthNavClient';
           mobileMenu.style.opacity = '1';
           document.documentElement.classList.add('overflow-hidden');
           document.body.classList.add('overflow-hidden');
-          menuButton.setAttribute('aria-expanded', 'true');
+          menuButton?.setAttribute('aria-expanded', 'true');
           const onOpenEnd = () => {
             // Allow content growth without jump after open
             mobileMenu.style.maxHeight = 'none';

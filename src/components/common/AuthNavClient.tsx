@@ -83,18 +83,19 @@ export default function AuthNavClient() {
       const normRole = (role || '').toString().toLowerCase();
       const isUserRole = isAuthed && normRole === 'user';
 
-      // Desktop
+      // Desktop (keep role-specific behavior as-is)
       show(els.signIn, !isUserRole);
       show(els.signUp, !isUserRole);
       show(els.userText, isUserRole);
       show(els.userMenu, isUserRole);
       if (isUserRole) setText(els.userText, usernameFrom(user));
-      // Mobile
-      show(els.mSignIn, !isUserRole);
-      show(els.mSignUp, !isUserRole);
-      show(els.mUserBtn, isUserRole);
-      show(els.mLogout, isUserRole);
-      if (isUserRole) setText(els.mUserBtn, usernameFrom(user));
+
+      // Mobile (use authentication state, not role)
+      show(els.mSignIn, !isAuthed);
+      show(els.mSignUp, !isAuthed);
+      show(els.mUserBtn, isAuthed);
+      show(els.mLogout, isAuthed);
+      if (isAuthed) setText(els.mUserBtn, usernameFrom(user));
     }
 
     try {
@@ -113,12 +114,12 @@ export default function AuthNavClient() {
           show(els.userText, isUserRole);
           show(els.userMenu, isUserRole);
           if (isUserRole) setText(els.userText, name);
-          // Mobile
-          show(els.mSignIn, !isUserRole);
-          show(els.mSignUp, !isUserRole);
-          show(els.mUserBtn, isUserRole);
-          show(els.mLogout, isUserRole);
-          if (isUserRole) setText(els.mUserBtn, name);
+          // Mobile uses auth presence (email in LS implies logged in previously)
+          show(els.mSignIn, false);
+          show(els.mSignUp, false);
+          show(els.mUserBtn, true);
+          show(els.mLogout, true);
+          setText(els.mUserBtn, name);
         }
       }
     } catch {}
@@ -170,7 +171,7 @@ export default function AuthNavClient() {
       if (e.key === 'Escape') closeDropdown();
     });
 
-    // Mobile logout support remains
+    // Mobile actions
     const mLogout = els.mLogout as HTMLElement | null;
     if (mLogout) {
       mLogout.addEventListener('click', async (e) => {
@@ -180,6 +181,13 @@ export default function AuthNavClient() {
           try { localStorage.removeItem('userEmail'); } catch {}
           window.location.href = '/';
         } catch {}
+      });
+    }
+    const mUserBtn = els.mUserBtn as HTMLElement | null;
+    if (mUserBtn) {
+      mUserBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.location.href = '/dashboard/user';
       });
     }
 
