@@ -4,7 +4,7 @@ import RequestServiceModal from './RequestServiceModal';
 import RequestStatusModal from './RequestStatusModal';
 import { db, auth } from '../../../lib/firebase';
 import { getDocs, query, orderBy, limit, getDoc, collection, onSnapshot, doc, where } from 'firebase/firestore';
-import { userServiceRequestsCollection, userDoc } from '../../../models/Collections';
+import { requestServicesCollection, userDoc } from '../../../models/Collections';
 import { onAuthStateChanged } from 'firebase/auth';
 
 interface Device {
@@ -254,9 +254,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     setReqListError('');
     setReqListLoading(true);
     try {
-      // Read from nested subcollection: serviceRequests/{uid}/requests
+      // Read from the new Request_service collection, filtered by user ID
       const qRef = query(
-        userServiceRequestsCollection(db, user.uid),
+        requestServicesCollection(db),
+        where('uid', '==', user.uid),
         orderBy('createdAt', 'desc'),
         limit(50)
       );

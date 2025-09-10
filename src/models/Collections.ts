@@ -192,6 +192,34 @@ export async function registerUserWithProfile(
   return cred;
 }
 
+// Request Service Collection
+export interface RequestService {
+  uid: string;
+  service: string;
+  device: string;
+  date: string;
+  time: string;
+  priority: 'high' | 'normal' | 'low';
+  description: string;
+  status: 'open' | 'in_progress' | 'completed' | 'cancelled';
+  createdAt: Timestamp | null;
+  updatedAt: Timestamp | null;
+  assignedTo?: string;
+  assignedAt?: Timestamp | null;
+  completedAt?: Timestamp | null;
+  notes?: string;
+}
+
+export const COLLECTION_REQUEST_SERVICES = 'Request_service';
+
+export function requestServicesCollection(db: Firestore): CollectionReference<RequestService> {
+  return collection(db, COLLECTION_REQUEST_SERVICES) as CollectionReference<RequestService>;
+}
+
+export function requestServiceDoc(db: Firestore, id: string): DocumentReference<RequestService> {
+  return doc(db, COLLECTION_REQUEST_SERVICES, id) as DocumentReference<RequestService>;
+}
+
 // =====================
 // Additional Collections
 // =====================
@@ -303,31 +331,6 @@ export function alertsCollection(db: Firestore): CollectionReference<AlertDoc> {
 }
 export function alertDoc(db: Firestore, id: string): DocumentReference<AlertDoc> {
   return doc(db, COLLECTION_ALERTS, id) as DocumentReference<AlertDoc>;
-}
-
-// Nested: serviceRequests/{uid}/requests
-export const COLLECTION_USER_SERVICE_REQUESTS_ROOT = 'Service_Requests';
-export const SUBCOLLECTION_USER_REQUESTS = 'Requests_List';
-
-export interface UserServiceRequest {
-  createdAt?: Timestamp | null;
-  service?: string;
-  device?: string;
-  preferredDate?: string;
-  preferredTime?: string;
-  priority?: 'High' | 'Normal' | 'Low' | string;
-  status?: 'new' | 'ack' | 'done' | 'open' | 'closed' | string;
-  [key: string]: any;
-}
-
-export function userServiceRequestsParentDoc(db: Firestore, uid: string): DocumentReference {
-  return doc(db, COLLECTION_USER_SERVICE_REQUESTS_ROOT, uid);
-}
-export function userServiceRequestsCollection(db: Firestore, uid: string): CollectionReference<UserServiceRequest> {
-  return collection(db, COLLECTION_USER_SERVICE_REQUESTS_ROOT, uid, SUBCOLLECTION_USER_REQUESTS) as CollectionReference<UserServiceRequest>;
-}
-export function userServiceRequestDoc(db: Firestore, uid: string, requestId: string): DocumentReference<UserServiceRequest> {
-  return doc(db, COLLECTION_USER_SERVICE_REQUESTS_ROOT, uid, SUBCOLLECTION_USER_REQUESTS, requestId) as DocumentReference<UserServiceRequest>;
 }
 
 // Nested: quotes/{uid}/quote

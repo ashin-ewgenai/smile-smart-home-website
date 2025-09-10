@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { X } from 'lucide-react';
 import { db, auth } from '../../../lib/firebase';
 import { addDoc, serverTimestamp, setDoc, getDocs, query, where } from 'firebase/firestore';
-import { userServiceRequestsParentDoc, userServiceRequestsCollection } from '../../../models/Collections';
+import { requestServicesCollection } from '../../../models/Collections';
 
 interface Props {
   open: boolean;
@@ -220,33 +220,19 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
                   createdAt: serverTimestamp(),
                 };
                 try {
-                  // Ensure parent doc exists at serviceRequests/{uid}
-                  const parentRef = userServiceRequestsParentDoc(db, user.uid);
-                  await setDoc(
-                    parentRef,
-                    { uid: user.uid, updatedAt: serverTimestamp() },
-                    { merge: true }
-                  );
-
-                  // Add the request into subcollection 'requests'
-                  await addDoc(userServiceRequestsCollection(db, user.uid), {
-                    ...payload,
-                    updatedAt: serverTimestamp(),
+                  // Create document in the Request_service collection
+                  await addDoc(requestServicesCollection(db), {
+                    uid: user.uid,
+                    service: reqService,
+                    device: reqDevice,
+                    date: reqDate,
+                    time: reqTime,
+                    priority: reqPriority,
+                    description: reqDesc,
+                    status: 'open',
+                    createdAt: serverTimestamp(),
+                    updatedAt: serverTimestamp()
                   });
-
-                  // Recompute aggregates on parent: total_no and review_no (closed only)
-                  const listRef = userServiceRequestsCollection(db, user.uid);
-                  const [allSnap, closedSnap] = await Promise.all([
-                    getDocs(listRef),
-                    getDocs(query(listRef, where('status', '==', 'closed'))),
-                  ]);
-                  const total_no = allSnap.size;
-                  const review_no = closedSnap.size; // exclude 'open'
-                  await setDoc(
-                    parentRef,
-                    { total_no, review_no, updatedAt: serverTimestamp() },
-                    { merge: true }
-                  );
                   setReqSuccess('Submitted successfully.');
                   setReqError('');
                   setReqDevice('');
