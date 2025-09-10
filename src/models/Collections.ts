@@ -196,7 +196,7 @@ export async function registerUserWithProfile(
 export interface RequestService {
   uid: string;
   service: string;
-  device: string;
+  devices: string[];  // Array of device IDs
   date: string;
   time: string;
   priority: 'high' | 'normal' | 'low';

@@ -474,7 +474,49 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       rows.push({ label: 'Description', value: first('description', 'Description', 'message', 'Message'), wide: true, isLongText: true });
     } else if (selected.type === 'services') {
       rows.push({ label: 'Service', value: first('service', 'Service', 'category', 'Category') });
-      rows.push({ label: 'Device', value: first('device', 'Device') });
+      
+      // Generate colored device pills
+      const deviceItems = Array.isArray(d?.devices)
+        ? (d.devices as any[]).filter(Boolean)
+        : first('device', 'Device')
+            ? [first('device', 'Device')]
+            : [];
+            
+      const devicePills = deviceItems.length > 0 
+        ? (
+            <div className="flex flex-wrap gap-2 mt-1">
+              {deviceItems.map((device, idx) => {
+                // Normalize any device shape to a readable label
+                const getDeviceLabel = (v: any): string => {
+                  if (typeof v === 'string') return v;
+                  if (!v || typeof v !== 'object') return String(v ?? '');
+                  return (
+                    v.deviceName ||
+                    v.name ||
+                    v.label ||
+                    v.title ||
+                    v.model ||
+                    // If looks like a Firestore doc ref-like object with id
+                    v.id ||
+                    JSON.stringify(v)
+                  );
+                };
+                const label = getDeviceLabel(device);
+                
+                return (
+                  <span 
+                    key={idx}
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                  >
+                    {label}
+                  </span>
+                );
+              })}
+            </div>
+          )
+        : '—';
+        
+      rows.push({ label: 'Devices', value: devicePills });
       rows.push({ label: 'Priority', value: first('priority', 'Priority') });
       rows.push({ label: 'Description', value: first('description', 'Description', 'notes', 'Notes'), wide: true, isLongText: true });
       const scheduled = first('scheduledAt', 'scheduleAt', 'schedule', 'scheduled', 'dateTime', 'datetime');
@@ -1032,7 +1074,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                   {detailData.rows.map((r, i) => (
                     <div key={i} className={r.wide ? 'sm:col-span-2' : ''}>
                       <div className="text-gray-400">{r.label}</div>
-                      <div className={`text-gray-100 ${r.isLongText ? 'whitespace-pre-wrap' : ''}`}>{(r.value ?? '—').toString()}</div>
+                      <div className={`text-gray-100 ${r.isLongText ? 'whitespace-pre-wrap' : ''}`}>
+                        {React.isValidElement(r.value) ? r.value : (r.value ?? '—')}
+                      </div>
                     </div>
                   ))}
                 </div>

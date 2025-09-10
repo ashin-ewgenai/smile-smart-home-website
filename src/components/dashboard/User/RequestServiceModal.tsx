@@ -11,8 +11,8 @@ interface Props {
 }
 
 const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
-  const [reqService, setReqService] = useState<'installation' | 'maintenance' | 'troubleshooting' | 'warranty' | 'internet' | 'tv'>('installation');
-  const [reqDevice, setReqDevice] = useState('');
+  const [reqService, setReqService] = useState<'installation' | 'maintenance' | 'troubleshooting' | 'warranty' | 'internet' | 'tv'>('maintenance');
+  const [reqDevices, setReqDevices] = useState<string[]>([]);
   const [reqDate, setReqDate] = useState('');
   const [reqTime, setReqTime] = useState('');
   const [reqPriority, setReqPriority] = useState<'normal' | 'high' | 'low'>('normal');
@@ -20,6 +20,8 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
   const [reqSuccess, setReqSuccess] = useState('');
   const [reqError, setReqError] = useState('');
   const [timeOpen, setTimeOpen] = useState(false);
+  const [openRequestsCount, setOpenRequestsCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   const timeDropdownRef = useRef<HTMLDivElement>(null);
   const timeSlots = [
     '09:00','09:30','10:00','10:30','11:00','11:30','12:00','12:30',
@@ -38,7 +40,34 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
   const clearReqFeedback = () => { setReqSuccess(''); setReqError(''); };
   const touchStartYRef = useRef<number>(0);
 
-  useEffect(() => { if (open) clearReqFeedback(); }, [open]);
+  useEffect(() => {
+    if (open) {
+      clearReqFeedback();
+      fetchOpenRequestsCount();
+    }
+  }, [open]);
+
+  const fetchOpenRequestsCount = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      
+      const q = query(
+        requestServicesCollection(db),
+        where('uid', '==', user.uid),
+        where('status', '==', 'open')
+      );
+      
+      const querySnapshot = await getDocs(q);
+      setOpenRequestsCount(querySnapshot.size);
+    } catch (error) {
+      console.error('Error fetching open requests:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const hasReachedLimit = openRequestsCount >= 3;
 
   // Close time dropdown on outside click
   useEffect(() => {
@@ -155,7 +184,7 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
             </div>
           )}
           <div 
-            className="modal-scroll-content flex-1 px-6 py-4"
+            className={`modal-scroll-content flex-1 px-6 py-4 ${hasReachedLimit ? 'opacity-75' : ''}`}
             style={{
               maxHeight: '70vh',
               overscrollBehavior: 'contain',
@@ -195,12 +224,21 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
               }
             }}
           >
+            {hasReachedLimit && (
+              <div className="mb-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+                <p className="text-yellow-700 dark:text-yellow-300">
+                  Maximum limit reached. You already have 3 open service requests. Please wait until your existing requests are closed before submitting a new one.
+                </p>
+              </div>
+            )}
             <form 
               id="service-request-form"
+              aria-disabled={hasReachedLimit}
+              className={hasReachedLimit ? 'pointer-events-none' : ''}
               onSubmit={async (e) => {
                 e.preventDefault();
-                if (!reqDevice || !reqDate || !reqTime) {
-                  alert('Please select device, date, and time.');
+                if (reqDevices.length === 0 || !reqDate || !reqTime) {
+                  alert('Please select at least one device, date, and time.');
                   return;
                 }
                 const user = auth.currentUser;
@@ -208,34 +246,25 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
                   alert('Please sign in to submit a service request.');
                   return;
                 }
-                const payload = {
+                const request = {
                   uid: user.uid,
                   service: reqService,
-                  device: reqDevice,
+                  devices: reqDevices,
                   date: reqDate,
                   time: reqTime,
                   priority: reqPriority,
                   description: reqDesc,
                   status: 'open' as const,
                   createdAt: serverTimestamp(),
+                  updatedAt: serverTimestamp()
                 };
                 try {
-                  // Create document in the Request_service collection
-                  await addDoc(requestServicesCollection(db), {
-                    uid: user.uid,
-                    service: reqService,
-                    device: reqDevice,
-                    date: reqDate,
-                    time: reqTime,
-                    priority: reqPriority,
-                    description: reqDesc,
-                    status: 'open',
-                    createdAt: serverTimestamp(),
-                    updatedAt: serverTimestamp()
-                  });
-                  setReqSuccess('Submitted successfully.');
+                  // Create a single service request with multiple devices
+                  await addDoc(requestServicesCollection(db), request);
+                  
+                  setReqSuccess(`Service request submitted for ${reqDevices.length} device${reqDevices.length > 1 ? 's' : ''}.`);
                   setReqError('');
-                  setReqDevice('');
+                  setReqDevices([]);
                   setReqDate('');
                   setReqTime('');
                   setReqPriority('normal');
@@ -253,32 +282,97 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
                     id="reqService"
                     value={reqService}
                     onChange={(e) => { clearReqFeedback(); setReqService(e.target.value as typeof reqService); }}
-                    className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-3 py-2"
+                    className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-3 py-2 w-full"
                   >
                     <option value="maintenance">Maintenance</option>
-                    <option value="troubleshooting">Troubleshooting</option>
+                    <option value="device_replacement">Device Replacement</option>
+                    <option value="warranty_claim">Warranty Claim</option>
                   </select>
                 </div>
-                <div className="flex flex-col gap-1">
-                  <label htmlFor="reqDevice" className="text-sm text-gray-700 dark:text-gray-200">Device</label>
-                  <select
-                    id="reqDevice"
-                    value={reqDevice}
-                    onChange={(e) => { clearReqFeedback(); setReqDevice(e.target.value); }}
-                    className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-3 py-2"
-                  >
-                    <option value="">Select device</option>
-                    {deviceOptions.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                    Select Devices
+                  </label>
+                  
+                  {deviceOptions.length === 0 ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      No devices available
+                    </div>
+                  ) : (
+                    <div
+                      className="space-y-2 h-48 overflow-y-auto p-1 -mx-1 rounded-md"
+                      style={{
+                        overscrollBehavior: 'contain',
+                        WebkitOverflowScrolling: 'touch',
+                        scrollbarWidth: 'thin',
+                        scrollbarColor: 'rgba(156,163,175,0.6) transparent'
+                      }}
+                    >
+                      {deviceOptions.map((device) => (
+                        <label 
+                          key={device}
+                          className={`flex items-center p-2 rounded-md cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                            reqDevices.includes(device) ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={reqDevices.includes(device)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setReqDevices([...reqDevices, device]);
+                              } else {
+                                setReqDevices(reqDevices.filter(d => d !== device));
+                              }
+                            }}
+                            className="h-4 w-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-800"
+                          />
+                          <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">
+                            {device}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {reqDevices.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Selected Devices ({reqDevices.length}):
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {reqDevices.map((device) => (
+                          <span 
+                            key={device}
+                            className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                          >
+                            {device}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setReqDevices(reqDevices.filter(d => d !== device));
+                              }}
+                              className="ml-1.5 inline-flex items-center justify-center h-3.5 w-3.5 rounded-full text-blue-400 hover:bg-blue-200 hover:text-blue-500 dark:hover:bg-blue-800 dark:hover:text-blue-300"
+                            >
+                              <span className="sr-only">Remove {device}</span>
+                              <svg className="h-2 w-2" stroke="currentColor" fill="none" viewBox="0 0 8 8">
+                                <path strokeLinecap="round" strokeWidth="1.5" d="M1 1l6 6m0-6L1 7" />
+                              </svg>
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="flex flex-col gap-1">
                   <label htmlFor="reqDate" className="text-sm text-gray-700 dark:text-gray-200">Preferred Date</label>
                   <input
-                    id="reqDate"
                     type="date"
+                    id="reqDate"
                     value={reqDate}
+                    min={new Date().toISOString().split('T')[0]}
                     onChange={(e) => { clearReqFeedback(); setReqDate(e.target.value); }}
                     className="rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 px-3 py-2"
                   />
