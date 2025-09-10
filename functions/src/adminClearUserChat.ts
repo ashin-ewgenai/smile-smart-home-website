@@ -8,7 +8,9 @@ const db = getFirestore();
  * Only Super Admin or Admin can invoke this.
  * request.data: { uid: string }
  */
-export const adminClearUserChat = onCall(async (request) => {
+export const adminClearUserChat = onCall({
+  cors: true,
+}, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
   const targetUid = request.data?.uid as string | undefined;

@@ -221,7 +221,7 @@ const AdminSupportApp: React.FC = () => {
                 try {
                   const { getFunctions, httpsCallable } = await import('firebase/functions');
                   const { firebaseApp } = await import('../../../lib/firebase');
-                  const functions = getFunctions(firebaseApp);
+                  const functions = getFunctions(firebaseApp, 'us-central1');
                   const clearChat = httpsCallable(functions, 'adminClearUserChat');
                   await clearChat({ uid: selectedOwner });
                   alert('Chat history cleared for this user.');
