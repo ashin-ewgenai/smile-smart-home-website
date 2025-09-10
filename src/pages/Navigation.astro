@@ -4,7 +4,7 @@ import AuthModal from '../components/home/AuthModal';
 import AuthNavClient from '../components/common/AuthNavClient';
 ---
 
-<header class="fixed top-0 left-0 right-0 z-50 bg-white/95 dark:bg-charcoal/95 backdrop-blur-md border-b border-gray-200/60 dark:border-gray-700/60 shadow-sm">
+<header class="fixed top-0 left-0 right-0 z-[100] bg-white/95 dark:bg-charcoal/95 backdrop-blur-md border-b border-gray-200/60 dark:border-gray-700/60 shadow-sm">
   <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between h-16 md:h-20">
       <!-- Logo -->
@@ -74,8 +74,8 @@ import AuthNavClient from '../components/common/AuthNavClient';
       </div>
     </div>
 
-    <!-- Mobile Navigation -->
-    <div class="hidden overflow-hidden max-h-0 opacity-0 transition-all duration-300 ease-out" id="mobile-menu">
+    <!-- Mobile Navigation (overlay under header on mobile) -->
+    <div class="hidden overflow-hidden max-h-0 opacity-0 transition-all duration-300 ease-out relative z-[90]" id="mobile-menu">
       <div class="px-3 pt-3 pb-4 space-y-2 bg-white/98 dark:bg-charcoal/98 backdrop-blur-md border-t border-gray-200/60 dark:border-gray-700/60 shadow-lg">
         <a href="/" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Home</a>
         <a href="/services" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Services</a>
@@ -117,25 +117,48 @@ import AuthNavClient from '../components/common/AuthNavClient';
       const menuButton = document.getElementById('mobile-menu-button');
       const mobileMenu = document.getElementById('mobile-menu');
 
+      let toggling = false; // debounce to avoid double-fire on touch/click
+
       const closeMenu = () => {
         if (!mobileMenu) return;
+        // If already hidden or not expanded, ensure flags are reset and bail
+        const alreadyHidden = mobileMenu.classList.contains('hidden') || mobileMenu.style.display === 'none';
+        if (alreadyHidden) {
+          document.documentElement.classList.remove('overflow-hidden');
+          document.body.classList.remove('overflow-hidden');
+          menuButton?.setAttribute('aria-expanded', 'false');
+          mobileMenu.classList.add('hidden');
+          mobileMenu.classList.remove('block');
+          toggling = false;
+          return;
+        }
+
         // Animate close
         mobileMenu.style.maxHeight = '0px';
         mobileMenu.style.opacity = '0';
         document.documentElement.classList.remove('overflow-hidden');
         document.body.classList.remove('overflow-hidden');
         menuButton?.setAttribute('aria-expanded', 'false');
+
+        let ended = false;
         const onEnd = () => {
+          if (ended) return;
+          ended = true;
           mobileMenu.classList.add('hidden');
           mobileMenu.classList.remove('block');
           mobileMenu.removeEventListener('transitionend', onEnd);
+          toggling = false;
         };
         mobileMenu.addEventListener('transitionend', onEnd);
+        // Fallback in case transitionend doesn't fire (e.g., display change, quick resize)
+        window.setTimeout(onEnd, 400);
       };
 
-      menuButton?.addEventListener('click', (e) => {
+      const handleToggle = (e: Event) => {
         if (!mobileMenu) return;
         e.stopPropagation();
+        if (toggling) return;
+        toggling = true;
         const isHidden = mobileMenu.classList.contains('hidden');
         if (isHidden) {
           // Prepare and animate open
@@ -152,12 +175,16 @@ import AuthNavClient from '../components/common/AuthNavClient';
             // Allow content growth without jump after open
             mobileMenu.style.maxHeight = 'none';
             mobileMenu.removeEventListener('transitionend', onOpenEnd);
+            toggling = false;
           };
           mobileMenu.addEventListener('transitionend', onOpenEnd);
         } else {
           closeMenu();
         }
-      });
+      };
+
+      // Use click only to avoid double-trigger (pointerdown + click)
+      menuButton?.addEventListener('click', handleToggle);
 
       document.addEventListener('click', (e) => {
         if (!mobileMenu || !menuButton) return;
