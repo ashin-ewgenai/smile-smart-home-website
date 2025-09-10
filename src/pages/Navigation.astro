@@ -225,24 +225,52 @@ import AuthNavClient from '../components/common/AuthNavClient';
 
 <script>
   // Open AuthModal instead of navigating to /login
-  document.addEventListener('DOMContentLoaded', () => {
-    const triggers = document.querySelectorAll('[data-open-auth]');
-    triggers.forEach((el) => {
-      // Accessibility hints
-      el.setAttribute('role', 'button');
-      el.setAttribute('aria-haspopup', 'dialog');
-      el.addEventListener(
+  (function(){
+    function bindAuthOpen() {
+      const triggers = document.querySelectorAll('[data-open-auth]');
+      triggers.forEach((el) => {
+        const node = el as HTMLElement;
+        if (node.dataset.authBound === '1') return;
+        node.dataset.authBound = '1';
+        // Accessibility hints
+        node.setAttribute('role', 'button');
+        node.setAttribute('aria-haspopup', 'dialog');
+        node.addEventListener(
+          'click',
+          (e) => {
+            e.preventDefault();
+            const view = (node.getAttribute('data-open-auth') || 'login').toLowerCase();
+            const openFn = (window as any).__authOpen;
+            if (typeof openFn === 'function') openFn(view);
+          },
+          { passive: false }
+        );
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', bindAuthOpen);
+    document.addEventListener('astro:page-load', bindAuthOpen);
+
+    // Delegated handler as a safety net across dynamic DOM changes
+    if (!(window as any).__authDelegationBound) {
+      (window as any).__authDelegationBound = true;
+      document.addEventListener(
         'click',
         (e) => {
+          const t = e.target as HTMLElement | null;
+          if (!t) return;
+          const trigger = t.closest('[data-open-auth]') as HTMLElement | null;
+          if (!trigger) return;
+          // Intercept any navigation and open auth modal
           e.preventDefault();
-          const view = (el.getAttribute('data-open-auth') || 'login').toLowerCase();
+          const view = (trigger.getAttribute('data-open-auth') || 'login').toLowerCase();
           const openFn = (window as any).__authOpen;
           if (typeof openFn === 'function') openFn(view);
         },
-        { passive: false }
+        { capture: true, passive: false }
       );
-    });
-  });
+    }
+  })();
 </script>
 
 <!-- Firebase Auth UI script removed; handled by AuthNavClient React component -->
