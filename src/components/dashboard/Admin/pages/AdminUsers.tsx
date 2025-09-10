@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { TicketNotificationButton } from '@/components/common/TicketNotificationButton';
 import { auth, db } from '../../../../lib/firebase';
-import { accountsCollection, quotesCollection, supportTicketsCollection, userServiceRequestsCollection, quotesParentDoc, userServiceRequestsParentDoc, registerUserWithProfile, type Account } from '../../../../models/Collections';
+import { accountsCollection, quotesCollection, supportTicketsCollection, quotesParentDoc, registerUserWithProfile, type Account } from '../../../../models/Collections';
 import { collection, getDoc, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore';
 import AdminUserDetail from './AdminUserDetail';
 
@@ -174,7 +174,7 @@ const AdminUsers: React.FC = () => {
 
       // Set up real-time listeners for each collection
       const quotesQuery = query(collection(db, 'quotes'), where('userUid', '==', uid));
-      const serviceRequestsQuery = query(collection(db, 'Service_Requests', uid, 'Requests_List'));
+      const serviceRequestsQuery = query(collection(db, 'Request_service'), where('uid', '==', uid));
       const ticketsQuery = query(collection(db, 'Support_Tickets'), where('uid', '==', uid));
 
       // Unsubscribe from previous listeners if they exist

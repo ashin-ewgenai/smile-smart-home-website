@@ -4,8 +4,7 @@ import {
   accountsCollection,
   quotesCollection,
   quoteDoc,
-  userServiceRequestsCollection,
-  userServiceRequestDoc,
+  requestServicesCollection,
   supportTicketsCollection,
   supportTicketDoc,
   plannerLeadsCollection,
@@ -395,7 +394,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         // Fetch nested collections (primary) - tickets now use flat collection
         const [qSnapNested, sSnap, tSnap] = await Promise.all([
           getDocs(quotesCollection(db, uid)),
-          getDocs(userServiceRequestsCollection(db, uid)),
+          getDocs(query(requestServicesCollection(db), where('uid', '==', uid))),
           getDocs(query(supportTicketsCollection(db), where('uid', '==', uid))),
         ]);
 
@@ -597,8 +596,8 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         await updateDoc(ref as any, { status: editStatus });
         setQuotes((prev) => (prev || []).map((x) => (x.id === selected.id ? { ...x, status: editStatus } : x)));
       } else if (selected.type === 'services') {
-        const ref = userServiceRequestDoc(db, uid, selected.id);
-        await updateDoc(ref as any, { status: editStatus });
+        const ref = doc(db, 'Request_service', selected.id);
+        await updateDoc(ref, { status: editStatus });
         setServices((prev) => (prev || []).map((x) => (x.id === selected.id ? { ...x, status: editStatus } : x)));
       } else if (selected.type === 'tickets') {
         const ref = supportTicketDoc(db, selected.id);
