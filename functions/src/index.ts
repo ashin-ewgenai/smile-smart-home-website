@@ -20,7 +20,7 @@ export const db = getFirestore();
 const adminAuth = getAuth();
 
 // Callable function to delete both Auth user and Firestore account doc
-export const superAdminDeleteUser = onCall(async (request) => {
+export const superAdminDeleteUser = onCall({ cors: true }, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) {
     throw new HttpsError("unauthenticated", "Must be authenticated.");
@@ -98,7 +98,7 @@ async function assertSuperAdmin(callerUid: string) {
   }
 }
 
-export const superAdminGetUser = onCall(async (request) => {
+export const superAdminGetUser = onCall({ cors: true }, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) {
     throw new HttpsError("unauthenticated", "Must be authenticated.");
@@ -155,7 +155,7 @@ export const superAdminGetUser = onCall(async (request) => {
 
 // Callable: List user IDs from Firebase Auth (paginated) and Firestore
 // request.data: { pageToken?: string, maxResults?: number }
-export const superAdminListUserIds = onCall(async (request) => {
+export const superAdminListUserIds = onCall({ cors: true }, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) {
     throw new HttpsError("unauthenticated", "Must be authenticated.");
@@ -188,7 +188,7 @@ export const superAdminListUserIds = onCall(async (request) => {
 
 // Callable: Update a user's Auth record (email/displayName) and Firestore account doc
 // request.data: { uid: string, email?: string, displayName?: string }
-export const superAdminUpdateUser = onCall(async (request) => {
+export const superAdminUpdateUser = onCall({ cors: true }, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) {
     throw new HttpsError("unauthenticated", "Must be authenticated.");
@@ -249,7 +249,7 @@ export const superAdminUpdateUser = onCall(async (request) => {
 
  
 /** Admin closes a ticket manually. Requires Super Admin or Admin role. */
-export const adminCloseTicket = onCall(async (request) => {
+export const adminCloseTicket = onCall({ cors: true }, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
   const ticketId = (request.data?.ticketId as string | undefined)?.trim();

@@ -82,9 +82,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const botNeedsTicket = !claimed && !providedTicketId;
 
   const sessionId = useMemo(() => (uid ? `live_${uid}` : null), [uid]);
-  // Offline (bot) local storage keys
-  const OFFLINE_HISTORY_KEY = 'smile-chat-history';
-  const OFFLINE_SESSION_KEY = 'smile-chat-sessionId';
+  // Offline mode removed: Support Chat requires full Firebase Auth
 
   useEffect(() => {
     const unsubAuth = auth.onAuthStateChanged((user) => {
@@ -94,6 +92,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     });
     return () => unsubAuth();
   }, []);
+
+  // Anonymous sign-in bridge removed: require full Firebase Auth session
 
   // Read support availability (informational only)
   useEffect(() => {
@@ -266,26 +266,20 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         setLoading(false);
       });
     }
-    function setupOffline() {
-      // Load offline history from localStorage
-      try {
-        const h = localStorage.getItem(OFFLINE_HISTORY_KEY);
-        if (h) setMessages(JSON.parse(h));
-        else setMessages([]);
-      } catch { setMessages([]); }
-      setLoading(false);
-    }
+    // Offline mode removed; unauthenticated users will see sign-in prompt
     // Tear down previous already handled above
     setLoading(true);
+    if (!isAuthenticated) {
+      // Not authenticated; do not load messages. UI renders sign-in prompt.
+      setMessages([]);
+      setLoading(false);
+      return () => {};
+    }
     if (claimed) {
       setupOnline();
     } else {
-      // For AI mode, we need to load from Firestore if authenticated, not localStorage
-      if (isAuthenticated && uid && sessionId) {
-        setupOnline();
-      } else {
-        setupOffline();
-      }
+      // AI mode but authenticated: load from Firestore
+      if (uid && sessionId) setupOnline();
     }
     return () => {
       if (msgsUnsubRef.current) {
@@ -363,11 +357,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       return;
     }
 
-    // If authenticated user, use chatWithOpenAI for proper Firestore storage
+    // If authenticated user, call chatWithOpenAI and rely on backend to persist messages
     if (isAuthenticated) {
-      const userMsg: ChatMsg = { role: 'user', content, ts: Date.now() };
-      setMessages((prev) => [...prev, userMsg]);
-
       try {
         // Get last 5 messages for context (excluding current user message)
         const recentMessages = messages.slice(-4).map(msg => ({
@@ -390,81 +381,12 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         // Handle enhanced workflow responses
         const resData = res?.data as any;
 
-        if (resData?.requiresTicket) {
-          // User has a complaint but no ticket - redirect to ticket creation
-          const botMsg: ChatMsg = {
-            role: 'assistant',
-            content: reply || 'I understand you have an issue. To provide the best assistance, please create a support ticket first.',
-            ts: Date.now(),
-            showTicketCTA: true
-          };
-          setMessages((prev) => [...prev, botMsg]);
-          
-          // Also show a follow-up message with direct guidance
-          const guidanceMsg: ChatMsg = {
-            role: 'agent',
-            content: 'Click the button below to create a support ticket, then return here for personalized assistance.',
-            showTicketCTA: true,
-            ts: Date.now() + 1
-          };
-          setMessages((prev) => [...prev, guidanceMsg]);
-        } else if (resData?.ticketDetails) {
-          // Show ticket verification
-          const botMsg: ChatMsg = {
-            role: 'assistant',
-            content: reply || 'I found your active support ticket. Please verify the details below:',
-            ts: Date.now()
-          };
-          setMessages((prev) => [...prev, botMsg]);
-
-          const verificationMsg: ChatMsg = {
-            role: 'agent',
-            content: 'Please verify your ticket details:',
-            showTicketVerification: true,
-            ticketDetails: resData.ticketDetails,
-            ts: Date.now() + 1
-          };
-          setMessages((prev) => [...prev, verificationMsg]);
-          setWorkflowStep('ticket_verification');
-        } else if (resData?.deviceSelection) {
-          // Show device selection
-          const botMsg: ChatMsg = {
-            role: 'assistant',
-            content: reply || 'Now, please select which device you need help with:',
-            ts: Date.now()
-          };
-          setMessages((prev) => [...prev, botMsg]);
-
-          const deviceMsg: ChatMsg = {
-            role: 'agent',
-            content: 'Please select your device:',
-            showDeviceSelection: true,
-            devices: resData.deviceSelection.devices,
-            ts: Date.now() + 1
-          };
-          setMessages((prev) => [...prev, deviceMsg]);
-          setWorkflowStep('device_selection');
-        } else if (reply?.includes('Please upload an image of your device')) {
-          // AI is requesting device image for serial number extraction
-          const botMsg: ChatMsg = { role: 'assistant', content: reply, ts: Date.now() };
-          setMessages((prev) => [...prev, botMsg]);
-
-          // Show image upload prompt
-          const imageMsg: ChatMsg = {
-            role: 'agent',
-            content: 'Please click the image button below to upload a photo of your device showing the serial number.',
-            ts: Date.now() + 1
-          };
-          setMessages((prev) => [...prev, imageMsg]);
-        } else {
-          // Regular response
-          const botMsg: ChatMsg = { role: 'assistant', content: reply || 'Sorry, I could not generate a reply right now.', ts: Date.now() };
-          setMessages((prev) => [...prev, botMsg]);
-        }
+        // Do not write messages on the client in AI mode; backend persists both
+        if (resData?.ticketDetails) setWorkflowStep('ticket_verification');
+        else if (resData?.deviceSelection) setWorkflowStep('device_selection');
       } catch (error) {
         console.error('Chat error:', error);
-        const errMsg: ChatMsg = { role: 'agent', content: 'Sorry, something went wrong. Please try again later.', ts: Date.now() };
-        setMessages((prev) => [...prev, errMsg]);
+        // Let backend handle error messaging or show a lightweight local notice if needed
       } finally {
         setIsSending(false);
       }
@@ -472,28 +394,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     }
 
     setIsSending(false);
-    // If unauthenticated user, show sign-in prompt for support
-    if (!providedTicketId && !isAuthenticated) {
-      const userMsg: ChatMsg = { role: 'user', content, ts: Date.now() };
-      setMessages((prev) => {
-        const next = [...prev, userMsg];
-        localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next));
-        return next;
-      });
-
-      // Direct to sign-in for personalized support
-      const authMsg: ChatMsg = {
-        role: 'agent',
-        content: 'Please sign in to get personalized support assistance with your smart home devices.',
-        ts: Date.now()
-      };
-      setMessages((prev) => {
-        const next = [...prev, authMsg];
-        localStorage.setItem(OFFLINE_HISTORY_KEY, JSON.stringify(next));
-        return next;
-      });
-      return;
-    }
+    // Unauthenticated users cannot send; UI already shows sign-in required
 
     // unified: no legacy branch; authenticated users handled above; unauthenticated triage handled earlier.
   };
@@ -734,35 +635,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
               </div>
             </div>
           </div>
-          
-          {/* Admin Clear Chat Button - Always visible for testing */}
-          <button
-            className="px-3 py-1.5 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white flex items-center gap-1"
-            onClick={async () => {
-              if (!window.confirm('Are you sure you want to clear ALL chat history for this user? This cannot be undone.')) return;
-              try {
-                const { getFunctions, httpsCallable } = await import('firebase/functions');
-                const { firebaseApp } = await import('../../lib/firebase');
-                const functions = getFunctions(firebaseApp);
-                const clearChat = httpsCallable(functions, 'adminClearUserChat');
-                // Get user ID from session or context
-                const userId = sessionId?.replace('live_', '') || '';
-                if (userId) {
-                  await clearChat({ uid: userId });
-                  alert('Chat history cleared for this user.');
-                  // Refresh messages
-                  setMessages([]);
-                } else {
-                  alert('Unable to identify user for chat clearing.');
-                }
-              } catch (e: any) {
-                console.error('Clear chat error:', e);
-                alert('Failed to clear chat: ' + (e?.message || e?.code || e));
-              }
-            }}
-          >
-            🗑️ Clear Chat
-          </button>
         </div>
       </div>
 

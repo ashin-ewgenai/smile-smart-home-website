@@ -80,23 +80,12 @@ async function applyRateLimit(uid: string): Promise<void> {
  * DEPRECATED: triageChat function - functionality now integrated into chatWithOpenAI
  * Keeping for backward compatibility but should be removed in future versions
  */
-export const triageChat = onCall({ secrets: [OPENAI_API_KEY] }, async (request: CallableRequest) => {
-  console.warn("triageChat is deprecated. Use chatWithOpenAI instead.");
-  const authCtx = request.auth;
-  const message = (request.data?.message as string | undefined)?.trim();
-  if (!message) throw new HttpsError("invalid-argument", "message is required");
-
-  const uid = authCtx?.uid || `anon_${request.rawRequest.ip || "unknown"}`;
-  await applyRateLimit(uid);
-
-  // Simplified response - redirect to main chat
-  return { kind: "complaint", answer: "Please use the main chat for assistance." } as const;
-});
+// removed unused triageChat callable
 
 // ===== Full chat with OpenAI including Firestore persistence =====
 // request.data: { messages: {role:'system'|'user'|'assistant', content:string}[], model?: string, sessionId?: string, ticketId?: string }
 // response: { reply: string, sessionId: string, requiresTicket?: boolean, ticketDetails?: any, deviceSelection?: any }
-export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY] }, async (request: CallableRequest) => {
+export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, async (request: CallableRequest) => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
 
@@ -370,23 +359,9 @@ ${deviceContext}${ticketContext}`,
 // ===== Ticket-related helper callables used by chatbot workflow =====
 // DEPRECATED: analyzeComplaint function - replaced by analyzeUserUnresolvedTicket
 // Keeping for backward compatibility but functionality is redundant
-export const analyzeComplaint = onCall({ secrets: [OPENAI_API_KEY] }, async (request) => {
-  console.warn("analyzeComplaint is deprecated. Use analyzeUserUnresolvedTicket instead.");
-  const authCtx = request.auth;
-  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
-  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
-  if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
+// removed unused analyzeComplaint callable
 
-  // Use the consolidated ticket fetching utility
-  const ticket = await fetchLatestUnresolvedTicket(authCtx.uid);
-  if (!ticket) {
-    return { analysis: "No active ticket found for analysis." };
-  }
-
-  return { analysis: `Ticket found: ${ticket.data.subject || 'No subject'}. Please use the main chat interface for assistance.` };
-});
-
-export const requestSerialImage = onCall(async (request) => {
+export const requestSerialImage = onCall({ cors: true }, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
   const ticketId = (request.data?.ticketId as string | undefined)?.trim();
@@ -430,25 +405,9 @@ async function fetchLatestUnresolvedTicket(uid: string) {
 };
 
 // ===== Check for active unresolved tickets =====
-export const checkActiveUnresolvedTicket = onCall(async (request) => {
-  const authCtx = request.auth;
-  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+// removed unused checkActiveUnresolvedTicket callable
 
-  const ticket = await fetchLatestUnresolvedTicket(authCtx.uid);
-  
-  if (!ticket) {
-    return {hasActiveTicket: false};
-  }
-
-  return {
-    hasActiveTicket: true,
-    ticketId: ticket.ticketId,
-    subject: ticket.data.subject,
-    description: ticket.data.description
-  };
-});
-
-export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY]}, async (request) => {
+export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY], cors: true}, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
   const ticketId = (request.data?.ticketId as string | undefined)?.trim();
@@ -489,7 +448,7 @@ export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY]}, async 
   return {serial};
 });
 
-export const verifySerialAndFetchDocs = onCall(async (request) => {
+export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
   const ticketId = (request.data?.ticketId as string | undefined)?.trim();
@@ -543,7 +502,7 @@ export const verifySerialAndFetchDocs = onCall(async (request) => {
   };
 });
 
-export const suggestTroubleshootingStep = onCall({secrets: [OPENAI_API_KEY]}, async (request) => {
+export const suggestTroubleshootingStep = onCall({secrets: [OPENAI_API_KEY], cors: true}, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
   const ticketId = (request.data?.ticketId as string | undefined)?.trim();
@@ -589,7 +548,7 @@ Provide ONE actionable troubleshooting step (under 80 words). Be specific to the
   return {done: false, attempt: attempt + 1, suggestion};
 });
 
-export const resolveOrEscalate = onCall(async (request) => {
+export const resolveOrEscalate = onCall({ cors: true }, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
   const ticketId = (request.data?.ticketId as string | undefined)?.trim();
@@ -619,7 +578,7 @@ export const resolveOrEscalate = onCall(async (request) => {
   return {status: "escalated"};
 });
 
-export const recordTicketFeedback = onCall(async (request) => {
+export const recordTicketFeedback = onCall({ cors: true }, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
   const ticketId = (request.data?.ticketId as string | undefined)?.trim() || "";
@@ -637,141 +596,9 @@ export const recordTicketFeedback = onCall(async (request) => {
   return {ok: true};
 });
 
-// ===== Device selection and ticket workflow functions =====
-export const selectDeviceForTicket = onCall(async (request: CallableRequest) => {
-  const authCtx = request.auth;
-  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
-  
-  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
-  const deviceId = (request.data?.deviceId as string | undefined)?.trim();
-  
-  if (!ticketId || !deviceId) {
-    throw new HttpsError("invalid-argument", "ticketId and deviceId are required");
-  }
-
-  try {
-    // Verify ticket ownership
-    const ticketRef = db.collection("Support_Tickets").doc(ticketId);
-    const ticketDoc = await ticketRef.get();
-    
-    if (!ticketDoc.exists) {
-      throw new HttpsError("not-found", "Ticket not found");
-    }
-    
-    const ticketData = ticketDoc.data();
-    if (!ticketData || ticketData.uid !== authCtx.uid) {
-      throw new HttpsError("permission-denied", "Not your ticket");
-    }
-
-    // Verify device ownership using User_Devices collection
-    const deviceRef = db.collection(CONFIG.COLLECTIONS.DEVICES).doc(deviceId);
-    const deviceDoc = await deviceRef.get();
-    
-    if (!deviceDoc.exists) {
-      throw new HttpsError("not-found", "Device not found");
-    }
-    
-    const deviceData = deviceDoc.data();
-    if (!deviceData || deviceData.uid !== authCtx.uid) {
-      throw new HttpsError("permission-denied", "Not your device");
-    }
-
-    // Update ticket with selected device information
-    await ticketRef.update({
-      deviceId: deviceId,
-      deviceType: deviceData.deviceType || "Unknown",
-      deviceModel: deviceData.deviceModel || deviceData.model || "",
-      deviceName: deviceData.deviceName || deviceData.name || "Unknown Device",
-      deviceSerial: deviceData.deviceSerial || deviceData.serial || "",
-      updatedAt: Date.now()
-    });
-
-    return {
-      success: true,
-      device: {
-        id: deviceId,
-        name: deviceData.deviceName || deviceData.name || "Unknown Device",
-        type: deviceData.deviceType || "Unknown",
-        model: deviceData.deviceModel || deviceData.model || ""
-      }
-    };
-  } catch (error) {
-    console.error("Error selecting device for ticket:", error);
-    if (error instanceof HttpsError) throw error;
-    throw new HttpsError("internal", "Failed to select device");
-  }
-});
-
-export const getTicketVerificationDetails = onCall(async (request: CallableRequest) => {
-  const authCtx = request.auth;
-  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
-  
-  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
-  
-  if (!ticketId) {
-    throw new HttpsError("invalid-argument", "ticketId is required");
-  }
-
-  try {
-    const ticketRef = db.collection("Support_Tickets").doc(ticketId);
-    const ticketDoc = await ticketRef.get();
-    
-    if (!ticketDoc.exists) {
-      throw new HttpsError("not-found", "Ticket not found");
-    }
-    
-    const ticketData = ticketDoc.data();
-    if (!ticketData || ticketData.uid !== authCtx.uid) {
-      throw new HttpsError("permission-denied", "Not your ticket");
-    }
-
-    return {
-      ticketId: ticketId,
-      subject: ticketData.subject || "No subject",
-      description: ticketData.description || "No description",
-      category: ticketData.category || "General",
-      status: ticketData.status || "Pending",
-      createdAt: ticketData.createdAt?.toDate?.()?.toLocaleDateString() || "Unknown date",
-      deviceInfo: {
-        type: ticketData.deviceType || null,
-        model: ticketData.deviceModel || null,
-        name: ticketData.deviceName || null,
-        serial: ticketData.deviceSerial || null
-      }
-    };
-  } catch (error) {
-    console.error("Error getting ticket verification details:", error);
-    if (error instanceof HttpsError) throw error;
-    throw new HttpsError("internal", "Failed to get ticket details");
-  }
-});
-
-export const getUserDevicesForSelection = onCall(async (request: CallableRequest) => {
-  const authCtx = request.auth;
-  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
-
-  try {
-    const devicesQuery = await db.collection("devices")
-      .where("ownerUid", "==", authCtx.uid)
-      .get();
-
-    const devices = devicesQuery.docs.map(doc => ({
-      id: doc.id,
-      name: doc.data().deviceName || doc.data().name || "Unknown Device",
-      type: doc.data().deviceType || "Unknown Type",
-      model: doc.data().deviceModel || doc.data().model || "",
-      serial: doc.data().deviceSerial || doc.data().serial || ""
-    }));
-
-    return { devices };
-  } catch (error) {
-    console.error("Error fetching user devices:", error);
-    throw new HttpsError("internal", "Failed to fetch devices");
-  }
-});
 
 // ===== Fetch and analyze latest unresolved ticket for a user =====
-export const analyzeUserUnresolvedTicket = onCall({secrets: [OPENAI_API_KEY]}, async (request) => {
+export const analyzeUserUnresolvedTicket = onCall({secrets: [OPENAI_API_KEY], cors: true}, async (request) => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
 

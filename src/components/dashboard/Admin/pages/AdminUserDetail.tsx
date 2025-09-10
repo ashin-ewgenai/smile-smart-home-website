@@ -625,7 +625,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                   // Dynamically import firebase/functions for browser
                   const { getFunctions, httpsCallable } = await import('firebase/functions');
                   const { firebaseApp } = await import('../../../../lib/firebase');
-                  const functions = getFunctions(firebaseApp);
+                  const functions = getFunctions(firebaseApp, 'us-central1');
                   const clearChat = httpsCallable(functions, 'adminClearUserChat');
                   await clearChat({ uid: account.Uid });
                   alert('Chat history cleared for this user.');
