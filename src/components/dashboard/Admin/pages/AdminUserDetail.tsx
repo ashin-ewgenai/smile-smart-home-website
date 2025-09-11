@@ -32,6 +32,12 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const [openIds, setOpenIds] = useState<Record<string, boolean>>({});
   const toggleOpen = (id: string) => setOpenIds((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  // Edit contact fields (phone, address)
+  const [editingContact, setEditingContact] = useState<boolean>(false);
+  const [tempPhone, setTempPhone] = useState<string>('');
+  const [tempAddress, setTempAddress] = useState<string>('');
+  const [savingContact, setSavingContact] = useState<boolean>(false);
+
   // Planner Leads per contact email (lazy-loaded)
   const [openPlanIds, setOpenPlanIds] = useState<Record<string, boolean>>({});
   const [plannerLeadsByEmail, setPlannerLeadsByEmail] = useState<Record<string, any[]>>({});
@@ -237,6 +243,28 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       }
     };
   }, [email]);
+
+  // Initialize editable fields when account loads/changes
+  useEffect(() => {
+    if (!account) return;
+    setTempPhone((account as any)?.phoneNumber || '');
+    setTempAddress((account as any)?.address || '');
+  }, [account]);
+
+  const saveContactInfo = async () => {
+    if (!account?.id) return;
+    try {
+      setSavingContact(true);
+      const ref = doc(db, 'Accounts', account.id);
+      await updateDoc(ref, {
+        phoneNumber: tempPhone || '',
+        address: tempAddress || ''
+      });
+      setEditingContact(false);
+    } finally {
+      setSavingContact(false);
+    }
+  };
 
   // Load estimation details when a quote is selected (top-level hook)
   useEffect(() => {
@@ -669,7 +697,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       {/* Profile card */}
       <div className="max-w-6xl mx-auto mt-4">
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 dark:bg-gray-900 dark:border-gray-700">
-          {!email && (
+          {!email ? (
             <div className="space-y-4">
               {loadingContactRequests && <div className="text-gray-300">Loading...</div>}
               {!loadingContactRequests && contactRequests.length === 0 && (
@@ -679,162 +707,192 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {[...contactRequests]
                     .sort((a, b) => {
-                      // Sort by read status (unread first) then by creation date (newest first)
                       const aTime = a.createdAt?.seconds || a.createdAt?._seconds || 0;
                       const bTime = b.createdAt?.seconds || b.createdAt?._seconds || 0;
-                      
-                      // If one is unread and the other isn't, sort unread first
-                      if (a.isRead !== b.isRead) {
-                        return a.isRead ? 1 : -1;
-                      }
-                      
-                      // If same read status, sort by time (newest first)
+                      if (a.isRead !== b.isRead) return a.isRead ? 1 : -1;
                       return bTime - aTime;
                     })
-                  .map((r: any) => {
-                    const id = r.id as string;
-                    const isOpen = !!openIds[id];
-                    const createdAt = r.createdAt ? (r.createdAt.toDate ? r.createdAt.toDate() : new Date(r.createdAt.seconds * 1000)) : null;
-                    
-                    return (
-                      <div key={id} className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all hover:border-teal-500/50 hover:bg-gray-50 dark:bg-gray-800/50 dark:border-gray-700">
-                        <button
-                          type="button"
-                          className="w-full text-left p-4 flex justify-between items-center hover:bg-gray-50 transition-colors dark:hover:bg-gray-700/50"
-                          aria-expanded={isOpen}
-                          aria-controls={`contact-panel-${id}`}
-                          onClick={() => toggleOpen(id)}
-                        >
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-medium truncate text-gray-900 dark:text-gray-200">{r.email || 'No Email'}</h3>
-                            {createdAt && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                {createdAt.toLocaleDateString()} • {createdAt.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                              </p>
-                            )}
-                          </div>
-                          <span className={`transition-transform duration-200 text-gray-500 ${isOpen ? 'rotate-90' : 'rotate-0'}`}>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                            </svg>
-                          </span>
-                        </button>
-                        {isOpen && (
-                          <div id={`contact-panel-${id}`} className="text-sm text-gray-700 p-4 bg-gray-50 dark:text-gray-300 dark:bg-gray-800/30">
-                            <div className="space-y-3">
-                              <div>
-                                <div className="text-gray-500">Full Name</div>
-                                <div className="text-gray-900 dark:text-gray-100">{r.fullName || '—'}</div>
-                              </div>
-                              <div>
-                                <div className="text-gray-500">Email</div>
-                                <div className="text-gray-900 dark:text-gray-100 break-all">{r.email || '—'}</div>
-                              </div>
-                              <div>
-                                <div className="text-gray-500">Phone</div>
-                                <div className="text-gray-900 dark:text-gray-100">{r.phone || '—'}</div>
-                              </div>
-                              <div>
-                                <div className="text-gray-500">Service</div>
-                                <div className="text-gray-900 dark:text-gray-100">{r.service || '—'}</div>
-                              </div>
-                              <div className="sm:col-span-2">
-                                <div className="text-gray-500">Message</div>
-                                <div className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">{r.message || '—'}</div>
-                              </div>
-                              <div>
-                                <div className="text-gray-500">Created</div>
-                                <div className="text-gray-900 dark:text-gray-100">{fmt(dateFrom(r.createdAt))}</div>
-                              </div>
-                            </div>
-
-                            {/* Plan Leads section */}
-                            <div className="mt-4 border-t border-gray-800 pt-3">
-                              <button
-                                type="button"
-                                className="inline-flex items-center gap-2 text-left text-sm text-gray-200 hover:text-white focus:outline-none"
-                                aria-expanded={!!openPlanIds[id]}
-                                aria-controls={`planleads-panel-${id}`}
-                                onClick={async () => {
-                                  const next = !openPlanIds[id];
-                                  togglePlanOpen(id);
-                                  if (next && r.email) await loadPlannerLeadsForEmail(r.email);
-                                }}
-                              >
-                                {/* file-plus icon */}
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
-                                  <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
-                                  <path d="M14 2v4a2 2 0 0 0 2 2h4" />
-                                  <path d="M9 15h6" />
-                                  <path d="M12 18v-6" />
-                                </svg>
-                                <span className="inline-flex items-center gap-2">Plan Leads</span>
-                              </button>
-                              {openPlanIds[id] && (
-                                <div id={`planleads-panel-${id}`} className="mt-3 pl-0 sm:pl-2">
-                                  {plannerLeadsLoading[r.email || ''] ? (
-                                    <div className="text-gray-400">Loading...</div>
-                                  ) : (plannerLeadsByEmail[r.email || ''] || []).length === 0 ? (
-                                    <div className="text-gray-400">No planner leads found for this email.</div>
-                                  ) : (
-                                    <div className="space-y-3">
-                                      {(plannerLeadsByEmail[r.email || ''] || []).map((lead) => (
-                                        <div key={lead.id} className="rounded-lg border border-gray-800 p-4 bg-gray-900/70 text-white dark:bg-gray-900/40 dark:text-gray-100">
-                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
-                                            {Object.entries(lead).filter(([k]) => k !== 'id' && k !== 'formData' && k !== 'updatedAt' && k !== 'email' && k !== 'recommendedAreas' && k !== 'complexity').map(([k, v]) => (
-                                              <div key={k} className="break-words">
-                                                <div className="text-gray-300">{k === 'planText' ? 'Recommeded setup' : k}</div>
-                                                <div className="text-gray-100">
-                                                  {k.toLowerCase().includes('created') || k.toLowerCase().includes('updated')
-                                                    ? fmt(dateFrom(v as any))
-                                                    : k === 'planText'
-                                                      ? renderPlanText(v as any)
-                                                      : String(v)}
-                                                </div>
-                                              </div>
-                                            ))}
-                                          </div>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  )}
-                                </div>
+                    .map((r: any) => {
+                      const id = r.id as string;
+                      const isOpen = !!openIds[id];
+                      const createdAt = r.createdAt ? (r.createdAt.toDate ? r.createdAt.toDate() : new Date(r.createdAt.seconds * 1000)) : null;
+                      return (
+                        <div key={id} className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all hover:border-teal-500/50 hover:bg-gray-50 dark:bg-gray-800/50 dark:border-gray-700">
+                          <button
+                            type="button"
+                            className="w-full text-left p-4 flex justify-between items-center hover:bg-gray-50 transition-colors dark:hover:bg-gray-700/50"
+                            aria-expanded={isOpen}
+                            aria-controls={`contact-panel-${id}`}
+                            onClick={() => toggleOpen(id)}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-medium truncate text-gray-900 dark:text-gray-200">{r.email || 'No Email'}</h3>
+                              {createdAt && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {createdAt.toLocaleDateString()} • {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </p>
                               )}
                             </div>
-                            <div className="mt-3 pt-3 border-t border-gray-700">
-                              <button 
-                                onClick={() => window.location.href = `mailto:${r.email}`}
-                                className="text-teal-400 hover:text-teal-300 text-sm flex items-center gap-1"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                </svg>
-                                Reply
-                              </button>
+                            <span className={`transition-transform duration-200 text-gray-500 ${isOpen ? 'rotate-90' : 'rotate-0'}`}>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                              </svg>
+                            </span>
+                          </button>
+                          {isOpen && (
+                            <div id={`contact-panel-${id}`} className="text-sm text-gray-700 p-4 bg-gray-50 dark:text-gray-300 dark:bg-gray-800/30">
+                              <div className="space-y-3">
+                                <div>
+                                  <div className="text-gray-500">Full Name</div>
+                                  <div className="text-gray-900 dark:text-gray-100">{r.fullName || '—'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-gray-500">Email</div>
+                                  <div className="text-gray-900 dark:text-gray-100 break-all">{r.email || '—'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-gray-500">Phone</div>
+                                  <div className="text-gray-900 dark:text-gray-100">{r.phone || '—'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-gray-500">Service</div>
+                                  <div className="text-gray-900 dark:text-gray-100">{r.service || '—'}</div>
+                                </div>
+                                <div className="sm:col-span-2">
+                                  <div className="text-gray-500">Message</div>
+                                  <div className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">{r.message || '—'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-gray-500">Created</div>
+                                  <div className="text-gray-900 dark:text-gray-100">{fmt(dateFrom(r.createdAt))}</div>
+                                </div>
+                              </div>
+
+                              <div className="mt-4 border-t border-gray-800 pt-3">
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-2 text-left text-sm text-gray-200 hover:text-white focus:outline-none"
+                                  aria-expanded={!!openPlanIds[id]}
+                                  aria-controls={`planleads-panel-${id}`}
+                                  onClick={async () => {
+                                    const next = !openPlanIds[id];
+                                    togglePlanOpen(id);
+                                    if (next && r.email) await loadPlannerLeadsForEmail(r.email);
+                                  }}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden="true">
+                                    <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z" />
+                                    <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+                                    <path d="M9 15h6" />
+                                    <path d="M12 18v-6" />
+                                  </svg>
+                                  <span className="inline-flex items-center gap-2">Plan Leads</span>
+                                </button>
+                                {openPlanIds[id] && (
+                                  <div id={`planleads-panel-${id}`} className="mt-3 pl-0 sm:pl-2">
+                                    {plannerLeadsLoading[r.email || ''] ? (
+                                      <div className="text-gray-400">Loading...</div>
+                                    ) : (plannerLeadsByEmail[r.email || ''] || []).length === 0 ? (
+                                      <div className="text-gray-400">No planner leads found for this email.</div>
+                                    ) : (
+                                      <div className="space-y-3">
+                                        {(plannerLeadsByEmail[r.email || ''] || []).map((lead) => (
+                                          <div key={lead.id} className="rounded-lg border border-gray-800 p-4 bg-gray-900/70 text-white dark:bg-gray-900/40 dark:text-gray-100">
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                                              {Object.entries(lead).filter(([k]) => k !== 'id' && k !== 'formData' && k !== 'updatedAt' && k !== 'email' && k !== 'recommendedAreas' && k !== 'complexity').map(([k, v]) => (
+                                                <div key={k} className="break-words">
+                                                  <div className="text-gray-300">{k === 'planText' ? 'Recommeded setup' : k}</div>
+                                                  <div className="text-gray-100">
+                                                    {k.toLowerCase().includes('created') || k.toLowerCase().includes('updated') ? fmt(dateFrom(v as any)) : k === 'planText' ? renderPlanText(v as any) : String(v)}
+                                                  </div>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="mt-3 pt-3 border-t border-gray-700">
+                                <button onClick={() => (window.location.href = `mailto:${r.email}`)} className="text-teal-400 hover:text-teal-300 text-sm flex items-center gap-1">
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                  </svg>
+                                  Reply
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               )}
             </div>
-          )}
-          {email && loading && <div className="text-gray-300">Loading...</div>}
-          {error && <div className="text-red-400">{error}</div>}
-          {!loading && !error && account && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <div className="text-2xl font-semibold text-gray-900 dark:text-white">{account.FullName || '—'}</div>
-                <div className="text-lg text-gray-700 dark:text-gray-300">{account.Email || '—'}</div>
-              </div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="text-gray-500 dark:text-gray-400">UID</div><div className="text-gray-900 dark:text-gray-100 truncate" title={account.Uid}>{account.Uid}</div>
-                <div className="text-gray-500 dark:text-gray-400">Role</div><div className="text-gray-900 dark:text-gray-100">{account.Role}</div>
-                <div className="text-gray-500 dark:text-gray-400">Status</div><div className="text-gray-900 dark:text-gray-100">{account.Status}</div>
-              </div>
-            </div>
+          ) : (
+            <>
+              {email && loading && <div className="text-gray-300">Loading...</div>}
+              {error && <div className="text-red-400">{error}</div>}
+              {!loading && !error && account && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <div className="text-2xl font-semibold text-gray-900 dark:text-white">{account.FullName || '—'}</div>
+                    <div className="text-lg text-gray-700 dark:text-gray-300">{account.Email || '—'}</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="text-gray-500 dark:text-gray-400">UID</div>
+                    <div className="text-gray-900 dark:text-gray-100 truncate" title={account.Uid}>{account.Uid}</div>
+                    <div className="text-gray-500 dark:text-gray-400">Role</div>
+                    <div className="text-gray-900 dark:text-gray-100">{account.Role}</div>
+                    <div className="text-gray-500 dark:text-gray-400">Status</div>
+                    <div className="text-gray-900 dark:text-gray-100">{account.Status}</div>
+                  </div>
+
+                  <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4 md:col-span-2">
+                    {!editingContact ? (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <div className="text-gray-500 dark:text-gray-400">Phone Number</div>
+                          <div className="text-gray-900 dark:text-gray-100">{(account as any)?.phoneNumber || '—'}</div>
+                        </div>
+                        <div className="md:col-span-2">
+                          <div className="text-gray-500 dark:text-gray-400">Address</div>
+                          <div className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">{(account as any)?.address || '—'}</div>
+                        </div>
+                        <div className="md:col-span-2 flex justify-end">
+                          <button type="button" onClick={() => setEditingContact(true)} className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                            Edit Contact Info
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Phone Number</label>
+                            <input type="tel" value={tempPhone} onChange={(e) => setTempPhone(e.target.value)} placeholder="e.g., +1 (555) 123-4567" className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Address</label>
+                            <textarea value={tempAddress} onChange={(e) => setTempAddress(e.target.value)} rows={3} placeholder="Enter full address" className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <button type="button" onClick={() => { setEditingContact(false); setTempPhone((account as any)?.phoneNumber || ''); setTempAddress((account as any)?.address || ''); }} className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                            Cancel
+                          </button>
+                          <button type="button" disabled={savingContact} onClick={saveContactInfo} className="px-3 py-2 rounded-md bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60">
+                            {savingContact ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

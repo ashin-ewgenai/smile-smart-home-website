@@ -38,14 +38,39 @@ const AdminUsers: React.FC = () => {
   const [addName, setAddName] = useState('');
   const [addEmail, setAddEmail] = useState('');
   const [addPassword, setAddPassword] = useState('');
+  const [addPhone, setAddPhone] = useState('');
+  const [addAddress, setAddAddress] = useState('');
   const [addRole, setAddRole] = useState<Account['Role']>('user');
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState('');
   const [alertModal, setAlertModal] = useState<{email: string; counts: AlertsCount} | null>(null);
   const [showAlert, setShowAlert] = useState(false);
   const [alertData, setAlertData] = useState<{email: string; counts: AlertsCount} | null>(null);
+  const [addFormKey, setAddFormKey] = useState(0);
 
-  const closeAdd = () => setShowAdd(false);
+  const closeAdd = () => {
+    // Also reset fields on close to avoid retaining values
+    setAddName('');
+    setAddEmail('');
+    setAddPassword('');
+    setAddPhone('');
+    setAddAddress('');
+    setAddRole('user');
+    setAddError('');
+    setShowAdd(false);
+  };
+  const openAdd = () => {
+    // Reset form fields when opening the modal
+    setAddName('');
+    setAddEmail('');
+    setAddPassword('');
+    setAddPhone('');
+    setAddAddress('');
+    setAddRole('user');
+    setAddError('');
+    setShowAdd(true);
+    setAddFormKey((k) => k + 1); // force form remount
+  };
   const closeAlertModal = () => {
     setShowAlert(false);
     setAlertData(null);
@@ -68,6 +93,8 @@ const AdminUsers: React.FC = () => {
         email: addEmail,
         password: addPassword,
         fullName: addName,
+        phoneNumber: addPhone,
+        address: addAddress,
         role: addRole,
       });
       
@@ -312,6 +339,25 @@ const AdminUsers: React.FC = () => {
     // This effect is intentionally left empty as we don't need to log anything
   }, [alertsMap]);
 
+  // Ensure fields are reset whenever the Add modal opens (helps fight browser autofill)
+  useEffect(() => {
+    if (showAdd) {
+      // Clear synchronously
+      setAddName('');
+      setAddEmail('');
+      setAddPassword('');
+      setAddPhone('');
+      setAddAddress('');
+      setAddRole('user');
+      // Clear again on next frame in case the browser autofills after paint
+      const id = requestAnimationFrame(() => {
+        setAddEmail('');
+        setAddPassword('');
+      });
+      return () => cancelAnimationFrame(id);
+    }
+  }, [showAdd]);
+
   if (selectedUser) {
     return (
       <AdminUserDetail 
@@ -327,7 +373,7 @@ const AdminUsers: React.FC = () => {
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Users</h1>
           <button
-            onClick={() => setShowAdd(true)}
+            onClick={openAdd}
             className="inline-flex items-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
@@ -514,7 +560,28 @@ const AdminUsers: React.FC = () => {
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add User</h2>
               <button onClick={closeAdd} className="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white">✕</button>
             </div>
-            <form onSubmit={handleAddSubmit} className="space-y-4">
+            <form key={addFormKey} onSubmit={handleAddSubmit} className="space-y-4" autoComplete="off">
+              {/* Honeypot fields to absorb browser autofill */}
+              <input 
+                type="text" 
+                name="email" 
+                autoComplete="username"
+                tabIndex={-1}
+                aria-hidden="true"
+                className="hidden"
+                value=""
+                onChange={() => {}}
+              />
+              <input 
+                type="password" 
+                name="password" 
+                autoComplete="new-password"
+                tabIndex={-1}
+                aria-hidden="true"
+                className="hidden"
+                value=""
+                onChange={() => {}}
+              />
               {addError && <div className="text-red-600 text-sm">{addError}</div>}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full name</label>
@@ -522,11 +589,54 @@ const AdminUsers: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                <input type="email" required value={addEmail} onChange={e => setAddEmail(e.target.value)} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+                <input 
+                  type="email" 
+                  required 
+                  value={addEmail} 
+                  onChange={e => setAddEmail(e.target.value)} 
+                  placeholder="Enter email address"
+                  name="new-email"
+                  inputMode="email"
+                  autoComplete="new-email"
+                  readOnly
+                  onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
+                  className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" 
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                <input type="password" required value={addPassword} onChange={e => setAddPassword(e.target.value)} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+                <input 
+                  type="password" 
+                  required 
+                  value={addPassword} 
+                  onChange={e => setAddPassword(e.target.value)} 
+                  placeholder="Enter a strong password"
+                  name="new-password"
+                  autoComplete="new-password"
+                  readOnly
+                  onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
+                  className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
+                <input 
+                  type="tel" 
+                  value={addPhone} 
+                  onChange={e => setAddPhone(e.target.value)} 
+                  placeholder="e.g., +1 (555) 123-4567"
+                  className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
+                <textarea 
+                  value={addAddress} 
+                  onChange={e => setAddAddress(e.target.value)} 
+                  placeholder="Enter full address"
+                  rows={3}
+                  className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>

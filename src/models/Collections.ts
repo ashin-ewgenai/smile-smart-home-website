@@ -150,12 +150,21 @@ export async function createAccountProfile(db: Firestore, params: {
   email: string | null;
   fullName: string;
   role: Account['Role'];
+  phoneNumber?: string;
+  address?: string;
   consultationId?: string | null;
 }): Promise<void> {
   const { uid, email, fullName, role, consultationId = null } = params;
+  const accountData = newAccountPayload({ uid, email, fullName, role, consultationId });
+  const accountWithContact = {
+    ...accountData,
+    ...(params.phoneNumber && { phoneNumber: params.phoneNumber }),
+    ...(params.address && { address: params.address })
+  };
+  
   await setDoc(
     accountDoc(db, uid),
-    newAccountPayload({ uid, email, fullName, role, consultationId })
+    accountWithContact
   );
 }
 
@@ -164,19 +173,36 @@ export async function createAccountProfileWithLookup(db: Firestore, params: {
   email: string | null;
   fullName: string;
   role: Account['Role'];
+  phoneNumber?: string;
+  address?: string;
 }): Promise<void> {
-  const { uid, email, fullName, role } = params;
+  const { uid, email, fullName, role, phoneNumber, address } = params;
   const consultationId = email ? await findConsultationIdByEmail(db, email) : null;
-  await createAccountProfile(db, { uid, email, fullName, role, consultationId });
+  await createAccountProfile(db, { 
+    uid, 
+    email, 
+    fullName, 
+    role, 
+    phoneNumber, 
+    address, 
+    consultationId 
+  });
 }
 
 // Combined helper: Auth + Profile creation in one call
 export async function registerUserWithProfile(
   auth: Auth,
   db: Firestore,
-  params: { email: string; password: string; fullName: string; role: Account['Role'] }
+  params: { 
+    email: string; 
+    password: string; 
+    fullName: string; 
+    role: Account['Role'];
+    phoneNumber?: string;
+    address?: string;
+  }
 ): Promise<UserCredential> {
-  const { email, password, fullName, role } = params;
+  const { email, password, fullName, role, phoneNumber, address } = params;
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   if (fullName) {
     try { await updateProfile(cred.user, { displayName: fullName }); } catch {}
@@ -187,6 +213,8 @@ export async function registerUserWithProfile(
       email: cred.user.email,
       fullName: fullName || cred.user.displayName || '',
       role,
+      phoneNumber,
+      address
     });
   } catch {}
   return cred;
