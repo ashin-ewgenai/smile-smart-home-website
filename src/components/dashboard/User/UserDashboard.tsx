@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, Wrench, ChevronRight } from 'lucide-react';
 import RequestServiceModal from './RequestServiceModal';
 import RequestStatusModal from './RequestStatusModal';
 import { db, auth } from '../../../lib/firebase';
 import { getDocs, query, orderBy, limit, getDoc, collection, onSnapshot, doc, where } from 'firebase/firestore';
-import { requestServicesCollection, userDoc } from '../../../models/Collections';
+import { requestServicesCollection, userDoc, userDeviceDoc, deviceDoc } from '../../../models/Collections';
 import { onAuthStateChanged } from 'firebase/auth';
 
 interface Device {
@@ -238,7 +238,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     return () => unsub();
   }, []);
 
-  // Request Status modal state
+  // Request Status modal state and data fetching
   const [requestStatusOpen, setRequestStatusOpen] = useState(false);
   const [myRequests, setMyRequests] = useState<Array<{ id: string; service: string; device: string; priority: string; status: string; date?: string; time?: string; createdAt?: any }>>([]);
   const [reqListLoading, setReqListLoading] = useState(false);
@@ -246,32 +246,166 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   const [reqCacheAt, setReqCacheAt] = useState<number>(0);
 
   // Fetch user's requests; if force is true, bypass cache freshness
-  const fetchMyRequests = async (force = false) => {
+  const fetchMyRequests = useCallback(async (force = false) => {
     const user = auth.currentUser;
-    if (!user) return;
+    if (!user) {
+      setReqListError('User not authenticated');
+      return;
+    }
+    
+    // Don't attempt to fetch if we already have an error
+    if (reqListError && !force) return;
+    
     const isFresh = Date.now() - reqCacheAt < 15000; // 15s freshness window
     if (isFresh && !force) return;
+    
     setReqListError('');
     setReqListLoading(true);
+    
     try {
-      // Read from the new Request_service collection, filtered by user ID
-      const qRef = query(
-        requestServicesCollection(db),
-        where('uid', '==', user.uid),
-        orderBy('createdAt', 'desc'),
-        limit(50)
-      );
-      const snap = await getDocs(qRef);
-      const list = snap.docs
-        .map(d => ({ id: d.id, ...(d.data() as any) }));
-      setMyRequests(list as any);
-      setReqCacheAt(Date.now());
+      // helper to resolve device IDs to display info
+      const resolveDevicesFor = async (items: any[]) => {
+        // Build a local cache map from userDeviceOptions first
+        const localMap = new Map<string, any>(
+          (userDeviceOptions || []).map(d => [d.id, {
+            deviceName: d.name,
+            name: d.name,
+            brand: d.brand,
+            type: d.type,
+            status: d.status,
+          }])
+        );
+        // Also build a name -> data map to support legacy storage of names
+        const localNameMap = new Map<string, any>(
+          (userDeviceOptions || []).map(d => [d.name, {
+            deviceName: d.name,
+            name: d.name,
+            brand: d.brand,
+            type: d.type,
+            status: d.status,
+            id: d.id,
+          }])
+        );
+        // Collect unique IDs
+        const ids = new Set<string>();
+        for (const it of items) {
+          const arr = Array.isArray(it.devices) ? (it.devices as string[]) : [];
+          arr.forEach(id => ids.add(id));
+        }
+        // Fetch all unique ids in parallel, try User_Devices first then Devices as fallback
+        const idArr = Array.from(ids);
+        const results = await Promise.all(idArr.map(async (id) => {
+          // Prefer local cache
+          const local = localMap.get(id);
+          if (local) {
+            return { id, src: 'local', data: local };
+          }
+          // If not found by ID locally, avoid network if this "id" actually matches a name
+          if (localNameMap.has(id)) {
+            const data = localNameMap.get(id);
+            return { id: data.id || id, src: 'local-name', data };
+          }
+          try {
+            const ud = await getDoc(userDeviceDoc(db, id));
+            if (ud.exists()) return { id, src: 'user', data: ud.data() as any };
+          } catch {}
+          try {
+            const d = await getDoc(deviceDoc(db, id));
+            if (d.exists()) return { id, src: 'device', data: d.data() as any };
+          } catch {}
+          return { id, src: 'missing', data: {} as any };
+        }));
+        const byId = new Map(results.map(r => [r.id, r] as const));
+        // Map each item to include a rich devices array
+        return items.map(it => {
+          const arr = Array.isArray(it.devices) ? (it.devices as string[]) : [];
+          const rich = arr.map((id, idx) => {
+            // Try ID lookup, then name lookup, then fetched-by-id map
+            let data: any = localMap.get(id) || localNameMap.get(id) || byId.get(id)?.data || {};
+            const name = data.deviceName || data.name || id || `Device ${idx + 1}`;
+            const brand = data.brand || undefined;
+            const type = data.type || undefined;
+            const status = data.status || undefined;
+            return { id, name, brand, type, status };
+          });
+          return { ...it, devices: rich };
+        });
+      };
+
+      // First try with the composite index query
+      try {
+        const qRef = query(
+          requestServicesCollection(db),
+          where('uid', '==', user.uid),
+          orderBy('createdAt', 'desc'),
+          limit(50)
+        );
+        const snap = await getDocs(qRef);
+        const rawList = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+        const list = await resolveDevicesFor(rawList);
+        setMyRequests(list);
+        setReqCacheAt(Date.now());
+      } catch (queryError: any) {
+        console.error('Error with composite query:', queryError);
+        // Fallback to a simpler query if the composite index is missing
+        if (queryError.code === 'failed-precondition') {
+          const simpleQRef = query(
+            requestServicesCollection(db),
+            where('uid', '==', user.uid),
+            limit(50)
+          );
+          const snap = await getDocs(simpleQRef);
+          const rawList = snap.docs
+            .map(d => ({ id: d.id, ...(d.data() as any) }))
+            .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+          const list = await resolveDevicesFor(rawList);
+          setMyRequests(list);
+          setReqCacheAt(Date.now());
+        } else {
+          throw queryError; // Re-throw if it's a different error
+        }
+      }
     } catch (err: any) {
-      setReqListError(err?.message || 'Failed to load requests');
+      console.error('Error in fetchMyRequests:', err);
+      setReqListError(err?.message || 'Failed to load requests. Please try again later.');
     } finally {
       setReqListLoading(false);
     }
-  };
+  }, [reqCacheAt, userDeviceOptions]); // Recreate when device cache changes
+
+  // Track if we've already attempted to fetch
+  const hasFetchedRef = useRef(false);
+  // Guard to only re-enrich once per open cycle when device options arrive
+  const enrichedOnceRef = useRef(false);
+
+  // Fetch requests when modal is opened
+  useEffect(() => {
+    if (requestStatusOpen && !hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      // initial load; don't force if cache is fresh
+      fetchMyRequests(false);
+    } else if (!requestStatusOpen) {
+      // Reset the ref when modal is closed
+      hasFetchedRef.current = false;
+      enrichedOnceRef.current = false;
+    }
+  }, [requestStatusOpen]); // Only depend on requestStatusOpen
+
+  // If device options load/update after the modal opens, re-enrich requests
+  useEffect(() => {
+    if (
+      requestStatusOpen &&
+      !reqListLoading &&
+      !enrichedOnceRef.current &&
+      !reqListError &&
+      userDeviceOptions &&
+      userDeviceOptions.length > 0
+    ) {
+      enrichedOnceRef.current = true;
+      // force refresh to resolve device names via local cache
+      fetchMyRequests(false);
+    }
+  }, [requestStatusOpen, userDeviceOptions, reqListLoading, reqListError, fetchMyRequests]);
   
   // Real-time: per-type counts and active/total devices
   useEffect(() => {
@@ -416,24 +550,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                   <span className="text-gray-600 dark:text-gray-400">type of devices</span>
                   <span className="text-xl font-bold text-gray-900 dark:text-white">{deviceStats.totalDevices}</span>
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">Active Devices</span>
-                  <span className="text-xl font-bold text-teal-500">{deviceStats.activeDevices}</span>
+                {/* View Service Requests Button */}
+                <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                  <button
+                    onClick={() => setRequestStatusOpen(true)}
+                    className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-blue-700 dark:hover:bg-blue-600"
+                  >
+                    View Service Requests
+                  </button>
                 </div>
-                {/* Per-type breakdown fetched from Firestore */}
-                {Object.keys(typeCounts).length > 0 && (
-                  <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
-                    <p className="text-sm font-semibold text-gray-900 dark:text-white mb-2">total number of devices you owned</p>
-                    <ul className="grid grid-cols-1 sm:grid-cols-2 gap-y-2 gap-x-6">
-                      {Object.entries(typeCounts).map(([type, count]) => (
-                        <li key={type} className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400 truncate" title={type}>{type}</span>
-                          <span className="text-gray-900 dark:text-white font-medium">= {count}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
               </div>
             </div>
             

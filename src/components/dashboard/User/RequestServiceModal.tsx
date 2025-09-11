@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { X } from 'lucide-react';
 import { db, auth } from '../../../lib/firebase';
-import { addDoc, serverTimestamp, setDoc, getDocs, query, where } from 'firebase/firestore';
+import { addDoc, serverTimestamp, setDoc, getDocs, query, where, onSnapshot } from 'firebase/firestore';
 import { requestServicesCollection } from '../../../models/Collections';
 
 interface Props {
@@ -43,21 +43,36 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
   useEffect(() => {
     if (open) {
       clearReqFeedback();
-      fetchOpenRequestsCount();
+      // Live subscription to open requests count while modal is open
+      const user = auth.currentUser;
+      if (!user) return;
+      setIsLoading(true);
+      const qOpen = query(
+        requestServicesCollection(db),
+        where('uid', '==', user.uid),
+        where('status', '==', 'open')
+      );
+      const unsub = onSnapshot(qOpen, (snap) => {
+        setOpenRequestsCount(snap.size);
+        setIsLoading(false);
+      }, (err) => {
+        console.error('Error subscribing open requests:', err);
+        setIsLoading(false);
+      });
+      return () => unsub();
     }
   }, [open]);
 
+  // keep legacy function name but not used anymore; left in case of reuse
   const fetchOpenRequestsCount = async () => {
     try {
       const user = auth.currentUser;
       if (!user) return;
-      
       const q = query(
         requestServicesCollection(db),
         where('uid', '==', user.uid),
         where('status', '==', 'open')
       );
-      
       const querySnapshot = await getDocs(q);
       setOpenRequestsCount(querySnapshot.size);
     } catch (error) {
@@ -237,6 +252,11 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
               className={hasReachedLimit ? 'pointer-events-none' : ''}
               onSubmit={async (e) => {
                 e.preventDefault();
+                // Guard: check live limit and required fields
+                if (openRequestsCount >= 3) {
+                  setReqError('You already have 3 open service requests. Please wait until one is closed.');
+                  return;
+                }
                 if (reqDevices.length === 0 || !reqDate || !reqTime) {
                   alert('Please select at least one device, date, and time.');
                   return;
@@ -261,6 +281,8 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
                 try {
                   // Create a single service request with multiple devices
                   await addDoc(requestServicesCollection(db), request);
+                  // Optimistically bump count; onSnapshot will reconcile
+                  setOpenRequestsCount((c) => c + 1);
                   
                   setReqSuccess(`Service request submitted for ${reqDevices.length} device${reqDevices.length > 1 ? 's' : ''}.`);
                   setReqError('');
@@ -509,7 +531,10 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
                 </button>
                 <button 
                   type="submit" 
-                  className="px-4 py-2 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+                  disabled={hasReachedLimit || isLoading}
+                  className={`px-4 py-2 text-sm font-medium text-white border border-transparent rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 
+                    ${hasReachedLimit || isLoading ? 'bg-teal-400 cursor-not-allowed opacity-70' : 'bg-teal-600 hover:bg-teal-700'}`}
+                  title={hasReachedLimit ? 'You already have 3 open service requests.' : undefined}
                 >
                   Submit Request
                 </button>

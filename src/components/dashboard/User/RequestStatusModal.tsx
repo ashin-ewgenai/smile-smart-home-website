@@ -3,10 +3,22 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Wrench } from 'lucide-react';
 
+interface Device {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  lastActivity: string;
+  warranty?: string;
+  modelNumber?: string;
+  brand?: string;
+}
+
 interface RequestItem {
   id: string;
   service: string;
-  device: string;
+  devices: Device[];  // New devices array
+  device?: string;    // Kept for backward compatibility
   priority: string;
   status: string;
   date?: string;
@@ -98,12 +110,8 @@ const RequestStatusModal: React.FC<Props> = ({ open, onClose, myRequests, reqLis
       aria-label="Request Status"
       onClick={onClose}
       onWheel={(e) => {
-        // If wheel happens on overlay and not inside scrollable content, block it
-        const target = e.target as HTMLElement;
-        const isScrollable = target.closest('.modal-scroll-content');
-        if (!isScrollable && e.cancelable) {
-          e.preventDefault();
-        }
+        // Keep the wheel from bubbling to body; rely on CSS overscroll-behavior to contain
+        e.stopPropagation();
       }}
     >
       <div 
@@ -138,30 +146,12 @@ const RequestStatusModal: React.FC<Props> = ({ open, onClose, myRequests, reqLis
                 transform: 'translateZ(0)'
               }}
               onWheel={(e) => {
-                // Keep wheel inside the modal and prevent scroll chaining at edges
+                // Keep wheel inside the modal and let browser handle scroll without preventDefault
                 e.stopPropagation();
-                const el = e.currentTarget as HTMLDivElement;
-                const { scrollTop, scrollHeight, clientHeight } = el;
-                const atTop = scrollTop <= 0;
-                const atBottom = Math.ceil(scrollTop + clientHeight) >= scrollHeight;
-                if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) {
-                  // Prevent bubbling to body when overscrolling
-                  if (e.cancelable) e.preventDefault();
-                }
               }}
               onTouchMove={(e) => {
+                // Avoid preventDefault because React sets touch listeners as passive
                 e.stopPropagation();
-                const target = e.target as HTMLElement;
-                const scrollable = target.closest('.modal-scroll-content');
-                if (scrollable) {
-                  const { scrollTop, scrollHeight, clientHeight } = scrollable;
-                  const isAtTop = scrollTop === 0 && e.touches[0].clientY > 0;
-                  const isAtBottom = Math.ceil(scrollTop + clientHeight) >= scrollHeight - 1 && e.touches[0].clientY < 0;
-                  
-                  if ((isAtTop || isAtBottom) && e.cancelable) {
-                    e.preventDefault();
-                  }
-                }
               }}
           >
             {reqListLoading ? (
@@ -181,7 +171,6 @@ const RequestStatusModal: React.FC<Props> = ({ open, onClose, myRequests, reqLis
                   <tr>
                     <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Created</th>
                     <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Service</th>
-                    <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Device</th>
                     <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Priority</th>
                     <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Details</th>
                     <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Status</th>
@@ -195,7 +184,6 @@ const RequestStatusModal: React.FC<Props> = ({ open, onClose, myRequests, reqLis
                       <tr key={r.id} className="odd:bg-white even:bg-gray-50/60 dark:odd:bg-gray-800 dark:even:bg-gray-800/60 hover:bg-teal-50/60 dark:hover:bg-gray-700/60 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-200">{createdText}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-100 capitalize">{r.service}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-200">{r.device}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-100 capitalize">{r.priority}</td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                           <button
@@ -253,10 +241,42 @@ const RequestStatusModal: React.FC<Props> = ({ open, onClose, myRequests, reqLis
                 <dt className="text-gray-500 dark:text-gray-400">Service</dt>
                 <dd className="capitalize">{selectedReq?.service}</dd>
               </div>
-              <div>
-                <dt className="text-gray-500 dark:text-gray-400">Device</dt>
-                <dd>{selectedReq?.device}</dd>
-              </div>
+              {selectedReq?.devices && selectedReq.devices.length > 0 ? (
+                <div className="col-span-2 mt-2">
+                  <dt className="text-gray-500 dark:text-gray-400 mb-2">Devices</dt>
+                  <dd className="space-y-3">
+                    {selectedReq.devices.map((device, idx) => (
+                      <div key={device.id || idx} className="bg-gray-50 dark:bg-gray-700/40 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-medium text-gray-900 dark:text-white">{device.name || `Device ${idx + 1}`}</h4>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {device.brand && <span>{device.brand} • </span>}
+                              {device.type}
+                            </div>
+                          </div>
+                          <span className={`px-2 py-1 text-xs rounded-full ${device.status === 'active' ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'}`}>
+                            {device.status || 'unknown'}
+                          </span>
+                        </div>
+                        {(device.modelNumber || device.warranty) && (
+                          <div className="mt-2 text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                            {device.modelNumber && <div>Model: {device.modelNumber}</div>}
+                            {device.warranty && <div>Warranty: {device.warranty}</div>}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </dd>
+                </div>
+              ) : (
+                <div className="col-span-2">
+                  <dt className="text-gray-500 dark:text-gray-400">Device</dt>
+                  <dd className="text-gray-900 dark:text-white">
+                    {selectedReq?.device || 'No device specified'}
+                  </dd>
+                </div>
+              )}
               <div>
                 <dt className="text-gray-500 dark:text-gray-400">Priority</dt>
                 <dd className="capitalize">{selectedReq?.priority}</dd>
@@ -270,12 +290,7 @@ const RequestStatusModal: React.FC<Props> = ({ open, onClose, myRequests, reqLis
                 <dd className="capitalize">{selectedReq?.status}</dd>
               </div>
             </dl>
-            <div className="mt-4">
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Admin Response</h4>
-              <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-line bg-gray-50 dark:bg-gray-700/40 border border-gray-200 dark:border-gray-700 rounded-md p-3">
-                {(selectedReq as any)?.adminResponse || (selectedReq as any)?.response || (selectedReq as any)?.message || 'No response yet.'}
-              </p>
-            </div>
+            {/* Admin Response removed as requested */}
           </div>
         </div>
       </div>
