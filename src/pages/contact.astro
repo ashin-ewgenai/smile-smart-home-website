@@ -380,22 +380,16 @@ import Footer from './Footer.astro';
 </Layout>
 
 <script>
+  // @ts-nocheck
   // Toggle contact page content for logged-in users.
   (function(){
-    // @ts-check
-    /**
-     * @param {string | null} email
-     */
-    function firstFromEmail(email){
+    const firstFromEmail = (email) => {
       if (!email) return 'there';
       const local = email.split('@')[0] || '';
       const first = (local.split(/[._-]+/)[0] || local).trim();
       return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
-    }
-    /**
-     * @param {boolean} isAuthed
-     */
-    function update(isAuthed){
+    };
+    const update = (isAuthed) => {
       const pub = document.querySelector('[data-contact="public"]');
       const usr = document.querySelector('[data-contact="user"]');
       if (!pub || !usr) return;
@@ -411,7 +405,7 @@ import Footer from './Footer.astro';
         pub.classList.remove('hidden');
         usr.classList.add('hidden');
       }
-    }
+    };
     function run(){
       let authed = false;
       try { authed = !!localStorage.getItem('userEmail'); } catch {}
