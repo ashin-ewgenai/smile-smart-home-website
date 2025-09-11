@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import LocationSelector from '../../common/LocationSelector';
 import { auth, db } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs, limit, deleteDoc, doc, updateDoc } from 'firebase/firestore';
@@ -30,6 +31,9 @@ interface FormData {
   // Step 3
   timeline: string;
   budget: string;
+  // Location (India only)
+  locationState?: string;
+  locationDistrict?: string;
   
   // Common
   details?: string;
@@ -125,6 +129,8 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     quoteType: '',
     timeline: '',
     budget: '',
+    locationState: '',
+    locationDistrict: '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -370,6 +376,8 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       if (!formData.budget || !/^\s*(₹|Rs\.?\s*)?[0-9,]+(?:\s*-\s*(₹|Rs\.?\s*)?[0-9,]+)?\s*$/.test(formData.budget)) {
         e.budget = 'Enter INR amount or range, e.g., ₹1,000 or 5,000-10,000.';
       }
+      if (!formData.locationState) e.locationState = 'Please select a state/UT.';
+      if (!formData.locationDistrict) e.locationDistrict = 'Please select a district.';
     }
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -426,6 +434,21 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     });
   };
 
+  // Location change from LocationSelector
+  const handleLocationChange = (loc: { country: 'India'; state: string; district: string }) => {
+    setFormData(prev => ({
+      ...prev,
+      locationState: loc.state,
+      locationDistrict: loc.district,
+    }));
+    setErrors(prev => {
+      const n = { ...prev };
+      delete n.locationState;
+      delete n.locationDistrict;
+      return n;
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError(null);
@@ -467,6 +490,11 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         status: 'Pending',
         createdAt: serverTimestamp(),
         quoteType: formData.quoteType,
+        location: {
+          country: 'India',
+          state: formData.locationState || '',
+          district: formData.locationDistrict || '',
+        },
         ...(formData.quoteType === 'New Installation' && {
           propertyType: formData.propertyType,
           numberOfRooms: formData.numberOfRooms,
@@ -502,6 +530,8 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         quoteType: '',
         timeline: '',
         budget: '',
+        locationState: '',
+        locationDistrict: '',
       });
       setCurrentStep(1);
       setErrors({});
@@ -731,6 +761,18 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         return (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-charcoal dark:text-white">Additional Information</h3>
+            {/* Location (India) */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Location</label>
+              <LocationSelector
+                value={{ country: 'India', state: formData.locationState || '', district: formData.locationDistrict || '' }}
+                onChange={handleLocationChange}
+                required
+              />
+              {(errors.locationState || errors.locationDistrict) && (
+                <p className="text-sm text-red-600 mt-1">{errors.locationState || errors.locationDistrict}</p>
+              )}
+            </div>
             <div>
               <label className="block text-sm font-medium mb-1">Timeline</label>
               <select
@@ -801,6 +843,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
               )}
               <p>Timeline: {formData.timeline}</p>
               <p>Budget: {formData.budget}</p>
+              <p>Location: India{formData.locationState ? `, ${formData.locationState}` : ''}{formData.locationDistrict ? `, ${formData.locationDistrict}` : ''}</p>
               <p>Additional Details: {formData.details}</p>
             </div>
           </div>

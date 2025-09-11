@@ -210,13 +210,6 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                 Manage Users
               </a>
             )}
-            <a 
-              href={`/dashboard/${userType}/settings`} 
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Settings
-            </a>
             <a
               href={`/dashboard/${userType}/quote-portal`}
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
