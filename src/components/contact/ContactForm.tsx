@@ -1,6 +1,8 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { db } from '../../lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
 
 type ContactFormState = {
   name: string;
@@ -19,10 +21,15 @@ const initialState: ContactFormState = {
 };
 
 export default function ContactForm() {
+  const [mounted, setMounted] = useState(false);
   const [values, setValues] = useState<ContactFormState>(initialState);
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const canSubmit = useMemo(() => {
     return (
@@ -71,7 +78,11 @@ export default function ContactForm() {
   );
 
   return (
-    <form className="space-y-6 reveal-on-scroll" onSubmit={onSubmit}>
+    <form 
+      className={`space-y-6 ${mounted ? 'reveal-on-scroll' : 'opacity-0'}`} 
+      style={mounted ? {} : { transform: 'translateY(20px)' }}
+      onSubmit={onSubmit}
+    >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
           <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -107,18 +118,52 @@ export default function ContactForm() {
       </div>
 
       <div>
-        <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Phone Number
         </label>
-        <input
-          type="tel"
-          id="phone"
-          name="phone"
-          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal focus:border-transparent dark:bg-gray-800 dark:text-white"
-          placeholder="+1 (555) 123-4567"
-          value={values.phone}
-          onChange={onChange}
-        />
+        {mounted && (
+          <PhoneInput
+            country="in"
+            value={values.phone}
+            onChange={(phone: string) => setValues(v => ({ ...v, phone }))}
+            disableCountryGuess={true}
+            disableCountryCode={false}
+            disableDropdown={false}
+            inputProps={{
+              name: 'phone',
+              required: true,
+              className: 'w-full !pl-14 !py-3 !border !border-gray-300 dark:!border-gray-600 !rounded-lg focus:!ring-2 focus:!ring-teal focus:!border-transparent dark:!bg-gray-800 dark:!text-white',
+            }}
+            containerClass="w-full"
+            buttonClass="!bg-gray-100 dark:!bg-gray-700 !border-r !border-gray-300 dark:!border-gray-600 !rounded-l-lg !p-0 !w-12 !h-full !flex !items-center !justify-center hover:!bg-gray-200 dark:hover:!bg-gray-600 focus:!ring-2 focus:!ring-teal focus:!outline-none transition-colors duration-200 ease-in-out hover:shadow-inner"
+            dropdownClass="!border !border-gray-200 dark:!border-gray-700 !rounded-lg !shadow-lg !bg-white dark:!bg-gray-800 !left-1/2 !-translate-x-1/2 !fixed !z-50 !w-80 [&_.highlight]:!bg-teal/20 [&_.highlight]:dark:!bg-teal/30 [&_.highlight]:!text-gray-900 dark:[&_.highlight]:!text-white [&_.country.highlight]:!bg-teal/10 dark:[&_.country.highlight]:!bg-teal/20 [&_.country:hover]:!bg-gray-100 dark:[&_.country:hover]:!bg-gray-700 [&_.country:hover_.country-name]:!text-gray-900 dark:[&_.country:hover_.country-name]:!text-white"
+            containerStyle={{ width: '100%' }}
+            inputStyle={{
+              width: '100%',
+              height: 'auto',
+              paddingLeft: '3.5rem',
+              backgroundColor: 'transparent',
+            }}
+            buttonStyle={{
+              backgroundColor: 'transparent',
+              border: 'none',
+            }}
+            dropdownStyle={{
+              borderRadius: '0.5rem',
+              marginTop: '0.25rem',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+              maxHeight: '300px',
+              overflowY: 'auto',
+            }}
+            searchPlaceholder="Search country..."
+            searchClass="!w-[calc(100%-1rem)] !mx-2 !my-1 !px-3 !py-2 !text-sm !rounded-lg !border !border-gray-300 dark:!border-gray-600 focus:!ring-2 focus:!ring-teal focus:!border-transparent dark:!bg-gray-800 dark:!text-white"
+            searchNotFound="No country found"
+            enableSearch
+            countryCodeEditable={false}
+            disableSearchIcon
+            preferredCountries={['us', 'gb', 'ca', 'au', 'in']}
+          />
+        )}
       </div>
 
       <div>
