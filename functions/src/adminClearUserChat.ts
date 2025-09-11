@@ -25,7 +25,8 @@ export const adminClearUserChat = onCall({
   const role = callerSnap.exists ? (callerSnap.data()?.Role as string | undefined) : undefined;
   console.log(`Caller role: ${role}`);
   
-  if (role !== "Super Admin" && role !== "Admin") {
+  const normalizedRole = role?.toLowerCase();
+  if (normalizedRole !== "super admin" && normalizedRole !== "admin") {
     throw new HttpsError("permission-denied", "Only admins can clear chat history");
   }
 

@@ -28,7 +28,7 @@ const CONFIG = {
   OPENAI: {
     MODEL: "gpt-4o-mini",
     TEMPERATURE: 0.4,
-    MAX_TOKENS: 500
+    MAX_TOKENS: 300
   },
   COLLECTIONS: {
     DEVICES: "User_Devices", // Standardize on User_Devices

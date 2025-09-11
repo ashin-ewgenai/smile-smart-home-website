@@ -218,6 +218,10 @@ const AdminSupportApp: React.FC = () => {
               className="px-3 py-1.5 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white flex items-center gap-1"
               onClick={async () => {
                 if (!window.confirm('Are you sure you want to clear ALL chat history for this user? This cannot be undone.')) return;
+                if (!auth.currentUser) {
+                  alert('You must be signed in to perform this action.');
+                  return;
+                }
                 try {
                   const { getFunctions, httpsCallable } = await import('firebase/functions');
                   const { firebaseApp } = await import('../../../lib/firebase');
