@@ -109,14 +109,14 @@ const Notifications: React.FC = () => {
   const [userCache, setUserCache] = useState<Record<string, UserCache | null>>({});
 
   const isUnread = (item: UnifiedNotification): boolean => {
-    // Prefer explicit adminRead: only considered read when true
+    // If explicitly marked read, treat as read for all types
     if (item.adminRead === true) return false;
-    // For service requests, consider read if status is 'ack' or 'done'
+    // For service requests, also consider read if status is 'ack' or 'done'
     if (item.type === 'service_request') {
       const st = String(item.status || '').toLowerCase();
-      return !(st === 'ack' || st === 'done');
+      if (st === 'ack' || st === 'done') return false;
     }
-    // For all others, missing adminRead or false => unread
+    // Otherwise treat as unread
     return true;
   };
 
@@ -149,7 +149,20 @@ const Notifications: React.FC = () => {
     });
   }, [items, filter, unreadOnly]);
 
-  const getNotificationTitle = (item: UnifiedNotification): React.ReactNode => {
+  // Decide which items to display based on unread/read and 15-item limit rule
+  const displayedItems = useMemo(() => {
+    const unreadList = filteredItems.filter(isUnread);
+    const readList = filteredItems.filter((x) => !isUnread(x));
+    // If there are no unread items, show up to 15 read items
+    if (unreadList.length === 0) return readList.slice(0, 15);
+    // If unread exceed 15, show all unread (no cap)
+    if (unreadList.length >= 15) return unreadList;
+    // Otherwise, show all unread and fill the rest with read items up to 15 total
+    const remaining = 15 - unreadList.length;
+    return [...unreadList, ...readList.slice(0, Math.max(0, remaining))];
+  }, [filteredItems]);
+
+  const getNotificationTitle = (item: UnifiedNotification, onView?: (e: React.MouseEvent) => void): React.ReactNode => {
     switch (item.type) {
       case 'service_request':
         return `Service Request: ${item.service || 'Unknown'}`;
@@ -164,9 +177,13 @@ const Notifications: React.FC = () => {
               {item.status === 'pending' ? 'NEW REPORT' : 'REPORT'}
             </span>
             <span className="mx-2 text-blue-600 dark:text-gray-400">from</span>
-            <span className="text-gray-900 dark:text-indigo-300 font-medium">
+            <button
+              type="button"
+              onClick={onView}
+              className="text-gray-900 dark:text-indigo-300 font-medium underline-offset-2 hover:underline"
+            >
               {displayName}
-            </span>
+            </button>
           </>
         );
       }
@@ -193,9 +210,13 @@ const Notifications: React.FC = () => {
           <>
             <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">QUOTE</span>
             <span className="mx-2 text-blue-600 dark:text-gray-400">from</span>
-            <span className="text-gray-900 dark:text-indigo-300 font-sans text-lg font-medium">
+            <button
+              type="button"
+              onClick={onView}
+              className="text-gray-900 dark:text-indigo-300 font-sans text-lg font-medium underline-offset-2 hover:underline"
+            >
               {displayEmail}
-            </span>
+            </button>
           </>
         );
       }
@@ -205,7 +226,11 @@ const Notifications: React.FC = () => {
           ? <>
               <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">CONTACT MESSAGE</span>
               <span className="mx-2 text-blue-600 dark:text-gray-400">from</span>
-              <span className="text-gray-900 dark:text-indigo-300 font-sans text-lg font-medium">{nameOrEmail}</span>
+              <button
+                type="button"
+                onClick={onView}
+                className="text-gray-900 dark:text-indigo-300 font-sans text-lg font-medium underline-offset-2 hover:underline"
+              >{nameOrEmail}</button>
             </>
           : <>
               <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">CONTACT MESSAGE</span>
@@ -219,16 +244,20 @@ const Notifications: React.FC = () => {
           <>
             <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">PLAN LEAD</span>
             <span className="mx-2 text-blue-600 dark:text-gray-400">from</span>
-            <span className="text-gray-900 dark:text-indigo-300 font-sans text-lg font-medium">
+            <button
+              type="button"
+              onClick={onView}
+              className="text-gray-900 dark:text-indigo-300 font-sans text-lg font-medium underline-offset-2 hover:underline"
+            >
               {email}
-            </span>
+            </button>
           </>
         );
       }
       case 'estimation_quote': {
         const email = item.customerEmail || item.userEmail || item.email;
         return email 
-          ? <>{'Estimation Quote from '}<span className="text-gray-900 dark:text-indigo-300 font-mono text-sm">{email}</span></>
+          ? <>{'Estimation Quote from '}<button type="button" onClick={onView} className="text-gray-900 dark:text-indigo-300 font-mono text-sm underline-offset-2 hover:underline">{email}</button></>
           : 'Estimation Quote from Unknown';
       }
       default:
@@ -278,7 +307,7 @@ const Notifications: React.FC = () => {
         i.id === item.id ? { ...i, adminRead: true } : i
       ));
       
-      showToast('Marked as read', 'success');
+      // Toast removed per UX: avoid showing a top-right popup on mark-as-read
     } catch (error) {
       showToast('Failed to mark as read', 'error');
     }
@@ -779,38 +808,25 @@ const Notifications: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredItems.map((item) => {
+          {displayedItems.map((item) => {
             const id = item.id || '';
             const createdAt = item.createdAt || item.created_at || item.ts || null;
             const email = item.userEmail || item.email || item.user || '';
             const name = item.userName || item.displayName || item.name || '';
-            const user = name ? `${name}` : (email || 'Unknown User');
-            const userEmail = email || 'No email';
             const unread = isUnread(item);
-            
             return (
-              <a 
-                key={id} 
-                href={`/dashboard/admin/reports?id=${id}`}
-                className={`block rounded-xl border p-6 transition-colors ${unread ? 'border-indigo-700/50 bg-indigo-900/20 hover:bg-indigo-900/30 dark:border-indigo-700/50 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30' : 'border-gray-300 bg-white/80 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/30 dark:hover:bg-gray-900/50'}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Let the default anchor behavior handle the navigation
-                }}
+              <div 
+                key={id}
+                className={`rounded-xl border p-6 transition-colors ${unread ? 'border-indigo-700/50 bg-indigo-900/20 hover:bg-indigo-900/30 dark:border-indigo-700/50 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30' : 'border-gray-300 bg-white/80 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/30 dark:hover:bg-gray-900/50'}`}
               >
                 <div className="flex items-start justify-between">
-                  <div 
-                    className="flex-1 cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (unread) {
-                        markAsRead(item);
-                      }
-                      navigateToItem(item);
-                    }}
-                  >
+                  <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {getNotificationTitle(item)}
+                      {getNotificationTitle(item, (e) => {
+                        e.stopPropagation();
+                        if (unread) { markAsRead(item); }
+                        navigateToItem(item);
+                      })}
                     </h3>
                     {createdAt && (
                       <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
@@ -819,45 +835,43 @@ const Notifications: React.FC = () => {
                     )}
                   </div>
                   <div className="flex items-center space-x-2">
+                    {/* View button removed; click the highlighted email/name instead */}
                     {unread && (
                       <>
                         <span className="ml-2 px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
                           New
                         </span>
-                        <>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              markAsRead(item);
-                            }}
-                            className="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30"
-                          >
-                            Mark as Read
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (window.confirm('Are you sure you want to delete this notification?')) {
-                                deleteNotification(item);
-                              }
-                            }}
-                            className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 px-2 py-1 rounded hover:bg-red-100 dark:hover:bg-red-900/30"
-                            disabled={updating === `delete:${item.id}`}
-                          >
-                            {updating === `delete:${item.id}` ? 'Deleting...' : 'Delete'}
-                          </button>
-                        </>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            markAsRead(item);
+                          }}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30"
+                        >
+                          Mark as Read
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('Are you sure you want to delete this notification?')) {
+                              deleteNotification(item);
+                            }
+                          }}
+                          className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
+                        >
+                          Delete
+                        </button>
                       </>
                     )}
                   </div>
                 </div>
-              </a>
+              </div>
             );
           })}
-        </div>
-      )}
-    </section>
-  );
+      </div>
+    )}
+  </section>
+);
 };
 
 export default Notifications;
