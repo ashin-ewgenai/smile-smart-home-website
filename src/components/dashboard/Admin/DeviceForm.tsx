@@ -7,6 +7,7 @@ import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage
 export type DeviceFormValues = {
   name: string;
   type: string;
+  modelNumber?: string;
   location?: string;
   serial?: string;
   status: 'Active' | 'Inactive';
@@ -19,11 +20,14 @@ export type DeviceFormValues = {
   warrantyValue?: number;
   warrantyUnit?: 'months' | 'years';
   documentation?: string;
+  customType: string;
+  isCustomType: boolean;
 };
 
 const initialState: DeviceFormValues = {
   name: '',
   type: '',
+  modelNumber: '',
   location: '',
   serial: '',
   status: 'Active',
@@ -36,6 +40,8 @@ const initialState: DeviceFormValues = {
   warrantyValue: undefined,
   warrantyUnit: 'months',
   documentation: '',
+  customType: '',
+  isCustomType: false,
 };
 
 export default function DeviceForm() {
@@ -75,7 +81,22 @@ export default function DeviceForm() {
   // Edit modal state
   const [editing, setEditing] = useState<null | DeviceDoc>(null);
   type EditValues = Partial<DeviceDoc> & { warrantyValue?: number; warrantyUnit?: 'months' | 'years' };
-  const [editValues, setEditValues] = useState<EditValues>({});
+  const [editValues, setEditValues] = useState<EditValues & { customType: string; isCustomType: boolean }>({
+    name: '',
+    type: '',
+    status: 'Active',
+    serial: '',
+    assignedToEmail: '',
+    stock: undefined,
+    description: '',
+    brand: '',
+    warrantyValue: undefined,
+    warrantyUnit: 'months',
+    documentation: '',
+    price: undefined,
+    customType: '',
+    isCustomType: false,
+  });
   // Product preview/embed state
   const [productUrl, setProductUrl] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -124,8 +145,11 @@ export default function DeviceForm() {
   }, []);
 
   const canSubmit = useMemo(() => {
-    return values.name.trim() !== '' && values.type.trim() !== '' && !submitting;
-  }, [values.name, values.type, submitting]);
+    const hasValidType = values.isCustomType 
+      ? values.customType.trim() !== '' 
+      : values.type.trim() !== '';
+    return values.name.trim() !== '' && hasValidType && !submitting;
+  }, [values.name, values.type, values.customType, values.isCustomType, submitting]);
 
   // Subscribe to all devices (newest first)
   useEffect(() => {
@@ -157,13 +181,18 @@ export default function DeviceForm() {
     return () => unsub();
   }, []);
 
-  const onChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      const { name, value } = e.target;
-      setValues((v) => ({ ...v, [name]: value }));
-    },
-    []
-  );
+  const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    const isCheckbox = type === 'checkbox';
+    const checked = isCheckbox ? (e.target as HTMLInputElement).checked : undefined;
+    
+    setValues((v) => ({ 
+      ...v, 
+      [name]: isCheckbox ? checked : value,
+      // Reset custom type when selecting a predefined type
+      ...(name === 'type' && value !== 'other' ? { customType: '', isCustomType: false } : {})
+    }));
+  }, []);
 
   // Numeric and long-text handlers
   const onStockChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -242,6 +271,11 @@ export default function DeviceForm() {
           setSubmitting(false);
           return;
         }
+        
+        // Use custom type if provided
+        const deviceType = values.isCustomType && values.customType.trim() 
+          ? values.customType.trim() 
+          : values.type;
         // Optional image upload to Firebase Storage (like TicketCenter)
         let uploadedImageUrl: string | undefined;
         if (imageFile) {
@@ -255,11 +289,10 @@ export default function DeviceForm() {
         // Build payload and omit empty optional fields; dual-write new keys
         const payload: Record<string, any> = {
           deviceName: values.name.trim(),
-          type: values.type.trim(),
+          type: deviceType,
           serial: values.serial?.trim() || '',
-          modelNumber: values.serial?.trim() || '',
+          modelNumber: values.modelNumber?.trim() || '',
           imageUrl: uploadedImageUrl || values.imageUrl?.trim() || '',
-          status: values.status,
           assignedToEmail: values.assignedToEmail?.trim() || '',
           location: values.location?.trim() || '',
           stock: typeof values.stock === 'number' ? values.stock : (values.stock ? Number(values.stock) : null),
@@ -267,13 +300,15 @@ export default function DeviceForm() {
           brand: values.brand?.trim() || '',
           warranty: formatWarranty(values.warrantyValue, values.warrantyUnit),
           documentation: values.documentation?.trim() || '',
+          status: values.status || 'Active', // Default to 'Active' if not set
           createdAt: serverTimestamp(),
           createdByUid: auth?.currentUser?.uid ?? null,
           createdByEmail: auth?.currentUser?.email ?? null,
         };
-        // Omit empty string or null fields for assignedToEmail and location
+        // Omit empty or default fields
         if (!payload.assignedToEmail) delete payload.assignedToEmail;
         if (!payload.location) delete payload.location;
+        if (!payload.status) delete payload.status;
         if (!payload.serial) delete payload.serial;
         if (!payload.modelNumber) delete payload.modelNumber;
         if (!payload.brand) delete payload.brand;
@@ -298,9 +333,11 @@ export default function DeviceForm() {
   const openEdit = useCallback((d: DeviceDoc) => {
     setEditing(d);
     const parsed = parseWarranty(d.warranty);
+    const isCustomType = !['Camera', 'Sensor', 'Lock', 'Thermostat', 'Light'].includes(d.type);
+    
     setEditValues({
       name: d.name,
-      type: d.type,
+      type: isCustomType ? '' : d.type,
       status: d.status,
       serial: d.serial ?? '',
       assignedToEmail: d.assignedToEmail ?? '',
@@ -309,6 +346,8 @@ export default function DeviceForm() {
       brand: d.brand ?? '',
       warrantyValue: parsed.value as any,
       warrantyUnit: parsed.unit as any,
+      customType: isCustomType ? d.type : '',
+      isCustomType,
     });
   }, [parseWarranty]);
 
@@ -430,7 +469,7 @@ export default function DeviceForm() {
           />
         </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2">
           <label htmlFor="type" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Device Type</label>
           <select
@@ -438,8 +477,15 @@ export default function DeviceForm() {
             name="type"
             required
             className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
-            value={values.type}
-            onChange={onChange}
+            value={values.isCustomType ? 'other' : values.type}
+            onChange={(e) => {
+              const isCustom = e.target.value === 'other';
+              setValues(v => ({
+                ...v,
+                type: isCustom ? '' : e.target.value,
+                isCustomType: isCustom
+              }));
+            }}
           >
             <option value="">Select a type</option>
             <option value="Camera">Camera</option>
@@ -447,24 +493,39 @@ export default function DeviceForm() {
             <option value="Lock">Lock</option>
             <option value="Thermostat">Thermostat</option>
             <option value="Light">Light</option>
+            <option value="other">Other (specify below)</option>
           </select>
+          {values.isCustomType && (
+            <div className="mt-2">
+              <input
+                type="text"
+                name="customType"
+                placeholder="Enter device type"
+                className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
+                value={values.customType}
+                onChange={onChange}
+                required
+              />
+            </div>
+          )}
         </div>
+
         <div>
-          <label htmlFor="serial" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Serial No</label>
+          <label htmlFor="modelNumber" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Model Number</label>
           <input
-            id="serial"
-            name="serial"
+            id="modelNumber"
+            name="modelNumber"
             type="text"
-            placeholder="e.g., SN123456"
+            placeholder="e.g., XJ-1000"
             className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
-            value={values.serial ?? ''}
+            value={values.modelNumber ?? ''}
             onChange={onChange}
           />
         </div>
-      </div>
+        </div>
 
-      {/* Brand and Image */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Brand and Image */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2">
           <label htmlFor="brand" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Brand</label>
           <input
@@ -568,21 +629,7 @@ export default function DeviceForm() {
         />
       </div>
 
-      <div>
-        <label htmlFor="status" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
-        <select
-          id="status"
-          name="status"
-          className="mt-1 block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
-          value={values.status}
-          onChange={onChange}
-        >
-          <option value="Active">Active</option>
-          <option value="Inactive">Inactive</option>
-        </select>
-      </div>
-
-      {/* Device Documentation */}
+{/* Device Documentation */}
       <div>
         <label htmlFor="documentation" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Device Documentation</label>
         <input
@@ -701,7 +748,7 @@ export default function DeviceForm() {
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setEditing(null)} />
-          <div className="relative z-10 w-[95vw] max-w-md bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+          <div className="relative z-10 w-[95vw] max-w-md max-h-[90vh] bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4 overflow-y-auto">
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Edit Device</h3>
             <div className="space-y-3">
               <div>
@@ -725,17 +772,6 @@ export default function DeviceForm() {
                   <option value="Lock">Lock</option>
                   <option value="Thermostat">Thermostat</option>
                   <option value="Light">Light</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Status</label>
-                <select
-                  className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
-                  value={(editValues.status as 'Active' | 'Inactive') ?? 'Active'}
-                  onChange={(e) => setEditValues((v) => ({ ...v, status: e.target.value as 'Active' | 'Inactive' }))}
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
                 </select>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -799,14 +835,6 @@ export default function DeviceForm() {
                     <option value="years">years</option>
                   </select>
                 </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Assigned Email</label>
-                <input
-                  className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
-                  value={editValues.assignedToEmail ?? ''}
-                  onChange={(e) => setEditValues((v) => ({ ...v, assignedToEmail: e.target.value }))}
-                />
               </div>
             </div>
             <div className="mt-4 flex justify-end gap-2">

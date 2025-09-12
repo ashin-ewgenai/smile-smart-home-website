@@ -4,6 +4,8 @@ import { auth, db } from '../../../../lib/firebase';
 import { accountsCollection, quotesCollection, supportTicketsCollection, quotesParentDoc, registerUserWithProfile, type Account } from '../../../../models/Collections';
 import { collection, getDoc, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore';
 import AdminUserDetail from './AdminUserDetail';
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
 
 interface User { name: string; email: string }
 
@@ -618,15 +620,45 @@ const AdminUsers: React.FC = () => {
                   className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" 
                 />
               </div>
-              <div>
+              <div className="phone-input-container">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
-                <input 
-                  type="tel" 
-                  value={addPhone} 
-                  onChange={e => setAddPhone(e.target.value)} 
-                  placeholder="e.g., +1 (555) 123-4567"
-                  className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" 
-                />
+                <div className="relative w-full">
+                  <PhoneInput
+                    country="in"
+                    value={addPhone}
+                    onChange={phone => setAddPhone(phone)}
+                    disableCountryGuess={true}
+                    disableCountryCode={false}
+                    disableDropdown={false}
+                    inputProps={{
+                      name: 'phone',
+                      required: true,
+                      className: 'w-full !pl-14 !py-2 !border !border-gray-300 dark:!border-gray-600 !rounded-lg focus:!ring-2 focus:!ring-teal-500 focus:!border-transparent dark:!bg-gray-800 dark:!text-white',
+                      style: { color: 'inherit' }
+                    }}
+                    containerClass="w-full"
+                    buttonClass="!bg-gray-100 dark:!bg-gray-700 !border-r !border-gray-300 dark:!border-gray-600 !rounded-l-lg !p-0 !w-12 !h-full !flex !items-center !justify-center hover:!bg-gray-200 dark:hover:!bg-gray-600 focus:!ring-2 focus:!ring-teal-500 focus:!outline-none transition-colors duration-200"
+                    dropdownClass="!border !border-gray-200 dark:!border-gray-700 !rounded-lg !shadow-lg !bg-white dark:!bg-gray-800 !left-1/2 !-translate-x-1/2 !fixed !z-50 !w-80 [&_.highlight]:!bg-teal-500/20 [&_.highlight]:dark:!bg-teal-400/30 [&_.highlight]:!text-gray-900 dark:[&_.highlight]:!text-white [&_.country.highlight]:!bg-teal-500/10 dark:[&_.country.highlight]:!bg-teal-400/20 [&_.country:hover]:!bg-gray-100 dark:[&_.country:hover]:!bg-gray-700"
+                    containerStyle={{ width: '100%' }}
+                    inputStyle={{
+                      width: '100%',
+                      height: 'auto',
+                      paddingLeft: '3.5rem',
+                      backgroundColor: 'transparent',
+                    }}
+                    buttonStyle={{
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                    }}
+                    searchPlaceholder="Search country..."
+                    searchClass="!w-[calc(100%-1rem)] !mx-2 !my-1 !px-3 !py-2 !text-sm !rounded-lg !border !border-gray-300 dark:!border-gray-600 focus:!ring-2 focus:!ring-teal-500 focus:!border-transparent dark:!bg-gray-800 dark:!text-white"
+                    searchNotFound="No country found"
+                    enableSearch
+                    countryCodeEditable={false}
+                    disableSearchIcon
+                    preferredCountries={['in', 'us', 'gb', 'ca', 'au']}
+                  />
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address</label>
