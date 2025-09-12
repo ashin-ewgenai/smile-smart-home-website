@@ -146,9 +146,19 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
   const [currentUid, setCurrentUid] = useState<string | null>(auth.currentUser?.uid ?? null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  // Active quotes (exclude Cancelled) for submission limit
+  // Active quotes (exclude inactive statuses) for submission limit
   const activeQuotesCount = useMemo(() => {
-    return quotes.filter((q) => (q.status || 'Pending') !== 'Cancelled').length;
+    const active = quotes.filter(q => {
+      const status = String(q.status || 'Pending').toLowerCase();
+      return !['cancelled', 'rejected', 'completed', 'confirmed'].includes(status);
+    });
+    console.log('Active quotes:', active.map(q => ({ id: q.id, status: q.status }))); // More detailed debug log
+    return active.length;
+  }, [quotes]);
+  
+  // Check if user has any pending quotes
+  const hasPendingQuotes = useMemo(() => {
+    return quotes.some((q) => String(q.status || 'Pending').toLowerCase() === 'pending');
   }, [quotes]);
 
   // Modal state for viewing a quote + estimation
@@ -191,7 +201,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
   // Cancel a pending quote (soft delete)
   const handleCancelQuote = async (q: QuoteDoc) => {
     if (!q?.id) return;
-    if ((q.status || 'Pending') !== 'Pending') {
+    if (String(q.status || 'Pending').toLowerCase() !== 'pending') {
       showToast('Only pending quotes can be cancelled.');
       return;
     }
@@ -203,8 +213,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       } catch {}
       return;
     }
-    const confirmed = typeof window !== 'undefined' ? window.confirm('Cancel this quote? You can undo later.') : true;
-    if (!confirmed) return;
+    // Proceed with cancellation immediately
     try {
       setUpdatingId(q.id);
       await updateDoc(doc(db, 'quotes', q.id), {
@@ -219,41 +228,6 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         setSubmitError("You don't have permission to cancel this quote.");
       } else {
         setSubmitError(error?.message || 'Failed to cancel quote.');
-      }
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
-  // Reopen a cancelled quote
-  const handleReopenQuote = async (q: QuoteDoc) => {
-    if (!q?.id) return;
-    if ((q.status || 'Pending') !== 'Cancelled') {
-      showToast('Only cancelled quotes can be reopened.');
-      return;
-    }
-    if (!auth.currentUser) {
-      setSubmitError('Please sign in to reopen your quote.');
-      try {
-        // @ts-ignore
-        if (typeof window !== 'undefined' && (window as any).__authOpen) (window as any).__authOpen('login');
-      } catch {}
-      return;
-    }
-    try {
-      setUpdatingId(q.id);
-      await updateDoc(doc(db, 'quotes', q.id), {
-        status: 'Pending',
-        reopenedAt: serverTimestamp(),
-        reopenedByUid: auth.currentUser?.uid ?? null,
-      } as any);
-      showToast('Quote reopened.');
-    } catch (error: any) {
-      console.error('Failed to reopen quote:', error);
-      if (error?.code === 'permission-denied') {
-        setSubmitError("You don't have permission to reopen this quote.");
-      } else {
-        setSubmitError(error?.message || 'Failed to reopen quote.');
       }
     } finally {
       setUpdatingId(null);
@@ -870,14 +844,24 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         </div>
       </div>
 
-      {/* Submission limit banner (active quotes only) */}
-      {currentUid && activeQuotesCount >= MAX_QUOTES && (
+      {/* Submission limit banner */}
+      {currentUid && (
         <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20 p-4 text-amber-900 dark:text-amber-200">
-          You have reached the maximum of {MAX_QUOTES} quotes. Please wait for a response or remove an existing quote before submitting a new one.
+          {hasPendingQuotes ? (
+            'You have pending quotes. Please cancel them or wait until they are confirmed before submitting a new quote.'
+          ) : activeQuotesCount >= MAX_QUOTES ? (
+            `You have reached the maximum of ${MAX_QUOTES} quotes. Please wait for a response or remove an existing quote before submitting a new one.`
+          ) : (
+            `You can submit up to ${MAX_QUOTES} quotes. You have ${MAX_QUOTES - activeQuotesCount} remaining.`
+          )}
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm">
+      <form 
+        onSubmit={handleSubmit} 
+        className={`bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm relative ${hasPendingQuotes ? 'opacity-60' : ''}`}
+        style={{ pointerEvents: hasPendingQuotes ? 'none' : 'auto' }}
+      >
         {renderStep()}
 
         {submitError && <p className="mt-6 text-sm text-red-600">{submitError}</p>}
@@ -905,9 +889,13 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
             <button
               type="submit"
               className="px-5 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-              disabled={submitting || activeQuotesCount >= MAX_QUOTES}
+              disabled={submitting || hasPendingQuotes || activeQuotesCount >= MAX_QUOTES}
+              title={`submitting: ${submitting}, hasPendingQuotes: ${hasPendingQuotes}, activeQuotesCount: ${activeQuotesCount}, MAX_QUOTES: ${MAX_QUOTES}`}
             >
-              {submitting ? 'Submitting...' : (activeQuotesCount >= MAX_QUOTES ? 'Limit Reached' : 'Submit Quote')}
+              {submitting ? 'Submitting...' : 
+               hasPendingQuotes ? 'Complete Pending Quotes' :
+               activeQuotesCount >= MAX_QUOTES ? 'Limit Reached' : 
+               'Submit Quote'}
             </button>
           )}
         </div>
@@ -917,10 +905,17 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         <button
           type="button"
           onClick={() => setShowOldQuotes(v => !v)}
-          className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 hover:bg-gray-50 dark:hover:bg-gray-800"
+          className="w-full flex items-center justify-between px-5 py-3.5 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-all duration-200 hover:border-teal-300 dark:hover:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-400/30 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
         >
-          <span className="font-medium">Requested Quotes</span>
-          <span className="text-sm text-gray-500">{showOldQuotes ? 'Hide' : 'Show'}</span>
+          <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-teal-500" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            Requested Quotes
+          </span>
+          <span className="text-sm font-medium text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/30 px-3 py-1 rounded-full">
+            {quotes.length} {quotes.length === 1 ? 'quote' : 'quotes'}
+          </span>
         </button>
         {showOldQuotes && (
           <div className="mt-3 space-y-3">
@@ -954,14 +949,21 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                     <div className="space-y-0.5">
                       <div className="font-semibold">{q.quoteType || 'Quote'}</div>
                       <div className="text-sm text-gray-500">
-                        {created ? created.toLocaleString() : '—'} · Status: {q.status || 'Pending'}
+                        {created ? created.toLocaleString() : '—'} · Status: {' '}
+                        <span className={
+                          String(q.status).toLowerCase() === 'cancelled' ? 'text-red-500' :
+                          String(q.status).toLowerCase() === 'confirmed' ? 'text-green-600 dark:text-green-400' :
+                          'text-amber-600 dark:text-amber-400' // Default color for Pending and other statuses
+                        }>
+                          {q.status || 'Pending'}
+                        </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <div className="text-sm text-gray-600 dark:text-gray-300">
                         Budget: {q.budgetCurrency || 'INR'} {q.budget || ''}
                       </div>
-                      {(q.status || 'Pending') === 'Pending' && (
+                      {String(q.status || 'Pending').toLowerCase() === 'pending' && (
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); handleCancelQuote(q); }}
@@ -971,18 +973,6 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                           title="Cancel quote"
                         >
                           {updatingId === q.id ? 'Cancelling…' : 'Cancel'}
-                        </button>
-                      )}
-                      {(q.status || 'Pending') === 'Cancelled' && (
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); handleReopenQuote(q); }}
-                          disabled={updatingId === q.id}
-                          className="text-sm px-3 py-1 rounded-lg border border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-300 dark:hover:bg-emerald-900/20 disabled:opacity-60"
-                          aria-label="Reopen quote"
-                          title="Reopen quote"
-                        >
-                          {updatingId === q.id ? 'Reopening…' : 'Undo Cancel'}
                         </button>
                       )}
                     </div>
