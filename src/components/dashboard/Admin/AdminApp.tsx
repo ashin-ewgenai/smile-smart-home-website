@@ -25,7 +25,10 @@ const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     try {
       const userEmail = localStorage.getItem('userEmail');
       const userRole = localStorage.getItem('userRole');
-      setAllowed(!!userEmail && userRole === 'admin');
+      const roleNorm = (userRole || '').toLowerCase().replace(/[_-]+/g, ' ').trim();
+      const isAdmin = roleNorm === 'admin';
+      const isSuperAdmin = roleNorm === 'super admin';
+      setAllowed(!!userEmail && (isAdmin || isSuperAdmin));
     } catch { setAllowed(false); }
     setReady(true);
   }, []);

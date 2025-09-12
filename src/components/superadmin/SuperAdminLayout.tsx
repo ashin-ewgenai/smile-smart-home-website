@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { handleLogout as adminLogout } from '../dashboard/Admin/LogoutHandler';
-import { UserCircle, Sun, Moon } from 'lucide-react';
+import { UserCircle, Sun, Moon, Shield } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
 import { getDoc } from 'firebase/firestore';
@@ -152,41 +152,19 @@ export default function SuperAdminLayout({ children }: Props) {
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 overflow-x-hidden">
       <header className="fixed top-0 left-0 right-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between relative">
-          {/* Centered dynamic title */}
-          {(() => {
-            const { pathname } = location;
-            const title = (() => {
-              if (
-                pathname.startsWith(`${SUPER_ADMIN_BASE_PATH}/user/`) ||
-                pathname.startsWith(`${SUPER_ADMIN_BASE_PATH}/userlist/user`)
-              ) {
-                if (viewRoleLoading) return '';
-                return (String(viewRole || '').toLowerCase() === 'admin') ? 'Admin Details' : 'User Details';
-              }
-              if (pathname === `${SUPER_ADMIN_BASE_PATH}/users`) {
-                const seg = new URLSearchParams(location.search).get('seg');
-                const s = String(seg).toLowerCase();
-                if (s === 'admins') return 'Admins';
-                if (s === 'users') return 'Users';
-                if (s === 'peak') return 'Peak Weekly Signups';
-                if (s === 'lastweek') return 'Last Week Signups';
-                if (s === 'admins24h') return 'Recent Admins (24h)';
-                if (s === 'users24h') return 'Recent Users (24h)';
-                return 'All Members';
-              }
-              if (pathname === `${SUPER_ADMIN_BASE_PATH}/dashboard`) return 'Dashboard';
-              return '';
-            })();
-            return title ? (
-              <div className="absolute left-1/2 -translate-x-1/2 pointer-events-none">
-                <span className="font-semibold text-sm sm:text-base text-gray-900 dark:text-white">{title}</span>
-              </div>
-            ) : null;
-          })()}
+          {/* Centered dynamic title removed to avoid duplication with page headers */}
           <div className="flex items-center gap-2">
             <Link to={`${SUPER_ADMIN_BASE_PATH}/dashboard`} className="font-semibold">Smile Smart Homes</Link>
           </div>
           <nav className="flex items-center gap-2 sm:gap-4 text-sm relative">
+            <a
+              href="/dashboard/admin"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-teal-300 text-teal-700 hover:bg-teal-50 dark:border-teal-500 dark:text-teal-300 dark:hover:bg-teal-900/20 transition-colors"
+              title="Switch to Admin Dashboard"
+            >
+              <Shield className="h-4 w-4" aria-hidden="true" />
+              Switch to Admin
+            </a>
             <button
               type="button"
               onClick={toggleTheme}
@@ -196,41 +174,46 @@ export default function SuperAdminLayout({ children }: Props) {
             >
               {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
-            {auth?.currentUser?.uid && (
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={openProfileDropdown}
-                  ref={triggerRef}
-                  className="p-0.5 rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                  title="My Profile"
-                  aria-label="My Profile"
-                >
-                  {(() => {
-                    const name =
+            <div className="relative">
+              <button
+                type="button"
+                onClick={openProfileDropdown}
+                ref={triggerRef}
+                className="p-0.5 rounded-full text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                title="My Profile"
+                aria-label="My Profile"
+              >
+                {(() => {
+                  let name = '';
+                  try {
+                    name =
                       profile?.displayName ||
                       profile?.email ||
                       auth.currentUser?.displayName ||
                       auth.currentUser?.email ||
+                      localStorage.getItem('displayName') ||
+                      localStorage.getItem('userName') ||
+                      localStorage.getItem('userEmail') ||
                       '';
-                    const initials = name
-                      .split(/\s+/)
-                      .filter(Boolean)
-                      .map((s) => s.charAt(0).toUpperCase())
-                      .slice(0, 2)
-                      .join('');
-                  
-                    return initials ? (
-                      <div className="h-8 w-8 flex items-center justify-center rounded-full bg-teal-600 text-white text-sm font-semibold">
-                        {initials}
-                      </div>
-                    ) : (
-                      <UserCircle className="h-6 w-6" />
-                    );
-                  })()}
-                </button>
-                {profileOpen && (
-                  <div ref={dropdownRef} className="absolute right-0 mt-2 w-80 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-50">
+                  } catch {}
+                  const initials = String(name)
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .map((s) => s.charAt(0).toUpperCase())
+                    .slice(0, 2)
+                    .join('');
+                
+                  return initials ? (
+                    <div className="h-8 w-8 flex items-center justify-center rounded-full bg-teal-600 text-white text-sm font-semibold">
+                      {initials}
+                    </div>
+                  ) : (
+                    <UserCircle className="h-6 w-6" />
+                  );
+                })()}
+              </button>
+              {profileOpen && (
+                <div ref={dropdownRef} className="absolute right-0 mt-2 w-80 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-50">
                     <div className="p-4 space-y-2">
                       <div className="text-sm font-semibold text-gray-900 dark:text-white">My Profile</div>
                       {profileLoading ? (
@@ -239,31 +222,21 @@ export default function SuperAdminLayout({ children }: Props) {
                         <div className="text-sm text-red-600">{profileError}</div>
                       ) : (
                         <div className="text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                          <div><span className="text-gray-500">Name:</span> <span className="font-medium">{profile?.displayName || '—'}</span></div>
-                          <div className="break-all"><span className="text-gray-500">Email:</span> <span className="font-medium">{profile?.email || '—'}</span></div>
-                          <div><span className="text-gray-500">Role:</span> <span className="font-medium">{profile?.role || '—'}</span></div>
-                          <div>
-                            <span className="text-gray-500">Last login:</span> <span className="font-medium">
-                              {(() => {
-                                try {
-                                  const ts: any = profile?.lastLoginAt;
-                                  if (ts?.toDate) return ts.toDate().toLocaleString();
-                                } catch {}
-                                return '—';
-                              })()}
-                            </span>
-                          </div>
-                          <div className="text-xs text-gray-500 break-all">UID: {auth.currentUser?.uid}</div>
+                          <div className="break-all font-medium">{profile?.email || '—'}</div>
                         </div>
                       )}
                       <div className="pt-3 border-t border-gray-200 dark:border-gray-700 mt-2" />
                       <div className="pt-2 flex items-center justify-between gap-2">
-                        <Link
-                          to={`${SUPER_ADMIN_BASE_PATH}/user/${encodeURIComponent(auth.currentUser!.uid)}`}
-                          className="px-3 py-1.5 rounded-md bg-teal-600 text-white hover:bg-teal-700 text-sm"
-                        >
-                          Edit profile
-                        </Link>
+                        {auth?.currentUser?.uid ? (
+                          <Link
+                            to={`${SUPER_ADMIN_BASE_PATH}/user/${encodeURIComponent(auth.currentUser.uid)}`}
+                            className="px-3 py-1.5 rounded-md bg-teal-600 text-white hover:bg-teal-700 text-sm"
+                          >
+                            Edit profile
+                          </Link>
+                        ) : (
+                          <span className="px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-500">Loading…</span>
+                        )}
                         <button
                           onClick={adminLogout}
                           className="px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700 text-sm"
@@ -281,7 +254,6 @@ export default function SuperAdminLayout({ children }: Props) {
                   </div>
                 )}
               </div>
-            )}
           </nav>
         </div>
       </header>

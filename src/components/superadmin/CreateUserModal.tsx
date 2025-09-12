@@ -19,7 +19,7 @@ export default function CreateUserModal({ open, onClose }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [role, setRole] = useState<'user' | 'admin'>('user');
+  const [role, setRole] = useState<'user' | 'admin'>('admin');
 
   useEffect(() => {
     if (!open) {
@@ -29,7 +29,7 @@ export default function CreateUserModal({ open, onClose }: Props) {
       setEmail('');
       setPassword('');
       setConfirm('');
-      setRole('user');
+      setRole('admin');
     }
   }, [open]);
 
@@ -125,8 +125,7 @@ export default function CreateUserModal({ open, onClose }: Props) {
           </div>
           <div>
             <label className="block text-sm font-medium">Role</label>
-            <select className="mt-1 w-full rounded-md border px-3 py-2 dark:bg-gray-900 dark:border-gray-700" value={role} onChange={(e)=>setRole(e.target.value as 'user'|'admin')}>
-              <option value="user">user</option>
+            <select className="mt-1 w-full rounded-md border px-3 py-2 dark:bg-gray-900 dark:border-gray-700" value={role} onChange={(e)=>setRole(e.target.value as 'admin')}>
               <option value="admin">admin</option>
             </select>
           </div>

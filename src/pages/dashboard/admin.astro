@@ -14,9 +14,11 @@ import AdminApp from '../../components/dashboard/Admin/AdminApp';
     const userEmail = localStorage.getItem('userEmail');
     const userRole = localStorage.getItem('userRole');
 
-    const isAdmin = userRole === 'admin';
+    const roleNorm = (userRole || '').toLowerCase().replace(/[_-]+/g, ' ').trim();
+    const isAdmin = roleNorm === 'admin';
+    const isSuperAdmin = roleNorm === 'super admin';
 
-    if (!userEmail || !isAdmin) {
+    if (!userEmail || !(isAdmin || isSuperAdmin)) {
       // Redirect to admin login if not logged in or not an admin
       window.location.href = '/admin_login';
     }

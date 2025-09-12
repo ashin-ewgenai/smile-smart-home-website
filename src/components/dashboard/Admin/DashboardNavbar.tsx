@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, User, LogOut, Bell, ArrowLeft } from 'lucide-react';
+import { Menu, X, User, LogOut, Bell, ArrowLeft, Crown } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { handleLogout } from './LogoutHandler';
 import DarkModeToggle from '../../ui/DarkModeToggle';
+import { SUPER_ADMIN_BASE_PATH } from '../../../lib/constants';
 
 interface DashboardNavbarProps {
   userType: 'admin' | 'user';
@@ -12,6 +13,7 @@ interface DashboardNavbarProps {
 const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -32,6 +34,10 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
       // Capitalize first letter
       setActualUserName(name.charAt(0).toUpperCase() + name.slice(1));
     }
+    try {
+      const role = (localStorage.getItem('userRole') || '').toLowerCase().replace(/[_-]+/g, ' ').trim();
+      setIsSuperAdmin(role === 'super admin');
+    } catch {}
   }, []);
 
 
@@ -97,6 +103,16 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
           </div>
           <div className="flex items-center">
             <div className="flex items-center space-x-1">
+              {isSuperAdmin && (
+                <a
+                  href={`${SUPER_ADMIN_BASE_PATH}/dashboard`}
+                  className="mr-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-yellow-300 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 dark:border-yellow-600 dark:text-yellow-200 dark:bg-yellow-900/20 text-xs"
+                  title="Switch to Super Admin Dashboard"
+                >
+                  <Crown className="h-3.5 w-3.5" />
+                  Super Admin
+                </a>
+              )}
               <DarkModeToggle />
               {userType === 'admin' ? (
                 <Link

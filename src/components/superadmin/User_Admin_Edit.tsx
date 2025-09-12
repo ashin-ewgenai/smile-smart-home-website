@@ -22,7 +22,7 @@ export default function User_Admin_Edit({ uid }: Props) {
       case 'adminlogins12h': return 'Recent Admin Logins (12h)';
       case 'userlogins12h': return 'Recent User Logins (12h)';
       case 'lastweek': return 'Last Week Signups';
-      default: return 'All Members';
+      default: return 'All Users';
     }
   }, [seg]);
   const listHref = useMemo(() => `${SUPER_ADMIN_BASE_PATH}/users${seg ? `?seg=${encodeURIComponent(seg)}` : ''}`, [seg]);

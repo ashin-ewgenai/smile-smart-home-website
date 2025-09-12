@@ -5,7 +5,7 @@ import { auth, db, functions } from '../../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
 import CreateUserModal from './CreateUserModal';
-import { Trash2, Plus, AlertTriangle } from 'lucide-react';
+import { Trash2, Plus, AlertTriangle, Shield } from 'lucide-react';
 import { accountsCollection, accountDoc } from '../../models/Collections';
 
 interface UserDoc {
@@ -155,12 +155,12 @@ export default function User_Admin_List() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-3 md:mt-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm">
           <Link to={`${SUPER_ADMIN_BASE_PATH}/dashboard`} className="text-gray-600 hover:underline dark:text-gray-300">Dashboard</Link>
           <span className="text-gray-400">\</span>
-          <span className="font-semibold text-gray-900 dark:text-white">{adminsOnly ? 'Admins' : usersOnly ? 'Users' : peakSeg ? 'Peak Weekly Signups' : lastWeekSeg ? 'Last Week Signups' : admins24hSeg ? 'Recent Admins (24h)' : users24hSeg ? 'Recent Users (24h)' : adminLogins12hSeg ? 'Recent Admin Logins (12h)' : userLogins12hSeg ? 'Recent User Logins (12h)' : 'All Members'}</span>
+          <span className="font-semibold text-gray-900 dark:text-white">{adminsOnly ? 'Admins' : usersOnly ? 'Users' : peakSeg ? 'Peak Weekly Signups' : lastWeekSeg ? 'Last Week Signups' : admins24hSeg ? 'Recent Admins (24h)' : users24hSeg ? 'Recent Users (24h)' : adminLogins12hSeg ? 'Recent Admin Logins (12h)' : userLogins12hSeg ? 'Recent User Logins (12h)' : 'All Users'}</span>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -362,13 +362,21 @@ export default function User_Admin_List() {
 
           const Table = ({ title, rows, count }: { title: string; rows: UserDoc[]; count: number }) => (
             <div className="space-y-2">
-              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200">{title} <span className="text-gray-500 text-sm">({count})</span></h2>
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+                <span className="inline-flex items-center gap-2">
+                  {title === 'Admins' ? (
+                    <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                  ) : null}
+                  {title}
+                </span>
+                <span className="text-gray-500 text-sm">({count})</span>
+              </h2>
               <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:bg-transparent dark:border-gray-700 shadow-sm">
                 <table className="min-w-full table-fixed divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-800">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase w-[50%] md:w-1/2">Name</th>
-                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase w-[44%] md:w-1/3">Email</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase w-[34%] md:w-1/3">Name</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold uppercase w-[60%] md:w-1/2">Email</th>
                       <th className="px-4 py-2 text-left text-xs font-semibold uppercase w-[6%] md:w-1/6">Role</th>
                     </tr>
                   </thead>
@@ -406,8 +414,8 @@ export default function User_Admin_List() {
                             </div>
                           </td>
                           <td className="px-4 py-2 text-gray-700 dark:text-gray-300">
-                            <div className="truncate whitespace-nowrap" title={u.email || '—'}>
-                              {truncateEnd(u.email || '—', 15)}
+                            <div className="break-all whitespace-normal" title={u.email || '—'}>
+                              {u.email || '—'}
                             </div>
                           </td>
                           <td className="px-4 py-2">
@@ -440,8 +448,7 @@ export default function User_Admin_List() {
           }
           else {
             return (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <Table title="Admins" rows={admins} count={admins.length} />
+              <div className="grid grid-cols-1 gap-6">
                 <Table title="Users" rows={regularUsers} count={regularUsers.length} />
               </div>
             );
