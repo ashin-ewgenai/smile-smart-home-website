@@ -1,11 +1,10 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import AdminContactSubmissions from '../../../components/dashboard/Admin/pages/AdminContactSubmissions';
-export const prerender = false;
+import AdminApp from '../../../components/dashboard/Admin/AdminApp';
 ---
 
 <Layout title="Contact Submissions - Admin">
-  <AdminContactSubmissions client:only="react" />
+  <AdminApp client:only="react" />
 </Layout>
 
 <script>

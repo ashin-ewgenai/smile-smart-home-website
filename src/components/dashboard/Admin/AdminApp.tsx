@@ -16,6 +16,7 @@ import AboutDevice from './pages/AboutDevice';
 import Alerts from './pages/Alerts';
 import UserPlanLeads from '../User/PlanLeads.tsx';
 import AdminSupportApp from './AdminSupportApp';
+import AdminContactSubmissions from './pages/AdminContactSubmissions';
 
 const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [ready, setReady] = useState(false);
@@ -66,7 +67,7 @@ const AdminApp: React.FC = () => {
             <Route path="/devices" element={<Devices />} />
             <Route path="/devices/add" element={<AddDevice />} />
             <Route path="/users" element={<AdminUsers />} />
-            <Route path="/contact-submissions" element={<AdminUserDetailPage />} />
+            <Route path="/contact-submissions" element={<AdminContactSubmissions />} />
             <Route path="/reports" element={<Reports />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/alerts" element={<Alerts />} />
