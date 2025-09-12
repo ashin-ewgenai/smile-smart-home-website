@@ -10,6 +10,7 @@ setGlobalOptions({region: "us-central1", maxInstances: 10});
 // Re-export chatbot callable functions (moved to separate module)
 export * from "./chatbot";
 export * from "./adminClearUserChat";
+export * from "./processTicketSubmission";
 
 // Initialize Admin SDK once
 if (!getApps().length) {

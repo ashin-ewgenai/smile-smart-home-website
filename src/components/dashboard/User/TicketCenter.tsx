@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 // Firebase
 import { auth, db, storage, functions } from '../../../lib/firebase';
@@ -42,6 +43,7 @@ const TicketCenter: React.FC = () => {
   // UI state
   const [errors, setErrors] = useState<{ subject?: string; description?: string } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [processingAI, setProcessingAI] = useState(false);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string>('');
   const [successMsg, setSuccessMsg] = useState<string>('');
@@ -73,9 +75,9 @@ const TicketCenter: React.FC = () => {
     return [...tickets].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [tickets]);
 
-  // Check if user has an unresolved ticket (excluding cancelled tickets)
+  // Check if user has an unresolved ticket (only Pending or In Progress)
   useEffect(() => {
-    const unresolved = tickets.some(ticket => ticket.status !== 'Resolved' && ticket.status !== 'Cancelled');
+    const unresolved = tickets.some(ticket => ticket.status === 'Pending' || ticket.status === 'In Progress');
     setHasUnresolvedTicket(unresolved);
   }, [tickets]);
 
@@ -243,17 +245,39 @@ const TicketCenter: React.FC = () => {
       const ticketRef = await addDoc(supportTicketsCollection(db), payload);
       const ticketId = ticketRef.id;
 
+      // Process ticket immediately for AI response with direct data
+      setProcessingAI(true);
+      try {
+        const processTicket = httpsCallable(functions, 'processTicketSubmission');
+        await processTicket({ 
+          ticketId,
+          ticketData: {
+            ...payload,
+            ticketNumber,
+            userId: userUid,
+            createdAt: Date.now()
+          }
+        });
+        console.log('Ticket processed successfully for immediate AI response');
+        setSuccessMsg(`Ticket ${ticketNumber} created! AI response generated.`);
+        
+        // Set up for redirect to chat
+        setNewlyCreatedTicketId(ticketId);
+        
+      } catch (processError) {
+        console.warn('Failed to process ticket for immediate response:', processError);
+        setSuccessMsg(`Ticket ${ticketNumber} created successfully!`);
+        // Don't fail the whole submission if AI processing fails
+      } finally {
+        setProcessingAI(false);
+      }
+
       // Clear form
       setSubject('');
       setCategory('Device Issue');
       setDescription('');
       setImageFile(null);
       setErrors(null);
-      setSuccessMsg(`Ticket ${ticketNumber} created successfully!`);
-      
-      // Switch to chat view with the newly created ticket
-      setNewlyCreatedTicketId(ticketId);
-      setCurrentView('chat');
     } catch (e) {
       // Surface minimal error state in form-level message via fetchError slot
       console.error(e);
@@ -305,15 +329,28 @@ const TicketCenter: React.FC = () => {
       {/* Success toast */}
       {successMsg && (
         <div
-          className={`fixed top-6 right-6 z-[70] flex items-center gap-2 rounded-md bg-green-600 text-white shadow-lg px-4 py-2 transform transition-all duration-300 ease-out will-change-transform will-change-opacity ${toastEnter ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'}`}
+          className={`fixed top-6 right-6 z-[70] flex items-center gap-3 rounded-md bg-green-600 text-white shadow-lg px-4 py-3 transform transition-all duration-300 ease-out will-change-transform will-change-opacity ${toastEnter ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-4'}`}
           role="status"
           aria-live="polite"
         >
           {/* Check icon */}
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M20 6L9 17l-5-5" />
           </svg>
-          <span className="text-sm font-medium">{successMsg}</span>
+          <div className="flex-1">
+            <span className="text-sm font-medium block">{successMsg}</span>
+          </div>
+          {(successMsg.includes('AI response generated') || successMsg.includes('Check Support Chat')) && newlyCreatedTicketId && (
+            <button
+              onClick={() => setCurrentView('chat')}
+              className="inline-flex items-center gap-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded text-xs font-medium transition-colors"
+            >
+              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+              View AI Response
+            </button>
+          )}
         </div>
       )}
 
@@ -351,8 +388,8 @@ const TicketCenter: React.FC = () => {
                   <h3 className="text-sm font-medium text-amber-800 dark:text-amber-200">Unresolved Ticket</h3>
                 </div>
                 <div className="mt-2 text-sm text-amber-700 dark:text-amber-300">
-                  <p>You already have an unresolved support ticket. Please wait for it to be resolved or cancel it before raising a new one.</p>
-                  <p className="mt-1">You can track the status of your existing ticket in the list below.</p>
+                  <p>You already have an unresolved support ticket. Use Support Chat to get help resolving it, or cancel it to raise a new one.</p>
+                  <p className="mt-1">Click "Support Chat" on your existing ticket below to get immediate assistance.</p>
                 </div>
               </div>
             ) : (
@@ -448,10 +485,10 @@ const TicketCenter: React.FC = () => {
                   <div className="pt-2 flex justify-end">
                     <button
                       type="submit"
-                      disabled={submitting}
+                      disabled={submitting || processingAI}
                       className="inline-flex items-center px-5 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white font-medium border-2 border-teal-700 hover:border-teal-800 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-teal-500"
                     >
-                      {submitting ? 'Submitting…' : 'Raise Ticket'}
+                      {submitting ? 'Creating Ticket…' : processingAI ? 'Preparing AI Response…' : 'Raise Ticket'}
                     </button>
                   </div>
                 </form>
@@ -504,16 +541,28 @@ const TicketCenter: React.FC = () => {
                         </div>
                       )}
                     </div>
-                    {t.status !== 'Resolved' && t.status !== 'Cancelled' && (
-                      <div className="ml-2 flex-shrink-0">
-                        <button
-                          onClick={() => cancelTicket(t.id.toString())}
-                          className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-200 dark:hover:bg-red-900/50 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
+                    <div className="ml-2 flex-shrink-0 flex gap-2">
+                      {/* Only show actions for active tickets */}
+                      {(t.status === 'Pending' || t.status === 'In Progress') && (
+                        <>
+                          <Link
+                            to={`/dashboard/user/support-chat?ticketId=${t.id}`}
+                            className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-blue-100 text-blue-800 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+                          >
+                            <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                            </svg>
+                            Support Chat
+                          </Link>
+                          <button
+                            onClick={() => cancelTicket(t.id.toString())}
+                            className="inline-flex items-center px-2.5 py-1 rounded text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-200 dark:hover:bg-red-900/50 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </li>
               ))}

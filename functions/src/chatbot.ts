@@ -175,13 +175,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
       const description = ticketData.description || ticketData.complaint || ticketData.issue || "No description";
       const status = ticketData.status || "Pending";
       const priority = ticketData.priority || "medium";
-      // Device information
-      const deviceType = ticketData.deviceType || "Unknown device";
-      const deviceModel = ticketData.deviceModel || "";
-      const deviceSerial = ticketData.deviceSerial || "";
-      const deviceInfo = `${deviceType}${deviceModel ? ` ${deviceModel}` : ""}${deviceSerial ? ` (Serial: ${deviceSerial})` : ""}`;
-
-      // Build comprehensive context with ticket number
+      // Build comprehensive context with ticket number (removed non-existent device fields)
       const ticketNumber = ticketData.ticketNumber || `#${ticketId.slice(-6).toUpperCase()}`;
       ticketContext = `\n\nACTIVE TICKET CONTEXT:
 ` +
@@ -191,7 +185,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
         `- Category: ${category}\n` +
         `- Subject: "${subject}"\n` +
         `- Description: "${description}"\n` +
-        `- Device: ${deviceInfo}\n` +
+        `- Created: ${new Date(ticketData.createdAt?.toDate?.() || ticketData.createdAt || Date.now()).toLocaleString()}\n` +
         `\n\nIMPORTANT: Always acknowledge this ticket context in your response.`;
     }
   } catch (error) {
@@ -200,14 +194,22 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
 
   const systemPrompt = {
     role: "system",
-    content: `You are a support assistant for Smile Smart Homes, a smart home automation company.
+    content: `You are a support assistant for Smile Smart Homes, verifying customer devices and helping troubleshoot their issues.
 
 IMPORTANT RULES:
 1. ONLY answer questions related to smart home devices, automation, IoT, home security, lighting, climate control, entertainment systems, and Smile Smart Homes products/services.
-2. If asked about product warranty, device info, or similar support topics, do your best to answer based on the user's device/ticket context. If you don't know the answer, politely guide the user to check their device documentation, warranty card, or contact Smile Smart Homes support for warranty details. Only respond with 'Sorry, I don't know how I could help you with that.' if the question is truly unrelated to smart home products or services.
+2. When handling device verification, compare extracted serial numbers with registered devices and state clearly if they match or not.
 3. Analyze each user message to determine if it's a COMPLAINT or GENERAL QUERY.
 4. If the message is unclear, ask ONE concise clarifying question (<=20 words).
 5. If no prior assistant message exists, begin with a brief greeting.
+
+SERIAL VERIFICATION WORKFLOW:
+- When a user uploads an image for serial verification, extract the serial number using OCR
+- Compare extracted serial with their registered devices
+- If serials match: ✅ Confirm verification and proceed with troubleshooting
+- If serials don't match: ⚠️ Mention politely, suggest rechecking the label, still provide basic troubleshooting
+- Keep verification responses short, clear, and professional
+- Don't exceed what's needed to move the support process forward
 
 WORKFLOW RULES:
 - For NEW COMPLAINTS without active ticket: Respond with "REQUIRES_TICKET:" followed by explanation
@@ -225,7 +227,8 @@ RESPONSE FORMAT:
 - For ticket verification: Start response with "TICKET_VERIFICATION:" followed by confirmation message
 - For device selection: Start response with "DEVICE_SELECTION:" followed by prompt to select device
 - For serial verification: Ask user to "Please upload an image of your device showing the serial number"
-- Keep responses concise and professional
+- When providing serial verification results, be clear about match status
+- Keep responses concise and professional (under 150 words)
 
 USER CONTEXT:
 ${deviceContext}${ticketContext}`,
@@ -361,26 +364,7 @@ ${deviceContext}${ticketContext}`,
 // Keeping for backward compatibility but functionality is redundant
 // removed unused analyzeComplaint callable
 
-export const requestSerialImage = onCall({ cors: true }, async (request) => {
-  const authCtx = request.auth;
-  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
-  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
-  if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
-
-  const ref = db.collection("Support_Tickets").doc(ticketId);
-  let attempts = 0;
-  await db.runTransaction(async (tx) => {
-    const s = await tx.get(ref);
-    if (!s.exists) throw new HttpsError("not-found", "Ticket not found");
-    const t = s.data() as any;
-    if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
-    attempts = Number(t.imageUploadAttempts || 0);
-    if (attempts >= 2) throw new HttpsError("failed-precondition", "Max image uploads reached");
-    tx.set(ref, { imageUploadAttempts: attempts + 1, updatedAt: Date.now(), imageUploadAllowed: true }, { merge: true });
-  });
-  return { allowed: true, remaining: Math.max(0, 2 - (attempts + 1)) };
-});
-
+// removed unused requestSerialImage callable
 // ===== Consolidated ticket fetching utility =====
 // Utility function to fetch the latest unresolved ticket for a user
 async function fetchLatestUnresolvedTicket(uid: string) {
@@ -423,6 +407,8 @@ export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY], cors: t
   const apiKey = OPENAI_API_KEY.value();
   if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY not configured");
 
+  console.log(`[extractSerialFromImage] Processing image for ticket ${ticketId}: ${imageUrl}`);
+
   const messages = [
     {
       role: "user",
@@ -433,19 +419,73 @@ export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY], cors: t
     },
   ];
 
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {"Content-Type": "application/json", Authorization: `Bearer ${apiKey}`},
-    body: JSON.stringify({model: "gpt-4o", messages, temperature: 0.0, max_tokens: 50}),
-  } as any);
-  if (!resp.ok) throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
-  const data = await resp.json();
-  const content: string = (data?.choices?.[0]?.message?.content || "").trim();
-  const serial = content === "NONE" ? "" : content.replace(/[^A-Za-z0-9\-\/ _]/g, "").slice(0, 64);
-  if (!serial) return {serial: null};
+  try {
+    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {"Content-Type": "application/json", Authorization: `Bearer ${apiKey}`},
+      body: JSON.stringify({model: "gpt-4o", messages, temperature: 0.0, max_tokens: 50}),
+    } as any);
+    
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      console.error(`[extractSerialFromImage] OpenAI API error: ${resp.status} - ${errorText}`);
+      throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
+    }
+    
+    const data = await resp.json();
+    const content: string = (data?.choices?.[0]?.message?.content || "").trim();
+    const extractedSerial = content === "NONE" ? "" : content.replace(/[^A-Za-z0-9\-\/ _]/g, "").slice(0, 64);
+    
+    console.log(`[extractSerialFromImage] Extracted serial: "${extractedSerial}"`);
+    
+    if (!extractedSerial) {
+      await tRef.set({deviceSerial: null, updatedAt: Date.now()}, {merge: true});
+      return {
+        serial: null,
+        verificationStatus: "No serial number could be detected from the uploaded image.",
+        deviceVerified: false
+      };
+    }
 
-  await tRef.set({deviceSerial: serial, updatedAt: Date.now()}, {merge: true});
-  return {serial};
+    // Verify device ownership
+    console.log(`[extractSerialFromImage] Verifying device ownership for serial: ${extractedSerial}`);
+    
+    const userDevicesSnap = await db.collection("User_Devices")
+      .where("uid", "==", authCtx.uid)
+      .where("serial", "==", extractedSerial)
+      .get();
+
+    let deviceDetails: any = null;
+    let verificationStatus = "";
+    
+    if (!userDevicesSnap.empty) {
+      deviceDetails = {id: userDevicesSnap.docs[0].id, ...userDevicesSnap.docs[0].data()};
+      verificationStatus = `✅ Device verified: The serial number ${extractedSerial} matches your registered ${deviceDetails.deviceName || deviceDetails.name}.`;
+      console.log(`[extractSerialFromImage] Device verified: ${deviceDetails.deviceName || deviceDetails.name}`);
+    } else {
+      verificationStatus = `⚠️ Serial number ${extractedSerial} was found in your image, but it doesn't match any registered devices. Please double-check the serial label on your device.`;
+      console.log(`[extractSerialFromImage] Device not found in user's registered devices`);
+    }
+
+    // Update ticket with serial and verification info
+    await tRef.set({
+      deviceSerial: extractedSerial, 
+      deviceVerified: !!deviceDetails,
+      deviceDetails: deviceDetails,
+      updatedAt: Date.now()
+    }, {merge: true});
+
+    return {
+      serial: extractedSerial,
+      verificationStatus,
+      deviceVerified: !!deviceDetails,
+      deviceDetails
+    };
+    
+  } catch (error) {
+    console.error(`[extractSerialFromImage] Error processing image:`, error);
+    throw error;
+  }
 });
 
 export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) => {
@@ -548,53 +588,9 @@ Provide ONE actionable troubleshooting step (under 80 words). Be specific to the
   return {done: false, attempt: attempt + 1, suggestion};
 });
 
-export const resolveOrEscalate = onCall({ cors: true }, async (request) => {
-  const authCtx = request.auth;
-  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
-  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
-  const solved = Boolean(request.data?.solved);
-  if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
+// removed unused resolveOrEscalate callable
 
-  const tRef = db.collection("Support_Tickets").doc(ticketId);
-  const snap = await tRef.get();
-  if (!snap.exists) throw new HttpsError("not-found", "Ticket not found");
-  const t = snap.data() as any;
-  if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
-
-  const now = Date.now();
-  if (solved) {
-    await tRef.set({status: "resolved", updatedAt: now}, {merge: true});
-    return {status: "resolved"};
-  }
-
-  await tRef.set({status: "escalated", updatedAt: now}, {merge: true});
-  await db.collection("admin_notifications").add({
-    type: "ticket_escalated",
-    ticketId,
-    ownerUid: authCtx.uid,
-    createdAt: now,
-    payload: {lastSuggestion: t.lastSuggestion || null, deviceSerial: t.deviceSerial || null},
-  });
-  return {status: "escalated"};
-});
-
-export const recordTicketFeedback = onCall({ cors: true }, async (request) => {
-  const authCtx = request.auth;
-  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
-  const ticketId = (request.data?.ticketId as string | undefined)?.trim() || "";
-  const rating = Number(request.data?.rating ?? 0);
-  const comment = (request.data?.comment as string | undefined)?.trim() || "";
-  if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
-
-  const tRef = db.collection("Support_Tickets").doc(ticketId);
-  const s = await tRef.get();
-  if (!s.exists) throw new HttpsError("not-found", "Ticket not found");
-  const t = s.data() as any;
-  if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
-
-  await tRef.collection("feedback").add({rating, comment, ts: Date.now()});
-  return {ok: true};
-});
+// removed unused recordTicketFeedback callable
 
 
 // ===== Fetch and analyze latest unresolved ticket for a user =====
