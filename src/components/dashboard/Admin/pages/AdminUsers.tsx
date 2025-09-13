@@ -51,6 +51,8 @@ const AdminUsers: React.FC = () => {
   const [alertData, setAlertData] = useState<{email: string; counts: AlertsCount} | null>(null);
   const [addFormKey, setAddFormKey] = useState(0);
   const [deletingEmail, setDeletingEmail] = useState<string | null>(null);
+  const [confirmingEmail, setConfirmingEmail] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   const closeAdd = () => {
     // Also reset fields on close to avoid retaining values
@@ -119,6 +121,40 @@ const AdminUsers: React.FC = () => {
       alert(`Failed to delete user: ${msg}`);
     } finally {
       setDeletingEmail(null);
+    }
+  };
+
+  // Perform delete without using window.confirm (used by custom modal)
+  const performDelete = async (email: string) => {
+    if (!email) return;
+    try {
+      setConfirming(true);
+      setDeletingEmail(email);
+      const uid = await resolveUidByEmail(email);
+      if (!uid) {
+        alert('Could not find UID for this email.');
+        return;
+      }
+      const call = httpsCallable(functions, 'adminDeleteUserAndData');
+      const res = await call({ uid });
+      // Optimistically remove from lists
+      setUsers(prev => prev.filter(u => u.email !== email));
+      setFilteredUsers(prev => prev.filter(u => u.email !== email));
+      // Cleanup any listeners for this email
+      const key = email.toLowerCase();
+      unsubscribeRefs.current[key]?.forEach(fn => fn());
+      delete unsubscribeRefs.current[key];
+      try {
+        const summary = (res?.data as any)?.summary;
+        console.log('Delete summary:', summary);
+      } catch {}
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      alert(`Failed to delete user: ${msg}`);
+    } finally {
+      setDeletingEmail(null);
+      setConfirming(false);
+      setConfirmingEmail(null);
     }
   };
 
@@ -215,9 +251,12 @@ const AdminUsers: React.FC = () => {
   // helper to resolve UID from Accounts by email
   async function resolveUidByEmail(email: string): Promise<string | null> {
     try {
-      const q = query(accountsCollection(db), where('Email', '==', email), limit(1));
-      const snap = await getDocs(q);
+      // Try canonical field first
+      let snap = await getDocs(query(accountsCollection(db), where('Email', '==', email), limit(1)));
       if (!snap.empty) return snap.docs[0].id; // Accounts are stored with uid as doc id
+      // Fallback: some older docs may have lowercase 'email'
+      snap = await getDocs(query(accountsCollection(db), where('email', '==', email), limit(1)));
+      if (!snap.empty) return snap.docs[0].id;
     } catch (e) {}
     return null;
   }
@@ -515,8 +554,13 @@ const AdminUsers: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-1">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1">
+                        <div
+                          className="flex items-center space-x-1"
+                          onClick={(e) => { e.stopPropagation(); }}
+                          onMouseDown={(e) => { e.stopPropagation(); }}
+                        >
                           <button 
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
                               // TODO: Implement edit functionality
@@ -543,9 +587,18 @@ const AdminUsers: React.FC = () => {
                             </svg>
                           </button>
                           <button 
+                            type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              void deleteUserByEmail(user.email);
+                              setConfirmingEmail(user.email);
+                            }}
+                            onMouseDown={(e) => { e.stopPropagation(); }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setConfirmingEmail(user.email);
+                              }
                             }}
                             disabled={deletingEmail === user.email}
                             className={`p-1.5 focus:outline-none ${deletingEmail === user.email ? 'text-gray-400 cursor-not-allowed' : 'text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400'}`}
@@ -775,6 +828,45 @@ const AdminUsers: React.FC = () => {
                 <button type="submit" disabled={adding} className="w-full sm:w-auto px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-60">{adding ? 'Adding...' : 'Add User'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Delete Modal */}
+      {confirmingEmail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden">
+          <div
+            className="absolute inset-0 bg-black/50 touch-none"
+            onClick={() => setConfirmingEmail(null)}
+          />
+          <div
+            className="relative z-10 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-100 dark:border-gray-700 max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Delete User</h2>
+            </div>
+            <div className="p-6 text-gray-700 dark:text-gray-300">
+              <p className="mb-2">This will permanently delete the user and all related data (quotes, service requests, tickets, user devices, chat sessions).</p>
+              <p><span className="font-medium">User:</span> {confirmingEmail}</p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmingEmail(null)}
+                className="px-4 py-2 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => confirmingEmail && performDelete(confirmingEmail)}
+                disabled={confirming}
+                className="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
+              >
+                {confirming ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
           </div>
         </div>
       )}
