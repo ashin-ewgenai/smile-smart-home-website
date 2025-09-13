@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import DashboardLayout from '../DashboardLayout';
 import { BrowserRouter, useInRouterContext } from 'react-router-dom';
 import { db } from '../../../../lib/firebase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, query, where, limit } from 'firebase/firestore';
 
 const AdminContactSubmissions: React.FC = () => {
   // Read from localStorage only on client
@@ -18,6 +18,10 @@ const AdminContactSubmissions: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   // Accordion: track only one open card id
   const [openId, setOpenId] = useState<string | null>(null);
+  // Cache of planner leads by email to avoid refetching
+  const [planByEmail, setPlanByEmail] = useState<Record<string, any>>({});
+  const [planLoading, setPlanLoading] = useState<Record<string, boolean>>({});
+  const [planOpen, setPlanOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setLoading(true);
@@ -41,6 +45,30 @@ const AdminContactSubmissions: React.FC = () => {
   }, []);
 
   const toggleOpen = (id: string) => setOpenId((cur) => (cur === id ? null : id));
+
+  // Fetch a planner lead for a given email (if exists) and cache it
+  const ensurePlanForEmail = async (email?: string | null) => {
+    const key = (email || '').trim().toLowerCase();
+    if (!key) return;
+    if (planByEmail[key] || planLoading[key]) return;
+    setPlanLoading((s) => ({ ...s, [key]: true }));
+    try {
+      const plannerRef = collection(db, 'Planner_Leads');
+      const q = query(plannerRef, where('email', '==', key), limit(1));
+      const snap = await getDocs(q);
+      const doc = snap.docs[0];
+      if (doc) {
+        setPlanByEmail((m) => ({ ...m, [key]: { id: doc.id, ...doc.data() } }));
+      } else {
+        setPlanByEmail((m) => ({ ...m, [key]: null }));
+      }
+    } catch {
+      // swallow – this section is optional
+      setPlanByEmail((m) => ({ ...m, [key]: null }));
+    } finally {
+      setPlanLoading((s) => ({ ...s, [key]: false }));
+    }
+  };
 
   const formatCreatedAt = (v: any) => {
     try {
@@ -81,6 +109,10 @@ const AdminContactSubmissions: React.FC = () => {
                       const id = String(r.id);
                       const isOpen = openId === id;
                       const created = formatCreatedAt(r.createdAt);
+                      const emailKey = (r.email || '').toLowerCase();
+                      const plan = planByEmail[emailKey];
+                      const isPlanLoading = !!planLoading[emailKey];
+                      const isPlanOpen = !!planOpen[id];
                       return (
                         <div
                           key={id}
@@ -91,7 +123,10 @@ const AdminContactSubmissions: React.FC = () => {
                             className="w-full text-left p-4 flex justify-between items-center hover:bg-gray-50 transition-colors dark:hover:bg-gray-700/50"
                             aria-expanded={isOpen}
                             aria-controls={`contact-panel-${id}`}
-                            onClick={() => toggleOpen(id)}
+                            onClick={() => {
+                              toggleOpen(id);
+                              ensurePlanForEmail(r.email);
+                            }}
                           >
                             <div className="flex-1 min-w-0">
                               <h3 className="font-medium truncate text-gray-900 dark:text-gray-200">{r.email || 'No Email'}</h3>
@@ -134,6 +169,48 @@ const AdminContactSubmissions: React.FC = () => {
                                   <div>
                                     <div className="text-gray-500">Created</div>
                                     <div className="text-gray-900 dark:text-gray-100">{created.full}</div>
+                                  </div>
+                                )}
+                                {/* Plan Detail (optional) */}
+                                {isPlanLoading && (
+                                  <div className="text-gray-500">Loading plan detail…</div>
+                                )}
+                                {!isPlanLoading && plan && (
+                                  <div>
+                                    <button
+                                      type="button"
+                                      className="w-full text-left px-3 py-2 rounded-md bg-white/60 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 flex items-center justify-between"
+                                      onClick={() => setPlanOpen((m) => ({ ...m, [id]: !m[id] }))}
+                                      aria-expanded={isPlanOpen}
+                                    >
+                                      <span className="text-gray-700 dark:text-gray-200 font-medium">Plan Detail</span>
+                                      <span className={`transition-transform duration-200 text-gray-500 ${isPlanOpen ? 'rotate-90' : 'rotate-0'}`}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd"/></svg>
+                                      </span>
+                                    </button>
+                                    {isPlanOpen && (
+                                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-gray-900 dark:text-gray-100">
+                                        {Object.entries(plan)
+                                          .filter(([k]) => !['id','updatedAt','formData','recommendedAreas'].includes(k))
+                                          .map(([k, v]) => {
+                                            const label = k.replace(/[_-]+/g, ' ');
+                                            if (k === 'planText') {
+                                              return (
+                                                <div key={k} className="flex flex-col sm:col-span-2">
+                                                  <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
+                                                  <span className="break-words whitespace-pre-wrap">{String(v)}</span>
+                                                </div>
+                                              );
+                                            }
+                                            return (
+                                              <div key={k} className="flex flex-col">
+                                                <span className="text-xs text-gray-500 dark:text-gray-400">{label}</span>
+                                                <span className="break-words">{String(v)}</span>
+                                              </div>
+                                            );
+                                          })}
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                               </div>

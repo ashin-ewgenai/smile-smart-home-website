@@ -25,7 +25,7 @@ interface QuoteDetailsProps {
 const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote, onBack }) => {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Quote Details</h2>
           <div className="h-1 w-20 bg-indigo-600 rounded"></div>
@@ -33,7 +33,7 @@ const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote, onBac
         {onBack && (
           <button
             onClick={onBack}
-            className="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600"
+            className="inline-flex items-center px-2 py-1.5 sm:px-3 sm:py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-xs sm:text-sm leading-4 font-medium rounded-md text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 whitespace-nowrap mt-2 sm:mt-0 self-start sm:self-auto"
           >
             ← Back to List
           </button>

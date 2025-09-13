@@ -384,11 +384,11 @@ const EstimationTool: React.FC = () => {
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-0 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Quote Management</h1>
+          <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Quote Management</h1>
         </div>
-        <div>
+        <div className="mt-1 sm:mt-0">
           <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
             {quotes.length > 0 && (
               <Clock className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -398,12 +398,12 @@ const EstimationTool: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 border border-gray-200 dark:border-gray-700 p-4 text-sm sm:text-base -mx-6 sm:mx-0 rounded-none sm:rounded-lg">
         {!selectedQuote && !showCreateForm && (
           <div className="lg:col-span-2">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
               <div className="p-4 border-b border-gray-300 dark:border-gray-600">
-                <h2 className="text-lg font-medium text-gray-900 dark:text-white">Pending Quotes</h2>
+                <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Pending Quotes</h2>
               </div>
               {quotes.length === 0 ? (
                 <div className="p-6 text-center">
@@ -417,21 +417,28 @@ const EstimationTool: React.FC = () => {
                       className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-600 last:border-0"
                       onClick={() => handleQuoteSelect(quote)}
                     >
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                          <span className="text-indigo-600 dark:text-indigo-300 font-medium">
-                            {quote.customerEmail ? quote.customerEmail.charAt(0).toUpperCase() : 'Q'}
-                          </span>
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">
-                            {quote.customerEmail || 'No email provided'}
+                      <div className="w-full">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
+                            <span className="text-indigo-600 dark:text-indigo-300 font-medium text-sm sm:text-base">
+                              {quote.customerEmail ? quote.customerEmail.charAt(0).toUpperCase() : 'Q'}
+                            </span>
                           </div>
-                          <div className="text-sm text-gray-500">
-                            {quote.quoteType || 'No type specified'} • {quote.propertyType || 'No property type'}
+                          <div className="ml-3 sm:ml-4 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              {quote.customerEmail || 'No email provided'}
+                            </div>
+                            <div className="text-sm text-gray-500 break-words">
+                              {quote.quoteType || 'No type specified'} • {quote.propertyType || 'No property type'}
+                            </div>
+                          </div>
+                          <div className="hidden sm:block ml-auto">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                              {quote.status || 'Pending'}
+                            </span>
                           </div>
                         </div>
-                        <div className="ml-auto">
+                        <div className="mt-2 sm:hidden">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                             {quote.status || 'Pending'}
                           </span>

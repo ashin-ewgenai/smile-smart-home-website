@@ -45,7 +45,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
     <nav className="fixed top-0 left-0 right-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 relative">
         <div className="flex justify-between h-16">
-          <div className="flex items-center">
+          <div className="flex items-center min-w-0 flex-1">
             <button
               type="button"
               onClick={() => {
@@ -62,9 +62,9 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
-            <div className="flex-shrink-0">
-              <Link to="/" className="flex items-center">
-                <span className="text-xl font-bold text-teal-600 dark:text-teal-400">
+            <div className="min-w-0">
+              <Link to="/" className="flex items-center min-w-0">
+                <span className="text-base sm:text-xl font-bold text-teal-600 dark:text-teal-400 truncate whitespace-nowrap max-w-[50vw] sm:max-w-none">
                   Smile Smart Home
                 </span>
               </Link>
@@ -101,8 +101,8 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               )}
             </div>
           </div>
-          <div className="flex items-center">
-            <div className="flex items-center space-x-1">
+          <div className="flex items-center flex-shrink-0">
+            <div className="hidden md:flex items-center space-x-1 sm:space-x-2">
               {isSuperAdmin && (
                 <a
                   href={`${SUPER_ADMIN_BASE_PATH}/dashboard`}
@@ -133,7 +133,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                 </button>
               )}
             </div>
-            <div className="ml-3 relative">
+            <div className="ml-3 relative hidden md:block">
               <div>
                 <button 
                   type="button" 
@@ -151,7 +151,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               </div>
               {/* Desktop dropdown is rendered at container level to align with navbar bottom border */}
             </div>
-            <div className="ml-3 -mr-2 flex md:hidden">
+            <div className="ml-2 -mr-2 flex md:hidden shrink-0 relative z-10">
               <button 
                 type="button" 
                 className="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-500" 
@@ -216,56 +216,109 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
 
       {isMobileMenuOpen && (
         <div className="md:hidden">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <Link 
-              to={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
+          <div className="px-2 pt-2 pb-3 space-y-2 sm:px-3">
+            <a 
+              href={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
+              onClick={() => setIsMobileMenuOpen(false)}
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               Dashboard
-            </Link>
+            </a>
             {userType === 'admin' ? (
               <>
-                <Link 
-                  to="/dashboard/admin/users" 
+                <a 
+                  href="/dashboard/admin/users" 
+                  onClick={() => setIsMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Manage Users
-                </Link>
-                <Link 
-                  to="/dashboard/admin/devices/add" 
+                </a>
+                <a 
+                  href="/dashboard/admin/devices/add" 
+                  onClick={() => setIsMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Add Device
-                </Link>
-                <Link 
-                  to="/dashboard/admin/reports" 
+                </a>
+                <a 
+                  href="/dashboard/admin/reports" 
+                  onClick={() => setIsMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Reports
-                </Link>
-                <Link 
-                  to="/dashboard/admin/plan-leads" 
+                </a>
+                <a 
+                  href="/dashboard/admin/plan-leads" 
+                  onClick={() => setIsMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Plan Leads
-                </Link>
-                <Link 
-                  to="/dashboard/admin/estimates" 
+                </a>
+                <a 
+                  href="/dashboard/admin/estimates" 
+                  onClick={() => setIsMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Create Quote
-                </Link>
+                </a>
               </>
             ) : (
-              <Link 
-                to={`/dashboard/${userType}/settings`} 
+              <a 
+                href="/dashboard/user/settings" 
+                onClick={() => setIsMobileMenuOpen(false)}
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 Settings
-              </Link>
+              </a>
             )}
+
+            {/* Divider */}
+            <div className="border-t border-gray-200 dark:border-gray-700 my-2" />
+
+            {/* Moved navbar controls into the mobile menu */}
+            <div className="px-1 py-2 space-y-2">
+              {/* Theme toggle */}
+              <div className="flex items-center justify-between px-2 py-2 rounded-md bg-gray-50 dark:bg-gray-800">
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</span>
+                <DarkModeToggle />
+              </div>
+
+              {/* Notifications */}
+              {userType === 'admin' ? (
+                <a
+                  href="/dashboard/admin/notifications"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-2 py-2 rounded-md text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <Bell className="h-5 w-5" />
+                  <span className="text-base">Notifications</span>
+                </a>
+              ) : (
+                <div className="flex items-center gap-3 px-2 py-2 rounded-md text-gray-500 dark:text-gray-400">
+                  <Bell className="h-5 w-5 opacity-50" />
+                  <span className="text-base">Notifications</span>
+                </div>
+              )}
+
+              {/* Account */}
+              <div className="flex items-center gap-3 px-2 py-2 rounded-md">
+                <div className="h-8 w-8 rounded-full flex items-center justify-center bg-teal-500 text-white">
+                  <User className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <div className="text-sm font-medium text-gray-900 dark:text-white">{actualUserName}</div>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{userType}</div>
+                </div>
+                <button 
+                  onClick={handleLogout}
+                  className="px-3 py-1.5 rounded-md bg-red-600 text-white text-sm hover:bg-red-700"
+                >
+                  Sign out
+                </button>
+              </div>
+            </div>
           </div>
-          {/* Account header and links removed on small screens per request */}
+          {/* End mobile menu content */}
         </div>
       )}
     </nav>
