@@ -316,7 +316,7 @@ export default function User_Admin_Edit({ uid }: Props) {
                     <button
                       type="button"
                       onClick={async (e) => { e.stopPropagation(); try { await navigator.clipboard.writeText(displayName || ''); setCopiedName(true); setTimeout(()=>setCopiedName(false), 1200);} catch {} }}
-                      className="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:text-teal-700 hover:bg-teal-50 active:bg-teal-600 active:text-white transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 dark:text-gray-400 dark:hover:text-teal-300 dark:hover:bg-teal-900/20 dark:active:bg-teal-600/80 focus:outline-none focus:ring-2 focus:ring-teal-500/30 transition-opacity duration-150"
+                      className="mt-1 inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:text-teal-700 hover:bg-teal-50 active:bg-teal-600 active:text-white transition opacity-0 group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 dark:text-gray-400 dark:hover:text-teal-300 dark:hover:bg-teal-900/20 dark:active:bg-teal-600/80 focus:outline-none focus:ring-2 focus:ring-teal-500/30 duration-150"
                       aria-label="Copy name"
                       title={copiedName ? 'Copied' : 'Copy name'}
                     >

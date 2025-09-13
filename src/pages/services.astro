@@ -56,7 +56,7 @@ import SmartHomePlannerSection from '../components/home/SmartHomePlannerSection.
           
           <!-- CTA Buttons -->
           <div class="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="/contact" class="bg-teal hover:bg-teal/90 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg inline-flex items-center justify-center group">
+            <a href="/contact" data-hide-when="authed" class="bg-teal hover:bg-teal/90 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] hover:shadow-lg inline-flex items-center justify-center group">
               <svg class="w-5 h-5 mr-2 group-hover:rotate-12 transition-transform duration-200" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
                 <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
@@ -216,7 +216,7 @@ import SmartHomePlannerSection from '../components/home/SmartHomePlannerSection.
     <SmartHomePlannerSection />
     
     <!-- CTA Section -->
-    <section class="section-padding bg-teal text-white">
+    <section class="section-padding bg-teal text-white" data-hide-when="authed">
       <div class="container text-center">
         <h2 class="text-heading-lg font-bold mb-4 reveal-on-scroll">
           Ready to Get Started?
@@ -225,7 +225,7 @@ import SmartHomePlannerSection from '../components/home/SmartHomePlannerSection.
           Contact us today for a free consultation and discover the perfect smart home solution for your needs.
         </p>
         <div class="flex flex-col sm:flex-row gap-4 justify-center reveal-on-scroll">
-          <a href="/contact" class="bg-white text-teal hover:bg-gray-100 px-8 py-3 rounded-lg font-medium transition-all duration-120 transform hover:scale-[1.02] btn-magnetic">
+          <a href="/contact" data-hide-when="authed" class="bg-white text-teal hover:bg-gray-100 px-8 py-3 rounded-lg font-medium transition-all duration-120 transform hover:scale-[1.02] btn-magnetic">
             Get Free Quote
           </a>
           <a href="tel:+15551234567" class="border-2 border-white text-white hover:bg-white hover:text-teal px-8 py-3 rounded-lg font-medium transition-all duration-120">
@@ -238,3 +238,31 @@ import SmartHomePlannerSection from '../components/home/SmartHomePlannerSection.
   
   <Footer />
 </Layout>
+
+<script>
+  // @ts-nocheck
+  // Hide elements marked data-hide-when="authed" for authenticated users based on localStorage.userEmail
+  (function(){
+    const toggleAuthedHides = (isAuthed) => {
+      const nodes = document.querySelectorAll('[data-hide-when="authed"]');
+      nodes.forEach((el) => {
+        if (isAuthed) {
+          el.classList.add('hidden');
+          el.setAttribute('aria-hidden', 'true');
+          el.style.display = 'none';
+        } else {
+          el.classList.remove('hidden');
+          el.removeAttribute('aria-hidden');
+          el.style.display = '';
+        }
+      });
+    };
+    function run(){
+      let authed = false;
+      try { authed = !!localStorage.getItem('userEmail'); } catch {}
+      toggleAuthedHides(authed);
+    }
+    document.addEventListener('DOMContentLoaded', run);
+    document.addEventListener('astro:page-load', run);
+  })();
+</script>

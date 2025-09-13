@@ -37,8 +37,8 @@ import Footer from './Footer.astro';
           </p>
           
           <!-- Service Highlights -->
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 max-w-2xl mx-auto">
-            <div class="bg-white/40 dark:bg-gray-800/40 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 max-w-2xl mx-auto" data-contact="highlights">
+            <div class="bg-white/40 dark:bg-gray-800/40 backdrop-blur-sm rounded-xl p-4 border border-white/20" data-hide-when="authed">
               <div class="text-2xl font-bold text-teal mb-1">Free</div>
               <div class="text-xs text-gray-600 dark:text-gray-400">Consultation</div>
             </div>
@@ -53,7 +53,7 @@ import Footer from './Footer.astro';
           </div>
           
           <!-- CTA Button -->
-          <a href="#contact-form" class="inline-flex items-center bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 text-white px-8 py-4 rounded-full font-medium transition-all duration-200 transform hover:scale-105 cursor-pointer group">
+          <a href="#contact-form" data-hide-when="authed" class="inline-flex items-center bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 text-white px-8 py-4 rounded-full font-medium transition-all duration-200 transform hover:scale-105 cursor-pointer group">
             <svg class="w-5 h-5 mr-2 group-hover:rotate-12 transition-transform duration-200" fill="currentColor" viewBox="0 0 20 20">
               <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
               <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
@@ -206,11 +206,10 @@ import Footer from './Footer.astro';
           </div>
 
           <!-- Quick Contacts -->
-          <div class="reveal-on-scroll">
-            <div class="rounded-2xl border border-gray-200 dark:border-gray-700 p-6 bg-white/70 dark:bg-gray-900/70">
-              <h3 class="text-xl font-semibold text-charcoal dark:text-white mb-6">Account & Priority Contacts</h3>
-
-              <div class="space-y-8">
+          <div class="reveal-on-scroll lg:self-end">
+            <div class="rounded-2xl border border-gray-200 dark:border-gray-700 p-4 bg-white/70 dark:bg-gray-900/70">
+              <h3 class="text-xl font-semibold text-charcoal dark:text-white mb-3">Account & Priority Contacts</h3>
+              <div class="space-y-4">
                 <!-- Phone -->
                 <div class="flex items-start space-x-4">
                   <div class="w-12 h-12 bg-teal/10 dark:bg-teal/20 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -392,6 +391,7 @@ import Footer from './Footer.astro';
     const update = (isAuthed) => {
       const pub = document.querySelector('[data-contact="public"]');
       const usr = document.querySelector('[data-contact="user"]');
+      const highlights = document.querySelector('[data-contact="highlights"]');
       if (!pub || !usr) return;
       if (isAuthed) {
         pub.classList.add('hidden');
@@ -401,11 +401,36 @@ import Footer from './Footer.astro';
           const email = localStorage.getItem('userEmail');
           if (email && nameEl) nameEl.textContent = firstFromEmail(email);
         } catch {}
+        // Hide any elements marked to hide when authed
+        document.querySelectorAll('[data-hide-when="authed"]').forEach((el) => {
+          el.classList.add('hidden');
+          el.setAttribute('aria-hidden', 'true');
+          el.style.display = 'none';
+        });
+        // Center remaining highlight cards: switch to 2 columns and center items
+        if (highlights) {
+          highlights.classList.remove('md:grid-cols-3');
+          highlights.classList.add('md:grid-cols-2');
+          highlights.classList.add('md:justify-items-center');
+        }
       } else {
         pub.classList.remove('hidden');
         usr.classList.add('hidden');
+        // Show elements again when not authed
+        document.querySelectorAll('[data-hide-when="authed"]').forEach((el) => {
+          el.classList.remove('hidden');
+          el.removeAttribute('aria-hidden');
+          el.style.display = '';
+        });
+        // Restore original 3-column layout and remove centering
+        if (highlights) {
+          highlights.classList.add('md:grid-cols-3');
+          highlights.classList.remove('md:grid-cols-2');
+          highlights.classList.remove('md:justify-items-center');
+        }
       }
     };
+
     function run(){
       let authed = false;
       try { authed = !!localStorage.getItem('userEmail'); } catch {}

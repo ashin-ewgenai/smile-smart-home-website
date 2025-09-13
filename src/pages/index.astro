@@ -69,12 +69,14 @@ import SmartHomePlannerSection from '../components/home/SmartHomePlannerSection.
         </div>
         
         <div class="max-w-3xl mx-auto">
-          <ProcessStep 
-            step={1}
-            title="Free Consultation"
-            description="We assess your needs, discuss options, and provide a detailed quote tailored to your home."
-            icon='<svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>'
-          />
+          <div data-hide-when="authed">
+            <ProcessStep 
+              step={1}
+              title="Free Consultation"
+              description="We assess your needs, discuss options, and provide a detailed quote tailored to your home."
+              icon='<svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>'
+            />
+          </div>
           
           <ProcessStep 
             step={2}
@@ -147,7 +149,7 @@ import SmartHomePlannerSection from '../components/home/SmartHomePlannerSection.
     <SmartHomePlannerSection />
     
     <!-- CTA Section -->
-    <section class="section-padding bg-teal text-white">
+    <section class="section-padding bg-teal text-white" data-hide-when="authed">
       <div class="container text-center">
         <StaggerContainer client:load>
           <StaggerItem>
@@ -179,3 +181,32 @@ import SmartHomePlannerSection from '../components/home/SmartHomePlannerSection.
   
   <Footer />
 </Layout>
+
+<script>
+  // @ts-nocheck
+  // Hide elements for authenticated users (simple client-side gate based on localStorage userEmail)
+  (function(){
+    const toggleAuthedHides = (isAuthed) => {
+      const nodes = document.querySelectorAll('[data-hide-when="authed"]');
+      nodes.forEach((el) => {
+        if (isAuthed) {
+          el.classList.add('hidden');
+          el.setAttribute('aria-hidden', 'true');
+          // Also ensure no layout shift spacing
+          el.style.display = 'none';
+        } else {
+          el.classList.remove('hidden');
+          el.removeAttribute('aria-hidden');
+          el.style.display = '';
+        }
+      });
+    };
+    function run(){
+      let authed = false;
+      try { authed = !!localStorage.getItem('userEmail'); } catch {}
+      toggleAuthedHides(authed);
+    }
+    document.addEventListener('DOMContentLoaded', run);
+    document.addEventListener('astro:page-load', run);
+  })();
+</script>
