@@ -356,7 +356,22 @@ const AdminUsers: React.FC = () => {
         setAddEmail('');
         setAddPassword('');
       });
-      return () => cancelAnimationFrame(id);
+      // Lock background scroll while modal is open
+      try {
+        const html = document.documentElement;
+        const body = document.body;
+        const prevHtmlOverflow = html.style.overflow;
+        const prevBodyOverflow = body.style.overflow;
+        html.style.overflow = 'hidden';
+        body.style.overflow = 'hidden';
+        return () => {
+          cancelAnimationFrame(id);
+          html.style.overflow = prevHtmlOverflow;
+          body.style.overflow = prevBodyOverflow;
+        };
+      } catch {
+        return () => cancelAnimationFrame(id);
+      }
     }
   }, [showAdd]);
 
@@ -376,7 +391,7 @@ const AdminUsers: React.FC = () => {
           <h1 className="text-xl font-semibold text-gray-900 dark:text-white">Users</h1>
           <button
             onClick={openAdd}
-            className="inline-flex items-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded"
+            className="inline-flex items-center gap-2 px-3 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
               <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
@@ -386,27 +401,33 @@ const AdminUsers: React.FC = () => {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div>
+          <div className="relative">
             <label htmlFor="name-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Filter by Name
             </label>
+            <svg className="pointer-events-none absolute left-3 top-[2.65rem] h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35m0 0A7.5 7.5 0 103.75 3.75a7.5 7.5 0 0012.9 12.9z" />
+            </svg>
             <input
               type="text"
               id="name-filter"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500 dark:bg-gray-700 dark:text-white"
+              className="w-full pl-10 pr-3 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 dark:bg-gray-700 dark:text-white placeholder:text-gray-400"
               placeholder="Search by name..."
               value={nameFilter}
               onChange={(e) => setNameFilter(e.target.value)}
             />
           </div>
-          <div>
+          <div className="relative">
             <label htmlFor="email-filter" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Filter by Email
             </label>
+            <svg className="pointer-events-none absolute left-3 top-[2.65rem] h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 12H8m0 0l4-4m-4 4l4 4" />
+            </svg>
             <input
               type="text"
               id="email-filter"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500 dark:bg-gray-700 dark:text-white"
+              className="w-full pl-10 pr-3 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 dark:bg-gray-700 dark:text-white placeholder:text-gray-400"
               placeholder="Search by email..."
               value={emailFilter}
               onChange={(e) => setEmailFilter(e.target.value)}
@@ -415,7 +436,7 @@ const AdminUsers: React.FC = () => {
           <div className="flex items-end">
             <button
               onClick={clearFilters}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+              className="px-4 py-2 border-2 border-gray-200 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
             >
               Clear Filters
             </button>
@@ -555,14 +576,43 @@ const AdminUsers: React.FC = () => {
       </div>
       
       {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/50" onClick={closeAdd} />
-          <div className="relative z-10 bg-white dark:bg-gray-800 rounded-lg shadow-lg w-full max-w-md p-6">
-            <div className="flex items-center justify-between mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden">
+          <div
+            className="absolute inset-0 bg-black/50 touch-none"
+            onClick={closeAdd}
+          />
+          <div
+            className="relative z-10 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-gray-100 dark:border-gray-700 max-h-[90vh] flex flex-col overscroll-none touch-none"
+            onWheel={(e) => {
+              // Prevent background page from scrolling when hovering header/footer
+              e.stopPropagation();
+            }}
+          >
+            <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex-shrink-0">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Add User</h2>
-              <button onClick={closeAdd} className="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white">✕</button>
+              <button onClick={closeAdd} className="inline-flex items-center justify-center w-8 h-8 rounded-full text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500">✕</button>
             </div>
-            <form key={addFormKey} onSubmit={handleAddSubmit} className="space-y-4" autoComplete="off">
+            <form
+              key={addFormKey}
+              onSubmit={handleAddSubmit}
+              className="p-6 space-y-5 overflow-y-auto overscroll-none flex-1 touch-pan-y"
+              autoComplete="off"
+              onWheel={(e) => {
+                const el = e.currentTarget;
+                // Manually scroll the form and block default so the page behind never scrolls
+                el.scrollTop += e.deltaY;
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onWheelCapture={(e) => {
+                // Capture phase to guarantee background doesn't see the wheel
+                e.stopPropagation();
+              }}
+              onTouchMove={(e) => {
+                // Stop propagation to keep gestures within the modal
+                e.stopPropagation();
+              }}
+            >
               {/* Honeypot fields to absorb browser autofill */}
               <input 
                 type="text" 
@@ -587,7 +637,8 @@ const AdminUsers: React.FC = () => {
               {addError && <div className="text-red-600 text-sm">{addError}</div>}
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full name</label>
-                <input value={addName} onChange={e => setAddName(e.target.value)} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+                <input value={addName} onChange={e => setAddName(e.target.value)} className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" placeholder="Enter full name" />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">The name will be shown in reports and notifications.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
@@ -602,8 +653,9 @@ const AdminUsers: React.FC = () => {
                   autoComplete="new-email"
                   readOnly
                   onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
-                  className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" 
+                  className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" 
                 />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">We’ll send account emails to this address.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
@@ -617,8 +669,9 @@ const AdminUsers: React.FC = () => {
                   autoComplete="new-password"
                   readOnly
                   onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
-                  className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" 
+                  className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" 
                 />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Use at least 8 characters with a mix of letters and numbers.</p>
               </div>
               <div className="phone-input-container">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
@@ -667,20 +720,21 @@ const AdminUsers: React.FC = () => {
                   onChange={e => setAddAddress(e.target.value)} 
                   placeholder="Enter full address"
                   rows={3}
-                  className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                 />
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Include street, city, state and postal code.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
-                <select value={addRole} onChange={e => setAddRole(e.target.value as Account['Role'])} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white">
+                <select value={addRole} onChange={e => setAddRole(e.target.value as Account['Role'])} className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
                   <option value="user">user</option>
                   <option value="admin">admin</option>
-                  <option value="Super Admin">Super Admin</option>
                 </select>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Controls what this user can access.</p>
               </div>
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button type="button" onClick={closeAdd} className="px-3 py-2 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300">Cancel</button>
-                <button type="submit" disabled={adding} className="px-3 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60">{adding ? 'Adding...' : 'Add User'}</button>
+              <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3 pt-4 flex-shrink-0">
+                <button type="button" onClick={closeAdd} className="w-full sm:w-auto px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white hover:bg-gray-50 dark:bg-gray-800 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-teal-500">Cancel</button>
+                <button type="submit" disabled={adding} className="w-full sm:w-auto px-4 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-60">{adding ? 'Adding...' : 'Add User'}</button>
               </div>
             </form>
           </div>

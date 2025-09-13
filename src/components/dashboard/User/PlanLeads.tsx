@@ -90,16 +90,16 @@ const PlanLeads: React.FC = () => {
 
     return (
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-2 text-sm text-gray-300">
-          <div>Complexity: <span className="text-white">{lead.complexity}</span></div>
-          <div>Space: <span className="text-white">{formData.spaceType}</span></div>
-          <div>Rooms: <span className="text-white">{formData.roomCount}</span></div>
-          <div>Budget: <span className="text-white">{formData.budget}</span></div>
+        <div className="grid grid-cols-2 gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <div>Complexity: <span className="text-gray-900 dark:text-white">{lead.complexity}</span></div>
+          <div>Space: <span className="text-gray-900 dark:text-white">{formData.spaceType}</span></div>
+          <div>Rooms: <span className="text-gray-900 dark:text-white">{formData.roomCount}</span></div>
+          <div>Budget: <span className="text-gray-900 dark:text-white">{formData.budget}</span></div>
         </div>
         
         {formData.goals?.length > 0 && (
           <div>
-            <p className="text-sm text-gray-300">
+            <p className="text-sm text-gray-700 dark:text-gray-300">
               <span className="font-medium">Goals: </span>
               {formData.goals.join(', ')}
             </p>
@@ -108,7 +108,7 @@ const PlanLeads: React.FC = () => {
         
         {lead.planText && (
           <div className="mt-2">
-            <p className="text-sm text-gray-300 whitespace-pre-line">
+            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-line">
               {lead.planText}
             </p>
           </div>

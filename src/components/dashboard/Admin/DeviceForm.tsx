@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { db, auth, storage } from '../../../lib/firebase';
 import { addDoc, serverTimestamp, onSnapshot, query, orderBy, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { devicesCollection, deviceDoc } from '../../../models/Collections';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 export type DeviceFormValues = {
   name: string;
@@ -48,6 +48,8 @@ export default function DeviceForm() {
   const [values, setValues] = useState<DeviceFormValues>(initialState);
   const [submitting, setSubmitting] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
   type DeviceDoc = {
     id: string;
     name: string;
@@ -77,6 +79,16 @@ export default function DeviceForm() {
       return matchesSearch && matchesType;
     });
   }, [devices, search, typeFilter]);
+
+  // Build dynamic type options from devices collection
+  const typeOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of devices) {
+      const t = (d.type ?? '').toString().trim();
+      if (t) set.add(t);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [devices]);
 
   // Edit modal state
   const [editing, setEditing] = useState<null | DeviceDoc>(null);
@@ -165,7 +177,16 @@ export default function DeviceForm() {
           serial: (data.modelNumber ?? data.serial) ?? '',
           imageUrl: data.imageUrl ?? '',
           assignedToEmail: data.assignedToEmail ?? '',
-          price: typeof data.price === 'number' ? data.price : (typeof data.price === 'string' ? parseFloat(data.price) : undefined),
+          // Normalize price from Firestore: accept numbers or strings like "₹2,345.00"
+          price: typeof data.price === 'number'
+            ? data.price
+            : (typeof data.price === 'string'
+              ? (() => {
+                  const cleaned = data.price.replace(/[^0-9.]/g, '');
+                  const parsed = cleaned ? parseFloat(cleaned) : NaN;
+                  return isNaN(parsed) ? undefined : parsed;
+                })()
+              : undefined),
           stock: typeof data.stock === 'number' ? data.stock : (typeof data.stock === 'string' ? parseInt(data.stock) : undefined),
           description: data.description ?? '',
           brand: data.brand ?? '',
@@ -290,12 +311,12 @@ export default function DeviceForm() {
         const payload: Record<string, any> = {
           deviceName: values.name.trim(),
           type: deviceType,
-          serial: values.serial?.trim() || '',
           modelNumber: values.modelNumber?.trim() || '',
           imageUrl: uploadedImageUrl || values.imageUrl?.trim() || '',
           assignedToEmail: values.assignedToEmail?.trim() || '',
           location: values.location?.trim() || '',
           stock: typeof values.stock === 'number' ? values.stock : (values.stock ? Number(values.stock) : null),
+          price: typeof values.price === 'number' ? values.price : (values.price ? Number(values.price) : null),
           description: values.description?.trim() || '',
           brand: values.brand?.trim() || '',
           warranty: formatWarranty(values.warrantyValue, values.warrantyUnit),
@@ -309,11 +330,11 @@ export default function DeviceForm() {
         if (!payload.assignedToEmail) delete payload.assignedToEmail;
         if (!payload.location) delete payload.location;
         if (!payload.status) delete payload.status;
-        if (!payload.serial) delete payload.serial;
         if (!payload.modelNumber) delete payload.modelNumber;
         if (!payload.brand) delete payload.brand;
         if (!payload.warranty) delete payload.warranty;
         if (!payload.documentation) delete payload.documentation;
+        if (typeof payload.price === 'undefined' || payload.price === null) delete payload.price;
         await addDoc(devicesCollection(db), payload);
         alert('Device added successfully.');
         setValues((v) => ({ ...initialState, assignedToEmail: v.assignedToEmail }));
@@ -333,7 +354,10 @@ export default function DeviceForm() {
   const openEdit = useCallback((d: DeviceDoc) => {
     setEditing(d);
     const parsed = parseWarranty(d.warranty);
-    const isCustomType = !['Camera', 'Sensor', 'Lock', 'Thermostat', 'Light'].includes(d.type);
+    // A type is considered custom if it's not in the current dynamic options list
+    const isCustomType = !typeOptions.includes(d.type);
+    setEditImageFile(null);
+    setEditImagePreview(null);
     
     setEditValues({
       name: d.name,
@@ -344,12 +368,14 @@ export default function DeviceForm() {
       stock: typeof d.stock === 'number' ? d.stock : undefined,
       description: d.description ?? '',
       brand: d.brand ?? '',
+      price: typeof d.price === 'number' ? d.price : (typeof d.price === 'string' ? parseFloat(d.price) : undefined),
+      documentation: d.documentation ?? '',
       warrantyValue: parsed.value as any,
       warrantyUnit: parsed.unit as any,
       customType: isCustomType ? d.type : '',
       isCustomType,
     });
-  }, [parseWarranty]);
+  }, [parseWarranty, typeOptions]);
 
   const saveEdit = useCallback(async () => {
     if (!editing) return;
@@ -359,11 +385,33 @@ export default function DeviceForm() {
     const email = (editValues.assignedToEmail ?? '').toString().trim();
     const brand = (editValues.brand ?? '').toString().trim();
     const warranty = formatWarranty(editValues.warrantyValue, editValues.warrantyUnit ?? 'months');
+    // Respect custom type when 'Other' is chosen
+    const editDeviceType = (editValues as any).isCustomType
+      ? ((editValues as any).customType ?? '').toString().trim()
+      : ((editValues.type ?? '') as string).toString().trim();
+    if ((editValues as any).isCustomType && !editDeviceType) {
+      alert('Please enter a device type.');
+      return;
+    }
+    // Optional image upload if user selected a new image in edit modal
+    let uploadedImageUrl: string | undefined;
+    const oldImageUrl = editing.imageUrl;
+    if (editImageFile) {
+      try {
+        const path = `devices/images/${Date.now()}_${editImageFile.name}`;
+        const imgRef = storageRef(storage, path);
+        await uploadBytes(imgRef, editImageFile);
+        uploadedImageUrl = await getDownloadURL(imgRef);
+      } catch (e) {
+        console.error('Failed to upload image:', e);
+        alert('Failed to upload image. Please try again or choose a different file.');
+        return;
+      }
+    }
     const update: Record<string, any> = {
       deviceName: nm,
-      type: (editValues.type ?? '').toString().trim(),
+      type: editDeviceType,
       status: (editValues.status as 'Active' | 'Inactive') ?? 'Active',
-      serial: md,
       modelNumber: md,
       stock: typeof editValues.stock === 'number' ? editValues.stock : null,
       description: (editValues.description ?? '').toString().trim(),
@@ -371,14 +419,30 @@ export default function DeviceForm() {
     };
     // Remove legacy 'name' field if it exists
     update.name = deleteField();
+    if (uploadedImageUrl) update.imageUrl = uploadedImageUrl;
     if (email) update.assignedToEmail = email; else update.assignedToEmail = deleteField();
     if (brand) update.brand = brand; else update.brand = deleteField();
+    // Always remove legacy 'serial' field so only 'modelNumber' exists
+    (update as any).serial = deleteField();
+    // Handle price field
+    if (typeof editValues.price === 'number') (update as any).price = editValues.price; else (update as any).price = deleteField();
     if (!warranty) update.warranty = deleteField();
     const docu = (editValues.documentation ?? '').toString().trim();
     if (docu) update.documentation = docu; else update.documentation = deleteField();
     await updateDoc(ref, update);
+    // After successful update, cleanup previous image in storage if replaced
+    if (uploadedImageUrl && oldImageUrl) {
+      try {
+        const oldRef = storageRef(storage, oldImageUrl);
+        await deleteObject(oldRef);
+      } catch (e) {
+        console.warn('Could not delete old image from storage:', e);
+      }
+    }
     setEditing(null);
-  }, [editing, editValues, formatWarranty]);
+    setEditImageFile(null);
+    setEditImagePreview(null);
+  }, [editing, editValues, formatWarranty, editImageFile]);
 
   const removeDevice = useCallback(async (id: string) => {
     if (!confirm('Delete this device? This action cannot be undone.')) return;
@@ -488,11 +552,9 @@ export default function DeviceForm() {
             }}
           >
             <option value="">Select a type</option>
-            <option value="Camera">Camera</option>
-            <option value="Sensor">Sensor</option>
-            <option value="Lock">Lock</option>
-            <option value="Thermostat">Thermostat</option>
-            <option value="Light">Light</option>
+            {typeOptions.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
             <option value="other">Other (specify below)</option>
           </select>
           {values.isCustomType && (
@@ -669,11 +731,9 @@ export default function DeviceForm() {
             className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
           >
             <option value="">All types</option>
-            <option value="Camera">Camera</option>
-            <option value="Sensor">Sensor</option>
-            <option value="Lock">Lock</option>
-            <option value="Thermostat">Thermostat</option>
-            <option value="Light">Light</option>
+            {typeOptions.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
           </select>
           <button
             type="button"
@@ -697,9 +757,8 @@ export default function DeviceForm() {
                   <div className="w-20 h-20 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-xs text-gray-500">No Image</div>
                 )}
                 <div className="min-w-0">
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
                     <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{d.name}</h3>
-                    <span className={`text-xs px-2 py-0.5 rounded ${d.status === 'Active' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200' : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300'}`}>{d.status}</span>
                   </div>
                   <div className="mt-1 text-xs text-gray-600 dark:text-gray-300 truncate">Type: {d.type || '-'}</div>
                   {(typeof d.price !== 'undefined') && (
@@ -760,19 +819,67 @@ export default function DeviceForm() {
                 />
               </div>
               <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Image</label>
+                <div className="mt-1 flex items-center gap-3">
+                  {editImagePreview ? (
+                    <img src={editImagePreview} alt={editValues.name ?? 'Device'} className="w-16 h-16 object-cover rounded" />
+                  ) : (
+                    editing?.imageUrl ? (
+                      <img src={editing.imageUrl} alt={editValues.name ?? 'Device'} className="w-16 h-16 object-cover rounded" />
+                    ) : (
+                      <div className="w-16 h-16 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-xs text-gray-500">No Image</div>
+                    )
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="block w-full text-sm text-gray-900 dark:text-gray-200 file:mr-4 file:py-2 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setEditImageFile(file);
+                      if (file) {
+                        const url = URL.createObjectURL(file);
+                        setEditImagePreview(url);
+                      } else {
+                        setEditImagePreview(null);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Type</label>
                 <select
                   className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
-                  value={editValues.type ?? ''}
-                  onChange={(e) => setEditValues((v) => ({ ...v, type: e.target.value }))}
+                  value={(editValues as any).isCustomType ? 'other' : (editValues.type ?? '')}
+                  onChange={(e) => {
+                    const isCustom = e.target.value === 'other';
+                    setEditValues((v: any) => ({
+                      ...v,
+                      type: isCustom ? '' : e.target.value,
+                      isCustomType: isCustom,
+                      // clear customType when switching back to predefined types
+                      ...(isCustom ? {} : { customType: '' }),
+                    }));
+                  }}
                 >
                   <option value="">Select a type</option>
-                  <option value="Camera">Camera</option>
-                  <option value="Sensor">Sensor</option>
-                  <option value="Lock">Lock</option>
-                  <option value="Thermostat">Thermostat</option>
-                  <option value="Light">Light</option>
+                  {typeOptions.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                  <option value="other">Other (specify below)</option>
                 </select>
+                {(editValues as any).isCustomType && (
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      placeholder="Enter device type"
+                      className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+                      value={(editValues as any).customType ?? ''}
+                      onChange={(e) => setEditValues((v: any) => ({ ...v, customType: e.target.value }))}
+                    />
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div>
@@ -813,6 +920,16 @@ export default function DeviceForm() {
                   className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
                   value={editValues.description ?? ''}
                   onChange={(e) => setEditValues((v) => ({ ...v, description: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Device Documentation</label>
+                <input
+                  type="text"
+                  placeholder="Link or notes for device documentation"
+                  className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+                  value={(editValues as any).documentation ?? ''}
+                  onChange={(e) => setEditValues((v: any) => ({ ...v, documentation: e.target.value }))}
                 />
               </div>
               <div>
