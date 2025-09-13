@@ -1333,6 +1333,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 <EstimationEditor
                   selected={selected as any}
                   accountEmail={account?.Email}
+                  accountUid={account?.id}
                   estimation={estimation}
                   onSaved={async (saved) => {
                     setEstimation(saved);

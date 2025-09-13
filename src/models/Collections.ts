@@ -465,9 +465,11 @@ export interface EstimationQuote {
   quoteId: string;
   originalQuoteId?: string; // Reference to the original quote in 'quotes' collection
   customerEmail: string;
+  uid?: string; // UID from Accounts for the customer
   status: 'Pending' | 'Confirmed' | 'Draft' | string;
   issueDate: Date | Timestamp | null;
   expiryDate?: Date | Timestamp | null;
+  attachments?: string[];
   items: Array<{
     id: string;
     name: string;
@@ -508,9 +510,11 @@ export function estimationQuotePayload(data: Partial<EstimationQuote>): Estimati
     quoteId: data.quoteId || '',
     originalQuoteId: data.originalQuoteId || '',
     customerEmail: data.customerEmail || '',
+    uid: data.uid || '',
     status: data.status || 'Draft',
     issueDate: data.issueDate || Timestamp.now(),
     expiryDate: data.expiryDate || null,
+    attachments: data.attachments || [],
     items: data.items || [],
     subtotal: data.subtotal || 0,
     taxes: data.taxes || 0,

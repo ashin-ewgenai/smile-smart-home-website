@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { TicketNotificationButton } from '@/components/common/TicketNotificationButton';
-import { auth, db } from '../../../../lib/firebase';
+import { auth, db, functions } from '../../../../lib/firebase';
 import { accountsCollection, quotesCollection, supportTicketsCollection, quotesParentDoc, registerUserWithProfile, type Account } from '../../../../models/Collections';
 import { collection, getDoc, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
 import AdminUserDetail from './AdminUserDetail';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
@@ -49,6 +50,7 @@ const AdminUsers: React.FC = () => {
   const [showAlert, setShowAlert] = useState(false);
   const [alertData, setAlertData] = useState<{email: string; counts: AlertsCount} | null>(null);
   const [addFormKey, setAddFormKey] = useState(0);
+  const [deletingEmail, setDeletingEmail] = useState<string | null>(null);
 
   const closeAdd = () => {
     // Also reset fields on close to avoid retaining values
@@ -82,6 +84,42 @@ const AdminUsers: React.FC = () => {
     const counts = alertsMap[email.toLowerCase()] || { quotes: 0, services: 0, tickets: 0, total: 0 };
     setShowAlert(true);
     setAlertData({ email, counts });
+  };
+
+  // Delete a user (and all user-owned docs) by email -> resolves to UID, then calls CF
+  const deleteUserByEmail = async (email: string) => {
+    if (!email) return;
+    const confirmed = window.confirm(
+      `This will permanently delete the user and all related data (quotes, service requests, tickets, user devices, chat sessions).\n\nUser: ${email}\n\nAre you sure?`
+    );
+    if (!confirmed) return;
+    try {
+      setDeletingEmail(email);
+      const uid = await resolveUidByEmail(email);
+      if (!uid) {
+        alert('Could not find UID for this email.');
+        return;
+      }
+      const call = httpsCallable(functions, 'adminDeleteUserAndData');
+      const res = await call({ uid });
+      // Optimistically remove from lists
+      setUsers(prev => prev.filter(u => u.email !== email));
+      setFilteredUsers(prev => prev.filter(u => u.email !== email));
+      // Cleanup any listeners for this email
+      const key = email.toLowerCase();
+      unsubscribeRefs.current[key]?.forEach(fn => fn());
+      delete unsubscribeRefs.current[key];
+      // Optional: show summary
+      try {
+        const summary = (res?.data as any)?.summary;
+        console.log('Delete summary:', summary);
+      } catch {}
+    } catch (e: any) {
+      const msg = e?.message || String(e);
+      alert(`Failed to delete user: ${msg}`);
+    } finally {
+      setDeletingEmail(null);
+    }
   };
 
   const handleAddSubmit = async (e: React.FormEvent) => {
@@ -507,10 +545,10 @@ const AdminUsers: React.FC = () => {
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
-                              // TODO: Implement delete functionality
-                              console.log('Delete user:', user.email);
+                              void deleteUserByEmail(user.email);
                             }}
-                            className="p-1.5 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 focus:outline-none"
+                            disabled={deletingEmail === user.email}
+                            className={`p-1.5 focus:outline-none ${deletingEmail === user.email ? 'text-gray-400 cursor-not-allowed' : 'text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400'}`}
                             aria-label="Delete user"
                             title="Delete user"
                           >

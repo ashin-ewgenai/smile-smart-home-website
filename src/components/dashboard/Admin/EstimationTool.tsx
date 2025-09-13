@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Clock } from 'lucide-react';
-import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc, where, limit } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
-import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload } from '../../../models/Collections';
+import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload, accountsCollection } from '../../../models/Collections';
 import QuoteDetails from './QuoteDetails';
 
 interface QuoteItem {
@@ -220,11 +220,20 @@ const EstimationTool: React.FC = () => {
     try {
       
       const estimationId = createForm.quoteId;
-      
+      // Resolve user UID from Accounts by email to store on estimation
+      let resolvedUserUid: string | undefined = undefined;
+      try {
+        const accSnap = await getDocs(query(accountsCollection(db), where('Email', '==', customerEmail), limit(1)));
+        if (!accSnap.empty) {
+          resolvedUserUid = accSnap.docs[0].id;
+        }
+      } catch {}
+
       const payload = estimationQuotePayload({
         quoteId: estimationId,
         originalQuoteId: selectedQuote.id, // Link back to original quote
         customerEmail: customerEmail,
+        uid: resolvedUserUid,
         status: status,
         issueDate: createForm.issueDate ? new Date(createForm.issueDate) : null,
         expiryDate: createForm.expiryDate ? new Date(createForm.expiryDate) : null,
