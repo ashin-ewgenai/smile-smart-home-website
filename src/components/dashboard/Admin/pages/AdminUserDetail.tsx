@@ -82,6 +82,14 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const [editStatus, setEditStatus] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [estimation, setEstimation] = useState<any | null>(null);
+  // UI helpers for UID reveal/copy
+  const [showUid, setShowUid] = useState(false);
+  const [copiedUid, setCopiedUid] = useState(false);
+  const maskUid = (v?: string) => {
+    if (!v) return '—';
+    // Always show bullets only, with a fixed length to avoid leaking actual length
+    return '••••••••••';
+  };
 
   // Lock background scroll and prevent background wheel/touch when the centered details modal is open
   useEffect(() => {
@@ -837,31 +845,98 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               {error && <div className="text-red-400">{error}</div>}
               {!loading && !error && account && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Left: Name & Email */}
                   <div>
-                    <div className="text-2xl font-semibold text-gray-900 dark:text-white">{account.FullName || '—'}</div>
-                    <div className="text-lg text-gray-700 dark:text-gray-300">{account.Email || '—'}</div>
+                    <div className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-white">{account.FullName || '—'}</div>
+                    <div className="text-sm md:text-base text-gray-600 dark:text-gray-300">{account.Email || '—'}</div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-sm">
+                  {/* Right: UID / Role / Status */}
+                  <div className="grid grid-cols-[auto,1fr] gap-x-2 gap-y-1 text-sm md:text-base items-center">
                     <div className="text-gray-500 dark:text-gray-400">UID</div>
-                    <div className="text-gray-900 dark:text-gray-100 truncate" title={account.Uid}>{account.Uid}</div>
+                    <div className="text-gray-800 dark:text-gray-100 truncate" title={account.Uid}>
+                      <div className="group/uid inline-flex items-center gap-1 max-w-full min-w-0">
+                        <span className="truncate font-mono text-[12px] md:text-[13px] tracking-wider px-1 py-0.5 rounded bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 max-w-[220px] md:max-w-[300px] lg:max-w-[420px] whitespace-nowrap">
+                          {showUid ? (account.Uid || '—') : maskUid(account.Uid)}
+                        </span>
+                        {/* Actions */}
+                        <div className="inline-flex items-center gap-1 opacity-0 group-hover/uid:opacity-100 transition-opacity flex-shrink-0">
+                          {/* Toggle visibility */}
+                          <button
+                            type="button"
+                            onClick={() => setShowUid((v) => !v)}
+                            className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            aria-label={showUid ? 'Hide UID' : 'Show UID'}
+                            title={showUid ? 'Hide UID' : 'Show UID'}
+                          >
+                            {showUid ? (
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                                <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C7 20 2.73 16.11 1 12c.53-1.19 1.27-2.27 2.18-3.2M22.94 12.94C22.36 14.13 21.59 15.23 20.66 16.2M10.58 10.58A2 2 0 1 0 13.42 13.42M1 1l22 22" />
+                              </svg>
+                            ) : (
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
+                                <circle cx="12" cy="12" r="3" />
+                              </svg>
+                            )}
+                          </button>
+                          {/* Copy UID */}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(String(account.Uid || ''));
+                                setCopiedUid(true);
+                                setTimeout(() => setCopiedUid(false), 1200);
+                              } catch {}
+                            }}
+                            className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            aria-label="Copy UID"
+                            title={copiedUid ? 'Copied!' : 'Copy UID'}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                            </svg>
+                          </button>
+                          {copiedUid && (
+                            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">Copied</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                     <div className="text-gray-500 dark:text-gray-400">Role</div>
-                    <div className="text-gray-900 dark:text-gray-100">{account.Role}</div>
+                    <div className="text-gray-800 dark:text-gray-100">{account.Role}</div>
                     <div className="text-gray-500 dark:text-gray-400">Status</div>
-                    <div className="text-gray-900 dark:text-gray-100">{account.Status}</div>
+                    <div className="text-gray-800 dark:text-gray-100">{account.Status}</div>
                   </div>
 
+                  {/* Contact Info */}
                   <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4 md:col-span-2">
                     {!editingContact ? (
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <div className="text-gray-500 dark:text-gray-400">Phone Number</div>
-                          <div className="text-gray-900 dark:text-gray-100">{(account as any)?.phoneNumber || '—'}</div>
+                        {/* Phone */}
+                        <div className="flex items-start gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mt-1 text-gray-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.09 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.3 1.77.57 2.61a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.47-1.14a2 2 0 0 1 2.11-.45c.84.27 1.71.45 2.61.57A2 2 0 0 1 22 16.92z" />
+                          </svg>
+                          <div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Phone</div>
+                            <div className="text-sm text-gray-700 dark:text-gray-100">{(account as any)?.phoneNumber || '—'}</div>
+                          </div>
                         </div>
-                        <div className="md:col-span-2">
-                          <div className="text-gray-500 dark:text-gray-400">Address</div>
-                          <div className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap break-words">{(account as any)?.address || '—'}</div>
+                        {/* Address */}
+                        <div className="flex items-start gap-2">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mt-1 text-gray-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M21 10c0 7-9 12-9 12S3 17 3 10a9 9 0 1 1 18 0Z" />
+                            <circle cx="12" cy="10" r="3" />
+                          </svg>
+                          <div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400">Address</div>
+                            <div className="text-sm text-gray-700 dark:text-gray-100 whitespace-pre-wrap break-words">{(account as any)?.address || '—'}</div>
+                          </div>
                         </div>
-                        <div className="md:col-span-2 flex justify-end">
+                        {/* Edit button */}
+                        <div className="md:col-span-2 flex justify-end mt-2">
                           <button type="button" onClick={() => setEditingContact(true)} className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
                             Edit Contact Info
                           </button>
