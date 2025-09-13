@@ -148,8 +148,8 @@ const PlanLeads: React.FC = () => {
                   aria-expanded={openId === lead.id}
                   aria-controls={`lead-panel-${lead.id}`}
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-3">
-                    <div>
+                  <div className="flex flex-col gap-2 mb-3 min-w-0">
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
                           {lead.email || 'Unknown Email'}
@@ -158,22 +158,22 @@ const PlanLeads: React.FC = () => {
                       <p className="text-xs text-gray-600 dark:text-gray-300 truncate mt-0.5">
                         {lead.complexity} Plan • {lead.formData?.spaceType || 'N/A'}
                       </p>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                        {lead.updatedAt 
+                          ? new Date(
+                              typeof lead.updatedAt === 'object' && 'toDate' in lead.updatedAt 
+                                ? lead.updatedAt.toDate() 
+                                : lead.updatedAt
+                            ).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'numeric',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                          : 'No date'}
+                      </span>
                     </div>
-                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                      {lead.updatedAt 
-                        ? new Date(
-                            typeof lead.updatedAt === 'object' && 'toDate' in lead.updatedAt 
-                              ? lead.updatedAt.toDate() 
-                              : lead.updatedAt
-                          ).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'numeric',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })
-                        : 'No date'}
-                    </span>
                   </div>
                   <div className="space-y-3">
                     <div>

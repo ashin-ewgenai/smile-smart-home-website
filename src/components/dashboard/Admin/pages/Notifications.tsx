@@ -291,15 +291,26 @@ const Notifications: React.FC = () => {
       if (!item.id) return;
       
       if (item.type === 'quote_request') {
-        // Update the specific quote document in the 'quotes' collection
-        await updateDoc(doc(db, 'quotes', item.id), { adminRead: true });
+        // Update root quotes doc if this item is from root collection
+        try { await updateDoc(doc(db, 'quotes', item.id), { adminRead: true }); } catch {}
+        // If we have a parentUid, also update nested subcollection doc so collectionGroup fetch reflects it
+        if (item.parentUid) {
+          try { await updateDoc(doc(db, COLLECTION_QUOTES_ROOT, item.parentUid, SUBCOLLECTION_QUOTE, item.id), { adminRead: true }); } catch {}
+        }
       } else if (item.type === 'service_request') {
         await updateDoc(serviceRequestDoc(db, item.id), { adminRead: true });
       } else if (item.type === 'contact_message') {
         await updateDoc(contactRequestDoc(db, item.id), { adminRead: true });
-      } else if (item.type === 'support_ticket' && item.parentUid) {
-        // For support tickets, we need to use the parentUid to build the correct path
-        await updateDoc(doc(db, 'supportTickets', item.parentUid, 'ticket', item.id), { adminRead: true });
+      } else if (item.type === 'plan_lead') {
+        try { await updateDoc(plannerLeadDoc(db, item.id), { adminRead: true }); } catch {}
+      } else if (item.type === 'support_ticket') {
+        if (item.parentUid) {
+          // For nested support tickets, update the nested path
+          await updateDoc(doc(db, 'supportTickets', item.parentUid, 'ticket', item.id), { adminRead: true });
+        } else {
+          // Some support tickets are sourced from Contact_Messages; update that doc as well
+          try { await updateDoc(doc(db, 'Contact_Messages', item.id), { adminRead: true }); } catch {}
+        }
       }
       
       // Update local state
@@ -633,6 +644,8 @@ const Notifications: React.FC = () => {
               // Map email fields from the quote data
               email: data.email || data.userEmail || data.customerEmail,
               userEmail: data.userEmail || data.email || data.customerEmail,
+              // Preserve adminRead so unread state persists
+              adminRead: data.adminRead === true,
               // Ensure we have a timestamp for sorting
               timestamp: data.createdAt?.toMillis() || 0
             };
@@ -822,17 +835,21 @@ const Notifications: React.FC = () => {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {getNotificationTitle(item, (e) => {
-                        e.stopPropagation();
-                        if (unread) { markAsRead(item); }
-                        navigateToItem(item);
-                      })}
+                      <span className="inline-flex w-full items-center justify-between gap-3">
+                        <span className="min-w-0">
+                          {getNotificationTitle(item, (e) => {
+                            e.stopPropagation();
+                            if (unread) { markAsRead(item); }
+                            navigateToItem(item);
+                          })}
+                        </span>
+                        {createdAt && (
+                          <span className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap ml-3">
+                            {fmt(createdAt)}
+                          </span>
+                        )}
+                      </span>
                     </h3>
-                    {createdAt && (
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">
-                        {fmt(createdAt)}
-                      </p>
-                    )}
                   </div>
                   <div className="flex items-center space-x-2">
                     {/* View button removed; click the highlighted email/name instead */}
