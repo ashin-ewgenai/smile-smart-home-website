@@ -82,6 +82,16 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const botNeedsTicket = !claimed && !providedTicketId;
 
   const sessionId = useMemo(() => (uid ? `live_${uid}` : null), [uid]);
+  
+  // Chat reset function to clear initialization state
+  const resetChat = () => {
+    setMessages([]);
+    setTicketData(null);
+    setTicketLoading(false);
+    setWorkflowStep('initial');
+    hasInitialized.current = false; // Reset initialization flag
+  };
+
   // Offline mode removed: Support Chat requires full Firebase Auth
 
   useEffect(() => {
@@ -142,17 +152,79 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   // Fetch and analyze ticket data
   useEffect(() => {
     if (hasInitialized.current) return;
-    // If ticketId is provided, fetch that specific ticket
-    if (providedTicketId) {
-      setTicketLoading(true);
-      const unsub = onSnapshot(doc(db, 'Support_Tickets', providedTicketId), (snap) => {
-        if (snap.exists()) {
-          const ticketData = snap.data() as TicketData;
-          setTicketData(ticketData);
+    if (!uid || !isAuthenticated) return; // Wait for authentication
+    
+    const fetchAndAnalyzeTicket = async () => {
+      try {
+        setTicketLoading(true);
+        // Don't set hasInitialized here - set it after messages are added
+        
+        // If specific ticketId provided, analyze that ticket specifically
+        if (providedTicketId) {
+          console.log(`Analyzing specific ticket: ${providedTicketId}`);
+          const ticketDoc = await getDoc(doc(db, 'Support_Tickets', providedTicketId));
           
-          // Auto-show ticket verification on refresh if ticket exists
-          if (messages.length === 0) {
-            const ticketNumber = ticketData.ticketNumber || `#${providedTicketId.slice(-6).toUpperCase()}`;
+          if (!ticketDoc.exists()) {
+            console.error('Ticket not found:', providedTicketId);
+            setTicketData(null);
+            const errorMsg: ChatMsg = {
+              role: 'agent',
+              content: 'Ticket not found. Please check the ticket ID or create a new support ticket.',
+              showTicketCTA: true,
+              ts: Date.now(),
+            };
+            setMessages([errorMsg]);
+            hasInitialized.current = true; // Set after messages are added
+            return;
+          }
+          
+          const ticketData = ticketDoc.data();
+          if (ticketData?.uid !== uid) {
+            console.error('Ticket does not belong to user');
+            setTicketData(null);
+            const errorMsg: ChatMsg = {
+              role: 'agent',
+              content: 'Access denied. This ticket does not belong to your account.',
+              ts: Date.now(),
+            };
+            setMessages([errorMsg]);
+            hasInitialized.current = true; // Set after messages are added
+            return;
+          }
+
+          // Set ticket data for context
+          setTicketData({
+            ticketId: providedTicketId,
+            subject: ticketData.subject,
+            description: ticketData.description,
+            category: ticketData.category,
+            status: ticketData.status,
+            needsSerial: ticketData.needsSerial,
+            initialSolution: ticketData.initialSolution
+          });
+
+          const ticketNumber = ticketData.ticketNumber || `#${providedTicketId.slice(-6).toUpperCase()}`;
+          
+          if (ticketData.initialSolution) {
+            // Show existing analysis
+            const analysisMsg: ChatMsg = {
+              role: 'assistant',
+              content: `I found your support ticket ${ticketNumber}. Here's what I can help you with:\n\n${ticketData.initialSolution}`,
+              ts: Date.now(),
+            };
+            setMessages([analysisMsg]);
+            hasInitialized.current = true; // Set after messages are added
+            
+            if (ticketData.needsSerial) {
+              const serialMsg: ChatMsg = {
+                role: 'assistant',
+                content: 'I need to see the serial number on your device to provide more specific help. Can you upload a photo of the serial number?',
+                ts: Date.now() + 1,
+              };
+              setMessages(prev => [...prev, serialMsg]);
+            }
+          } else {
+            // No analysis yet, show verification first
             const verificationMsg: ChatMsg = {
               role: 'assistant',
               content: `I found your active support ticket ${ticketNumber}. Let me verify the details with you first:`,
@@ -172,69 +244,86 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             };
             setMessages([verificationMsg]);
             setWorkflowStep('ticket_verification');
+            hasInitialized.current = true; // Set after messages are added
           }
-        } else {
-          setTicketData(null);
-        }
-        setTicketLoading(false);
-      });
-      return () => unsub();
-    }
-    // If no ticketId provided, fetch and analyze the latest unresolved ticket
-    else if (uid && messages.length === 0) {
-      const fetchAndAnalyzeTicket = async () => {
-        try {
-          setTicketLoading(true);
+        } else if (messages.length === 0) {
+          // Show welcome message first, then check for tickets
+          const welcomeMsg: ChatMsg = {
+            role: 'assistant',
+            content: '👋 Hello! I\'m your Smart Home Support Assistant. I\'m here to help you with any issues or questions about your smart home devices.\n\n🔍 Let me check if you have any active support tickets I can help with...',
+            ts: Date.now(),
+          };
+          setMessages([welcomeMsg]);
+
+          // Check for unresolved tickets after welcome
+          console.log('Checking for unresolved tickets');
           const analyzeTicket = httpsCallable(functions, 'analyzeUserUnresolvedTicket');
           const result = await analyzeTicket({});
           const data = result.data as any;
 
           if (data.status === 'no_unresolved_tickets') {
             setTicketData(null);
-            // Show a message that there are no unresolved tickets with CTA
             const noTicketMsg: ChatMsg = {
-              role: 'agent',
-              content: 'You don\'t have any unresolved tickets at the moment. If you need help, please create a new support ticket.',
-              showTicketCTA: true,
-              ts: Date.now(),
+              role: 'assistant',
+              content: '✅ Great! You don\'t have any unresolved tickets at the moment.\n\n💬 How can I assist you today? You can:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Create a new support ticket if needed\n\nJust type your question and I\'ll be happy to help!',
+              showTicketCTA: false,
+              ts: Date.now() + 500,
             };
-            setMessages([noTicketMsg]);
+            setMessages(prev => [...prev, noTicketMsg]);
+            hasInitialized.current = true; // Set after messages are added
           } else if (data.status === 'analyzed' || data.status === 'already_analyzed') {
-            // Set ticket data
             setTicketData({
+              ticketId: data.ticketId,
               subject: data.subject,
               needsSerial: data.needsSerial,
               initialSolution: data.initialSolution
             });
 
-            // Show initial solution
-            const solutionMsg: ChatMsg = {
+            const ticketFoundMsg: ChatMsg = {
               role: 'assistant',
-              content: data.initialSolution,
-              ts: Date.now(),
+              content: `🎫 I found an active support ticket: "${data.subject}"\n\nHere's what I can help you with:\n\n${data.initialSolution}`,
+              ts: Date.now() + 500,
             };
-            setMessages([solutionMsg]);
+            setMessages(prev => [...prev, ticketFoundMsg]);
 
             if (data.needsSerial) {
               const serialMsg: ChatMsg = {
                 role: 'assistant',
-                content: 'I need to see the serial number on your device to provide more specific help. Can you upload a photo of the serial number?',
-                ts: Date.now() + 1,
+                content: '📷 I need to see the serial number on your device to provide more specific help. Can you upload a photo of the serial number?',
+                ts: Date.now() + 1000,
               };
               setMessages(prev => [...prev, serialMsg]);
             }
           }
-        } catch (error) {
-          console.error('Error analyzing ticket:', error);
-          setTicketData(null);
-        } finally {
-          setTicketLoading(false);
         }
-      };
+      } catch (error) {
+        console.error('Error analyzing ticket:', error);
+        setTicketData(null);
+        
+        // Show welcome message even if there's an error
+        const welcomeMsg: ChatMsg = {
+          role: 'assistant',
+          content: '👋 Hello! I\'m your Smart Home Support Assistant. I\'m here to help you with any issues or questions about your smart home devices.',
+          ts: Date.now(),
+        };
+        
+        const errorMsg: ChatMsg = {
+          role: 'assistant',
+          content: '⚠️ I\'m having trouble accessing your ticket information right now, but I can still help you!\n\n💬 How can I assist you today? You can:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Create a new support ticket if needed\n\nJust type your question and I\'ll be happy to help!',
+          showTicketCTA: false,
+          ts: Date.now() + 500,
+        };
+        setMessages([welcomeMsg, errorMsg]);
+      } finally {
+        setTicketLoading(false);
+      }
+    };
 
+    // Only run if authenticated and no messages yet
+    if (messages.length === 0) {
       fetchAndAnalyzeTicket();
     }
-  }, [providedTicketId, uid, messages.length]);
+  }, [providedTicketId, uid, isAuthenticated, messages.length]);
 
   // Online (human) vs Offline (bot) mode handling
   useEffect(() => {
@@ -426,7 +515,19 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setMessages((prev) => prev.map((m) => m.id === tempId ? ({ id: tempId, role: 'agent', content: `Upload failed: ${error?.message || 'unknown error'}`, ts: Date.now() }) : m));
     }, async () => {
       const url = await getDownloadURL(task.snapshot.ref);
-      setMessages((prev) => prev.map((m) => m.id === tempId ? ({ id: tempId, role: 'user', imageUrl: url, ts: Date.now() }) : m));
+      const imageMessage = { id: tempId, role: 'user' as const, imageUrl: url, ts: Date.now() };
+      setMessages((prev) => prev.map((m) => m.id === tempId ? imageMessage : m));
+      
+      // Save image message to Firestore if user is authenticated and we have a session
+      if (claimed && uid && sessionId) {
+        try {
+          const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+          await addDoc(msgsCol, { role: 'user', imageUrl: url, ts: Date.now() });
+        } catch (error) {
+          console.error('Failed to save image message to Firestore:', error);
+        }
+      }
+      
       // Always trigger AI serial extraction and verification if ticket is present
       const activeTicketId = providedTicketId;
       if (!activeTicketId) {
@@ -652,7 +753,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
               <span className="ml-2 text-sm text-gray-500">Loading conversation…</span>
             </div>
           )}
-          {!loading && messages.length === 0 && (
+          {!loading && messages.length === 0 && !hasInitialized.current && (
             <div className="text-center py-8 px-4">
               <div className="mx-auto h-12 w-12 text-teal-500 mb-4">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -666,16 +767,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                 </div>
               ) : (
                 <div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Smart Home Assistant</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">I'm here to help with your smart home devices and answer any questions you have!</p>
-                  {botNeedsTicket && (
-                    <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200 text-sm">
-                      For technical issues or complaints, please create a support ticket for personalized assistance.
-                      {raiseTicketsHref && (
-                        <a href={raiseTicketsHref} className="ml-2 underline font-medium hover:no-underline" target="_blank" rel="noopener noreferrer">Create Ticket</a>
-                      )}
-                    </div>
-                  )}
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Initializing Smart Home Assistant...</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Please wait while I prepare to assist you.</p>
                 </div>
               )}
             </div>

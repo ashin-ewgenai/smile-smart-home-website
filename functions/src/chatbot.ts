@@ -31,10 +31,14 @@ const CONFIG = {
     MAX_TOKENS: 300
   },
   COLLECTIONS: {
-    DEVICES: "User_Devices", // Standardize on User_Devices
-    TICKETS: "Support_Tickets",
+    DEVICES: "User_Devices",
+    TICKETS: "Support_Tickets", 
     CHAT_SESSIONS: "chat_sessions",
-    RATE_LIMITS: "rate_limits"
+    RATE_LIMITS: "rate_limits",
+    ACCOUNTS: "Accounts",
+    MAIN_DEVICES: "Devices",
+    SUPPORT_REQUESTS: "support_requests",
+    SUPPORT_STATUS: "support_status"
   }
 };
 
@@ -76,11 +80,6 @@ async function applyRateLimit(uid: string): Promise<void> {
 }
 
 
-/**
- * DEPRECATED: triageChat function - functionality now integrated into chatWithOpenAI
- * Keeping for backward compatibility but should be removed in future versions
- */
-// removed unused triageChat callable
 
 // ===== Full chat with OpenAI including Firestore persistence =====
 // request.data: { messages: {role:'system'|'user'|'assistant', content:string}[], model?: string, sessionId?: string, ticketId?: string }
@@ -125,7 +124,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
   }
 
   // Persist chat session
-  const sessionsCol = db.collection("chat_sessions");
+  const sessionsCol = db.collection(CONFIG.COLLECTIONS.CHAT_SESSIONS);
   const now = Date.now();
   try {
     await sessionsCol.doc(sessionId).set(
@@ -146,7 +145,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
   } catch {}
 
   // Device context for better answers
-  const devicesQuery = await db.collection("User_Devices").where("uid", "==", uid).get();
+  const devicesQuery = await db.collection(CONFIG.COLLECTIONS.DEVICES).where("uid", "==", uid).get();
   const userDevices = devicesQuery.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) })) as Array<{ id: string; deviceName?: string; name?: string }>;
   const deviceContext = userDevices.length > 0 ? `User has the following devices installed: ${userDevices.map((d) => d.deviceName || d.name || "Unknown Device").join(", ")}.` : "";
 
@@ -157,7 +156,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
   try {
     // Use provided ticket ID or fetch latest unresolved ticket
     if (providedTicketId) {
-      const ticketDoc = await db.collection("Support_Tickets").doc(providedTicketId).get();
+      const ticketDoc = await db.collection(CONFIG.COLLECTIONS.TICKETS).doc(providedTicketId).get();
       const ticketData = ticketDoc.data();
       if (ticketDoc.exists && ticketData && ticketData.uid === uid) {
         activeTicket = { ticketId: providedTicketId, data: ticketData as any };
@@ -212,9 +211,8 @@ SERIAL VERIFICATION WORKFLOW:
 - Don't exceed what's needed to move the support process forward
 
 WORKFLOW RULES:
-- For NEW COMPLAINTS without active ticket: Respond with "REQUIRES_TICKET:" followed by explanation
-- For users WITH active ticket: First respond with "TICKET_VERIFICATION:" to confirm ticket details
-- After ticket verification: Respond with "DEVICE_SELECTION:" to prompt device selection
+- For NEW COMPLAINTS without active ticket: Suggest creating a support ticket and provide helpful guidance
+- For users WITH active ticket: Acknowledge the existing ticket and offer to help with troubleshooting
 - For GENERAL QUERIES: Provide helpful answers
 - NEVER ask for ticket numbers - always automatically fetch unresolved tickets
 - If active ticket context is provided, ALWAYS acknowledge the existing ticket first
@@ -223,12 +221,14 @@ WORKFLOW RULES:
 - When device needs serial verification: Ask user to upload image of device serial number
 
 RESPONSE FORMAT:
-- For complaints needing ticket: Start response with "REQUIRES_TICKET:" followed by explanation
-- For ticket verification: Start response with "TICKET_VERIFICATION:" followed by confirmation message
-- For device selection: Start response with "DEVICE_SELECTION:" followed by prompt to select device
+- Provide natural, conversational responses without technical prefixes
+- For complaints needing ticket: Explain that they should create a support ticket for better assistance
+- For ticket verification: Acknowledge their existing ticket and confirm you can help
+- For device selection: Ask them to specify which device needs help
 - For serial verification: Ask user to "Please upload an image of your device showing the serial number"
 - When providing serial verification results, be clear about match status
 - Keep responses concise and professional (under 150 words)
+- NEVER start responses with technical codes like "REQUIRES_TICKET:" or "DEVICE_SELECTION:"
 
 USER CONTEXT:
 ${deviceContext}${ticketContext}`,
@@ -287,7 +287,7 @@ ${deviceContext}${ticketContext}`,
     } else if (content.startsWith('DEVICE_SELECTION:')) {
       // Fetch user devices for selection
       try {
-        const devicesQuery = await db.collection("User_Devices").where("uid", "==", uid).get();
+        const devicesQuery = await db.collection(CONFIG.COLLECTIONS.DEVICES).where("uid", "==", uid).get();
         const devices = devicesQuery.docs.map(doc => {
           const data = doc.data();
           return {
@@ -360,28 +360,27 @@ ${deviceContext}${ticketContext}`,
 
 
 // ===== Ticket-related helper callables used by chatbot workflow =====
-// DEPRECATED: analyzeComplaint function - replaced by analyzeUserUnresolvedTicket
-// Keeping for backward compatibility but functionality is redundant
-// removed unused analyzeComplaint callable
-
-// removed unused requestSerialImage callable
 // ===== Consolidated ticket fetching utility =====
 // Utility function to fetch the latest unresolved ticket for a user
 async function fetchLatestUnresolvedTicket(uid: string) {
   try {
-    const ticketsQuery = await db.collection("Support_Tickets")
+    console.log(`Fetching unresolved tickets for user: ${uid}`);
+    const ticketsQuery = await db.collection(CONFIG.COLLECTIONS.TICKETS)
       .where("uid", "==", uid)
       .where("status", "in", ["Pending", "In Progress"])
       .orderBy("createdAt", "desc")
       .limit(1)
       .get();
 
+    console.log(`Found ${ticketsQuery.size} unresolved tickets`);
     if (ticketsQuery.empty) {
       return null;
     }
 
     const ticketDoc = ticketsQuery.docs[0];
-    return { ticketDoc, ticketId: ticketDoc.id, data: ticketDoc.data() as any };
+    const ticketData = ticketDoc.data();
+    console.log(`Retrieved ticket ${ticketDoc.id} with status: ${ticketData.status}`);
+    return { ticketDoc, ticketId: ticketDoc.id, data: ticketData as any };
   } catch (error) {
     console.error("Error fetching unresolved ticket:", error);
     throw new HttpsError("internal", "Failed to fetch ticket information");
@@ -398,7 +397,7 @@ export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY], cors: t
   const imageUrl = (request.data?.imageUrl as string | undefined)?.trim();
   if (!ticketId || !imageUrl) throw new HttpsError("invalid-argument", "ticketId and imageUrl are required");
 
-  const tRef = db.collection("Support_Tickets").doc(ticketId);
+  const tRef = db.collection(CONFIG.COLLECTIONS.TICKETS).doc(ticketId);
   const s = await tRef.get();
   if (!s.exists) throw new HttpsError("not-found", "Ticket not found");
   const t = s.data() as any;
@@ -450,7 +449,7 @@ export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY], cors: t
     // Verify device ownership
     console.log(`[extractSerialFromImage] Verifying device ownership for serial: ${extractedSerial}`);
     
-    const userDevicesSnap = await db.collection("User_Devices")
+    const userDevicesSnap = await db.collection(CONFIG.COLLECTIONS.DEVICES)
       .where("uid", "==", authCtx.uid)
       .where("serial", "==", extractedSerial)
       .get();
@@ -495,13 +494,13 @@ export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) =
   const serial = (request.data?.serial as string | undefined)?.trim();
   if (!ticketId || !serial) throw new HttpsError("invalid-argument", "ticketId and serial are required");
 
-  const tRef = db.collection("Support_Tickets").doc(ticketId);
+  const tRef = db.collection(CONFIG.COLLECTIONS.TICKETS).doc(ticketId);
   const tSnap = await tRef.get();
   if (!tSnap.exists) throw new HttpsError("not-found", "Ticket not found");
   const t = tSnap.data() as any;
   if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
 
-  const devSnap = await db.collection("devices").doc(serial).get();
+  const devSnap = await db.collection(CONFIG.COLLECTIONS.MAIN_DEVICES).doc(serial).get();
   if (!devSnap.exists) return {valid: false, message: "This product is not recognized."};
   const dev = devSnap.data() as any;
   if (dev.ownerUid !== authCtx.uid) return {valid: false, message: "This product is not recognized."};
@@ -516,16 +515,12 @@ export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) =
   
   try {
     // Primary: Fetch user-specific device documents from flat collection
-    const userDeviceDocsSnap = await db.collection("User_Devices").where("uid", "==", authCtx.uid).where("sourceDeviceId", "==", deviceUID).get();
+    const userDeviceDocsSnap = await db.collection(CONFIG.COLLECTIONS.DEVICES).where("uid", "==", authCtx.uid).where("sourceDeviceId", "==", deviceUID).get();
     if (!userDeviceDocsSnap.empty) {
       supportDocs = userDeviceDocsSnap.docs.map(doc => ({id: doc.id, ...doc.data()}));
     } else {
-      // Fallback: Fetch generic product documents
-      const productDocsSnap = await db.collection("product_docs").doc(deviceType).get();
-      if (productDocsSnap.exists) {
-        const data = productDocsSnap.data();
-        supportDocs = data?.documents || data?.links?.map((link: string) => ({url: link})) || [];
-      }
+      // No user-specific documents found, use empty array
+      supportDocs = [];
     }
   } catch (error) {
     console.warn("Failed to fetch support documents:", error);
@@ -549,7 +544,7 @@ export const suggestTroubleshootingStep = onCall({secrets: [OPENAI_API_KEY], cor
   const docs = (request.data?.docs as string[] | undefined) || [];
   if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
 
-  const tRef = db.collection("Support_Tickets").doc(ticketId);
+  const tRef = db.collection(CONFIG.COLLECTIONS.TICKETS).doc(ticketId);
   const tSnap = await tRef.get();
   if (!tSnap.exists) throw new HttpsError("not-found", "Ticket not found");
   const t = tSnap.data() as any;
@@ -623,7 +618,7 @@ export const analyzeUserUnresolvedTicket = onCall({secrets: [OPENAI_API_KEY], co
   // Get user's devices for context
   let userDevices: Array<{id: string; [key: string]: any}> = [];
   try {
-    const devicesSnap = await db.collection("devices").where("ownerUid", "==", authCtx.uid).get();
+    const devicesSnap = await db.collection(CONFIG.COLLECTIONS.DEVICES).where("uid", "==", authCtx.uid).get();
     userDevices = devicesSnap.docs.map(doc => ({id: doc.id, ...doc.data()}));
   } catch (e) {
     console.warn("Failed to fetch user devices:", e);

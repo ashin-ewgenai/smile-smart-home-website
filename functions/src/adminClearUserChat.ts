@@ -1,7 +1,9 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getFirestore} from "firebase-admin/firestore";
+import {getStorage} from "firebase-admin/storage";
 
 const db = getFirestore();
+const storage = getStorage();
 
 /**
  * Callable: Admin clears all chat_sessions and messages for a given userId (uid)
@@ -36,7 +38,59 @@ export const adminClearUserChat = onCall({
     console.log(`Found ${sessionsSnap.size} chat sessions for user ${targetUid}`);
     
     if (sessionsSnap.empty) {
-      return {status: "ok", deletedSessions: 0, message: "No chat sessions found for this user"};
+      return {status: "ok", deletedSessions: 0, deletedImages: 0, message: "No chat sessions found for this user"};
+    }
+
+    // Collect all image URLs before deletion
+    const imageUrls: string[] = [];
+    let totalMessages = 0;
+    
+    for (const docSnap of sessionsSnap.docs) {
+      const msgsCol = docSnap.ref.collection("messages");
+      const msgsSnap = await msgsCol.get();
+      totalMessages += msgsSnap.size;
+      console.log(`Session ${docSnap.id} has ${msgsSnap.size} messages`);
+      
+      for (const msgDoc of msgsSnap.docs) {
+        const msgData = msgDoc.data();
+        if (msgData.imageUrl && typeof msgData.imageUrl === 'string') {
+          imageUrls.push(msgData.imageUrl);
+        }
+      }
+    }
+    
+    console.log(`Found ${imageUrls.length} images to delete from ${totalMessages} total messages`);
+
+    // Delete images from Firebase Storage
+    let deletedImagesCount = 0;
+    const bucket = storage.bucket();
+    
+    for (const imageUrl of imageUrls) {
+      try {
+        // Extract file path from Firebase Storage URL
+        // URLs typically look like: https://firebasestorage.googleapis.com/v0/b/bucket/o/path%2Fto%2Ffile.jpg?alt=media&token=...
+        const urlParts = imageUrl.split('/o/');
+        if (urlParts.length > 1) {
+          const pathWithParams = urlParts[1];
+          const filePath = decodeURIComponent(pathWithParams.split('?')[0]);
+          
+          const file = bucket.file(filePath);
+          const [exists] = await file.exists();
+          
+          if (exists) {
+            await file.delete();
+            deletedImagesCount++;
+            console.log(`Deleted image: ${filePath}`);
+          } else {
+            console.log(`Image not found in storage: ${filePath}`);
+          }
+        } else {
+          console.log(`Invalid Firebase Storage URL format: ${imageUrl}`);
+        }
+      } catch (error: any) {
+        console.error(`Failed to delete image ${imageUrl}:`, error?.message || error);
+        // Continue with other images even if one fails
+      }
     }
 
     // Use multiple batches if needed (Firestore batch limit is 500 operations)
@@ -48,7 +102,6 @@ export const adminClearUserChat = onCall({
       // Delete all messages subcollection
       const msgsCol = docSnap.ref.collection("messages");
       const msgsSnap = await msgsCol.get();
-      console.log(`Session ${docSnap.id} has ${msgsSnap.size} messages`);
       
       for (const msgDoc of msgsSnap.docs) {
         if (operationCount >= 450) { // Leave some buffer
@@ -80,8 +133,14 @@ export const adminClearUserChat = onCall({
       await batch.commit();
     }
     
-    console.log(`Successfully cleared ${sessionsSnap.size} chat sessions for user ${targetUid}`);
-    return {status: "ok", deletedSessions: sessionsSnap.size, message: `Cleared ${sessionsSnap.size} chat sessions`};
+    console.log(`Successfully cleared ${sessionsSnap.size} chat sessions and ${deletedImagesCount} images for user ${targetUid}`);
+    return {
+      status: "ok", 
+      deletedSessions: sessionsSnap.size, 
+      deletedImages: deletedImagesCount,
+      totalImagesFound: imageUrls.length,
+      message: `Cleared ${sessionsSnap.size} chat sessions and ${deletedImagesCount}/${imageUrls.length} images`
+    };
   } catch (error: any) {
     console.error("Error clearing chat sessions:", error);
     throw new HttpsError("internal", `Failed to clear chat sessions: ${error?.message || error}`);
