@@ -58,7 +58,7 @@ const OPTIONS = [
 const QUOTE_TYPES: { value: QuoteType; label: string }[] = [
   { value: 'New Installation', label: 'New Installation' },
   { value: 'Upgrade Existing Setup', label: 'Upgrade Existing Setup' },
-  { value: 'Maintenance', label: 'Maintenance' },
+  // Maintenance option removed
   { value: 'Custom Requirement', label: 'Custom Requirement' },
 ];
 
@@ -132,6 +132,8 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     locationState: '',
     locationDistrict: '',
   });
+  // Device options fetched from Firestore (fallback to static options if fetch fails)
+  const [availableDevices, setAvailableDevices] = useState<{ value: string; label: string }[]>(DEVICE_OPTIONS);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -166,6 +168,8 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
   const [selectedQuote, setSelectedQuote] = useState<QuoteDoc | null>(null);
   const [estimation, setEstimation] = useState<any | null>(null);
   const [estLoading, setEstLoading] = useState(false);
+  // User's installed devices (from /User_Devices by uid)
+  const [userDevices, setUserDevices] = useState<string[]>([]);
 
   // Deletion state for pending quotes
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -259,7 +263,12 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object') {
-          setFormData(prev => ({ ...prev, ...parsed }));
+          // Normalize legacy 'Maintenance' value since option was removed
+          const normalized = {
+            ...parsed,
+            quoteType: parsed.quoteType === 'Maintenance' ? '' : parsed.quoteType,
+          };
+          setFormData(prev => ({ ...prev, ...normalized }));
         }
       }
       const stepRaw = localStorage.getItem(STEP_STORAGE_KEY);
@@ -278,6 +287,22 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       localStorage.setItem(STEP_STORAGE_KEY, String(currentStep));
     } catch {}
   }, [formData, currentStep, hydrated]);
+
+  // Fetch device list from `/Devices` collection (use 'deviceName' field)
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await getDocs(query(collection(db, 'Devices'), orderBy('deviceName', 'asc')));
+        const opts = snap.docs
+          .map((d) => (d.data() as any)?.deviceName)
+          .filter((name: any) => typeof name === 'string' && name.trim().length > 0)
+          .map((name: string) => ({ value: name, label: name }));
+        if (opts.length > 0) setAvailableDevices(opts);
+      } catch {
+        // Keep default static options on error
+      }
+    })();
+  }, []);
 
   // Track auth state and subscribe to user's previous quotes by uid only
   useEffect(() => {
@@ -324,6 +349,22 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     return () => unsub();
   }, [currentUid]);
 
+  // Fetch user's installed devices from '/User_Devices' by uid
+  useEffect(() => {
+    (async () => {
+      try {
+        if (!currentUid) { setUserDevices([]); return; }
+        const snap = await getDocs(query(collection(db, 'User_Devices'), where('uid', '==', currentUid)));
+        const names = snap.docs
+          .map((d) => (d.data() as any)?.deviceName)
+          .filter((x: any) => typeof x === 'string' && x.trim().length > 0);
+        setUserDevices(names);
+      } catch {
+        setUserDevices([]);
+      }
+    })();
+  }, [currentUid]);
+
   function validateStep(step: number): boolean {
     const e: Record<string, string> = {};
     const t = formData.quoteType;
@@ -336,7 +377,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         if (!formData.numberOfRooms || Number(formData.numberOfRooms) < 1) e.numberOfRooms = 'Enter at least 1 room.';
         if (!formData.devicesRequired || formData.devicesRequired.length === 0) e.devicesRequired = 'Select at least one device.';
       } else if (t === 'Upgrade Existing Setup') {
-        const hasAny = (formData.roomsAlreadySmart?.length || 0) > 0 || (formData.newRoomsToAutomate?.length || 0) > 0;
+        const hasAny = (userDevices.length || 0) > 0 || (formData.newRoomsToAutomate?.length || 0) > 0;
         if (!hasAny) e.roomsAlreadySmart = 'Select existing and/or new rooms to automate.';
       } else if (t === 'Maintenance') {
         if (!formData.maintenanceRooms || formData.maintenanceRooms.length === 0) e.maintenanceRooms = 'Select at least one room.';
@@ -385,13 +426,21 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     if (name === 'devicesRequired') {
       setFormData(prev => {
         const devices = prev.devicesRequired || [];
-        if (checked) {
-          return { ...prev, devicesRequired: [...devices, value] };
-        } else {
-          return { ...prev, devicesRequired: devices.filter(device => device !== value) };
-        }
+        return checked
+          ? { ...prev, devicesRequired: [...devices, value] }
+          : { ...prev, devicesRequired: devices.filter(device => device !== value) };
+      });
+    } else if (name === 'newRoomsToAutomate') {
+      // Reusing newRoomsToAutomate to store selected new devices to automate
+      setFormData(prev => {
+        const arr = prev.newRoomsToAutomate || [];
+        return checked
+          ? { ...prev, newRoomsToAutomate: [...arr, value] }
+          : { ...prev, newRoomsToAutomate: arr.filter(v => v !== value) };
       });
     }
+    // Clear any error for the field
+    setErrors(prev => { const n = { ...prev }; delete n[name]; return n; });
   };
 
   const handleMultiSelectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -620,9 +669,14 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Devices Required</label>
-                  <div className="space-y-2">
-                    {DEVICE_OPTIONS.map(device => (
-                      <label key={device.value} className="flex items-center space-x-2">
+                  <div
+                    className="space-y-2 max-h-48 overflow-y-auto overscroll-contain touch-pan-y rounded-lg border border-gray-200 dark:border-gray-700 p-3 pb-8 pr-4 md:pr-5 bg-white dark:bg-gray-800"
+                    onWheel={(e) => { e.stopPropagation(); }}
+                    onTouchMove={(e) => { e.stopPropagation(); }}
+                    tabIndex={0}
+                  >
+                    {availableDevices.map(device => (
+                      <label key={device.value} className="flex items-center space-x-2 py-0.5">
                         <input
                           type="checkbox"
                           name="devicesRequired"
@@ -634,6 +688,8 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                         <span>{device.label}</span>
                       </label>
                     ))}
+                    {/* Bottom spacer so the last visible item isn't flush with the border */}
+                    <div aria-hidden className="h-4" />
                   </div>
                   {errors.devicesRequired && <p className="text-sm text-red-600 mt-1">{errors.devicesRequired}</p>}
                 </div>
@@ -642,33 +698,50 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
             {formData.quoteType === 'Upgrade Existing Setup' && (
               <>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Rooms Already Smart</label>
-                  <select
-                    name="roomsAlreadySmart"
-                    multiple
-                    value={formData.roomsAlreadySmart || []}
-                    onChange={handleMultiSelectChange}
-                    className={`${inputBase} ${errors.roomsAlreadySmart ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+                  <label className="block text-sm font-medium mb-1">Devices Already Installed</label>
+                  <div
+                    className="space-y-2 max-h-48 overflow-y-auto overscroll-contain touch-pan-y rounded-lg border border-gray-200 dark:border-gray-700 p-3 pb-10 pr-4 md:pr-6 bg-white dark:bg-gray-800"
+                    onWheel={(e) => { e.stopPropagation(); }}
+                    onTouchMove={(e) => { e.stopPropagation(); }}
+                    tabIndex={0}
                   >
-                    {ROOM_OPTIONS.map(room => (
-                      <option key={room.value} value={room.value}>{room.label}</option>
-                    ))}
-                  </select>
-                  {errors.roomsAlreadySmart && <p className="text-sm text-red-600 mt-1">{errors.roomsAlreadySmart}</p>}
+                    {userDevices.length > 0 ? (
+                      userDevices.map((name, idx) => (
+                        <label key={`${name}-${idx}`} className="flex items-center space-x-2 py-1 last:mb-2 opacity-80">
+                          <input type="checkbox" checked readOnly disabled className="form-checkbox text-teal disabled:opacity-70" />
+                          <span className="text-sm leading-6 pb-0.5 text-gray-900 dark:text-gray-100">{name}</span>
+                        </label>
+                      ))
+                    ) : (
+                      <div className="text-sm text-gray-500 dark:text-gray-400">No devices found for your account.</div>
+                    )}
+                    <div aria-hidden className="h-3" />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">These are synced from your installed devices and cannot be changed here.</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">New Rooms to Automate</label>
-                  <select
-                    name="newRoomsToAutomate"
-                    multiple
-                    value={formData.newRoomsToAutomate || []}
-                    onChange={handleMultiSelectChange}
-                    className={`${inputBase} border-gray-300 dark:border-gray-600`}
+                  <label className="block text-sm font-medium mb-1">New Devices to Automate</label>
+                  <div
+                    className="space-y-2 max-h-48 overflow-y-auto overscroll-contain touch-pan-y rounded-lg border border-gray-200 dark:border-gray-700 p-3 pb-10 pr-4 md:pr-6 bg-white dark:bg-gray-800"
+                    onWheel={(e) => { e.stopPropagation(); }}
+                    onTouchMove={(e) => { e.stopPropagation(); }}
+                    tabIndex={0}
                   >
-                    {ROOM_OPTIONS.map(room => (
-                      <option key={room.value} value={room.value}>{room.label}</option>
+                    {availableDevices.map(dev => (
+                      <label key={dev.value} className="flex items-center space-x-2 py-1 last:mb-2">
+                        <input
+                          type="checkbox"
+                          name="newRoomsToAutomate"
+                          value={dev.value}
+                          checked={formData.newRoomsToAutomate?.includes(dev.value) || false}
+                          onChange={handleCheckboxChange}
+                          className="form-checkbox text-teal"
+                        />
+                        <span className="leading-6 pb-0.5">{dev.label}</span>
+                      </label>
                     ))}
-                  </select>
+                    <div aria-hidden className="h-4" />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Brand Preference</label>
@@ -801,8 +874,8 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
               )}
               {formData.quoteType === 'Upgrade Existing Setup' && (
                 <>
-                  <p>Rooms Already Smart: {formData.roomsAlreadySmart?.join(', ')}</p>
-                  <p>New Rooms to Automate: {formData.newRoomsToAutomate?.join(', ')}</p>
+                  <p>Devices Already Installed: {userDevices.join(', ') || 'None'}</p>
+                  <p>New Devices to Automate: {formData.newRoomsToAutomate?.join(', ')}</p>
                   <p>Brand Preference: {formData.brandPreference}</p>
                 </>
               )}
