@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
+import EstimatePDF from './EstimatePDF';
 import { useSearchParams } from 'react-router-dom';
 import { Clock } from 'lucide-react';
 import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc, where, limit } from 'firebase/firestore';
@@ -33,6 +35,7 @@ const EstimationTool: React.FC = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
 
   // Load quotes and handle URL parameters
   React.useEffect(() => {
@@ -148,6 +151,17 @@ const EstimationTool: React.FC = () => {
       grand
     };
   }, [items, createForm.overallDiscount, createForm.shippingCharges, createForm.installationCharges]);
+
+  // Enable PDF only when required fields are provided (same essentials as Send to Customer)
+  const isPdfReady = React.useMemo(() => {
+    const hasId = !!(createForm.quoteId && createForm.quoteId.trim());
+    const hasIssueDate = !!createForm.issueDate;
+    const hasEmail = !!(createForm.customerEmail && createForm.customerEmail.trim());
+    const hasPaymentTerms = !!(createForm.paymentTerms && createForm.paymentTerms.trim());
+    const hasValidItem = items.some(it => it.name.trim() && (it.quantity || 0) > 0 && (it.unitPrice || 0) > 0);
+    return hasId && hasIssueDate && hasEmail && hasPaymentTerms && hasValidItem;
+  }, [createForm.quoteId, createForm.issueDate, createForm.customerEmail, createForm.paymentTerms, items]);
+
   const handleQuoteSelect = (quote: QuoteItem) => {
     setSelectedQuote(quote);
     // Reset form visibility when selecting a quote
@@ -399,97 +413,25 @@ const EstimationTool: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 border border-gray-200 dark:border-gray-700 p-4 text-sm sm:text-base -mx-6 sm:mx-0 rounded-none sm:rounded-lg">
-        {!selectedQuote && !showCreateForm && (
-          <div className="lg:col-span-2">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-              <div className="p-4 border-b border-gray-300 dark:border-gray-600">
-                <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Pending Quotes</h2>
-              </div>
-              {quotes.length === 0 ? (
-                <div className="p-6 text-center">
-                  <p className="text-gray-500 dark:text-gray-400">No pending quotes found</p>
-                </div>
-              ) : (
-                <ul className="divide-y divide-gray-300 dark:divide-gray-600">
-                  {quotes.map((quote) => (
-                    <li 
-                      key={quote.id} 
-                      className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-600 last:border-0"
-                      onClick={() => handleQuoteSelect(quote)}
-                    >
-                      <div className="w-full">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                            <span className="text-indigo-600 dark:text-indigo-300 font-medium text-sm sm:text-base">
-                              {quote.customerEmail ? quote.customerEmail.charAt(0).toUpperCase() : 'Q'}
-                            </span>
-                          </div>
-                          <div className="ml-3 sm:ml-4 min-w-0">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                              {quote.customerEmail || 'No email provided'}
-                            </div>
-                            <div className="text-sm text-gray-500 break-words">
-                              {quote.quoteType || 'No type specified'} • {quote.propertyType || 'No property type'}
-                            </div>
-                          </div>
-                          <div className="hidden sm:block ml-auto">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                              {quote.status || 'Pending'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="mt-2 sm:hidden">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                            {quote.status || 'Pending'}
-                          </span>
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        )}
-
         {showCreateForm ? (
           <div className="lg:col-span-3">
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <div className="mb-6 flex items-start justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Create Estimation Quote</h2>
-                  <div className="h-1 w-20 bg-indigo-600 rounded"></div>
+                  <div className="h-1 w-20 bg-indigo-600 rounded" />
                 </div>
                 <button
                   type="button"
                   onClick={() => setShowCreateForm(false)}
                   className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 111.414 1.414L5.414 9H17a1 1 0 110 2H5.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" />
-                  </svg>
-                  Back
+                  Cancel
                 </button>
               </div>
-
-              {/* Validation Error Message */}
               {validationError && (
                 <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                  <div className="flex">
-                    <div className="flex-shrink-0">
-                      <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
-                        Please enter the required fields:
-                      </h3>
-                      <div className="mt-2 text-sm text-red-700 dark:text-red-300">
-                        <pre className="whitespace-pre-wrap">{validationError}</pre>
-                      </div>
-                    </div>
-                  </div>
+                  <div className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap">{validationError}</div>
                 </div>
               )}
 
@@ -500,30 +442,15 @@ const EstimationTool: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Quote ID</label>
-                      <input
-                        type="text"
-                        value={createForm.quoteId}
-                        readOnly
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm sm:text-sm"
-                      />
+                      <input type="text" value={createForm.quoteId} readOnly className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm sm:text-sm" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Date of Issue</label>
-                      <input
-                        type="date"
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
-                        value={createForm.issueDate}
-                        onChange={(e) => setCreateForm({ ...createForm, issueDate: e.target.value })}
-                      />
+                      <input type="date" value={createForm.issueDate} onChange={(e) => setCreateForm({ ...createForm, issueDate: e.target.value })} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Expiry Date</label>
-                      <input
-                        type="date"
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
-                        value={createForm.expiryDate}
-                        onChange={(e) => setCreateForm({ ...createForm, expiryDate: e.target.value })}
-                      />
+                      <input type="date" value={createForm.expiryDate} onChange={(e) => setCreateForm({ ...createForm, expiryDate: e.target.value })} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" />
                     </div>
                   </div>
                 </div>
@@ -534,13 +461,7 @@ const EstimationTool: React.FC = () => {
                   <div className="grid grid-cols-1 gap-4">
                     <div className="col-span-1">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Customer Email</label>
-                      <input
-                        type="email"
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                        value={createForm.customerEmail}
-                        onChange={(e) => setCreateForm({ ...createForm, customerEmail: e.target.value })}
-                        placeholder="customer@example.com"
-                      />
+                      <input type="email" value={createForm.customerEmail} onChange={(e) => setCreateForm({ ...createForm, customerEmail: e.target.value })} placeholder="customer@example.com" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" />
                     </div>
                   </div>
                 </div>
@@ -564,78 +485,33 @@ const EstimationTool: React.FC = () => {
                       </thead>
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                         {items.map((r) => {
-                          const c = calcRow(r);
+                          const line = Math.max(0, r.quantity * r.unitPrice - (r.discount || 0));
+                          const tax = (line * (r.taxPercent || 0)) / 100;
+                          const total = line + tax;
                           return (
                             <tr key={r.id} className="text-sm">
                               <td className="px-2 py-2">
-                                <input
-                                  type="text"
-                                  placeholder="Product name"
-                                  className="w-full min-w-[120px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
-                                  value={r.name}
-                                  onChange={(e) => updateRow(r.id, { name: e.target.value })}
-                                />
+                                <input type="text" placeholder="Product name" className="w-full min-w-[120px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm" value={r.name} onChange={(e) => updateRow(r.id, { name: e.target.value })} />
                               </td>
                               <td className="px-2 py-2 hidden sm:table-cell">
-                                <input
-                                  type="text"
-                                  placeholder="Description"
-                                  className="w-full min-w-[100px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
-                                  value={r.description}
-                                  onChange={(e) => updateRow(r.id, { description: e.target.value })}
-                                />
+                                <input type="text" placeholder="Description" className="w-full min-w-[100px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm" value={r.description} onChange={(e) => updateRow(r.id, { description: e.target.value })} />
                               </td>
                               <td className="px-2 py-2">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  className="w-full min-w-[50px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
-                                  value={r.quantity}
-                                  onChange={(e) => updateRow(r.id, { quantity: Number(e.target.value) })}
-                                />
+                                <input type="number" min={1} className="w-full min-w-[50px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm" value={r.quantity} onChange={(e) => updateRow(r.id, { quantity: Number(e.target.value) })} />
                               </td>
                               <td className="px-2 py-2">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  className="w-full min-w-[70px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
-                                  value={r.unitPrice}
-                                  onChange={(e) => updateRow(r.id, { unitPrice: Number(e.target.value) })}
-                                />
+                                <input type="number" min={0} step="0.01" className="w-full min-w-[70px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm" value={r.unitPrice} onChange={(e) => updateRow(r.id, { unitPrice: Number(e.target.value) })} />
                               </td>
                               <td className="px-2 py-2 hidden md:table-cell">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  className="w-full min-w-[60px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
-                                  value={r.discount}
-                                  onChange={(e) => updateRow(r.id, { discount: Number(e.target.value) })}
-                                />
+                                <input type="number" min={0} step="0.01" className="w-full min-w-[60px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm" value={r.discount} onChange={(e) => updateRow(r.id, { discount: Number(e.target.value) })} />
                               </td>
                               <td className="px-2 py-2 hidden md:table-cell">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  className="w-full min-w-[50px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
-                                  value={r.taxPercent}
-                                  onChange={(e) => updateRow(r.id, { taxPercent: Number(e.target.value) })}
-                                />
+                                <input type="number" min={0} max={100} className="w-full min-w-[50px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm" value={r.taxPercent} onChange={(e) => updateRow(r.id, { taxPercent: Number(e.target.value) })} />
                               </td>
-                              <td className="px-2 py-2 whitespace-nowrap text-gray-900 dark:text-gray-100 font-medium">{(c.total).toFixed(2)}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-gray-900 dark:text-gray-100 font-medium">{total.toFixed(2)}</td>
                               <td className="px-2 py-2 text-right">
-                                <button
-                                  type="button"
-                                  className="text-red-600 hover:text-red-700 p-1"
-                                  onClick={() => removeRow(r.id)}
-                                  aria-label="Delete row"
-                                  title="Delete"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-                                    <path fillRule="evenodd" d="M9 3.75A2.25 2.25 0 0 1 11.25 1.5h1.5A2.25 2.25 0 0 1 15 3.75V4.5h3.75a.75.75 0 0 1 0 1.5h-.71l-1.03 12.004A3.75 3.75 0 0 1 13.27 21H10.73a3.75 3.75 0 0 1-3.74-2.996L5.96 6H5.25a.75.75 0 0 1 0-1.5H9V3.75Zm1.5.75h3V3.75a.75.75 0 0 0-.75-.75h-1.5a.75.75 0 0 0-.75.75V4.5Zm-2.97 1.5 1.02 11.88a2.25 2.25 0 0 0 2.22 1.995h2.54a2.25 2.25 0 0 0 2.22-1.995L18.47 6H7.53ZM9.75 9a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0v-6a.75.75 0 0 1 .75-.75Zm4.5 0a.75.75 0 0 1 .75.75v6a.75.75 0 0 1-1.5 0v-6a.75.75 0 0 1 .75-.75Z" clipRule="evenodd" />
-                                  </svg>
+                                <button type="button" className="text-red-600 hover:text-red-700 p-1" onClick={() => removeRow(r.id)} aria-label="Delete row" title="Delete">
+                                  ×
                                 </button>
                               </td>
                             </tr>
@@ -645,11 +521,7 @@ const EstimationTool: React.FC = () => {
                     </table>
                   </div>
                   <div className="mt-3">
-                    <button
-                      type="button"
-                      className="inline-flex justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-                      onClick={addRow}
-                    >
+                    <button type="button" className="inline-flex justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={addRow}>
                       Add Product/Service
                     </button>
                   </div>
@@ -666,14 +538,7 @@ const EstimationTool: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Overall Discount</label>
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
-                          value={createForm.overallDiscount}
-                          onChange={(e) => setCreateForm({ ...createForm, overallDiscount: Number(e.target.value) })}
-                        />
+                        <input type="number" min={0} step="0.01" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.overallDiscount} onChange={(e) => setCreateForm({ ...createForm, overallDiscount: Number(e.target.value) })} />
                       </div>
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600 dark:text-gray-300">Taxes</span>
@@ -681,25 +546,11 @@ const EstimationTool: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Shipping/Delivery Charges</label>
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
-                          value={createForm.shippingCharges}
-                          onChange={(e) => setCreateForm({ ...createForm, shippingCharges: Number(e.target.value) })}
-                        />
+                        <input type="number" min={0} step="0.01" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.shippingCharges} onChange={(e) => setCreateForm({ ...createForm, shippingCharges: Number(e.target.value) })} />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Installation/Service Charges</label>
-                        <input
-                          type="number"
-                          min={0}
-                          step="0.01"
-                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
-                          value={createForm.installationCharges}
-                          onChange={(e) => setCreateForm({ ...createForm, installationCharges: Number(e.target.value) })}
-                        />
+                        <input type="number" min={0} step="0.01" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.installationCharges} onChange={(e) => setCreateForm({ ...createForm, installationCharges: Number(e.target.value) })} />
                       </div>
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-md p-4 flex items-center justify-between">
@@ -715,11 +566,7 @@ const EstimationTool: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Payment Terms</label>
-                      <select
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
-                        value={createForm.paymentTerms}
-                        onChange={(e) => setCreateForm({ ...createForm, paymentTerms: e.target.value })}
-                      >
+                      <select className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.paymentTerms} onChange={(e) => setCreateForm({ ...createForm, paymentTerms: e.target.value })}>
                         <option>Advance 50% / Balance Net 15</option>
                         <option>Advance 30% / Balance Net 30</option>
                         <option>Net 15</option>
@@ -728,32 +575,15 @@ const EstimationTool: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Warranty / Support</label>
-                      <input
-                        type="text"
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
-                        value={createForm.warranty}
-                        onChange={(e) => setCreateForm({ ...createForm, warranty: e.target.value })}
-                        placeholder="e.g., 1 year standard warranty"
-                      />
+                      <input type="text" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.warranty} onChange={(e) => setCreateForm({ ...createForm, warranty: e.target.value })} placeholder="e.g., 1 year standard warranty" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Delivery Timeline</label>
-                      <input
-                        type="text"
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
-                        value={createForm.deliveryTimeline}
-                        onChange={(e) => setCreateForm({ ...createForm, deliveryTimeline: e.target.value })}
-                        placeholder="e.g., 2-3 weeks from order"
-                      />
+                      <input type="text" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.deliveryTimeline} onChange={(e) => setCreateForm({ ...createForm, deliveryTimeline: e.target.value })} placeholder="e.g., 2-3 weeks from order" />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
-                      <textarea
-                        rows={4}
-                        className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
-                        value={createForm.notes}
-                        onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })}
-                      />
+                      <textarea rows={4} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.notes} onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })} />
                     </div>
                   </div>
                 </div>
@@ -766,111 +596,135 @@ const EstimationTool: React.FC = () => {
 
                 {/* Actions */}
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row flex-wrap gap-3">
-                  <button
-                    type="button"
-                    className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500 disabled:opacity-50"
-                    onClick={() => {
-                      // Clear previous validation errors
-                      setValidationError(null);
-                      
-                      // Validate required fields before sending
-                      const missingFields = [];
-                      
-                      if (!createForm.quoteId.trim()) missingFields.push('Quote ID');
-                      if (!createForm.issueDate) missingFields.push('Date of Issue');
-                      const customerEmail = selectedQuote?.customerEmail || createForm.customerEmail;
-                      if (!customerEmail?.trim()) missingFields.push('Customer Email');
-                      if (!createForm.paymentTerms.trim()) missingFields.push('Payment Terms');
-                      
-                      // Check if there are any line items
-                      if (items.length === 0 || items.every(item => !item.name.trim())) {
-                        missingFields.push('At least one product/service item');
-                      }
-                      
-                      // Check if line items have required fields
-                      const incompleteItems = items.filter(item => 
-                        item.name.trim() && (!item.quantity || item.quantity <= 0 || !item.unitPrice || item.unitPrice <= 0)
-                      );
-                      
-                      if (incompleteItems.length > 0) {
-                        missingFields.push('Complete quantity and unit price for all items');
-                      }
-                      
-                      if (missingFields.length > 0) {
-                        setValidationError(`• ${missingFields.join('\n• ')}`);
-                        // Scroll to top to show error message
-                        document.querySelector('.bg-white.dark\\:bg-gray-800')?.scrollIntoView({ behavior: 'smooth' });
-                        return;
-                      }
-                      
-                      saveEstimationQuote('Confirmed');
-                    }}
-                    disabled={saving}
-                  >
+                  <button type="button" className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500 disabled:opacity-50" onClick={() => {
+                    setValidationError(null);
+                    const missingFields: string[] = [];
+                    if (!createForm.quoteId.trim()) missingFields.push('Quote ID');
+                    if (!createForm.issueDate) missingFields.push('Date of Issue');
+                    const customerEmail = createForm.customerEmail;
+                    if (!customerEmail?.trim()) missingFields.push('Customer Email');
+                    if (!createForm.paymentTerms.trim()) missingFields.push('Payment Terms');
+                    if (items.length === 0 || items.every(item => !item.name.trim())) missingFields.push('At least one product/service item');
+                    const incompleteItems = items.filter(item => item.name.trim() && (!item.quantity || item.quantity <= 0 || !item.unitPrice || item.unitPrice <= 0));
+                    if (incompleteItems.length > 0) missingFields.push('Complete quantity and unit price for all items');
+                    if (missingFields.length > 0) { setValidationError(`• ${missingFields.join('\n• ')}`); (document.querySelector('.bg-white.dark\\:bg-gray-800') as HTMLElement | null)?.scrollIntoView({ behavior: 'smooth' }); return; }
+                    saveEstimationQuote('Confirmed');
+                  }} disabled={saving}>
                     {saving ? 'Sending...' : 'Send to Customer'}
                   </button>
-                  <button type="button" className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700">Download PDF</button>
-                  <div className="ml-auto">
-                    <button
-                      type="button"
-                      className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700"
-                      onClick={() => setShowCreateForm(false)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => isPdfReady && setShowPdfPreview(true)}
+                    className={`inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium border ${isPdfReady ? 'text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700 cursor-not-allowed'}`}
+                    disabled={!isPdfReady}
+                    title={isPdfReady ? 'Preview and download PDF' : 'Fill required fields (Quote ID, Issue Date, Customer Email, Payment Terms, and at least one valid item)'}
+                  >
+                    Download PDF
+                  </button>
+                  <button type="button" className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => setShowCreateForm(false)}>Cancel</button>
                 </div>
               </div>
             </div>
           </div>
+        ) : selectedQuote ? (
+          <div className="lg:col-span-3">
+            <QuoteDetails 
+              quote={selectedQuote!} 
+              onBack={() => setSelectedQuote(null)}
+              onCreateQuote={() => {
+                if (!selectedQuote) return;
+                setShowCreateForm(true);
+                setCreateForm((prev) => ({
+                  ...prev,
+                  customerEmail: selectedQuote.customerEmail || '',
+                  numDevices: selectedQuote.devicesRequired?.length || 0,
+                  discount: 0,
+                  estimatedBudget: String(selectedQuote.budget ?? '')
+                }));
+                const devices = selectedQuote.devicesRequired || [];
+                if (devices.length > 0) {
+                  setItems(devices.map((device, idx) => ({ id: `row-${Date.now()}-${idx}`, name: device, description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 })));
+                } else {
+                  setItems([{ id: `row-${Date.now()}`, name: '', description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 }]);
+                }
+              }} 
+            />
+          </div>
         ) : (
-          selectedQuote && (
-            <div className="lg:col-span-3">
-              <QuoteDetails 
-                quote={selectedQuote!} 
-                onBack={() => setSelectedQuote(null)}
-                onCreateQuote={() => {
-                  if (!selectedQuote) return;
-                  setShowCreateForm(true);
-                  setCreateForm((prev) => ({
-                    ...prev,
-                    customerEmail: selectedQuote.customerEmail || '',
-                    numDevices: selectedQuote.devicesRequired?.length || 0,
-                    discount: 0,
-                    estimatedBudget: String(selectedQuote.budget ?? '')
-                  }));
-                  // Pre-populate line items from devicesRequired
-                  const devices = selectedQuote.devicesRequired || [];
-                  if (devices.length > 0) {
-                    setItems(
-                      devices.map((device, idx) => ({
-                        id: `row-${Date.now()}-${idx}`,
-                        name: device,
-                        description: '',
-                        quantity: 1,
-                        unitPrice: 0,
-                        discount: 0,
-                        taxPercent: 0,
-                      }))
-                    );
-                  } else {
-                    // Ensure at least one empty row
-                    setItems([
-                      {
-                        id: `row-${Date.now()}`,
-                        name: '',
-                        description: '',
-                        quantity: 1,
-                        unitPrice: 0,
-                        discount: 0,
-                        taxPercent: 0,
-                      },
-                    ]);
-                  }
-                }} 
-              />
+          <div className="lg:col-span-2">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
+              <div className="p-4 border-b border-gray-300 dark:border-gray-600">
+                <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Pending Quotes</h2>
+              </div>
+              {quotes.length === 0 ? (
+                <div className="p-6 text-center">
+                  <p className="text-gray-500 dark:text-gray-400">No pending quotes found</p>
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-300 dark:divide-gray-600">
+                  {quotes.map((quote: QuoteItem) => (
+                    <li key={quote.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-600 last:border-0" onClick={() => handleQuoteSelect(quote)}>
+                      <div className="w-full">
+                        <div className="flex items-center">
+                          <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
+                            <span className="text-indigo-600 dark:text-indigo-300 font-medium text-sm sm:text-base">{quote.customerEmail ? quote.customerEmail.charAt(0).toUpperCase() : 'Q'}</span>
+                          </div>
+                          <div className="ml-3 sm:ml-4 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{quote.customerEmail || 'No email provided'}</div>
+                            <div className="text-sm text-gray-500 break-words">{quote.quoteType || 'No type specified'} • {quote.propertyType || 'No property type'}</div>
+                          </div>
+                          <div className="hidden sm:block ml-auto">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">{quote.status || 'Pending'}</span>
+                          </div>
+                        </div>
+                        <div className="mt-2 sm:hidden">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">{quote.status || 'Pending'}</span>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
-          )
+          </div>
+        )}
+        {/* PDF Preview Modal */}
+        {showPdfPreview && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowPdfPreview(false)} />
+            <div className="relative z-10 bg-white dark:bg-gray-900 rounded-xl shadow-xl w-[95vw] h-[90vh] max-w-6xl border border-gray-200 dark:border-gray-700 flex flex-col">
+              <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Estimate Preview</h3>
+                <div className="flex items-center gap-2">
+                  <PDFDownloadLink
+                    document={<EstimatePDF createForm={createForm} items={items} totals={totals} />}
+                    fileName={`${createForm.quoteId || 'estimate'}.pdf`}
+                  >
+                    {({ loading }) => (
+                      <button
+                        type="button"
+                        className="inline-flex justify-center rounded-md px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                      >
+                        {loading ? 'Preparing…' : 'Download PDF'}
+                      </button>
+                    )}
+                  </PDFDownloadLink>
+                  <button
+                    type="button"
+                    onClick={() => setShowPdfPreview(false)}
+                    className="inline-flex justify-center rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <PDFViewer width="100%" height="100%" showToolbar>
+                  <EstimatePDF createForm={createForm} items={items} totals={totals} />
+                </PDFViewer>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

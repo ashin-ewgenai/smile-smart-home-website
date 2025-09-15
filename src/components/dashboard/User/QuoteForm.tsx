@@ -917,19 +917,6 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         </div>
       </div>
 
-      {/* Submission limit banner */}
-      {currentUid && (
-        <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-900/20 p-4 text-amber-900 dark:text-amber-200">
-          {hasPendingQuotes ? (
-            'You have pending quotes. Please cancel them or wait until they are confirmed before submitting a new quote.'
-          ) : activeQuotesCount >= MAX_QUOTES ? (
-            `You have reached the maximum of ${MAX_QUOTES} quotes. Please wait for a response or remove an existing quote before submitting a new one.`
-          ) : (
-            `You can submit up to ${MAX_QUOTES} quotes. You have ${MAX_QUOTES - activeQuotesCount} remaining.`
-          )}
-        </div>
-      )}
-
       <form 
         onSubmit={handleSubmit} 
         className={`bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm relative ${hasPendingQuotes ? 'opacity-60' : ''}`}
