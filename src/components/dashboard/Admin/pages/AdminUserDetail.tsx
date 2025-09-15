@@ -38,6 +38,11 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const [tempAddress, setTempAddress] = useState<string>('');
   const [savingContact, setSavingContact] = useState<boolean>(false);
 
+  // Edit display name (FullName)
+  const [editingName, setEditingName] = useState<boolean>(false);
+  const [tempName, setTempName] = useState<string>('');
+  const [savingName, setSavingName] = useState<boolean>(false);
+
   // Planner Leads per contact email (lazy-loaded)
   const [openPlanIds, setOpenPlanIds] = useState<Record<string, boolean>>({});
   const [plannerLeadsByEmail, setPlannerLeadsByEmail] = useState<Record<string, any[]>>({});
@@ -257,6 +262,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
     if (!account) return;
     setTempPhone((account as any)?.phoneNumber || '');
     setTempAddress((account as any)?.address || '');
+    setTempName((account as any)?.FullName || '');
   }, [account]);
 
   const saveContactInfo = async () => {
@@ -271,6 +277,20 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       setEditingContact(false);
     } finally {
       setSavingContact(false);
+    }
+  };
+
+  const saveDisplayName = async () => {
+    if (!account?.id) return;
+    try {
+      setSavingName(true);
+      const ref = doc(db, 'Accounts', account.id);
+      await updateDoc(ref, {
+        FullName: (tempName || '').trim(),
+      });
+      setEditingName(false);
+    } finally {
+      setSavingName(false);
     }
   };
 
@@ -845,9 +865,48 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               {error && <div className="text-red-400">{error}</div>}
               {!loading && !error && account && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Left: Name & Email */}
+                  {/* Left: Name & Email with inline name edit */}
                   <div>
-                    <div className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-white">{account.FullName || '—'}</div>
+                    {!editingName ? (
+                      <div className="flex items-center gap-2">
+                        <div className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-white">{account.FullName || '—'}</div>
+                        <button
+                          type="button"
+                          onClick={() => { setTempName(account.FullName || ''); setEditingName(true); }}
+                          className="text-teal-600 hover:text-teal-500 text-sm"
+                          title="Edit name"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                        <input
+                          type="text"
+                          value={tempName}
+                          onChange={(e) => setTempName(e.target.value)}
+                          className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                          placeholder="Full name"
+                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={saveDisplayName}
+                            disabled={savingName}
+                            className="px-3 py-1.5 rounded bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60"
+                          >
+                            {savingName ? 'Saving...' : 'Save'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => { setEditingName(false); setTempName(account.FullName || ''); }}
+                            className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     <div className="text-sm md:text-base text-gray-600 dark:text-gray-300">{account.Email || '—'}</div>
                   </div>
                   {/* Right: UID / Role / Status */}
@@ -1013,9 +1072,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
             )}
 
             {!loadingRelated && lists[activeTab].length > 0 && (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto overflow-y-auto max-h-[220px] rounded-b-md rounded-tr-md custom-scroll">
                 <table className="w-full text-sm">
-                  <thead>
+                  <thead className="sticky top-0 bg-white dark:bg-gray-800 z-10">
                     <tr className="text-left text-xs uppercase text-gray-600 dark:text-gray-400">
                       {activeTab === 'devices' ? (
                         <>
@@ -1041,7 +1100,13 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {lists[activeTab].map((row: any) => {
+                    {([...lists[activeTab]].sort((a: any, b: any) => {
+                      const ad = dateFrom(a.createdAt ?? a.created_at ?? a.ts);
+                      const bd = dateFrom(b.createdAt ?? b.created_at ?? b.ts);
+                      const at = ad ? ad.getTime() : 0;
+                      const bt = bd ? bd.getTime() : 0;
+                      return bt - at; // newest first
+                    })).map((row: any) => {
                       const status = row.status ?? row.Status;
                       const created = row.createdAt ?? row.created_at ?? row.ts;
                       const isUnread = (status || '').toString().toLowerCase() === 'pending' || 
@@ -1391,9 +1456,18 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         userId={account?.id || ''}
         onDeviceAdded={() => { /* no-op: realtime listener above will refresh with enriched details */ }}
       />
+    {/* Local styles for thicker scrollbars in this component */}
+    <style>
+      {`
+        .custom-scroll { scrollbar-width: auto; }
+        .custom-scroll::-webkit-scrollbar { width: 14px; height: 14px; }
+        .custom-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 8px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(20, 184, 166, 0.6); border-radius: 8px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: rgba(20, 184, 166, 0.8); }
+      `}
+    </style>
     </section>
   );
 }
-;
 
 export default AdminUserDetail;

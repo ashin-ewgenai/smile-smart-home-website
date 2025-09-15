@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth as getClientAuth, createUserWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
 import { TicketNotificationButton } from '@/components/common/TicketNotificationButton';
-import { auth, db, functions } from '../../../../lib/firebase';
-import { accountsCollection, quotesCollection, supportTicketsCollection, quotesParentDoc, registerUserWithProfile, type Account } from '../../../../models/Collections';
+import { auth, db, functions, firebaseApp } from '../../../../lib/firebase';
+import { accountsCollection, quotesCollection, supportTicketsCollection, quotesParentDoc, createAccountProfileWithLookup, type Account } from '../../../../models/Collections';
 import { collection, getDoc, getDocs, limit, onSnapshot, query, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import AdminUserDetail from './AdminUserDetail';
@@ -102,6 +104,17 @@ const AdminUsers: React.FC = () => {
         alert('Could not find UID for this email.');
         return;
       }
+      // Client-side guard: ensure authenticated and not deleting self
+      const currentUid = auth?.currentUser?.uid;
+      if (!currentUid) {
+        alert('You must be signed in to perform this action. Please refresh and sign in again.');
+        return;
+      }
+      if (currentUid === uid) {
+        alert('You cannot delete your own account.');
+        return;
+      }
+      // console.log('[AdminUsers] Deleting user via CF', { email, resolvedUid: uid });
       const call = httpsCallable(functions, 'adminDeleteUserAndData');
       const res = await call({ uid });
       // Optimistically remove from lists
@@ -114,11 +127,17 @@ const AdminUsers: React.FC = () => {
       // Optional: show summary
       try {
         const summary = (res?.data as any)?.summary;
-        console.log('Delete summary:', summary);
+        // console.log('Delete summary:', summary);
       } catch {}
     } catch (e: any) {
-      const msg = e?.message || String(e);
-      alert(`Failed to delete user: ${msg}`);
+      // Provide richer diagnostics for callable function errors
+      const code = e?.code || e?.error?.code || 'unknown';
+      const msg = e?.message || e?.error?.message || String(e);
+      const details = e?.details ? JSON.stringify(e.details) : '';
+      // Capture all own properties for better debugging visibility
+      const ownProps = Object.getOwnPropertyNames(e || {}).reduce((acc: any, k) => { try { acc[k] = (e as any)[k]; } catch {} return acc; }, {} as any);
+      console.error('adminDeleteUserAndData error', { code, msg, details, raw: e, ownProps });
+      alert(`Failed to delete user.\nCode: ${code}\nMessage: ${msg}${details ? `\nDetails: ${details}` : ''}`);
     } finally {
       setDeletingEmail(null);
     }
@@ -128,13 +147,23 @@ const AdminUsers: React.FC = () => {
   const performDelete = async (email: string) => {
     if (!email) return;
     try {
+      // console.log('[AdminUsers] performDelete start', { email });
       setConfirming(true);
       setDeletingEmail(email);
       const uid = await resolveUidByEmail(email);
+      // console.log('[AdminUsers] performDelete uid resolved', { email, uid });
       if (!uid) {
         alert('Could not find UID for this email.');
         return;
       }
+      // Client-side guard: ensure authenticated
+      const currentUid = auth?.currentUser?.uid;
+      // console.log('[AdminUsers] performDelete auth check', { currentUid });
+      if (!currentUid) {
+        alert('You must be signed in to perform this action. Please refresh and sign in again.');
+        return;
+      }
+      // console.log('[AdminUsers] Proceeding to call CF', { email, resolvedUid: uid });
       const call = httpsCallable(functions, 'adminDeleteUserAndData');
       const res = await call({ uid });
       // Optimistically remove from lists
@@ -146,11 +175,14 @@ const AdminUsers: React.FC = () => {
       delete unsubscribeRefs.current[key];
       try {
         const summary = (res?.data as any)?.summary;
-        console.log('Delete summary:', summary);
+        // console.log('Delete summary:', summary);
       } catch {}
     } catch (e: any) {
-      const msg = e?.message || String(e);
-      alert(`Failed to delete user: ${msg}`);
+      const code = e?.code || e?.error?.code || 'unknown';
+      const msg = e?.message || e?.error?.message || String(e);
+      const details = e?.details ? JSON.stringify(e.details) : '';
+      console.error('adminDeleteUserAndData error', { code, msg, details, raw: e });
+      alert(`Failed to delete user.\nCode: ${code}\nMessage: ${msg}${details ? `\nDetails: ${details}` : ''}`);
     } finally {
       setDeletingEmail(null);
       setConfirming(false);
@@ -164,15 +196,26 @@ const AdminUsers: React.FC = () => {
     setAddError('');
     
     try {
-      // Add user logic here
-      await registerUserWithProfile(auth, db, {
-        email: addEmail,
-        password: addPassword,
-        fullName: addName,
+      // Create a secondary app to avoid switching the current admin session
+      const secondaryName = 'admin-secondary';
+      const secondaryApp = getApps().find(a => a.name === secondaryName) || initializeApp((firebaseApp as any).options, secondaryName);
+      const tempAuth = getClientAuth(secondaryApp);
+      // Create auth user on secondary app so current session remains intact
+      const cred = await createUserWithEmailAndPassword(tempAuth, addEmail, addPassword);
+      if (addName) {
+        try { await updateProfile(cred.user, { displayName: addName }); } catch {}
+      }
+      // Create the Accounts profile in Firestore using primary db
+      await createAccountProfileWithLookup(db, {
+        uid: cred.user.uid,
+        email: cred.user.email,
+        fullName: addName || cred.user.displayName || (cred.user.email ? cred.user.email.split('@')[0] : ''),
+        role: addRole,
         phoneNumber: addPhone,
         address: addAddress,
-        role: addRole,
       });
+      // Sign out secondary auth to clean up
+      try { await signOut(tempAuth); } catch {}
       
       // Refresh users list
       const snap = await getDocs(query(accountsCollection(db), where('Role', '==', 'user')));
@@ -183,8 +226,24 @@ const AdminUsers: React.FC = () => {
         return email ? { name, email } : null;
       }).filter(Boolean) as User[];
       
-      setUsers(list);
-      setFilteredUsers(list);
+      // Ensure the just-added user is present in UI
+      let updated = [...list];
+      if (addRole === 'user') {
+        const newEmailLc = (cred.user.email || '').toLowerCase();
+        const exists = updated.some(u => u.email.toLowerCase() === newEmailLc);
+        if (!exists && newEmailLc) {
+          updated = [{ name: addName || (cred.user.email ? cred.user.email.split('@')[0] : ''), email: cred.user.email || '' }, ...updated];
+        }
+      }
+      setUsers(updated);
+      setFilteredUsers(updated);
+      // Clear filters so the newly added user is visible
+      setNameFilter('');
+      setEmailFilter('');
+      // If the added role was admin, inform via console since admin accounts are not listed here
+      if (addRole !== 'user') {
+        // console.info('[AdminUsers] Added an admin account which is intentionally not listed on the Users page.');
+      }
       closeAdd();
     } catch (error: any) {
       setAddError(error.message || 'Failed to add user');
@@ -292,8 +351,9 @@ const AdminUsers: React.FC = () => {
       const unsubscribes = [
         onSnapshot(quotesQuery, (snapshot) => {
           const count = snapshot.docs.filter(doc => {
-            const status = doc.data().status?.toString().toLowerCase();
-            return status !== 'confirmed';
+            const d = doc.data();
+            const status = (d?.status ?? d?.Status)?.toString().toLowerCase();
+            return status !== 'confirmed' && status !== 'cancelled' && status !== 'canceled';
           }).length;
           
           setAlertsMap(prev => {
@@ -312,8 +372,9 @@ const AdminUsers: React.FC = () => {
 
         onSnapshot(serviceRequestsQuery, (snapshot) => {
           const count = snapshot.docs.filter(doc => {
-            const status = doc.data().status?.toString().toLowerCase();
-            return status !== 'closed' && status !== 'resolved';
+            const d = doc.data();
+            const status = (d?.status ?? d?.Status)?.toString().toLowerCase();
+            return status !== 'closed' && status !== 'resolved' && status !== 'cancelled' && status !== 'canceled';
           }).length;
           
           setAlertsMap(prev => {
@@ -332,8 +393,9 @@ const AdminUsers: React.FC = () => {
 
         onSnapshot(ticketsQuery, (snapshot) => {
           const count = snapshot.docs.filter(doc => {
-            const status = doc.data().status?.toString().toLowerCase();
-            return status !== 'resolved' && status !== 'closed';
+            const d = doc.data();
+            const status = (d?.status ?? d?.Status)?.toString().toLowerCase();
+            return status !== 'resolved' && status !== 'closed' && status !== 'cancelled' && status !== 'canceled';
           }).length;
           
           setAlertsMap(prev => {
@@ -363,17 +425,17 @@ const AdminUsers: React.FC = () => {
 
       const quotesUnresolved = quotesSnapshot.docs.filter(doc => {
         const status = doc.data().status?.toString().toLowerCase();
-        return status !== 'confirmed';
+        return status !== 'confirmed' && status !== 'cancelled' && status !== 'canceled';
       }).length;
 
       const servicesUnresolved = servicesSnapshot.docs.filter(doc => {
         const status = doc.data().status?.toString().toLowerCase();
-        return status !== 'closed' && status !== 'resolved';
+        return status !== 'closed' && status !== 'resolved' && status !== 'cancelled' && status !== 'canceled';
       }).length;
 
       const ticketsUnresolved = ticketsSnapshot.docs.filter(doc => {
         const status = doc.data().status?.toString().toLowerCase();
-        return status !== 'resolved' && status !== 'closed';
+        return status !== 'resolved' && status !== 'closed' && status !== 'cancelled' && status !== 'canceled';
       }).length;
 
       const data: AlertsCount = {
@@ -563,33 +625,6 @@ const AdminUsers: React.FC = () => {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              // TODO: Implement edit functionality
-                              console.log('Edit user:', user.email);
-                            }}
-                            className="p-1.5 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 focus:outline-none"
-                            aria-label="Edit user"
-                            title="Edit user"
-                          >
-                            <svg 
-                              xmlns="http://www.w3.org/2000/svg" 
-                              width="20" 
-                              height="20" 
-                              viewBox="0 0 24 24" 
-                              fill="none" 
-                              stroke="currentColor" 
-                              strokeWidth="2" 
-                              strokeLinecap="round" 
-                              strokeLinejoin="round" 
-                              className="lucide lucide-pencil"
-                            >
-                              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                              <path d="m13.5 6.5 4 4" />
-                            </svg>
-                          </button>
-                          <button 
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
                               setConfirmingEmail(user.email);
                             }}
                             onMouseDown={(e) => { e.stopPropagation(); }}
@@ -601,7 +636,7 @@ const AdminUsers: React.FC = () => {
                               }
                             }}
                             disabled={deletingEmail === user.email}
-                            className={`p-1.5 focus:outline-none ${deletingEmail === user.email ? 'text-gray-400 cursor-not-allowed' : 'text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400'}`}
+                            className={`p-1.5 focus:outline-none ${ deletingEmail === user.email ? 'text-gray-400 cursor-not-allowed' : 'text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400'}`}
                             aria-label="Delete user"
                             title="Delete user"
                           >
@@ -860,7 +895,10 @@ const AdminUsers: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => confirmingEmail && performDelete(confirmingEmail)}
+                onClick={() => {
+                  // console.log('[AdminUsers] Delete button clicked', { confirmingEmail });
+                  if (confirmingEmail) performDelete(confirmingEmail);
+                }}
                 disabled={confirming}
                 className="px-4 py-2 rounded bg-red-600 hover:bg-red-700 text-white disabled:opacity-60"
               >
