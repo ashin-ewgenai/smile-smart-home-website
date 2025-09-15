@@ -86,7 +86,7 @@ const UserSettings: React.FC = () => {
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Account Settings */}
-        <div className="bg-gray-900/60 backdrop-blur rounded-2xl shadow-lg p-6 border border-gray-800">
+        <div className="glass-surface rounded-2xl p-6 shadow-soft-lg">
           <h2 className="text-xl font-semibold text-white flex items-center mb-4">
             <User className="mr-2 h-5 w-5 text-emerald-400" />
             Account Settings
@@ -100,7 +100,7 @@ const UserSettings: React.FC = () => {
                 name="email"
                 value={userEmail}
                 disabled
-                className="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-full pill-input px-4 py-2"
               />
             </div>
             <div>
@@ -111,7 +111,7 @@ const UserSettings: React.FC = () => {
                 name="name"
                 value={userName}
                 onChange={(e) => setUserName(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-full pill-input px-4 py-2"
               />
             </div>
           </div>
@@ -129,7 +129,7 @@ const UserSettings: React.FC = () => {
                 id="homeName"
                 name="homeName"
                 defaultValue="My Smart Home"
-                className="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-full pill-input px-4 py-2"
               />
             </div>
             <div>
@@ -139,14 +139,14 @@ const UserSettings: React.FC = () => {
                 id="homeAddress"
                 name="homeAddress"
                 defaultValue="123 Smart Street, Tech City"
-                className="w-full px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                className="w-full pill-input px-4 py-2"
               />
             </div>
           </div>
         </div>
 
         {/* Security Settings */}
-        <div className="bg-gray-900/60 backdrop-blur rounded-2xl shadow-lg p-6 border border-gray-800">
+        <div className="glass-surface rounded-2xl p-6 shadow-soft-lg">
           <h2 className="text-xl font-semibold text-white flex items-center mb-4">
             <Shield className="mr-2 h-5 w-5 text-emerald-400" />
             Security
@@ -156,7 +156,7 @@ const UserSettings: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowChangePassword((v) => !v)}
-              className="w-full flex items-center justify-between rounded-xl border border-gray-700 bg-gray-800/60 px-4 py-3 text-left hover:border-emerald-500/60 hover:bg-gray-800 transition"
+              className="w-full flex items-center justify-between rounded-full border border-white/20 bg-white/5 px-4 py-3 text-left hover:border-emerald-500/40 hover:bg-white/10 transition"
               aria-expanded={showChangePassword}
             >
               <div className="flex items-center gap-3">
@@ -239,7 +239,7 @@ const UserSettings: React.FC = () => {
               name="language"
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              className="w-full px-4 py-2 rounded-md border border-gray-700 bg-gray-900 text-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-400 hover:border-emerald-400 transition"
+              className="w-full pill-input px-4 py-2"
             >
               <option value="en">English</option>
               <option value="es">Spanish</option>
@@ -259,7 +259,7 @@ const UserSettings: React.FC = () => {
           )}
           <button
             type="submit"
-            className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-xl px-6 py-2 shadow-lg transition"
+            className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-full px-6 py-2 shadow-soft transition"
           >
             <Save className="h-4 w-4" />
             Save Settings

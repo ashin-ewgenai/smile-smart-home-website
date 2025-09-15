@@ -85,10 +85,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
   ];
 
   const LinkItem = ({ href, label, active, title, icon }: { href: string; label: string; active: boolean; title: string; icon: React.ReactNode }) => {
-    const common = `group relative flex items-center ${collapsed ? 'justify-center' : 'justify-start'} gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 ` +
+    const common = `group relative flex items-center ${collapsed ? 'justify-center' : 'justify-start'} gap-3 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200 ` +
       `${active
         ? 'text-white bg-gray-800/70 ring-1 ring-emerald-400/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
-        : 'text-gray-300 hover:text-white hover:bg-gray-800/60'} ` +
+        : 'text-gray-300 hover:text-white hover:bg-gray-800/50'} ` +
       `${collapsed ? 'w-12 mx-auto' : 'w-full pl-2'} `;
     const children = (
       <>
@@ -108,12 +108,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 pt-16">
+    <div className="flex flex-col min-h-screen pt-16 bg-gradient-to-br from-white via-soft-gray to-white dark:from-gray-950 dark:via-charcoal dark:to-gray-950">
       <DashboardNavbar userType={userType} userName={userName} />
       {/* Content area with optional sidebar */}
       <div className="flex-1 flex max-w-full">
         {/* Sidebar (desktop only) */}
-        <aside className={`hidden md:block ${collapsed ? 'w-20' : 'w-64'} flex-shrink-0 bg-gradient-to-b from-slate-950 to-gray-900 border-r border-gray-800`}>
+        <aside className={`hidden md:block ${collapsed ? 'w-20' : 'w-64'} flex-shrink-0 glass-surface border-r border-white/30 dark:border-white/10` }>
           <nav className="sticky top-16 p-4 space-y-2">
             <div className="flex items-center justify-between mb-4">
               <button

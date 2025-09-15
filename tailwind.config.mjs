@@ -13,6 +13,15 @@ export default {
         'soft-gray': '#F5F7F8',
         border: 'rgb(var(--color-border) / <alpha-value>)'
       },
+      boxShadow: {
+        // soft, layered shadow used for glass surfaces
+        'soft': '0 1px 2px rgba(0,0,0,0.04), 0 10px 20px rgba(0,0,0,0.08)',
+        'soft-lg': '0 2px 6px rgba(0,0,0,0.04), 0 20px 40px rgba(0,0,0,0.12)'
+      },
+      borderRadius: {
+        'xl': '0.9rem',
+        '2xl': '1.2rem'
+      },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif']
       },
@@ -54,6 +63,12 @@ export default {
       transitionDuration: {
         '120': '120ms',
         '160': '160ms'
+      },
+      ringWidth: {
+        '1': '1px',
+        '2': '2px',
+        '3': '3px',
+        '4': '4px'
       }
     }
   },

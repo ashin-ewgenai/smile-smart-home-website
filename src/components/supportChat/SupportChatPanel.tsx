@@ -59,6 +59,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [input, setInput] = useState('');
+  // Ensure ticket analysis runs only once per mount/session (guards against HMR/StrictMode double invoke)
+  const initOnceRef = useRef(false);
   const [ticketData, setTicketData] = useState<TicketData | null>(null);
   const [ticketLoading, setTicketLoading] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
@@ -224,27 +226,61 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
               setMessages(prev => [...prev, serialMsg]);
             }
           } else {
-            // No analysis yet, show verification first
-            const verificationMsg: ChatMsg = {
-              role: 'assistant',
-              content: `I found your active support ticket ${ticketNumber}. Let me verify the details with you first:`,
-              showTicketVerification: true,
-              ticketDetails: {
-                ticketId: providedTicketId,
-                ticketNumber: ticketNumber,
-                subject: ticketData.subject || 'No subject',
-                description: ticketData.description || 'No description',
-                category: ticketData.category || 'General',
-                status: ticketData.status || 'Pending',
-                createdAt: typeof ticketData.createdAt === 'object' && ticketData.createdAt && typeof (ticketData.createdAt as any).toDate === 'function' ? 
-                  (ticketData.createdAt as any).toDate().toLocaleDateString() : 
-                  'Unknown date'
-              },
-              ts: Date.now(),
-            };
-            setMessages([verificationMsg]);
-            setWorkflowStep('ticket_verification');
-            hasInitialized.current = true; // Set after messages are added
+            // No analysis yet: fetch from DB and analyze via backend callable
+            try {
+              const analyze = httpsCallable(functions, 'analyzeTicketById');
+              const res = await analyze({ ticketId: providedTicketId, sessionId });
+              const data: any = res?.data || {};
+              const analysis = data.initialSolution as string | undefined;
+              const needsSerial: boolean = !!data.needsSerial;
+
+              if (analysis) {
+                const analysisMsg: ChatMsg = {
+                  role: 'assistant',
+                  content: `I found your support ticket ${ticketNumber}. Here's what I can help you with:\n\n${analysis}`,
+                  ts: Date.now(),
+                };
+                setMessages([analysisMsg]);
+                if (needsSerial) {
+                  const serialMsg: ChatMsg = {
+                    role: 'assistant',
+                    content: 'I need to see the serial number on your device to provide more specific help. Can you upload a photo of the serial number?',
+                    ts: Date.now() + 1,
+                  };
+                  setMessages(prev => [...prev, serialMsg]);
+                }
+              } else {
+                const fallbackMsg: ChatMsg = {
+                  role: 'assistant',
+                  content: `I found your active support ticket ${ticketNumber}. Let me verify the details with you first:`,
+                  showTicketVerification: true,
+                  ticketDetails: {
+                    ticketId: providedTicketId,
+                    ticketNumber: ticketNumber,
+                    subject: ticketData.subject || 'No subject',
+                    description: ticketData.description || 'No description',
+                    category: ticketData.category || 'General',
+                    status: ticketData.status || 'Pending',
+                    createdAt: typeof ticketData.createdAt === 'object' && ticketData.createdAt && typeof (ticketData.createdAt as any).toDate === 'function' ? 
+                      (ticketData.createdAt as any).toDate().toLocaleDateString() : 
+                      'Unknown date'
+                  },
+                  ts: Date.now(),
+                };
+                setMessages([fallbackMsg]);
+                setWorkflowStep('ticket_verification');
+              }
+              hasInitialized.current = true;
+            } catch (e) {
+              console.error('Failed to analyze ticket by id:', e);
+              const errorMsg: ChatMsg = {
+                role: 'assistant',
+                content: 'I could not analyze your ticket right now. You can still describe your issue and I will assist.',
+                ts: Date.now(),
+              };
+              setMessages([errorMsg]);
+              hasInitialized.current = true;
+            }
           }
         } else if (messages.length === 0) {
           // Show welcome message first, then check for tickets
@@ -364,12 +400,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setLoading(false);
       return () => {};
     }
-    if (claimed) {
-      setupOnline();
-    } else {
-      // AI mode but authenticated: load from Firestore
-      if (uid && sessionId) setupOnline();
-    }
+    // Always call once when authenticated; guard against redundant remounts by cleaning up above
+    if (uid && sessionId) setupOnline();
     return () => {
       if (msgsUnsubRef.current) {
         try { msgsUnsubRef.current(); } catch {}
@@ -430,11 +462,39 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     setInput('');
     setIsSending(true);
 
-    // Skip if we're in a workflow step that doesn't need text input
-    if (workflowStep === 'ticket_verification' || workflowStep === 'device_selection') {
-      setIsSending(false);
-      return;
-    }
+    // Auto-escalation: if the last assistant message suggested escalation and user consents ("yes", "ok", etc.),
+    // automatically create a human support request and confirm in chat.
+    try {
+      const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && (m.content || '').length > 0);
+      const affirmative = /^(yes|yep|yeah|ok|okay|sure|please|do it|go ahead|proceed|confirm)\b/i.test(content);
+      const escalationSuggested = lastAssistant && /escalat/i.test(lastAssistant.content || '');
+      if (affirmative && escalationSuggested) {
+        await requestHuman();
+        const confirmMsg: ChatMsg = {
+          role: 'agent',
+          content: '✅ I\'ve notified our human support. Someone will reach out to you shortly.',
+          ts: Date.now(),
+        };
+        setMessages((prev) => [...prev, { role: 'user', content, ts: Date.now() - 1 }, confirmMsg]);
+
+        // Persist confirmation into chat_sessions if possible
+        if (uid && sessionId) {
+          try {
+            const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+            await addDoc(msgsCol, { role: 'user', content, ts: Date.now() });
+            await addDoc(msgsCol, { role: 'assistant', content: confirmMsg.content, ts: Date.now() + 1, source: 'system' });
+            await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human_requested' }, { merge: true });
+          } catch (e) {
+            console.warn('Failed to persist escalation confirmation:', e);
+          }
+        }
+        setIsSending(false);
+        return;
+      }
+    } catch {}
+
+    // Previously we blocked sending during ticket verification or device selection.
+    // Allow sending in all steps to avoid the UI getting stuck if user doesn't click the buttons.
 
     if (claimed) {
       // Human online: send to Firestore live chat
@@ -519,7 +579,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setMessages((prev) => prev.map((m) => m.id === tempId ? imageMessage : m));
       
       // Save image message to Firestore if user is authenticated and we have a session
-      if (claimed && uid && sessionId) {
+      // Persist regardless of human claimed state so chat history is consistent in AI mode
+      if (uid && sessionId) {
         try {
           const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
           await addDoc(msgsCol, { role: 'user', imageUrl: url, ts: Date.now() });
@@ -529,7 +590,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       }
       
       // Always trigger AI serial extraction and verification if ticket is present
-      const activeTicketId = providedTicketId;
+      // Prefer the ticket ID we loaded from Firestore analysis, then fall back to prop
+      const activeTicketId = (ticketData as any)?.ticketId || providedTicketId;
       if (!activeTicketId) {
         const warn: ChatMsg = { role: 'agent', content: 'Please create a support ticket first. Then upload the device photo here.', ts: Date.now() + 2 };
         setMessages((prev) => [...prev, warn]);
@@ -569,11 +631,29 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           };
           setMessages((prev) => [...prev, noSerialMsg]);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Serial extraction error:', error);
+        const code = (error && (error as any).code) || '';
+        const details = (error && (error as any).details) || {};
+        let msg = '❌ Failed to process device image. Please try again or contact support.';
+        if (code === 'functions/unavailable' && details?.reason === 'image_fetch_failed') {
+          msg = '❌ Could not fetch the image from storage. Please re-upload and try again.';
+        } else if (code === 'functions/unavailable' && details?.reason === 'openai_data_url_failed') {
+          msg = '❌ Our analyzer could not read the image. Please try a clearer photo of the serial label.';
+        } else if (code === 'functions/internal' && details?.reason === 'retry_failed') {
+          msg = '❌ Temporary processing issue. Please try again.';
+        } else if (code === 'functions/permission-denied') {
+          msg = '❌ You do not have permission to process this ticket image.';
+        } else if (code === 'functions/not-found') {
+          msg = '❌ Ticket not found. Please refresh and try again.';
+        } else if (code === 'functions/unauthenticated') {
+          msg = '❌ Please sign in to process the device image.';
+        } else if (code === 'functions/invalid-argument') {
+          msg = '❌ Missing information. Please try uploading the image again.';
+        }
         const errorMsg: ChatMsg = {
           role: 'agent',
-          content: '❌ Failed to process device image. Please try again or contact support.',
+          content: msg,
           ts: Date.now() + 2
         };
         setMessages((prev) => [...prev, errorMsg]);
@@ -680,7 +760,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   // If not authenticated, show sign-in prompt
   if (!isAuthenticated) {
     return (
-      <section className="bg-gray-50 dark:bg-gray-900">
+      <section className="glass-surface rounded-2xl">
         <div className="px-4 py-4 sm:px-6">
           <div className="flex items-center gap-3 mb-2">
             <div className="h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 flex items-center justify-center">
@@ -710,7 +790,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   }
 
   return (
-    <section className="bg-gray-50 dark:bg-gray-900">
+    <section className="glass-surface rounded-2xl">
       <div className="px-4 py-4 sm:px-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -743,7 +823,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       <div className="px-4 sm:px-6">
         <div
           ref={scrollRef}
-          className="h-[calc(100vh-300px)] md:h-[calc(100vh-320px)] overflow-y-auto overscroll-y-contain py-4 pb-4 space-y-4 bg-gradient-to-b from-gray-50/50 to-white dark:from-gray-900/50 dark:to-gray-800 rounded-lg"
+          className="h-[calc(100vh-300px)] md:h-[calc(100vh-320px)] overflow-y-auto overscroll-y-contain py-4 pb-4 space-y-4 glass-surface rounded-2xl"
           onWheel={(e) => { e.stopPropagation(); }}
           style={{ WebkitOverflowScrolling: 'touch', touchAction: 'auto' as React.CSSProperties['touchAction'] }}
         >
@@ -953,7 +1033,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={claimed ? 'Type your message…' : 'Ask me anything about your smart home...'}
-              className="w-full bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 pl-4 pr-14 py-3.5 sm:py-4 rounded-full border border-gray-300 dark:border-gray-600 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent shadow-sm"
+              className="w-full pill-input pl-4 pr-14 py-3.5 sm:py-4"
               disabled={!isAuthenticated}
             />
             {/* Send inside input with right arrow */}

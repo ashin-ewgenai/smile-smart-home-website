@@ -1,0 +1,11 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import DashboardApp from '../../../components/dashboard/User/DashboardApp';
+---
+
+<Layout title="Support Chat - Smile Smart Homes">
+  <DashboardApp client:only="react" />
+</Layout>
+
+<!-- Serve the React Router app for this deep link so the route /dashboard/user/support-chat works on refresh -->
+<script type="module">import '/src/pages/dashboard/authGateUser.client.ts';</script>

@@ -247,32 +247,46 @@ ${deviceContext}${ticketContext}`,
     let content: string | undefined = data?.choices?.[0]?.message?.content;
     if (!content) throw new HttpsError("data-loss", "No content in OpenAI response");
 
+    // Determine workflow prefixes before cleaning for routing
+    const hasRequiresTicket = content.startsWith('REQUIRES_TICKET:');
+    const hasTicketVerification = content.startsWith('TICKET_VERIFICATION:');
+    const hasDeviceSelection = content.startsWith('DEVICE_SELECTION:');
+    const hasComplaintDetected = content.startsWith('COMPLAINT_DETECTED:');
+
+    // Create a cleaned version for persistence (strip technical prefixes)
+    let cleanedContent = content
+      .replace(/^REQUIRES_TICKET:\s*/i, '')
+      .replace(/^TICKET_VERIFICATION:\s*/i, '')
+      .replace(/^DEVICE_SELECTION:\s*/i, '')
+      .replace(/^COMPLAINT_DETECTED:\s*/i, '')
+      .trim();
+
     // Suppress repeating COMPLAINT_DETECTED after it has been shown once in this conversation.
     try {
       const priorComplaintShown = clean.some(
         (m) => m.role === "assistant" && typeof m.content === "string" && m.content.includes("COMPLAINT_DETECTED:")
       );
-      if (priorComplaintShown && content.startsWith("COMPLAINT_DETECTED:")) {
-        content = content.replace(/^COMPLAINT_DETECTED:\s*/i, "").trim();
+      if (priorComplaintShown && hasComplaintDetected) {
+        // already cleaned above
       }
     } catch {}
 
     try {
-      await sessionsCol.doc(sessionId).collection("messages").add({ role: "assistant", content, ts: Date.now() });
+      await sessionsCol.doc(sessionId).collection("messages").add({ role: "assistant", content: cleanedContent, ts: Date.now() });
       await sessionsCol.doc(sessionId).set({ updatedAt: Date.now(), status: "active" }, { merge: true });
     } catch {}
 
     // Enhanced response with workflow handling
-    let enhancedReply = content;
+    let enhancedReply = cleanedContent;
     let requiresTicket = false;
     let ticketDetails = null;
     let deviceSelection = null;
 
     // Handle workflow responses
-    if (content.startsWith('REQUIRES_TICKET:')) {
+    if (hasRequiresTicket) {
       requiresTicket = true;
-      enhancedReply = content.replace('REQUIRES_TICKET:', '').trim();
-    } else if (content.startsWith('TICKET_VERIFICATION:') && activeTicket) {
+      enhancedReply = cleanedContent;
+    } else if (hasTicketVerification && activeTicket) {
       const ticketNumber = activeTicket.data.ticketNumber || `#${activeTicket.ticketId.slice(-6).toUpperCase()}`;
       ticketDetails = {
         ticketId: activeTicket.ticketId,
@@ -283,8 +297,8 @@ ${deviceContext}${ticketContext}`,
         status: activeTicket.data.status,
         createdAt: activeTicket.data.createdAt?.toDate?.()?.toLocaleDateString()
       };
-      enhancedReply = content.replace('TICKET_VERIFICATION:', '').trim();
-    } else if (content.startsWith('DEVICE_SELECTION:')) {
+      enhancedReply = cleanedContent;
+    } else if (hasDeviceSelection) {
       // Fetch user devices for selection
       try {
         const devicesQuery = await db.collection(CONFIG.COLLECTIONS.DEVICES).where("uid", "==", uid).get();
@@ -299,7 +313,7 @@ ${deviceContext}${ticketContext}`,
           };
         });
         deviceSelection = { devices };
-        enhancedReply = content.replace('DEVICE_SELECTION:', '').trim();
+        enhancedReply = cleanedContent;
       } catch (error) {
         console.warn('Failed to fetch devices:', error);
       }
@@ -367,7 +381,8 @@ async function fetchLatestUnresolvedTicket(uid: string) {
     console.log(`Fetching unresolved tickets for user: ${uid}`);
     const ticketsQuery = await db.collection(CONFIG.COLLECTIONS.TICKETS)
       .where("uid", "==", uid)
-      .where("status", "in", ["Pending", "In Progress"])
+      // Include common status variants; primarily look for lowercase 'pending'
+      .where("status", "in", ["Pending", "pending", "In Progress", "in progress"])
       .orderBy("createdAt", "desc")
       .limit(1)
       .get();
@@ -408,32 +423,63 @@ export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY], cors: t
 
   console.log(`[extractSerialFromImage] Processing image for ticket ${ticketId}: ${imageUrl}`);
 
-  const messages = [
+  const makeMessages = (imgRef: string) => ([
     {
       role: "user",
       content: [
-        {type: "text", text: "Extract the product serial number visible in this image. Return only the serial string. If unclear, say: NONE"},
-        {type: "image_url", image_url: {url: imageUrl}},
+        { type: "text", text: "From this image, extract the DEVICE SERIAL NUMBER only. Prefer the text located next to labels such as 'Serial', 'S/N', 'SN', 'Serial No', or 'Serial Number'. Ignore model numbers, product codes, warranty dates, barcodes, and any text near labels like 'Model' or 'Product'. Return ONLY the serial string without any extra words. If you cannot identify a serial with high confidence, reply exactly: NONE" },
+        { type: "image_url", image_url: { url: imgRef } },
       ],
     },
-  ];
+  ]);
 
-  try {
+  // Helper to call OpenAI
+  const callOpenAI = async (imgRef: string) => {
     const resp = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: {"Content-Type": "application/json", Authorization: `Bearer ${apiKey}`},
-      body: JSON.stringify({model: "gpt-4o", messages, temperature: 0.0, max_tokens: 50}),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({ model: CONFIG.OPENAI.MODEL, messages: makeMessages(imgRef), temperature: 0.0, max_tokens: 50 }),
     } as any);
-    
+    return resp;
+  };
+
+  // Attempt 1: direct URL to OpenAI
+  try {
+    let resp = await callOpenAI(imageUrl);
     if (!resp.ok) {
       const errorText = await resp.text();
-      console.error(`[extractSerialFromImage] OpenAI API error: ${resp.status} - ${errorText}`);
-      throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
+      console.warn(`[extractSerialFromImage] OpenAI error on direct URL (${resp.status}). Will retry with data URL. Body: ${errorText}`);
+
+      // Attempt 2: server-side fetch -> data URL fallback
+      try {
+        const imgResp = await fetch(imageUrl);
+        if (!imgResp.ok) {
+          const t = await imgResp.text();
+          console.error(`[extractSerialFromImage] Failed to fetch image from Storage: ${imgResp.status} ${t}`);
+          throw new HttpsError("unavailable", "IMAGE_FETCH_FAILED", { reason: "image_fetch_failed", status: imgResp.status });
+        }
+        const contentType = imgResp.headers.get("content-type") || "image/png";
+        const buf = Buffer.from(await imgResp.arrayBuffer());
+        const dataUrl = `data:${contentType};base64,${buf.toString("base64")}`;
+        resp = await callOpenAI(dataUrl);
+        if (!resp.ok) {
+          const et = await resp.text();
+          console.error(`[extractSerialFromImage] OpenAI error after data URL retry: ${resp.status} - ${et}`);
+          throw new HttpsError("unavailable", "OPENAI_DATA_URL_FAILED", { reason: "openai_data_url_failed", status: resp.status });
+        }
+      } catch (retryErr) {
+        if (retryErr instanceof HttpsError) throw retryErr;
+        console.error(`[extractSerialFromImage] Retry with data URL failed:`, retryErr);
+        throw new HttpsError("internal", "RETRY_FAILED", { reason: "retry_failed" });
+      }
     }
-    
+
     const data = await resp.json();
     const content: string = (data?.choices?.[0]?.message?.content || "").trim();
-    const extractedSerial = content === "NONE" ? "" : content.replace(/[^A-Za-z0-9\-\/ _]/g, "").slice(0, 64);
+    // Try to be resilient: allow common serial patterns, trim whitespace
+    const cleaned = content.replace(/\s+/g, " ").trim();
+    const match = cleaned.match(/[A-Z0-9]{4,}[\-]?[A-Z0-9]{3,}/i);
+    const extractedSerial = cleaned === "NONE" ? "" : (match ? match[0] : cleaned).replace(/[^A-Za-z0-9\-]/g, "").slice(0, 64);
     
     console.log(`[extractSerialFromImage] Extracted serial: "${extractedSerial}"`);
     
@@ -624,25 +670,65 @@ export const analyzeUserUnresolvedTicket = onCall({secrets: [OPENAI_API_KEY], co
     console.warn("Failed to fetch user devices:", e);
   }
 
-  // Analyze the ticket complaint and provide initial solution
-  const deviceList = userDevices.length > 0 
+  // Build a robust prompt using the same template as analyzeTicketById
+  const deviceList = userDevices.length > 0
     ? `User's devices: ${userDevices.map((d: any) => d.deviceName || d.name || d.id).join(", ")}`
     : "User has no registered devices.";
 
-  const prompt = `You are a support assistant for Smile Smart Homes. Analyze this support ticket and provide an initial solution or troubleshooting steps.
+  const subject = t.subject || t.title || "No subject";
+  const description = t.description || t.complaint || t.issue || "No description provided";
+  const category = t.category || "General";
+  const priority = t.priority || "medium";
+  const ticketNumber = t.ticketNumber || `#${ticketId.slice(-6).toUpperCase()}`;
+  const createdAt = (() => {
+    try {
+      return t.createdAt?.toDate?.()?.toISOString?.() || (typeof t.createdAt === 'number' ? new Date(t.createdAt).toISOString() : '') || '';
+    } catch { return ''; }
+  })();
+  const deviceFields = [
+    t.deviceId ? `deviceId: ${t.deviceId}` : '',
+    t.deviceType ? `deviceType: ${t.deviceType}` : '',
+    t.deviceModel ? `deviceModel: ${t.deviceModel}` : '',
+    t.deviceSerial ? `deviceSerial: ${t.deviceSerial}` : '',
+  ].filter(Boolean).join("\n");
+  const attachments = t.imageUrl ? `attachment: ${t.imageUrl}` : '';
+  const prior = [
+    t.analysisResult ? `previousAnalysis: ${String(t.analysisResult).slice(0, 600)}` : '',
+    typeof t.troubleshootingAttempts === 'number' ? `troubleshootingAttempts: ${t.troubleshootingAttempts}` : '',
+    t.lastSuggestion ? `lastSuggestion: ${String(t.lastSuggestion).slice(0, 400)}` : '',
+  ].filter(Boolean).join("\n");
 
-${deviceList}
+  const ticketContent = [
+    `ticketNumber: ${ticketNumber}`,
+    `subject: ${subject}`,
+    `category: ${category}`,
+    `priority: ${priority}`,
+    createdAt ? `createdAt: ${createdAt}` : '',
+    `description: ${description}`,
+    deviceFields,
+    attachments,
+    prior,
+    deviceList ? `userDevicesContext: ${deviceList}` : ''
+  ].filter(Boolean).join("\n");
 
-Ticket Subject: ${t.subject}
-Ticket Description: ${t.description}
+  const prompt = `You are a technical support assistant for a smart home automation platform.
 
-Provide a helpful response that includes:
-1. Acknowledgment of their issue
-2. Initial troubleshooting steps or solution
-3. Indicate if you need the device serial number (respond with "SERIAL_NEEDED: " followed by reason)
-4. Keep response concise but helpful
+A user has submitted a support ticket describing an issue they are facing with their smart device. Your job is to:
 
-If you can solve it directly, provide clear steps. If you need more info, ask specific questions.`;
+1. Summarize the core issue clearly and concisely.
+2. Identify any missing information or steps needed to proceed.
+3. If enough information is provided, suggest a specific, actionable troubleshooting step.
+4. Keep your response polite, professional, and written as if addressing the user directly.
+
+Support Ticket Details:
+---
+${ticketContent}
+---
+
+Important guidance:
+- If you require a device serial number image for verification, include the token 'SERIAL_NEEDED:' followed by a one-line reason.
+- Keep total length under 180 words.
+- Do not include prefatory phrases or system notes; respond as a message to the user.`;
 
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -672,5 +758,147 @@ If you can solve it directly, provide clear steps. If you need more info, ask sp
     initialSolution: content,
     needsSerial,
     status: "analyzed"
+  };
+});
+
+// ===== Analyze a specific ticket by ID (fetch from Firestore first, then send to OpenAI) =====
+export const analyzeTicketById = onCall({ secrets: [OPENAI_API_KEY], cors: true }, async (request) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+
+  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
+  const sessionId = (request.data?.sessionId as string | undefined)?.trim();
+  if (!ticketId) throw new HttpsError("invalid-argument", "ticketId is required");
+
+  // Load the ticket from Firestore first
+  const tRef = db.collection(CONFIG.COLLECTIONS.TICKETS).doc(ticketId);
+  const tSnap = await tRef.get();
+  if (!tSnap.exists) throw new HttpsError("not-found", "Ticket not found");
+  const t = tSnap.data() as any;
+  if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
+
+  const apiKey = OPENAI_API_KEY.value();
+  if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY not configured");
+
+  // Build device context
+  let userDevices: Array<{id: string; [key: string]: any}> = [];
+  try {
+    const devicesSnap = await db.collection(CONFIG.COLLECTIONS.DEVICES).where("uid", "==", authCtx.uid).get();
+    userDevices = devicesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (e) {
+    console.warn("Failed to fetch user devices:", e);
+  }
+
+  const deviceList = userDevices.length > 0
+    ? `User's devices: ${userDevices.map((d: any) => d.deviceName || d.name || d.id).join(", ")}`
+    : "User has no registered devices.";
+
+  // Create a robust prompt for analysis using the user's desired template
+  const subject = t.subject || t.title || "No subject";
+  const description = t.description || t.complaint || t.issue || "No description provided";
+  const category = t.category || "General";
+  const priority = t.priority || "medium";
+  const ticketNumber = t.ticketNumber || `#${ticketId.slice(-6).toUpperCase()}`;
+  const createdAt = (() => {
+    try {
+      return t.createdAt?.toDate?.()?.toISOString?.() || (typeof t.createdAt === 'number' ? new Date(t.createdAt).toISOString() : '') || '';
+    } catch { return ''; }
+  })();
+  const deviceFields = [
+    t.deviceId ? `deviceId: ${t.deviceId}` : '',
+    t.deviceType ? `deviceType: ${t.deviceType}` : '',
+    t.deviceModel ? `deviceModel: ${t.deviceModel}` : '',
+    t.deviceSerial ? `deviceSerial: ${t.deviceSerial}` : '',
+  ].filter(Boolean).join("\n");
+  const attachments = t.imageUrl ? `attachment: ${t.imageUrl}` : '';
+  const prior = [
+    t.analysisResult ? `previousAnalysis: ${String(t.analysisResult).slice(0, 600)}` : '',
+    typeof t.troubleshootingAttempts === 'number' ? `troubleshootingAttempts: ${t.troubleshootingAttempts}` : '',
+    t.lastSuggestion ? `lastSuggestion: ${String(t.lastSuggestion).slice(0, 400)}` : '',
+  ].filter(Boolean).join("\n");
+
+  const ticketContent = [
+    `ticketNumber: ${ticketNumber}`,
+    `subject: ${subject}`,
+    `category: ${category}`,
+    `priority: ${priority}`,
+    createdAt ? `createdAt: ${createdAt}` : '',
+    `description: ${description}`,
+    deviceFields,
+    attachments,
+    prior,
+    deviceList ? `userDevicesContext: ${deviceList}` : ''
+  ].filter(Boolean).join("\n");
+
+  const prompt = `You are a technical support assistant for a smart home automation platform.
+
+A user has submitted a support ticket describing an issue they are facing with their smart device. Your job is to:
+
+1. Summarize the core issue clearly and concisely.
+2. Identify any missing information or steps needed to proceed.
+3. If enough information is provided, suggest a specific, actionable troubleshooting step.
+4. Keep your response polite, professional, and written as if addressing the user directly.
+
+Support Ticket Details:
+---
+${ticketContent}
+---
+
+Important guidance:
+- If you require a device serial number image for verification, include the token 'SERIAL_NEEDED:' followed by a one-line reason.
+- Keep total length under 180 words.
+- Do not include prefatory phrases or system notes; respond as a message to the user.`;
+
+  // Call OpenAI
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: CONFIG.OPENAI.MODEL, messages: [{ role: "user", content: prompt }], temperature: CONFIG.OPENAI.TEMPERATURE, max_tokens: 350 }),
+  } as any);
+
+  if (!resp.ok) throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
+  const data = await resp.json();
+  const content: string = (data?.choices?.[0]?.message?.content || "").trim();
+
+  const needsSerial = content.includes("SERIAL_NEEDED:");
+
+  // Persist results back onto the ticket
+  await tRef.set({
+    analyzedAt: Date.now(),
+    analysisResult: content,
+    initialSolution: content,
+    needsSerial,
+    updatedAt: Date.now(),
+  }, { merge: true });
+
+  // Optionally persist this analysis as an assistant message into chat_sessions if a sessionId is provided
+  if (sessionId) {
+    try {
+      const sessionsCol = db.collection(CONFIG.COLLECTIONS.CHAT_SESSIONS);
+      await sessionsCol.doc(sessionId).set({
+        ownerUid: authCtx.uid,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: "active",
+        type: "ai",
+        model: CONFIG.OPENAI.MODEL,
+      }, { merge: true });
+      await sessionsCol.doc(sessionId).collection("messages").add({
+        role: "assistant",
+        content,
+        ts: Date.now(),
+        source: "ai",
+      });
+      await sessionsCol.doc(sessionId).set({ updatedAt: Date.now() }, { merge: true });
+    } catch (e) {
+      console.warn("Failed to persist analysis to chat session:", e);
+    }
+  }
+
+  return {
+    status: "analyzed",
+    ticketId,
+    initialSolution: content,
+    needsSerial,
   };
 });

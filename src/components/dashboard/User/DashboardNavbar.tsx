@@ -55,7 +55,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
 
 
   return (
-    <nav className="fixed top-0 inset-x-0 z-50 w-full bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+    <nav className="fixed top-0 inset-x-0 z-50 w-full glass-surface">
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 relative">
           <div className="flex items-center">

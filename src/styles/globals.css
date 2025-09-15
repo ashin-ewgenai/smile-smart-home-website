@@ -155,4 +155,32 @@
   .dark .filter-teal {
     filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
   }
+
+  /* Glass UI surface used in dashboards/cards */
+  .glass-surface {
+    @apply relative bg-white/60 dark:bg-white/5 backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-soft;
+  }
+
+  /* Decorative subtle gradient overlay that respects teal brand */
+  .glass-surface::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(1200px 400px at -10% -10%, rgba(0,150,136,0.12), transparent 60%),
+                radial-gradient(800px 300px at 110% 0%, rgba(0,188,212,0.10), transparent 60%);
+    border-radius: inherit;
+  }
+
+  /* Pill input control */
+  .pill-input {
+    @apply rounded-full bg-white/80 dark:bg-white/10 border border-white/60 dark:border-white/10 shadow-soft px-4 py-2 text-sm placeholder:text-gray-400 focus:ring-2 focus:ring-teal/70 focus:border-teal/60 transition;
+  }
+
+  /* Pill-like textarea: keep soft, but better proportions for multi-line */
+  .pill-textarea {
+    @apply rounded-2xl bg-white/80 dark:bg-white/10 border border-white/60 dark:border-white/10 shadow-soft text-sm leading-relaxed placeholder:text-gray-400 focus:ring-2 focus:ring-teal/70 focus:border-teal/60 transition;
+    padding: 1rem 1.25rem; /* px-5 py-4 equivalent for consistent cross-browser */
+    min-height: 7rem;      /* ~28 tailwind (min-h-28) */
+  }
 }

@@ -11,12 +11,12 @@ interface DashboardLayoutProps {
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, userName }) => {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-white via-soft-gray to-white dark:from-gray-950 dark:via-charcoal dark:to-gray-950">
       <DashboardNavbar userType={userType} userName={userName} />
       <div className="pt-16 flex flex-col flex-1 min-h-0">
         <div className="flex flex-1 relative min-h-0">
           {/* Sidebar - extended to footer */}
-          <aside className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-60 border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 overflow-y-auto">
+          <aside className="hidden md:block fixed top-16 left-0 h-[calc(100vh-4rem)] w-60 border-r border-white/50 dark:border-white/10 glass-surface overflow-y-auto">
             <AdminSidebar />
           </aside>
           {/* Main content - extended to match sidebar */}

@@ -50,20 +50,20 @@ const MyQuotes: React.FC = () => {
       {items.length === 0 ? (
         <p className="text-gray-600 dark:text-gray-300">No quotes yet.</p>
       ) : (
-        <ul className="divide-y divide-gray-200 dark:divide-gray-700 rounded-md overflow-hidden bg-white dark:bg-gray-800 shadow">
+        <ul className="divide-y divide-white/50 dark:divide-white/10 rounded-2xl overflow-hidden glass-surface shadow-soft-lg">
           {items.map(({ id, data }) => {
             const Wrapper: any = (Link as any)?.to ? Link : ALink;
             const href = `/dashboard/user/quote-details/${id}`;
             return (
-              <li key={id} className="p-4 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-                <Wrapper to={href} href={href} className="flex justify-between items-center">
+              <li key={id} className="p-4 hover:bg-white/50 dark:hover:bg-white/10 transition">
+                <Wrapper to={href} href={href} className="flex justify-between items-center gap-3">
                   <div>
                     <div className="font-medium text-gray-900 dark:text-white">{data.area || data.location || 'Quote'}</div>
                     <div className="text-sm text-gray-500 dark:text-gray-300">
                       Status: {data.status || 'submitted'}
                     </div>
                   </div>
-                  <span className="text-indigo-600 dark:text-indigo-400 text-sm">View</span>
+                  <span className="px-3 py-1 text-xs rounded-full bg-indigo-600/90 text-white hover:bg-indigo-600 shadow-soft">View</span>
                 </Wrapper>
               </li>
             );

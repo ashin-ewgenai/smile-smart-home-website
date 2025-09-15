@@ -540,7 +540,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
             {/* Device Stats Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700">
+            <div className="bg-white dark:bg-gray-800 rounded-[24px] shadow-md p-6 border border-gray-200 dark:border-gray-700">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Devices</h2>
                 <Home className="h-6 w-6 text-teal-500" />
@@ -554,7 +554,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                 <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
                   <button
                     onClick={() => setRequestStatusOpen(true)}
-                    className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:bg-blue-700 dark:hover:bg-blue-600"
+                    className="w-full px-4 py-2 text-sm font-medium text-white bg-teal rounded-full hover:bg-teal/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal dark:bg-teal dark:hover:bg-teal/90"
                   >
                     View Service Requests
                   </button>
@@ -563,7 +563,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
             </div>
             
             {/* Billing & Warranty */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 col-span-1 md:col-span-2">
+            <div className="bg-white dark:bg-gray-800 rounded-[24px] shadow-md p-6 border border-gray-200 dark:border-gray-700 col-span-1 md:col-span-2">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Quick Controls</h2>
               </div>
@@ -572,7 +572,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                 {/* Request Service */}
                 <button
                   onClick={() => setServiceRequestOpen(true)}
-                  className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
+                  className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
                   aria-label="Open Request Service"
                 >
                   <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mb-2">
@@ -585,7 +585,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                 {/* About Device */}
                 <a
                   href="/dashboard/user/about-device"
-                  className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
+                  className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
                   aria-label="Open About Device"
                 >
                   <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center mb-2">
@@ -598,7 +598,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                 {/* Quote Portal */}
                 <a
                   href="/dashboard/user/quote-portal"
-                  className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
+                  className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
                   aria-label="Open Quote Portal"
                 >
                   <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center mb-2">
@@ -614,7 +614,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* My Devices */}
-            <div ref={myDevicesRef} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 lg:col-span-2 overflow-hidden">
+            <div ref={myDevicesRef} className="bg-white dark:bg-gray-800 rounded-[24px] shadow-lg border border-gray-200 dark:border-gray-700 lg:col-span-2 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Devices</h2>
               </div>

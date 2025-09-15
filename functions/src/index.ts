@@ -11,7 +11,6 @@ setGlobalOptions({region: "us-central1", maxInstances: 10});
 export * from "./chatbot";
 export * from "./adminClearUserChat";
 export * from "./adminDeleteUserAndData";
-export * from "./processTicketSubmission";
 
 // Initialize Admin SDK once
 if (!getApps().length) {

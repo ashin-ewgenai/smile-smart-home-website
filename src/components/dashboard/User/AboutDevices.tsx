@@ -459,7 +459,7 @@ const AboutDevices: React.FC = () => {
       ) : (
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {devices.map((device) => (
-            <div key={device.id} className="bg-gray-900 rounded-lg border border-gray-800 overflow-hidden hover:border-blue-500/50 transition-colors">
+            <div key={device.id} className="glass-surface rounded-2xl overflow-hidden hover:shadow-soft-lg transition-all">
               {device.imageUrl ? (
                 <img 
                   src={device.imageUrl} 
@@ -472,7 +472,7 @@ const AboutDevices: React.FC = () => {
                   }}
                 />
               ) : (
-                <div className="w-full h-40 flex items-center justify-center bg-gray-800">
+                <div className="w-full h-40 flex items-center justify-center bg-gray-800/50">
                   <svg className="h-16 w-16 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
@@ -510,7 +510,7 @@ const AboutDevices: React.FC = () => {
                 <div className="mt-4 flex justify-end">
                   <button
                     onClick={() => openDetails(device)}
-                    className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors"
+                    className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-colors shadow-soft"
                   >
                     View Details
                   </button>
