@@ -6,6 +6,19 @@ service cloud.firestore {
     function isSignedIn() {
       return request.auth != null;
     }
+
+    // Estimation Quote collection: allow a user to read their own quotes
+    // Documents may identify the user by either uid or customerEmail
+    match /Estimation Quote/{docId} {
+      allow read: if isSignedIn() && (
+        // By uid field
+        (resource.data.uid != null && resource.data.uid == request.auth.uid) ||
+        // By customerEmail field (compare to authenticated email if present in token)
+        (resource.data.customerEmail != null && request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email)
+      );
+      // Writes restricted to admins (created by admin tools or functions)
+      allow create, update, delete: if isAdmin();
+    }
     
     function isCurrentUser(uid) {
       return isSignedIn() && request.auth.uid == uid;
@@ -117,6 +130,24 @@ service cloud.firestore {
       allow read: if isAdmin();
       allow create: if isSignedIn(); // Functions can create notifications
       allow update, delete: if isAdmin();
+    }
+
+    // User notifications: top-level collection `notifications/{notificationId}`
+    // Allow authenticated users to read ONLY their own notifications (matched by userId field)
+    match /notifications/{notificationId} {
+      // Read allowed if the document's userId equals the requester uid
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      // Optional: allow creation from client or functions, adjust as needed
+      // Consider restricting to Cloud Functions or admins only in production
+      allow create: if isSignedIn();
+      // Allow the owner (or admin) to update only the 'status' field (e.g., mark as read)
+      allow update: if (
+        (isSignedIn() && resource.data.userId == request.auth.uid &&
+          request.resource.data.diff(resource.data).changedKeys().hasOnly(['status']))
+        || isAdmin()
+      );
+      // Disallow deletes by default (adjust if you want to let admins delete)
+      allow delete: if isAdmin();
     }
 
     // Product documentation
