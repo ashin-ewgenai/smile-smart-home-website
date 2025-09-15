@@ -485,6 +485,10 @@ export interface EstimationQuote {
   shippingCharges: number;
   installationCharges: number;
   grandTotal: number;
+  // Tax configuration
+  taxType?: string; // e.g., GST, Custom
+  taxPercent?: number; // main tax percent
+  taxBreakdown?: Array<{ name: string; percent: number; amount: number }>;
   paymentTerms: string;
   warranty?: string;
   deliveryTimeline?: string;
@@ -522,6 +526,9 @@ export function estimationQuotePayload(data: Partial<EstimationQuote>): Estimati
     shippingCharges: data.shippingCharges || 0,
     installationCharges: data.installationCharges || 0,
     grandTotal: data.grandTotal || 0,
+    taxType: data.taxType || '',
+    taxPercent: data.taxPercent || 0,
+    taxBreakdown: data.taxBreakdown || [],
     paymentTerms: data.paymentTerms || '',
     warranty: data.warranty || '',
     deliveryTimeline: data.deliveryTimeline || '',

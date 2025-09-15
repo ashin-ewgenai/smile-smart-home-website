@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { setDoc, Timestamp, getDocs, query, collection, where, getDoc, doc } from 'firebase/firestore';
+import React, { useEffect, useState, useCallback } from 'react';
+import { setDoc, Timestamp, getDocs, query, collection, where, getDoc, doc, limit } from 'firebase/firestore';
 import { auth, db, storage } from '../../../../lib/firebase';
 import { estimationQuoteDoc, estimationQuotePayload } from '../../../../models/Collections';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -43,6 +43,71 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
     };
     setDraft(d);
   }, [estimation]);
+
+  // Helper: fetch device details by name (description, price) with a lenient match
+  const fetchDeviceDetails = useCallback(async (deviceName: string) => {
+    let unitPrice = 0;
+    let description = '';
+    const name = (deviceName || '').trim();
+    const nameLower = name.toLowerCase();
+    try {
+      const devCol = collection(db, 'Devices');
+      // Try exact matches first
+      let snap = await getDocs(query(devCol, where('deviceName', '==', name), limit(1)));
+      if (snap.empty) {
+        snap = await getDocs(query(devCol, where('name', '==', name), limit(1)));
+      }
+      if (snap.empty) {
+        // Fallback: small batch and best case-insensitive/contains match
+        const batch = await getDocs(query(devCol, limit(50)));
+        let best: any | null = null;
+        let bestScore = -1;
+        batch.forEach((doc) => {
+          const d = doc.data() as any;
+          const dn = String(d.deviceName || d.name || '').trim();
+          const dnLower = dn.toLowerCase();
+          let score = 0;
+          if (dnLower === nameLower) score = 100;
+          else if (dnLower.includes(nameLower)) score = Math.max(score, 75);
+          else if (nameLower.includes(dnLower) && dnLower.length > 0) score = Math.max(score, 60);
+          if (score > bestScore) { bestScore = score; best = d; }
+        });
+        if (best) {
+          unitPrice = Number(best.price || best.unitPrice || 0);
+          description = String(best.description || '');
+        }
+      } else {
+        const d = snap.docs[0].data() as any;
+        unitPrice = Number(d.price || d.unitPrice || 0);
+        description = String(d.description || '');
+      }
+    } catch {}
+    return { unitPrice, description };
+  }, []);
+
+  // Auto-fill missing description/price whenever items change (no clicks required)
+  useEffect(() => {
+    const run = async () => {
+      if (!draft || !Array.isArray(draft.items) || draft.items.length === 0) return;
+      let changed = false;
+      const items = [...draft.items];
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i] || {};
+        const needs = !!(it?.name && it.name.trim() && ((!(it.description && it.description.trim())) || !Number(it.unitPrice)));
+        if (!needs) continue;
+        const det = await fetchDeviceDetails(it.name.trim());
+        const patch: any = {};
+        if (!it.description?.trim() && det.description) patch.description = det.description;
+        if (!Number(it.unitPrice) && (det.unitPrice || 0) > 0) patch.unitPrice = det.unitPrice;
+        if (Object.keys(patch).length) {
+          items[i] = { ...it, ...patch };
+          changed = true;
+        }
+      }
+      if (changed) setDraft((p: any) => ({ ...p, items }));
+    };
+    run();
+  }, [draft?.items, fetchDeviceDetails]);
 
   const addItem = () => {
     setDraft((prev: any) => {
@@ -135,39 +200,115 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
     if (!selected || selected.type !== 'quotes') return;
     const newId = `Q-${selected.id}`;
     const build = async () => {
-      // Try to prefill items from user's devices
+      // Try to prefill items based on the selected quote type first,
+      // then fall back to user's devices
       let items: any[] = [];
       try {
-        const uid = accountUid || selected.data?.uid || selected.data?.userUid;
-        if (uid) {
-          const userDevicesSnap = await getDocs(query(collection(db, 'User_Devices'), where('uid', '==', uid)));
-          const rows = await Promise.all(userDevicesSnap.docs.map(async (d) => {
-            const data: any = d.data();
-            const sourceDeviceId = data.sourceDeviceId || d.id;
-            let name = data.deviceName || data.name || 'Device';
-            let description = data.description || '';
-            let unitPrice = Number(data.unitPrice || 0);
+        const t = (selected.data?.quoteType || selected.data?.type || '').toString().toLowerCase();
+        if (t.includes('custom')) {
+          const budgetNum = Number(selected.data?.budget);
+          items = [
+            {
+              id: `row-${Date.now()}`,
+              name: 'Custom Requirement',
+              description: selected.data?.customDetails || selected.data?.details || '',
+              quantity: 1,
+              unitPrice: Number.isFinite(budgetNum) ? budgetNum : 0,
+              discount: 0,
+              taxPercent: 0,
+            },
+          ];
+        } else if (t.includes('upgrade')) {
+          const arr: string[] = Array.isArray(selected.data?.newRoomsToAutomate)
+            ? selected.data.newRoomsToAutomate.filter(Boolean)
+            : [];
+          // Resolve prices from Devices collection when possible
+          const rows = await Promise.all(arr.map(async (v: string, idx: number) => {
+            let unitPrice = 0;
             try {
-              const details = await getDoc(doc(db, 'Devices', sourceDeviceId));
-              if (details.exists()) {
-                const det: any = details.data();
-                name = det.deviceName || det.name || name;
-                description = det.description || description;
-                unitPrice = Number(det.price || det.unitPrice || unitPrice || 0);
+              const devCol = collection(db, 'Devices');
+              let snap = await getDocs(query(devCol, where('deviceName', '==', v), limit(1)));
+              if (snap.empty) {
+                snap = await getDocs(query(devCol, where('name', '==', v), limit(1)));
+              }
+              if (!snap.empty) {
+                const det: any = snap.docs[0].data();
+                unitPrice = Number(det.price || det.unitPrice || 0);
               }
             } catch {}
             return {
-              id: `row-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
-              name,
-              description,
+              id: `row-${Date.now()}-${idx}`,
+              name: v,
+              description: '',
               quantity: 1,
               unitPrice,
               discount: 0,
               taxPercent: 0,
             };
           }));
-          // If devices found, use them; else fall back to one blank row
-          items = rows.length > 0 ? rows : [];
+          items = rows;
+        } else if (t.includes('new')) {
+          const arr: string[] = Array.isArray(selected.data?.devicesRequired)
+            ? selected.data.devicesRequired.filter(Boolean)
+            : [];
+          const rows = await Promise.all(arr.map(async (v: string, idx: number) => {
+            let unitPrice = 0;
+            try {
+              const devCol = collection(db, 'Devices');
+              let snap = await getDocs(query(devCol, where('deviceName', '==', v), limit(1)));
+              if (snap.empty) {
+                snap = await getDocs(query(devCol, where('name', '==', v), limit(1)));
+              }
+              if (!snap.empty) {
+                const det: any = snap.docs[0].data();
+                unitPrice = Number(det.price || det.unitPrice || 0);
+              }
+            } catch {}
+            return {
+              id: `row-${Date.now()}-${idx}`,
+              name: v,
+              description: '',
+              quantity: 1,
+              unitPrice,
+              discount: 0,
+              taxPercent: 0,
+            };
+          }));
+          items = rows;
+        }
+
+        // If nothing came from quote, fallback to user's devices
+        if (items.length === 0) {
+          const uid = accountUid || selected.data?.uid || selected.data?.userUid;
+          if (uid) {
+            const userDevicesSnap = await getDocs(query(collection(db, 'User_Devices'), where('uid', '==', uid)));
+            const rows = await Promise.all(userDevicesSnap.docs.map(async (d) => {
+              const data: any = d.data();
+              const sourceDeviceId = data.sourceDeviceId || d.id;
+              let name = data.deviceName || data.name || 'Device';
+              let description = data.description || '';
+              let unitPrice = Number(data.unitPrice || 0);
+              try {
+                const details = await getDoc(doc(db, 'Devices', sourceDeviceId));
+                if (details.exists()) {
+                  const det: any = details.data();
+                  name = det.deviceName || det.name || name;
+                  description = det.description || description;
+                  unitPrice = Number(det.price || det.unitPrice || unitPrice || 0);
+                }
+              } catch {}
+              return {
+                id: `row-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+                name,
+                description,
+                quantity: 1,
+                unitPrice,
+                discount: 0,
+                taxPercent: 0,
+              };
+            }));
+            items = rows.length > 0 ? rows : [];
+          }
         }
       } catch {}
 
@@ -175,7 +316,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
         id: newId,
         quoteId: newId,
         originalQuoteId: selected.id,
-        customerEmail: accountEmail || selected.data?.userEmail || '',
+        customerEmail: selected.data?.customerEmail || accountEmail || selected.data?.userEmail || '',
         status: 'Confirmed',
         issueDate: new Date().toISOString().slice(0, 10),
         expiryDate: '',
@@ -187,7 +328,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
         installationCharges: 0,
         paymentTerms: 'Advance 50% / Balance Net 15',
         warranty: '',
-        deliveryTimeline: '',
+        deliveryTimeline: selected.data?.timeline || '',
         notes: '',
         attachments: [] as string[]
       });
@@ -245,6 +386,129 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
         </div>
       ) : (
         <div className="space-y-4">
+          {/* Quote Context (read-only snapshot of original request) */}
+          {selected?.data && (
+            <div className="bg-gray-800/60 rounded-md p-3 border border-gray-700">
+              <div className="text-gray-200 font-medium mb-2">Quote Context</div>
+              {(() => {
+                const q: any = selected.data || {};
+                const t = (q.quoteType || q.type || '').toString().toLowerCase();
+                const budgetText = q.budget ? `${q.budgetCurrency || ''}${q.budget}` : '';
+                const Loc = q.location || {};
+                const LocationBlock = (Loc.country || Loc.state || Loc.district) ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                    {Loc.country && (
+                      <div>
+                        <div className="text-gray-400">Country</div>
+                        <div className="text-gray-100">{Loc.country}</div>
+                      </div>
+                    )}
+                    {Loc.state && (
+                      <div>
+                        <div className="text-gray-400">State</div>
+                        <div className="text-gray-100">{Loc.state}</div>
+                      </div>
+                    )}
+                    {Loc.district && (
+                      <div>
+                        <div className="text-gray-400">District</div>
+                        <div className="text-gray-100">{Loc.district}</div>
+                      </div>
+                    )}
+                  </div>
+                ) : null;
+                if (t.includes('custom')) {
+                  return (
+                    <div className="space-y-2 text-sm">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {budgetText && (
+                          <div>
+                            <div className="text-gray-400">Budget</div>
+                            <div className="text-gray-100">{budgetText}</div>
+                          </div>
+                        )}
+                        {q.timeline && (
+                          <div>
+                            <div className="text-gray-400">Timeline</div>
+                            <div className="text-gray-100">{q.timeline}</div>
+                          </div>
+                        )}
+                      </div>
+                      {LocationBlock}
+                      {q.customDetails && (
+                        <div>
+                          <div className="text-gray-400">Custom Details</div>
+                          <div className="text-gray-100 whitespace-pre-wrap">{q.customDetails}</div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                if (t.includes('upgrade')) {
+                  const rooms = Array.isArray(q.newRoomsToAutomate) ? q.newRoomsToAutomate : [];
+                  return (
+                    <div className="space-y-2 text-sm">
+                      {rooms.length > 0 && (
+                        <div>
+                          <div className="text-gray-400">New Rooms to Automate</div>
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {rooms.map((r: string, idx: number) => (
+                              <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/40 text-blue-200">{r}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {q.timeline && (
+                        <div>
+                          <div className="text-gray-400">Timeline</div>
+                          <div className="text-gray-100">{q.timeline}</div>
+                        </div>
+                      )}
+                      {LocationBlock}
+                    </div>
+                  );
+                }
+                // New Installation / others
+                const devices = Array.isArray(q.devicesRequired) ? q.devicesRequired : [];
+                return (
+                  <div className="space-y-2 text-sm">
+                    {devices.length > 0 && (
+                      <div>
+                        <div className="text-gray-400">Devices Required</div>
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          {devices.map((d: string, idx: number) => (
+                            <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/40 text-blue-200">{d}</span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {q.propertyType && (
+                        <div>
+                          <div className="text-gray-400">Property Type</div>
+                          <div className="text-gray-100">{q.propertyType}</div>
+                        </div>
+                      )}
+                      {q.numberOfRooms && (
+                        <div>
+                          <div className="text-gray-400">Number of Rooms</div>
+                          <div className="text-gray-100">{String(q.numberOfRooms)}</div>
+                        </div>
+                      )}
+                      {q.timeline && (
+                        <div>
+                          <div className="text-gray-400">Timeline</div>
+                          <div className="text-gray-100">{q.timeline}</div>
+                        </div>
+                      )}
+                    </div>
+                    {LocationBlock}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
               <div className="text-gray-400 text-sm mb-1">Issue Date</div>
@@ -392,6 +656,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                   value={draft.paymentTerms || ''}
                   onChange={(e) => setDraft((p: any) => ({ ...p, paymentTerms: e.target.value }))}
                 >
+                  <option value="">Not selected</option>
                   <option>Advance 50% / Balance Net 15</option>
                   <option>Advance 30% / Balance Net 30</option>
                   <option>Net 15</option>

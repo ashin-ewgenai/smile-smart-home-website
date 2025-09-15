@@ -95,9 +95,17 @@ export interface EstimatePDFProps {
     warranty?: string;
     deliveryTimeline?: string;
     notes?: string;
+    // Pricing extras
+    shippingCharges?: number;
+    installationCharges?: number;
+    overallDiscountPercent?: number;
+    // Tax config
+    taxType?: string;
+    taxPercent?: number;
+    taxes?: Array<{ name: string; percent: number }>;
   };
   items: EstimateItem[];
-  totals: { subtotal: number; taxes: number; grand: number };
+  totals: { subtotal: number; discountAmount?: number; taxes: number; grand: number };
 }
 
 const currency = (n: number) => `₹ ${Number(n || 0).toFixed(2)}`;
@@ -142,13 +150,11 @@ const EstimatePDF: React.FC<EstimatePDFProps> = ({ createForm, items, totals }) 
             <Text style={styles.th}>Qty</Text>
             <Text style={styles.th}>Unit</Text>
             <Text style={styles.th}>Discount</Text>
-            <Text style={styles.th}>Tax %</Text>
             <Text style={styles.th}>Total</Text>
           </View>
           {items.map((it) => {
             const line = Math.max(0, (it.quantity || 0) * (it.unitPrice || 0) - (it.discount || 0));
-            const tax = (line * (it.taxPercent || 0)) / 100;
-            const total = line + tax;
+            const total = line; // per-line tax removed in UI; tax handled globally
             return (
               <View key={it.id} style={styles.row}>
                 <Text style={[styles.td, { flex: 2 }]}>{it.name || '-'}</Text>
@@ -156,31 +162,64 @@ const EstimatePDF: React.FC<EstimatePDFProps> = ({ createForm, items, totals }) 
                 <Text style={styles.td}>{it.quantity ?? 0}</Text>
                 <Text style={styles.td}>{currency(it.unitPrice || 0)}</Text>
                 <Text style={styles.td}>{currency(it.discount || 0)}</Text>
-                <Text style={styles.td}>{it.taxPercent ?? 0}</Text>
                 <Text style={styles.td}>{currency(total)}</Text>
               </View>
             );
           })}
         </View>
 
-        {/* Totals */}
+        {/* Totals & Summary */}
         <View style={styles.totals}>
           <View style={styles.totalsRow}>
             <Text>Subtotal</Text>
             <Text>{currency(totals.subtotal)}</Text>
           </View>
+          {typeof totals.discountAmount === 'number' && (
+            <View style={styles.totalsRow}>
+              <Text>
+                Discount{typeof createForm.overallDiscountPercent === 'number' ? ` (${createForm.overallDiscountPercent}% )` : ''}
+              </Text>
+              <Text>-{currency(totals.discountAmount || 0)}</Text>
+            </View>
+          )}
           <View style={styles.totalsRow}>
-            <Text>Taxes</Text>
+            <Text>Tax</Text>
             <Text>{currency(totals.taxes)}</Text>
           </View>
+          {((createForm.taxPercent || 0) > 0 || (createForm.taxes && createForm.taxes.length > 0)) && (
+            <View style={{ marginTop: 2 }}>
+              {((createForm.taxPercent || 0) > 0) && (
+                <Text style={styles.small}>
+                  • {(createForm.taxType || 'Tax')}: {createForm.taxPercent}%
+                </Text>
+              )}
+              {(createForm.taxes || []).map((t, i) => (
+                <Text key={i} style={styles.small}>
+                  • {t.name || 'Tax'}: {t.percent}%
+                </Text>
+              ))}
+            </View>
+          )}
+          {typeof createForm.shippingCharges === 'number' && (
+            <View style={styles.totalsRow}>
+              <Text>Shipping/Delivery</Text>
+              <Text>{currency(createForm.shippingCharges || 0)}</Text>
+            </View>
+          )}
+          {typeof createForm.installationCharges === 'number' && (
+            <View style={styles.totalsRow}>
+              <Text>Installation/Service</Text>
+              <Text>{currency(createForm.installationCharges || 0)}</Text>
+            </View>
+          )}
           <View style={styles.totalsRow}>
             <Text>Grand Total</Text>
             <Text>{currency(totals.grand)}</Text>
           </View>
         </View>
 
-        {/* Terms (upto the Notes label — exclude Notes content) */}
-        {(createForm.paymentTerms || createForm.warranty || createForm.deliveryTimeline) && (
+        {/* Terms */}
+        {(createForm.paymentTerms || createForm.warranty || createForm.deliveryTimeline || createForm.notes) && (
           <>
             <Text style={styles.sectionTitle}>Terms & Conditions</Text>
             {createForm.paymentTerms && (
@@ -191,6 +230,9 @@ const EstimatePDF: React.FC<EstimatePDFProps> = ({ createForm, items, totals }) 
             )}
             {createForm.deliveryTimeline && (
               <Text style={styles.small}>Delivery: {createForm.deliveryTimeline}</Text>
+            )}
+            {createForm.notes && (
+              <Text style={styles.small}>Notes: {createForm.notes}</Text>
             )}
           </>
         )}

@@ -4,7 +4,8 @@ import EstimatePDF from './EstimatePDF';
 import { useSearchParams } from 'react-router-dom';
 import { Clock } from 'lucide-react';
 import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc, where, limit } from 'firebase/firestore';
-import { auth, db } from '../../../lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage } from '../../../lib/firebase';
 import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload, accountsCollection } from '../../../models/Collections';
 import QuoteDetails from './QuoteDetails';
 
@@ -24,6 +25,9 @@ interface QuoteItem {
   newRoomsToAutomate?: string[];
   roomsAlreadySmart?: string[];
   timeline?: string;
+  // Additional optional fields present on various quote types
+  customDetails?: string;
+  location?: { country?: string; state?: string; district?: string };
 }
 
 const EstimationTool: React.FC = () => {
@@ -63,6 +67,67 @@ const EstimationTool: React.FC = () => {
     loadQuoteFromUrl();
   }, [searchParams]);
 
+  // Helper: fetch device details by name (description, price)
+  const fetchDeviceDetails = useCallback(async (deviceName: string) => {
+    let unitPrice = 0;
+    let description = '';
+    const name = (deviceName || '').trim();
+    const nameLower = name.toLowerCase();
+    try {
+      const devCol = collection(db, 'Devices');
+      // 1) Exact match on deviceName
+      let snap = await getDocs(query(devCol, where('deviceName', '==', name), limit(1)));
+      // 2) Exact match on legacy name
+      if (snap.empty) {
+        snap = await getDocs(query(devCol, where('name', '==', name), limit(1)));
+      }
+      // 3) Fallback: fetch a small batch and find best case-insensitive match client-side
+      if (snap.empty) {
+        const batch = await getDocs(query(devCol, limit(50)));
+        let best: any | null = null;
+        let bestScore = -1;
+        batch.forEach((doc) => {
+          const d = doc.data() as any;
+          const dn = String(d.deviceName || d.name || '').trim();
+          const dnLower = dn.toLowerCase();
+          let score = 0;
+          if (dnLower === nameLower) score = 100;
+          else if (dnLower.includes(nameLower)) score = Math.max(score, 75);
+          else if (nameLower.includes(dnLower) && dnLower.length > 0) score = Math.max(score, 60);
+          if (score > bestScore) { bestScore = score; best = d; }
+        });
+        if (best) {
+          unitPrice = Number(best.price || best.unitPrice || 0);
+          description = String(best.description || '');
+        }
+      } else {
+        const d = snap.docs[0].data() as any;
+        unitPrice = Number(d.price || d.unitPrice || 0);
+        description = String(d.description || '');
+      }
+    } catch {}
+    return { unitPrice, description };
+  }, []);
+
+  // Try to fetch device details by name from Devices collection
+  const resolveDeviceItemsWithPrices = useCallback(async (deviceNames: string[]) => {
+    const results: LineItem[] = await Promise.all(
+      deviceNames.map(async (device, idx) => {
+        const det = await fetchDeviceDetails(device);
+        return {
+          id: `row-${Date.now()}-${idx}`,
+          name: device,
+          description: det.description || '',
+          quantity: 1,
+          unitPrice: det.unitPrice,
+          discount: 0,
+          taxPercent: 0,
+        };
+      })
+    );
+    return results;
+  }, [fetchDeviceDetails]);
+
   const [createForm, setCreateForm] = useState({
     // Basic
     customerEmail: '',
@@ -75,14 +140,21 @@ const EstimationTool: React.FC = () => {
     issueDate: new Date().toISOString().slice(0, 10),
     expiryDate: '',
     // Charges
+    // Discount: user edits percent; amount is computed for payload
     overallDiscount: 0,
+    overallDiscountPercent: 0,
     shippingCharges: 0,
     installationCharges: 0,
     // Terms
     paymentTerms: 'Advance 50% / Balance Net 15',
     warranty: '',
     deliveryTimeline: '',
-    notes: ''
+    notes: '',
+    attachments: [] as string[],
+    // Taxes: allow multiple named taxes (e.g., GST, Service Tax)
+    taxType: 'GST' as 'GST' | 'Custom',
+    taxPercent: 0,
+    taxes: [] as Array<{ name: string; percent: number }>,
   });
 
   type LineItem = {
@@ -103,8 +175,8 @@ const EstimationTool: React.FC = () => {
       quantity: 1,
       unitPrice: 0,
       discount: 0,
-      taxPercent: 0
-    }
+      taxPercent: 0,
+    },
   ]);
 
   const addRow = () => {
@@ -117,8 +189,8 @@ const EstimationTool: React.FC = () => {
         quantity: 1,
         unitPrice: 0,
         discount: 0,
-        taxPercent: 0
-      }
+        taxPercent: 0,
+      },
     ]);
   };
 
@@ -131,36 +203,62 @@ const EstimationTool: React.FC = () => {
   };
 
   const calcRow = (r: LineItem) => {
-    const line = Math.max(0, r.quantity * r.unitPrice - (r.discount || 0));
+    const pre = Math.max(0, r.quantity * r.unitPrice);
+    const discountPct = Math.max(0, Math.min(100, Number(r.discount) || 0));
+    const discountAmount = (pre * discountPct) / 100;
+    const line = Math.max(0, pre - discountAmount);
     const tax = (line * (r.taxPercent || 0)) / 100;
     return { line, tax, total: line + tax };
   };
 
   const totals = React.useMemo(() => {
     const sub = items.reduce((sum, r) => sum + calcRow(r).line, 0);
-    const taxes = items.reduce((sum, r) => sum + calcRow(r).tax, 0);
-    const afterDiscount = Math.max(0, sub - (createForm.overallDiscount || 0));
-    const grand =
-      afterDiscount +
+    const extraTaxPercent = (createForm.taxes || []).reduce((acc, t) => acc + (Number(t?.percent) || 0), 0);
+    // Taxes computed before discount and on subtotal
+    const taxes = (sub * ((createForm.taxPercent || 0) + extraTaxPercent)) / 100;
+    const preDiscountGrand =
+      sub +
       taxes +
       (createForm.shippingCharges || 0) +
       (createForm.installationCharges || 0);
+    const discountAmount = (preDiscountGrand * (createForm.overallDiscountPercent || 0)) / 100;
+    const grand = Math.max(0, preDiscountGrand - discountAmount);
     return {
       subtotal: sub,
+      discountAmount,
       taxes,
-      grand
+      grand,
     };
-  }, [items, createForm.overallDiscount, createForm.shippingCharges, createForm.installationCharges]);
+  }, [items, createForm.overallDiscountPercent, createForm.taxes, createForm.taxPercent, createForm.shippingCharges, createForm.installationCharges]);
 
-  // Enable PDF only when required fields are provided (same essentials as Send to Customer)
+  // Upload attachments to Firebase Storage and store URLs
+  const onFilesSelected = async (files: FileList | null) => {
+    if (!files) return;
+    try {
+      const quoteId = createForm.quoteId || `Q-${Date.now()}`;
+      const uploaded: string[] = [];
+      for (const file of Array.from(files)) {
+        const path = `estimation_attachments/${quoteId}/${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        uploaded.push(url);
+      }
+      setCreateForm((p) => ({ ...p, attachments: [...(p.attachments || []), ...uploaded] }));
+    } catch (e) {
+      console.error('Attachment upload failed:', e);
+      alert('Failed to upload one or more attachments.');
+    }
+  };
+
+  // Enable PDF when core fields are provided (do not require Payment Terms for preview)
   const isPdfReady = React.useMemo(() => {
     const hasId = !!(createForm.quoteId && createForm.quoteId.trim());
     const hasIssueDate = !!createForm.issueDate;
     const hasEmail = !!(createForm.customerEmail && createForm.customerEmail.trim());
-    const hasPaymentTerms = !!(createForm.paymentTerms && createForm.paymentTerms.trim());
     const hasValidItem = items.some(it => it.name.trim() && (it.quantity || 0) > 0 && (it.unitPrice || 0) > 0);
-    return hasId && hasIssueDate && hasEmail && hasPaymentTerms && hasValidItem;
-  }, [createForm.quoteId, createForm.issueDate, createForm.customerEmail, createForm.paymentTerms, items]);
+    return hasId && hasIssueDate && hasEmail && hasValidItem;
+  }, [createForm.quoteId, createForm.issueDate, createForm.customerEmail, items]);
 
   const handleQuoteSelect = (quote: QuoteItem) => {
     setSelectedQuote(quote);
@@ -262,10 +360,17 @@ const EstimationTool: React.FC = () => {
         })),
         subtotal: totals.subtotal,
         taxes: totals.taxes,
-        overallDiscount: createForm.overallDiscount,
+        overallDiscount: totals.discountAmount,
         shippingCharges: createForm.shippingCharges,
         installationCharges: createForm.installationCharges,
         grandTotal: totals.grand,
+        attachments: createForm.attachments,
+        taxType: createForm.taxType,
+        taxPercent: createForm.taxPercent,
+        taxBreakdown: [
+          ...(createForm.taxPercent ? [{ name: createForm.taxType || 'Tax', percent: createForm.taxPercent, amount: (totals.subtotal * (createForm.taxPercent || 0)) / 100 }] : []),
+          ...((createForm.taxes || []).map(t => ({ name: t.name || 'Tax', percent: Number(t.percent) || 0, amount: (totals.subtotal * (Number(t.percent) || 0)) / 100 })))
+        ],
         paymentTerms: createForm.paymentTerms,
         warranty: createForm.warranty,
         deliveryTimeline: createForm.deliveryTimeline,
@@ -314,12 +419,17 @@ const EstimationTool: React.FC = () => {
           issueDate: new Date().toISOString().slice(0, 10),
           expiryDate: '',
           overallDiscount: 0,
+          overallDiscountPercent: 0,
           shippingCharges: 0,
           installationCharges: 0,
           paymentTerms: 'Advance 50% / Balance Net 15',
           warranty: '',
           deliveryTimeline: '',
-          notes: ''
+          notes: '',
+          attachments: [],
+          taxType: 'GST',
+          taxPercent: 0,
+          taxes: [],
         });
         setItems([{
           id: `row-${Date.now()}`,
@@ -466,6 +576,128 @@ const EstimationTool: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Quote Context (Read-only from the original request) */}
+                {selectedQuote && (
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Quote Context</h3>
+                    {(() => {
+                      const t = (selectedQuote.quoteType || '').toLowerCase();
+                      const budgetText = selectedQuote.budget ? `${selectedQuote.budgetCurrency || ''}${selectedQuote.budget}` : undefined;
+                      const loc = selectedQuote.location;
+                      const LocationBlock = loc ? (
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                          {loc.country && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Country</div>
+                              <div className="text-gray-900 dark:text-white">{loc.country}</div>
+                            </div>
+                          )}
+                          {loc.state && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">State</div>
+                              <div className="text-gray-900 dark:text-white">{loc.state}</div>
+                            </div>
+                          )}
+                          {loc.district && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">District</div>
+                              <div className="text-gray-900 dark:text-white">{loc.district}</div>
+                            </div>
+                          )}
+                        </div>
+                      ) : null;
+                      if (t.includes('custom')) {
+                        return (
+                          <div className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {budgetText && (
+                                <div>
+                                  <div className="text-sm text-gray-500 dark:text-gray-400">Budget</div>
+                                  <div className="text-gray-900 dark:text-white">{budgetText}</div>
+                                </div>
+                              )}
+                              {selectedQuote.timeline && (
+                                <div>
+                                  <div className="text-sm text-gray-500 dark:text-gray-400">Timeline</div>
+                                  <div className="text-gray-900 dark:text-white">{selectedQuote.timeline}</div>
+                                </div>
+                              )}
+                            </div>
+                            {LocationBlock}
+                            {selectedQuote.customDetails && (
+                              <div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">Custom Details</div>
+                                <div className="text-gray-900 dark:text-white whitespace-pre-wrap">{selectedQuote.customDetails}</div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      if (t.includes('upgrade')) {
+                        const rooms = selectedQuote.newRoomsToAutomate || [];
+                        return (
+                          <div className="space-y-4">
+                            {rooms.length > 0 && (
+                              <div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">New Rooms to Automate</div>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {rooms.map((room, idx) => (
+                                    <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">{room}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            {selectedQuote.timeline && (
+                              <div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">Timeline</div>
+                                <div className="text-gray-900 dark:text-white">{selectedQuote.timeline}</div>
+                              </div>
+                            )}
+                            {LocationBlock}
+                          </div>
+                        );
+                      }
+                      // New Installation or others
+                      const devices = selectedQuote.devicesRequired || [];
+                      return (
+                        <div className="space-y-4">
+                          {devices.length > 0 && (
+                            <div>
+                              <div className="text-sm text-gray-500 dark:text-gray-400">Devices Required</div>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {devices.map((device, idx) => (
+                                  <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">{device}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {selectedQuote.propertyType && (
+                              <div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">Property Type</div>
+                                <div className="text-gray-900 dark:text-white">{selectedQuote.propertyType}</div>
+                              </div>
+                            )}
+                            {(selectedQuote.numberOfRooms as any) && (
+                              <div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">Number of Rooms</div>
+                                <div className="text-gray-900 dark:text-white">{String(selectedQuote.numberOfRooms)}</div>
+                              </div>
+                            )}
+                            {selectedQuote.timeline && (
+                              <div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">Timeline</div>
+                                <div className="text-gray-900 dark:text-white">{selectedQuote.timeline}</div>
+                              </div>
+                            )}
+                          </div>
+                          {LocationBlock}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 {/* Products & Services */}
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Products & Services</h3>
@@ -477,36 +709,105 @@ const EstimationTool: React.FC = () => {
                           <th className="px-2 py-2 min-w-[120px] text-left hidden sm:table-cell">Description</th>
                           <th className="px-2 py-2 min-w-[60px] text-left">Qty</th>
                           <th className="px-2 py-2 min-w-[80px] text-left">Price</th>
-                          <th className="px-2 py-2 min-w-[70px] text-left hidden md:table-cell">Discount</th>
-                          <th className="px-2 py-2 min-w-[60px] text-left hidden md:table-cell">Tax %</th>
+                          <th className="px-2 py-2 min-w-[70px] text-left hidden md:table-cell">Discount (%)</th>
                           <th className="px-2 py-2 min-w-[80px] text-left">Total</th>
                           <th className="px-2 py-2 w-10"></th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                         {items.map((r) => {
-                          const line = Math.max(0, r.quantity * r.unitPrice - (r.discount || 0));
+                          const pre = Math.max(0, r.quantity * r.unitPrice);
+                          const discountPct = Math.max(0, Math.min(100, Number(r.discount) || 0));
+                          const discountAmount = (pre * discountPct) / 100;
+                          const line = Math.max(0, pre - discountAmount);
                           const tax = (line * (r.taxPercent || 0)) / 100;
                           const total = line + tax;
                           return (
                             <tr key={r.id} className="text-sm">
                               <td className="px-2 py-2">
-                                <input type="text" placeholder="Product name" className="w-full min-w-[120px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm" value={r.name} onChange={(e) => updateRow(r.id, { name: e.target.value })} />
+                                <input
+                                  type="text"
+                                  placeholder="Product name"
+                                  className="w-full min-w-[120px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                                  value={r.name}
+                                  onChange={(e) => updateRow(r.id, { name: e.target.value })}
+                                  onBlur={async () => {
+                                    if (!r.name || !r.name.trim()) return;
+                                    try {
+                                      const det = await fetchDeviceDetails(r.name.trim());
+                                      const patch: Partial<LineItem> = {};
+                                      if ((!r.description || !r.description.trim()) && det.description) patch.description = det.description;
+                                      if (((Number(r.unitPrice) || 0) <= 0) && (det.unitPrice || 0) > 0) patch.unitPrice = det.unitPrice;
+                                      if (Object.keys(patch).length) updateRow(r.id, patch);
+                                    } catch {}
+                                  }}
+                                />
                               </td>
                               <td className="px-2 py-2 hidden sm:table-cell">
-                                <input type="text" placeholder="Description" className="w-full min-w-[100px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm" value={r.description} onChange={(e) => updateRow(r.id, { description: e.target.value })} />
+                                <input
+                                  type="text"
+                                  placeholder="Description"
+                                  className="w-full min-w-[100px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                                  value={r.description}
+                                  onChange={(e) => updateRow(r.id, { description: e.target.value })}
+                                  onFocus={async () => {
+                                    if (!r.name?.trim()) return;
+                                    try {
+                                      const det = await fetchDeviceDetails(r.name.trim());
+                                      const patch: Partial<LineItem> = {};
+                                      if (det.description) patch.description = det.description;
+                                      if ((det.unitPrice || 0) > 0) patch.unitPrice = det.unitPrice;
+                                      if (Object.keys(patch).length) updateRow(r.id, patch);
+                                    } catch {}
+                                  }}
+                                />
                               </td>
                               <td className="px-2 py-2">
-                                <input type="number" min={1} className="w-full min-w-[50px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm" value={r.quantity} onChange={(e) => updateRow(r.id, { quantity: Number(e.target.value) })} />
+                                <input
+                                  type="number"
+                                  min={1}
+                                  inputMode="numeric"
+                                  onFocus={(e) => e.currentTarget.select()}
+                                  className="no-spin w-full min-w-[50px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                                  value={r.quantity}
+                                  onChange={(e) => updateRow(r.id, { quantity: Number(e.target.value) })}
+                                />
                               </td>
                               <td className="px-2 py-2">
-                                <input type="number" min={0} step="0.01" className="w-full min-w-[70px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm" value={r.unitPrice} onChange={(e) => updateRow(r.id, { unitPrice: Number(e.target.value) })} />
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  inputMode="decimal"
+                                  onFocus={async (e) => {
+                                    e.currentTarget.select();
+                                    if (!r.name?.trim()) return;
+                                    try {
+                                      const det = await fetchDeviceDetails(r.name.trim());
+                                      const patch: Partial<LineItem> = {};
+                                      if ((det.unitPrice || 0) > 0) patch.unitPrice = det.unitPrice;
+                                      if (det.description && !r.description?.trim()) patch.description = det.description;
+                                      if (Object.keys(patch).length) updateRow(r.id, patch);
+                                    } catch {}
+                                  }}
+                                  className="no-spin w-full min-w-[70px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                                  value={r.unitPrice}
+                                  onChange={(e) => updateRow(r.id, { unitPrice: Number(e.target.value) })}
+                                />
                               </td>
                               <td className="px-2 py-2 hidden md:table-cell">
-                                <input type="number" min={0} step="0.01" className="w-full min-w-[60px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm" value={r.discount} onChange={(e) => updateRow(r.id, { discount: Number(e.target.value) })} />
-                              </td>
-                              <td className="px-2 py-2 hidden md:table-cell">
-                                <input type="number" min={0} max={100} className="w-full min-w-[50px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm" value={r.taxPercent} onChange={(e) => updateRow(r.id, { taxPercent: Number(e.target.value) })} />
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={100}
+                                  step="0.01"
+                                  inputMode="decimal"
+                                  placeholder="%"
+                                  onFocus={(e) => e.currentTarget.select()}
+                                  className="no-spin w-full min-w-[60px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                                  value={r.discount}
+                                  onChange={(e) => updateRow(r.id, { discount: Number(e.target.value) })}
+                                />
                               </td>
                               <td className="px-2 py-2 whitespace-nowrap text-gray-900 dark:text-gray-100 font-medium">{total.toFixed(2)}</td>
                               <td className="px-2 py-2 text-right">
@@ -537,12 +838,98 @@ const EstimationTool: React.FC = () => {
                         <span className="text-gray-900 dark:text-white font-medium">{totals.subtotal.toFixed(2)}</span>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Overall Discount</label>
-                        <input type="number" min={0} step="0.01" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.overallDiscount} onChange={(e) => setCreateForm({ ...createForm, overallDiscount: Number(e.target.value) })} />
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Overall Discount (%)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          max={100}
+                          step="0.01"
+                          inputMode="decimal"
+                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                          value={createForm.overallDiscountPercent}
+                          onChange={(e) => setCreateForm({ ...createForm, overallDiscountPercent: Number(e.target.value) })}
+                        />
                       </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600 dark:text-gray-300">Taxes</span>
-                        <span className="text-gray-900 dark:text-white font-medium">{totals.taxes.toFixed(2)}</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tax Type</label>
+                          <select
+                            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                            value={createForm.taxType}
+                            onChange={(e) => setCreateForm({ ...createForm, taxType: e.target.value as 'GST' | 'Custom' })}
+                          >
+                            <option value="GST">GST</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tax Percent</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.01"
+                            inputMode="decimal"
+                            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                            value={createForm.taxPercent}
+                            onChange={(e) => setCreateForm({ ...createForm, taxPercent: Number(e.target.value) })}
+                          />
+                        </div>
+                        <div className="flex flex-col justify-end">
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-600 dark:text-gray-300">Taxes</span>
+                            <span className="text-gray-900 dark:text-white font-medium">{totals.taxes.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Manage additional named taxes - moved here below tax type/percent */}
+                      <div className="mt-2 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Additional Taxes</span>
+                          <button
+                            type="button"
+                            onClick={() => setCreateForm((p) => ({ ...p, taxes: [...(p.taxes || []), { name: '', percent: 0 }] }))}
+                            className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                          >
+                            + Add Tax
+                          </button>
+                        </div>
+                        {(createForm.taxes || []).map((t, idx) => (
+                          <div key={idx} className="grid grid-cols-5 gap-2">
+                            <input
+                              type="text"
+                              placeholder="Tax name (e.g., SGST)"
+                              className="col-span-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1.5"
+                              value={t.name}
+                              onChange={(e) => setCreateForm((p) => {
+                                const taxes = [...(p.taxes || [])];
+                                taxes[idx] = { ...taxes[idx], name: e.target.value };
+                                return { ...p, taxes };
+                              })}
+                            />
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              step="0.01"
+                              inputMode="decimal"
+                              placeholder="%"
+                              className="col-span-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1.5"
+                              value={t.percent}
+                              onChange={(e) => setCreateForm((p) => {
+                                const taxes = [...(p.taxes || [])];
+                                taxes[idx] = { ...taxes[idx], percent: Number(e.target.value) };
+                                return { ...p, taxes };
+                              })}
+                            />
+                            <button
+                              type="button"
+                              className="col-span-1 text-xs px-2 py-1 rounded border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
+                              onClick={() => setCreateForm((p) => ({ ...p, taxes: (p.taxes || []).filter((_, i) => i !== idx) }))}
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Shipping/Delivery Charges</label>
@@ -557,6 +944,15 @@ const EstimationTool: React.FC = () => {
                       <span className="text-base font-medium text-gray-900 dark:text-white">Grand Total</span>
                       <span className="text-xl font-semibold text-indigo-600">{totals.grand.toFixed(2)}</span>
                     </div>
+                    {/* Payable Summary */}
+                    <div className="mt-2 bg-gray-50 dark:bg-gray-700 rounded-md p-4 space-y-1 text-sm">
+                      <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Total Price</span><span className="text-gray-900 dark:text-white">{totals.subtotal.toFixed(2)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Discount</span><span className="text-gray-900 dark:text-white">-{totals.discountAmount.toFixed(2)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Tax</span><span className="text-gray-900 dark:text-white">{totals.taxes.toFixed(2)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Shipping</span><span className="text-gray-900 dark:text-white">{createForm.shippingCharges.toFixed?.(2) ?? Number(createForm.shippingCharges).toFixed(2)}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Installation</span><span className="text-gray-900 dark:text-white">{createForm.installationCharges.toFixed?.(2) ?? Number(createForm.installationCharges).toFixed(2)}</span></div>
+                      <div className="flex justify-between font-semibold"><span className="text-gray-900 dark:text-white">Payable</span><span className="text-indigo-600">{totals.grand.toFixed(2)}</span></div>
+                    </div>
                   </div>
                 </div>
 
@@ -567,6 +963,7 @@ const EstimationTool: React.FC = () => {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Payment Terms</label>
                       <select className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.paymentTerms} onChange={(e) => setCreateForm({ ...createForm, paymentTerms: e.target.value })}>
+                        <option value="">Not selected</option>
                         <option>Advance 50% / Balance Net 15</option>
                         <option>Advance 30% / Balance Net 30</option>
                         <option>Net 15</option>
@@ -591,7 +988,28 @@ const EstimationTool: React.FC = () => {
                 {/* Attachments */}
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Attachments</h3>
-                  <input type="file" multiple className="block w-full text-sm text-gray-700 dark:text-gray-300" />
+                  <input
+                    type="file"
+                    multiple
+                    className="block w-full text-sm text-gray-700 dark:text-gray-300"
+                    onChange={(e) => onFilesSelected(e.target.files)}
+                  />
+                  {Array.isArray(createForm.attachments) && createForm.attachments.length > 0 && (
+                    <ul className="mt-2 list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                      {createForm.attachments.map((url, idx) => (
+                        <li key={idx} className="flex items-center gap-2">
+                          <a href={url} target="_blank" rel="noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">Attachment {idx + 1}</a>
+                          <button
+                            type="button"
+                            className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                            onClick={() => setCreateForm((p) => ({ ...p, attachments: (p.attachments || []).filter((_, i) => i !== idx) }))}
+                          >
+                            Remove
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
 
                 {/* Actions */}
@@ -639,13 +1057,44 @@ const EstimationTool: React.FC = () => {
                   customerEmail: selectedQuote.customerEmail || '',
                   numDevices: selectedQuote.devicesRequired?.length || 0,
                   discount: 0,
-                  estimatedBudget: String(selectedQuote.budget ?? '')
+                  estimatedBudget: String(selectedQuote.budget ?? ''),
+                  // Prefill delivery timeline from quote when available
+                  deliveryTimeline: selectedQuote.timeline || prev.deliveryTimeline
                 }));
-                const devices = selectedQuote.devicesRequired || [];
-                if (devices.length > 0) {
-                  setItems(devices.map((device, idx) => ({ id: `row-${Date.now()}-${idx}`, name: device, description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 })));
+                // Prefill items based on quote type
+                const t = (selectedQuote.quoteType || '').toLowerCase();
+                if (t.includes('upgrade')) {
+                  const rooms = selectedQuote.newRoomsToAutomate || [];
+                  if (rooms.length > 0) {
+                    setItems(rooms.map((room, idx) => ({ id: `row-${Date.now()}-${idx}`, name: room, description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 })));
+                  } else {
+                    setItems([{ id: `row-${Date.now()}`, name: '', description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 }]);
+                  }
+                } else if (t.includes('custom')) {
+                  const budgetNum = Number(selectedQuote.budget);
+                  setItems([
+                    {
+                      id: `row-${Date.now()}`,
+                      name: 'Custom Requirement',
+                      description: selectedQuote.customDetails || '',
+                      quantity: 1,
+                      unitPrice: Number.isFinite(budgetNum) ? budgetNum : 0,
+                      discount: 0,
+                      taxPercent: 0,
+                    },
+                  ]);
                 } else {
-                  setItems([{ id: `row-${Date.now()}`, name: '', description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 }]);
+                  // New Installation or others -> use devicesRequired
+                  const devices = selectedQuote.devicesRequired || [];
+                  if (devices.length > 0) {
+                    // Resolve prices asynchronously from Devices collection
+                    (async () => {
+                      const rows = await resolveDeviceItemsWithPrices(devices);
+                      setItems(rows);
+                    })();
+                  } else {
+                    setItems([{ id: `row-${Date.now()}`, name: '', description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 }]);
+                  }
                 }
               }} 
             />
@@ -726,6 +1175,14 @@ const EstimationTool: React.FC = () => {
             </div>
           </div>
         )}
+        {/* Input UX helpers */}
+        <style>
+          {`
+            .no-spin::-webkit-outer-spin-button,
+            .no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+            .no-spin { -moz-appearance: textfield; }
+          `}
+        </style>
       </div>
     </div>
   );

@@ -14,6 +14,8 @@ import DeviceDetailsModal from '../components/DeviceDetailsModal';
 import AddDeviceModal from '../components/AddDeviceModal';
 import EstimationEditor from '../components/EstimationEditor';
 import StatusChangeButton from '../components/StatusChangeButton';
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
 
 type Props = {
   email?: string | null;
@@ -42,6 +44,10 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const [editingName, setEditingName] = useState<boolean>(false);
   const [tempName, setTempName] = useState<string>('');
   const [savingName, setSavingName] = useState<boolean>(false);
+
+  // Avoid SSR hydration issues for react-phone-input-2
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   // Planner Leads per contact email (lazy-loaded)
   const [openPlanIds, setOpenPlanIds] = useState<Record<string, boolean>>({});
@@ -1006,7 +1012,51 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Phone Number</label>
-                            <input type="tel" value={tempPhone} onChange={(e) => setTempPhone(e.target.value)} placeholder="e.g., +1 (555) 123-4567" className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                            {mounted && (
+                              <PhoneInput
+                                country="in"
+                                value={tempPhone}
+                                onChange={(phone: string) => setTempPhone(phone)}
+                                disableCountryGuess={true}
+                                disableCountryCode={false}
+                                disableDropdown={false}
+                                inputProps={{
+                                  name: 'phone',
+                                  required: false,
+                                  className:
+                                    'w-full !pl-14 !py-2 !border !border-gray-300 dark:!border-gray-600 !rounded-md focus:!ring-2 focus:!ring-teal-500 focus:!border-transparent dark:!bg-gray-800 dark:!text-white',
+                                }}
+                                containerClass="w-full"
+                                buttonClass="!bg-gray-100 dark:!bg-gray-700 !border-r !border-gray-300 dark:!border-gray-600 !rounded-l-md !p-0 !w-12 !h-full !flex !items-center !justify-center hover:!bg-gray-200 dark:hover:!bg-gray-600 focus:!ring-2 focus:!ring-teal-500 focus:!outline-none transition-colors duration-200 ease-in-out hover:shadow-inner"
+                                dropdownClass="!border !border-gray-200 dark:!border-gray-700 !rounded-lg !shadow-lg !bg-white dark:!bg-gray-800 !left-1/2 !-translate-x-1/2 !fixed !z-50 !w-80 [&_.highlight]:!bg-teal-500/10 dark:[&_.highlight]:!bg-teal-400/20 [&_.highlight]:!text-gray-900 dark:[&_.highlight]:!text-white [&_.country:hover]:!bg-gray-100 dark:[&_.country:hover]:!bg-gray-700 [&_.country:hover_.country-name]:!text-gray-900 dark:[&_.country:hover_.country-name]:!text-white"
+                                containerStyle={{ width: '100%' }}
+                                inputStyle={{
+                                  width: '100%',
+                                  height: 'auto',
+                                  paddingLeft: '3.5rem',
+                                  backgroundColor: 'transparent',
+                                }}
+                                buttonStyle={{
+                                  backgroundColor: 'transparent',
+                                  border: 'none',
+                                }}
+                                dropdownStyle={{
+                                  borderRadius: '0.5rem',
+                                  marginTop: '0.25rem',
+                                  boxShadow:
+                                    '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                                  maxHeight: '300px',
+                                  overflowY: 'auto',
+                                }}
+                                searchPlaceholder="Search country..."
+                                searchClass="!w-[calc(100%-1rem)] !mx-2 !my-1 !px-3 !py-2 !text-sm !rounded-lg !border !border-gray-300 dark:!border-gray-600 focus:!ring-2 focus:!ring-teal-500 focus:!border-transparent dark:!bg-gray-800 dark:!text-white"
+                                searchNotFound="No country found"
+                                enableSearch
+                                countryCodeEditable={false}
+                                disableSearchIcon
+                                preferredCountries={['us', 'gb', 'ca', 'au', 'in']}
+                              />
+                            )}
                           </div>
                           <div className="md:col-span-2">
                             <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Address</label>
