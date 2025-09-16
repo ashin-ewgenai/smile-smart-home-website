@@ -1164,6 +1164,48 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                         {estimation.notes && (<div><span className="text-gray-500">Notes</span><div className="font-medium whitespace-pre-line">{estimation.notes}</div></div>)}
                       </div>
                     )}
+
+                    {/* Attachments */}
+                    {(() => {
+                      const raw = (estimation as any)?.attachments as any;
+                      const list: string[] = Array.isArray(raw)
+                        ? raw.filter((u) => typeof u === 'string' && u.trim().length > 0)
+                        : (typeof raw === 'string' && raw.trim().length > 0)
+                          ? [raw]
+                          : [];
+                      return list.length > 0 ? (
+                        <div>
+                          <div className="text-gray-500">Attachments</div>
+                          <ul className="mt-1 space-y-1">
+                            {list.map((url, idx) => {
+                              const name = (() => {
+                                try {
+                                  const u = new URL(url);
+                                  const last = u.pathname.split('/').pop() || '';
+                                  return decodeURIComponent(last) || `Attachment ${idx + 1}`;
+                                } catch {
+                                  const last = url.split('?')[0].split('#')[0].split('/').pop() || '';
+                                  return last || `Attachment ${idx + 1}`;
+                                }
+                              })();
+                              return (
+                                <li key={idx} className="flex items-center justify-between gap-2 p-2 rounded bg-gray-50 dark:bg-gray-700/40">
+                                  <span className="truncate" title={name}>{name}</span>
+                                  <a
+                                    href={url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="px-2 py-0.5 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-500"
+                                  >
+                                    View
+                                  </a>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
                 )}
               </div>

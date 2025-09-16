@@ -229,6 +229,53 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
                   )}
                 </div>
               )}
+
+              {/* Attachments */}
+              {(() => {
+                const raw = (estimation as any)?.attachments as any;
+                const list: string[] = Array.isArray(raw)
+                  ? raw.filter((u) => typeof u === 'string' && u.trim().length > 0)
+                  : (typeof raw === 'string' && raw.trim().length > 0)
+                    ? [raw]
+                    : [];
+                return list.length > 0 ? (
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Attachments</h4>
+                    <ul className="space-y-2">
+                      {list.map((url, idx) => {
+                        const name = (() => {
+                          try {
+                            const u = new URL(url);
+                            const last = u.pathname.split('/').pop() || '';
+                            return decodeURIComponent(last) || `Attachment ${idx + 1}`;
+                          } catch {
+                            const last = url.split('?')[0].split('#')[0].split('/').pop() || '';
+                            return last || `Attachment ${idx + 1}`;
+                          }
+                        })();
+                        return (
+                          <li key={idx} className="flex items-center justify-between gap-3 p-2 rounded bg-gray-50 dark:bg-gray-700/50">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-500">
+                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.88 18.05a2 2 0 01-2.83-2.83l8.49-8.49" />
+                              </svg>
+                              <span className="truncate text-sm text-gray-900 dark:text-gray-100" title={name}>{name}</span>
+                            </div>
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-500"
+                            >
+                              View
+                            </a>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : null;
+              })()}
             </div>
           )}
         </div>

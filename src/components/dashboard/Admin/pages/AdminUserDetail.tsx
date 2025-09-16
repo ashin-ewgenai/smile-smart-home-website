@@ -971,8 +971,6 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     </div>
                     <div className="text-gray-500 dark:text-gray-400">Role</div>
                     <div className="text-gray-800 dark:text-gray-100">{account.Role}</div>
-                    <div className="text-gray-500 dark:text-gray-400">Status</div>
-                    <div className="text-gray-800 dark:text-gray-100">{account.Status}</div>
                   </div>
 
                   {/* Contact Info */}
