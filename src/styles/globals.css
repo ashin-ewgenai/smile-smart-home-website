@@ -177,6 +177,22 @@
     @apply rounded-full bg-white/80 dark:bg-white/10 border border-white/60 dark:border-white/10 shadow-soft px-4 py-2 text-sm placeholder:text-gray-400 focus:ring-2 focus:ring-teal/70 focus:border-teal/60 transition;
   }
 
+  /* Force readable dropdown list for native <select> in both themes */
+  select.pill-input {
+    @apply text-gray-900 dark:text-gray-100 bg-white dark:bg-gray-900;
+    color-scheme: light dark; /* help browsers choose proper popup theme */
+  }
+
+  /* Options styling (limited support but improves most browsers) */
+  select.pill-input option {
+    color: rgb(17 24 39);           /* gray-900 */
+    background-color: #ffffff;      /* white */
+  }
+  .dark select.pill-input option {
+    color: rgb(243 244 246);        /* gray-100 */
+    background-color: rgb(17 24 39);/* gray-900 */
+  }
+
   /* Pill-like textarea: keep soft, but better proportions for multi-line */
   .pill-textarea {
     @apply rounded-2xl bg-white/80 dark:bg-white/10 border border-white/60 dark:border-white/10 shadow-soft text-sm leading-relaxed placeholder:text-gray-400 focus:ring-2 focus:ring-teal/70 focus:border-teal/60 transition;
