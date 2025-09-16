@@ -393,26 +393,34 @@ const Notifications: React.FC = () => {
   };
 
 
-  // Function to fetch quote requests from the specific document path
-  const fetchQuoteRequests = async () => {
+  // Fetch quote requests from the flat 'quotes' collection (root)
+  const fetchQuoteRequests = async (): Promise<UnifiedNotification[]> => {
     try {
-      // Get the specific quote document
-      const quoteDoc = await getDoc(doc(db, 'quotes', '1FHDlaYHEfN6ngVrfHiv'));
-      
-      if (!quoteDoc.exists()) {
-        return [];
-      }
-      
-      // Process the specific quote document
-      const quoteData = quoteDoc.data();
-      const quote = {
-        id: quoteDoc.id,
-        ...quoteData,
-        type: 'quote_request' as NotificationType,
-        timestamp: quoteData.createdAt?.toMillis() || Date.now()
-      };
-      
-      return [quote]; // Return as array to maintain consistent return type
+      const q = query(
+        collection(db, 'quotes'),
+        where('status', '==', 'Pending'),
+        orderBy('createdAt', 'desc'),
+        limit(50)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs
+        .map(d => {
+          const data: any = d.data();
+          return {
+            id: d.id,
+            ...data,
+            type: 'quote_request' as NotificationType,
+            // Normalize common fields used by renderer
+            email: data.email || data.userEmail || data.customerEmail || '',
+            userEmail: data.userEmail || data.email || data.customerEmail || '',
+            adminRead: data.adminRead === true,
+            // Ensure we have a consistent timestamp for sorting
+            timestamp: data.createdAt?.toMillis?.() || data.ts || Date.now(),
+            createdAt: data.createdAt || null,
+          } as UnifiedNotification;
+        })
+        // Defensive client-side filter in case some docs lack proper index
+        .filter((x) => (x as any).status === 'Pending');
     } catch (error) {
       return [];
     }
@@ -596,7 +604,7 @@ const Notifications: React.FC = () => {
           failures++;
         }
 
-        // Fetch quote requests from the quotes collection
+        // Fetch quote requests from the flat 'quotes' collection
         try {
           const quotes = await fetchQuoteRequests();
           results.push(...quotes);
@@ -635,21 +643,24 @@ const Notifications: React.FC = () => {
 
         try {
           const snap = await getDocs(collectionGroup(db, SUBCOLLECTION_QUOTE));
-          const quotes = snap.docs.map(d => {
-            const data = d.data();
-            return {
-              id: d.id,
-              type: 'quote_request' as NotificationType,
-              parentUid: d.ref.parent.parent?.id,
-              // Map email fields from the quote data
-              email: data.email || data.userEmail || data.customerEmail,
-              userEmail: data.userEmail || data.email || data.customerEmail,
-              // Preserve adminRead so unread state persists
-              adminRead: data.adminRead === true,
-              // Ensure we have a timestamp for sorting
-              timestamp: data.createdAt?.toMillis() || 0
-            };
-          });
+          const quotes = snap.docs
+            .map(d => {
+              const data: any = d.data();
+              return {
+                id: d.id,
+                type: 'quote_request' as NotificationType,
+                parentUid: d.ref.parent.parent?.id,
+                // Map email fields from the quote data
+                email: data.email || data.userEmail || data.customerEmail,
+                userEmail: data.userEmail || data.email || data.customerEmail,
+                // Preserve adminRead so unread state persists
+                adminRead: data.adminRead === true,
+                // Ensure we have a timestamp for sorting
+                timestamp: data.createdAt?.toMillis?.() || 0,
+                status: data.status,
+              } as UnifiedNotification & { status?: string };
+            })
+            .filter(x => (x as any).status === 'Pending');
           // Sort by timestamp in descending order
           quotes.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
           results.push(...quotes);
@@ -720,6 +731,33 @@ const Notifications: React.FC = () => {
             }
           );
           unsubs.push(unsubscribeContacts);
+
+          // Listen for flat 'quotes' collection changes
+          const unsubscribeQuotes = onSnapshot(
+            query(
+              collection(db, 'quotes'),
+              where('status', '==', 'Pending'),
+              orderBy('createdAt', 'desc'),
+              limit(50)
+            ),
+            (snapshot) => {
+              const updated = snapshot.docs.map(d => {
+                const data: any = d.data();
+                return {
+                  id: d.id,
+                  ...data,
+                  type: 'quote_request' as NotificationType,
+                  email: data.email || data.userEmail || data.customerEmail || '',
+                  userEmail: data.userEmail || data.email || data.customerEmail || '',
+                  adminRead: data.adminRead === true,
+                  timestamp: data.createdAt?.toMillis?.() || data.ts || Date.now(),
+                  createdAt: data.createdAt || null,
+                } as UnifiedNotification;
+              }).filter((x) => (x as any).status === 'Pending');
+              setItems(prev => mergeAndSort(prev, updated));
+            }
+          );
+          unsubs.push(unsubscribeQuotes);
           
           return () => {
             unsubs.forEach(unsub => { try { unsub(); } catch {} });
