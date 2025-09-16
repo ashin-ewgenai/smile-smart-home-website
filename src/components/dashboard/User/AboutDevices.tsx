@@ -182,29 +182,19 @@ const AboutDevices: React.FC = () => {
   // Fetch user's devices and their details
   useEffect(() => {
     if (!uid) {
-      console.log('No UID available');
       return;
     }
     
     const fetchUserDevices = async () => {
       try {
         setLoading(true);
-        console.log(`Fetching devices for user: ${uid}`);
-        
         // 1. Get all user devices from flat collection
         const userDevicesRef = collection(db, 'User_Devices');
         const userDevicesQuery = query(userDevicesRef, where('uid', '==', uid));
-        console.log('User devices query for uid:', uid);
         
         const userDevicesSnap = await getDocs(userDevicesQuery);
-        console.log('User devices subcollection docs:', userDevicesSnap.docs.map(d => ({
-          id: d.id,
-          data: d.data(),
-          ref: d.ref.path
-        })));
         
         if (userDevicesSnap.empty) {
-          console.log('No devices found in user devices subcollection');
           setDevices([]);
           setLoading(false);
           return;
@@ -212,10 +202,7 @@ const AboutDevices: React.FC = () => {
         
         // 2. Get all device details using sourceDeviceId from user devices
         const sourceDeviceIds = userDevicesSnap.docs.map(doc => doc.data().sourceDeviceId).filter(Boolean);
-        console.log('Source Device IDs to fetch:', sourceDeviceIds);
-        
         if (sourceDeviceIds.length === 0) {
-          console.log('No source device IDs found in user devices');
           setDevices([]);
           setLoading(false);
           return;
@@ -226,11 +213,6 @@ const AboutDevices: React.FC = () => {
         const devicesQuery = query(devicesRef, where('__name__', 'in', sourceDeviceIds));
         const devicesSnap = await getDocs(devicesQuery);
         
-        console.log('Fetched devices from main collection:', devicesSnap.docs.map(d => ({
-          id: d.id,
-          data: d.data(),
-          ref: d.ref.path
-        })));
         
         // Create helpers to join Devices -> User_Devices using sourceDeviceId
         const userDevicesMap = new Map(
@@ -244,32 +226,12 @@ const AboutDevices: React.FC = () => {
           // Get user device data using sourceDeviceId mapping
           let userDeviceData: any = userDevicesMap.get(doc.id) || {};
           
-          console.log(`Device ${doc.id} mapping:`, {
-            deviceId: doc.id,
-            userDeviceData,
-            hasUserData: !!userDeviceData
-          });
-          
-          console.log(`Processing device ${doc.id}:`, { 
-            deviceData, 
-            userDeviceData,
-            ref: doc.ref.path 
-          });
-          
           // Prefer user warranty, especially when stored per-serial
           const serialHint = (userDeviceData?.serialNumber) || (userDeviceData?.serial) || (Array.isArray(userDeviceData?.serials) ? userDeviceData.serials[0] : undefined) || deviceData?.serial;
           const userWarranty = getUserWarranty(userDeviceData, serialHint);
           const deviceWarranty = deviceData.warranty ?? null;
           const chosenWarranty = userWarranty ?? deviceWarranty ?? null;
           const chosenSource: 'user' | 'device' | undefined = (userWarranty != null) ? 'user' : ((deviceWarranty != null) ? 'device' : undefined);
-          console.log('Warranty selection', {
-            deviceId: doc.id,
-            serialHint,
-            userWarranty,
-            deviceWarranty,
-            chosenWarranty,
-            chosenSource,
-          });
 
           // Resolve serial with priority: userdevices -> devices
           const resolveSerial = () => {
@@ -351,7 +313,6 @@ const AboutDevices: React.FC = () => {
           } as DeviceDoc;
         });
         
-        console.log('Processed device results:', deviceResults);
         setDevices(deviceResults);
         setError(null);
       } catch (err) {
@@ -371,7 +332,7 @@ const AboutDevices: React.FC = () => {
     const unsubscribe = onSnapshot(userDevicesQuery, 
       () => fetchUserDevices(),
       (error) => {
-        console.error('Error in real-time update:', error);
+        // Error in real-time update
         setError('Error receiving device updates');
       }
     );
@@ -394,17 +355,14 @@ const AboutDevices: React.FC = () => {
         qSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid), where('deviceId', '==', device.id)));
       }
       const snap = qSnap.docs[0];
-      console.log('[AboutDevices] Fetching per-device count from flat collection for device:', device.id);
       if (snap.exists()) {
         const data: any = snap.data();
-        console.log('[AboutDevices] Device doc data (resolved):', data);
         // Try multiple possible fields incl. common aliases; fall back to serials length
         const countAliases = ['deviceCount','DeviceCount','deviceCount1','DeviceCount1','count','Count','quantity','Quantity','qty','Qty'];
         const parsed = coerceNumberFromKeys(data, countAliases);
         const count = parsed ?? (Array.isArray(data.serials) ? data.serials.length : null);
         setSelectedDeviceCount(count ?? null);
       } else {
-        console.warn('[AboutDevices] No device record found for current user/device');
         setSelectedDeviceCount(null);
       }
 
@@ -420,12 +378,9 @@ const AboutDevices: React.FC = () => {
           totalCount += count;
         });
         setUserTotalDevices(totalCount);
-        console.log('[AboutDevices] Calculated total device count:', totalCount);
       } catch (e) {
-        console.warn('[AboutDevices] Failed to calculate total device count:', e);
       }
     } catch (e) {
-      console.error('Failed to fetch selected device count', e);
       setSelectedDeviceCount(null);
     } finally {
       setSelectedDeviceCountLoading(false);
