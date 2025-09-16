@@ -721,9 +721,27 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         <div className="flex items-center justify-between px-2 md:px-0">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Submissions</h2>
           {onBack ? (
-            <button type="button" onClick={onBack} className="text-teal-600 hover:underline">Back to Users</button>
+            <button
+              type="button"
+              onClick={onBack}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-teal-600/30 text-teal-700 hover:bg-teal-50 hover:border-teal-600/50 transition-colors dark:text-teal-300 dark:border-teal-500/30 dark:hover:bg-teal-900/30"
+              aria-label="Back to Users"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4A1 1 0 018.707 6.707L6.414 9H17a1 1 0 110 2H6.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" />
+              </svg>
+              <span>Back to Users</span>
+            </button>
           ) : (
-            <a href="/dashboard/admin/users" className="text-teal-600 hover:underline">Back to Users</a>
+            <a
+              href="/dashboard/admin/users"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-teal-600/30 text-teal-700 hover:bg-teal-50 hover:border-teal-600/50 transition-colors dark:text-teal-300 dark:border-teal-500/30 dark:hover:bg-teal-900/30"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4A1 1 0 018.707 6.707L6.414 9H17a1 1 0 110 2H6.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" />
+              </svg>
+              <span>Back to Users</span>
+            </a>
           )}
         </div>
       </div>

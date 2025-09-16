@@ -97,9 +97,8 @@ const AdminContactSubmissions: React.FC = () => {
     <section className="p-6">
       {/* Header */}
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between px-2 md:px-0">
+        <div className="flex items-center px-2 md:px-0">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Submissions</h2>
-          <a href="/dashboard/admin/users" className="text-teal-600 hover:underline">Back to Users</a>
         </div>
       </div>
 

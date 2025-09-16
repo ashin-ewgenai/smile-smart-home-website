@@ -449,6 +449,41 @@ export default function DeviceForm() {
     await deleteDoc(deviceDoc(db, id));
   }, []);
 
+  // Lock background scroll when edit modal is open, but allow scrolling inside the modal
+  useEffect(() => {
+    if (!editing) return;
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollY = window.scrollY;
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+    html.style.overflow = 'hidden';
+
+    return () => {
+      body.style.position = '';
+      body.style.top = '';
+      body.style.left = '';
+      body.style.right = '';
+      body.style.width = '';
+      body.style.overflow = '';
+      html.style.overflow = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, [editing]);
+
+  // Use native scrolling of the modal content, but also add a non-blocking wheel handler
+  // that does NOT call preventDefault to avoid passive listener warnings. This ensures
+  // the scroll delta is applied even when the page is locked from background scrolling.
+  const onModalWheel = React.useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    // Do not call preventDefault here to avoid passive listener warnings
+    el.scrollTop += e.deltaY;
+  }, []);
+
   return (
     <>
       
@@ -807,7 +842,13 @@ export default function DeviceForm() {
       {editing && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setEditing(null)} />
-          <div className="relative z-10 w-[95vw] max-w-md max-h-[90vh] bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4 overflow-y-auto">
+          <div
+            className="relative z-10 w-[95vw] max-w-md max-h-[90vh] bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-4 overflow-y-auto modal-scroll-content touch-pan-y overscroll-contain"
+            style={{ WebkitOverflowScrolling: 'touch' as any }}
+            onWheel={onModalWheel}
+            onWheelCapture={onModalWheel}
+            tabIndex={0}
+          >
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-3">Edit Device</h3>
             <div className="space-y-3">
               <div>
