@@ -161,7 +161,6 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       const status = String(q.status || 'Pending').toLowerCase();
       return !['cancelled', 'rejected', 'completed', 'confirmed'].includes(status);
     });
-    console.log('Active quotes:', active.map(q => ({ id: q.id, status: q.status }))); // More detailed debug log
     return active.length;
   }, [quotes]);
   

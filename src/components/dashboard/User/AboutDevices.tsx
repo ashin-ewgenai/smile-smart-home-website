@@ -36,6 +36,7 @@ type DeviceDoc = {
 
 const AboutDevices: React.FC = () => {
   const [devices, setDevices] = useState<DeviceDoc[]>([]);
+  const [deviceTypes, setDeviceTypes] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
@@ -193,6 +194,18 @@ const AboutDevices: React.FC = () => {
         const userDevicesQuery = query(userDevicesRef, where('uid', '==', uid));
         
         const userDevicesSnap = await getDocs(userDevicesQuery);
+        
+        // Track unique device types
+        const types = new Set<string>();
+        userDevicesSnap.forEach(doc => {
+          const data = doc.data();
+          if (data.type) {
+            types.add(data.type);
+          } else if (data.deviceType) {
+            types.add(data.deviceType);
+          }
+        });
+        setDeviceTypes(types);
         
         if (userDevicesSnap.empty) {
           setDevices([]);
@@ -522,11 +535,14 @@ const AboutDevices: React.FC = () => {
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Device Details</h3>
               <button
-                className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"
+                className="flex items-center space-x-1 px-3 py-1.5 rounded-full bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/40 text-red-600 hover:text-red-700 dark:text-red-300 dark:hover:text-red-200 transition-all duration-200 text-sm shadow-sm hover:shadow-md hover:shadow-red-500/20 dark:hover:shadow-red-400/10 border border-red-100 dark:border-red-800/50 hover:border-red-200 dark:hover:border-red-700"
                 aria-label="Close"
                 onClick={() => { setSelectedDevice(null); setSelectedDeviceCount(null); setUserTotalDevices(null); }}
               >
-                ✕
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span>Close</span>
               </button>
             </div>
 
@@ -609,15 +625,6 @@ const AboutDevices: React.FC = () => {
                   </a>
                 </div>
               )}
-            </div>
-
-            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 flex justify-end flex-shrink-0">
-              <button
-                onClick={() => setSelectedDevice(null)}
-                className="px-3 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 rounded transition-colors dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white"
-              >
-                Close
-              </button>
             </div>
           </div>
         </div>

@@ -51,6 +51,26 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   const [reqSuccess, setReqSuccess] = useState<string>('');
   const [reqError, setReqError] = useState<string>('');
   const [userDeviceOptions, setUserDeviceOptions] = useState<Device[]>([]);
+  const [deviceCount, setDeviceCount] = useState<number>(0);
+  
+  // Fetch user's device count
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const userDevicesRef = collection(db, 'User_Devices');
+          const userDevicesQuery = query(userDevicesRef, where('uid', '==', user.uid));
+          const querySnapshot = await getDocs(userDevicesQuery);
+          setDeviceCount(querySnapshot.size);
+        } catch (error) {
+          console.error('Error fetching device count:', error);
+        }
+      }
+    });
+    
+    return () => unsubscribe();
+  }, []);
+  
   const clearReqFeedback = () => {
     setReqSuccess('');
     setReqError('');
@@ -548,7 +568,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600 dark:text-gray-400">type of devices</span>
-                  <span className="text-xl font-bold text-gray-900 dark:text-white">{deviceStats.totalDevices}</span>
+                  <span className="text-xl font-bold text-gray-900 dark:text-white">{deviceCount}</span>
                 </div>
                 {/* View Service Requests Button */}
                 <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
