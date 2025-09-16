@@ -44,6 +44,38 @@ const AboutDevices: React.FC = () => {
   const [selectedDeviceCountLoading, setSelectedDeviceCountLoading] = useState(false);
   const [userTotalDevices, setUserTotalDevices] = useState<number | null>(null);
   const modalRef = React.useRef<HTMLDivElement>(null);
+  // Non-blocking wheel handler to ensure scrolling always works inside modal content
+  const onContentWheel = React.useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    // Do NOT call preventDefault to avoid passive listener issues
+    el.scrollTop += e.deltaY;
+  }, []);
+
+  // Lock background scroll when modal is open
+  useEffect(() => {
+    if (!selectedDevice) return;
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollY = window.scrollY;
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+    html.style.overflow = 'hidden';
+
+    return () => {
+      body.style.position = '';
+      body.style.top = '';
+      body.style.left = '';
+      body.style.right = '';
+      body.style.width = '';
+      body.style.overflow = '';
+      html.style.overflow = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, [selectedDevice]);
 
   // Helper: try multiple keys and parse number-like strings
   const coerceNumberFromKeys = (obj: any, keys: string[]): number | null => {
@@ -543,7 +575,13 @@ const AboutDevices: React.FC = () => {
               </button>
             </div>
 
-            <div className="px-4 py-4 text-sm space-y-3 overflow-y-auto flex-1 custom-scrollbar">
+            <div
+              className="px-4 py-4 text-sm space-y-3 overflow-y-auto flex-1 custom-scrollbar"
+              style={{ WebkitOverflowScrolling: 'touch' as any }}
+              onWheel={onContentWheel}
+              onWheelCapture={onContentWheel}
+              tabIndex={0}
+            >
               <div className="bg-gray-800/50 p-4 rounded-lg">
                 <h4 className="font-medium text-gray-200 mb-3">Device Information</h4>
                 <div className="grid grid-cols-2 gap-3">
