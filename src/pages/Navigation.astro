@@ -343,7 +343,7 @@ const authState = {
     const init = () => {
       const modal = document.getElementById('auth-modal');
 
-      const openModal = (type) => {
+      const openModal = (type: string) => {
         // Try dispatching to modal element
         if (modal) {
           modal.dispatchEvent(new CustomEvent('open', { detail: { type } }));
@@ -392,62 +392,4 @@ const authState = {
   })();
 </script>
 
-<script>
-  // Debug: Track auth UI state
-  (function() {
-    console.log('[Auth Debug] Script loaded');
-    
-    function logAuthState() {
-      const signInEl = document.querySelector<HTMLElement>('[data-auth="signin-desktop"]');
-      const userTextEl = document.querySelector<HTMLElement>('[data-auth="user-desktop"]');
-      const userMenuEl = document.querySelector<HTMLElement>('[data-auth="user-menu-desktop"]');
-      
-      const getElementState = (el: HTMLElement | null) => {
-        if (!el) return null;
-        const style = window.getComputedStyle(el);
-        return {
-          display: style.display,
-          hidden: el.classList.contains('hidden'),
-          styleDisplay: el.style.display || 'not set',
-          textContent: el.textContent?.trim()
-        };
-      };
-      
-      try {
-        console.log('[Auth Debug] Current state:', {
-          htmlDataAuth: document.documentElement.getAttribute('data-auth'),
-          localStorageUserEmail: localStorage.getItem('userEmail'),
-          signIn: getElementState(signInEl),
-          userText: getElementState(userTextEl),
-          userMenu: getElementState(userMenuEl)
-        });
-      } catch (error) {
-        console.error('[Auth Debug] Error logging auth state:', error);
-      }
-    }
-    
-    // Log initial state
-    setTimeout(logAuthState, 0);
-    
-    // Log state changes
-    const observer = new MutationObserver((mutations: MutationRecord[]) => {
-      const shouldLog = mutations.some(mutation => 
-        mutation.type === 'attributes' && 
-        (mutation.attributeName === 'class' || 
-         mutation.attributeName === 'style' || 
-         mutation.attributeName === 'data-auth')
-      );
-      if (shouldLog) {
-        logAuthState();
-      }
-    });
-    
-    observer.observe(document.documentElement, { 
-      attributes: true, 
-      attributeFilter: ['class', 'style', 'data-auth']
-    });
-    
-    // Also log when localStorage changes (in case other tabs update it)
-    window.addEventListener('storage', () => logAuthState());
-  })();
-</script>
+
