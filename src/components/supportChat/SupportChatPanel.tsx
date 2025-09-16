@@ -819,11 +819,11 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         </div>
       </div>
 
-      {/* Chat Messages Area */}
+      {/* Chat Messages Area (single container; inner scroller is transparent) */}
       <div className="px-4 sm:px-6">
         <div
           ref={scrollRef}
-          className="h-[calc(100vh-300px)] md:h-[calc(100vh-320px)] overflow-y-auto overscroll-y-contain py-4 pb-4 space-y-4 glass-surface rounded-2xl"
+          className="h-[calc(100vh-300px)] md:h-[calc(100vh-320px)] overflow-y-auto overscroll-y-contain py-4 pb-4 space-y-4 bg-transparent"
           onWheel={(e) => { e.stopPropagation(); }}
           style={{ WebkitOverflowScrolling: 'touch', touchAction: 'auto' as React.CSSProperties['touchAction'] }}
         >

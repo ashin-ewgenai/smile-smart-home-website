@@ -181,8 +181,9 @@ const AdminSupportApp: React.FC = () => {
   };
 
   return (
-    <section className="p-4 sm:p-6">
-      <div className="max-w-7xl mx-auto rounded-xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/60 backdrop-blur overflow-hidden">
+    <section className="p-0">
+      {/* Outer chat box fits the screen height similar to user chat */}
+      <div className="w-full rounded-xl border border-gray-200 dark:border-gray-800 bg-white/70 dark:bg-gray-900/60 backdrop-blur overflow-hidden h-[calc(100vh-164px)] flex flex-col">
       <div className="flex items-center justify-between px-4 py-3 sm:px-6 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/70">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -206,7 +207,8 @@ const AdminSupportApp: React.FC = () => {
           <button
             onClick={toggleClaim}
             disabled={!selectedOwner}
-            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors border ${selectedOwner && claims[selectedOwner] ? 'border-emerald-600 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/40' : 'border-gray-400 text-gray-700 bg-gray-50 hover:bg-gray-100 dark:text-gray-300 dark:bg-gray-800/40 dark:hover:bg-gray-800/60'}`}
+            className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm transition-colors border focus:outline-none focus:ring-0 active:outline-none active:ring-0 select-none ${selectedOwner && claims[selectedOwner] ? 'border-emerald-600 text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-900/20' : 'border-teal-300 text-teal-700 bg-teal-50 dark:border-teal-700 dark:text-teal-300 dark:bg-teal-900/20'}`}
+            style={{ WebkitTapHighlightColor: 'transparent' }}
           >
             <span className={`h-2 w-2 rounded-full ${selectedOwner && claims[selectedOwner] ? 'bg-emerald-500' : 'bg-gray-400'}`} />
             {selectedOwner && claims[selectedOwner] ? 'Human On' : 'Human Off'}
@@ -215,7 +217,8 @@ const AdminSupportApp: React.FC = () => {
           {/* Admin Clear Chat Button */}
           {selectedOwner && (
             <button
-              className="px-3 py-1.5 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white flex items-center gap-1"
+              className="px-3 py-1.5 text-sm rounded-full border border-teal-300 text-teal-700 bg-teal-50 dark:border-teal-700 dark:text-teal-300 dark:bg-teal-900/20 transition-colors focus:outline-none focus:ring-0 active:outline-none active:ring-0 select-none"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
               onClick={async () => {
                 if (!window.confirm('Are you sure you want to clear ALL chat history for this user? This cannot be undone.')) return;
                 if (!auth.currentUser) {
@@ -237,14 +240,14 @@ const AdminSupportApp: React.FC = () => {
                 }
               }}
             >
-              🗑️ Clear Chat
+              Clear Chat
             </button>
           )}
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-[260px,1fr] min-h-0">
+      <div className="grid grid-cols-1 md:grid-cols-[260px,1fr] flex-1 min-h-0">
         <aside className="border-r border-gray-200 dark:border-gray-700 overflow-y-auto bg-white dark:bg-gray-900">
-          <div className="p-3 text-[11px] uppercase tracking-wide text-gray-500">Conversations</div>
+          <div className="p-3 text-[11px] uppercase tracking-wide text-gray-500 sticky top-0 z-10 bg-white/90 dark:bg-gray-900/90 backdrop-blur">Conversations</div>
           <ul>
             {conversations.map((c) => (
               <li key={c.ownerUid}>
@@ -262,7 +265,7 @@ const AdminSupportApp: React.FC = () => {
                         <div className="flex items-center justify-between">
                           <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{primary}</div>
                           {requests[c.ownerUid] && (
-                            <span className="ml-2 inline-flex items-center justify-center text-[10px] px-1.5 py-0.5 rounded-full bg-rose-600 text-white">Requested</span>
+                            <span className="ml-2 inline-flex items-center justify-center text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 ring-1 ring-amber-300/60 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-700/60">Requested</span>
                           )}
                         </div>
                         <div className="text-[11px] text-gray-500 truncate">{dateLine}</div>
@@ -278,12 +281,12 @@ const AdminSupportApp: React.FC = () => {
           </ul>
         </aside>
         <section className="flex flex-col min-h-0 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white/60 dark:bg-gray-900/50">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white/70 dark:bg-gray-900/60 backdrop-blur sticky top-0 z-10">
             <div className="text-sm sm:text-base text-gray-800 dark:text-gray-100 truncate">{selectedOwner ? `Chat with ${ownerLabel}` : 'Select a conversation'}</div>
           </div>
           <div
             ref={scrollRef}
-            className="flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-4 space-y-3 bg-gradient-to-b from-gray-50/60 to-white dark:from-gray-900/50 dark:to-gray-800 max-h-[70vh]"
+            className="flex-1 overflow-y-auto overscroll-y-contain p-3 sm:p-4 space-y-3 bg-transparent"
             onWheel={(e) => { e.stopPropagation(); }}
             style={{ WebkitOverflowScrolling: 'touch', touchAction: 'auto' as React.CSSProperties['touchAction'] }}
           >

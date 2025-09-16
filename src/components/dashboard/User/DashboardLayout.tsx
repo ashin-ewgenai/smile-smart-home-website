@@ -85,17 +85,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
   ];
 
   const LinkItem = ({ href, label, active, title, icon }: { href: string; label: string; active: boolean; title: string; icon: React.ReactNode }) => {
+    // Stronger light-mode contrast for inactive items; preserve dark mode styling
     const common = `group relative flex items-center ${collapsed ? 'justify-center' : 'justify-start'} gap-3 rounded-full px-3 py-2 text-sm font-medium transition-all duration-200 ` +
       `${active
-        ? 'text-white bg-gray-800/70 ring-1 ring-emerald-400/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
-        : 'text-gray-300 hover:text-white hover:bg-gray-800/50'} ` +
+        ? 'text-teal-900 dark:text-white bg-teal-50 dark:bg-gray-800/70 ring-1 ring-teal-400/20 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04)]'
+        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800/50'} ` +
       `${collapsed ? 'w-12 mx-auto' : 'w-full pl-2'} `;
     const children = (
       <>
         {active && (
-          <span aria-hidden className="absolute left-0 top-0 bottom-0 w-0.5 bg-emerald-400/90 shadow-[0_0_10px_2px_rgba(16,185,129,0.55)] rounded-r" />
+          <span aria-hidden className="absolute left-0 top-0 bottom-0 w-0.5 bg-teal-400/90 shadow-[0_0_10px_2px_rgba(20,184,166,0.55)] rounded-r" />
         )}
-        <span className="shrink-0 text-gray-400 group-hover:text-white">{icon}</span>
+        <span className="shrink-0 text-gray-500 group-hover:text-gray-900 dark:text-gray-400 dark:group-hover:text-white">{icon}</span>
         {!collapsed && <span className="truncate">{label}</span>}
       </>
     );
@@ -106,6 +107,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
       <a href={href} title={title} className={common}>{children}</a>
     );
   };
+
+  // Full-bleed content for specific routes (e.g., Admin Support Center)
+  const isFullBleed = (() => {
+    try {
+      if (!mounted) return false;
+      const path = inRouter ? location?.pathname : window.location.pathname;
+      if (!path) return false;
+      return path.startsWith('/dashboard/admin/support');
+    } catch {
+      return false;
+    }
+  })();
 
   return (
     <div className="flex flex-col min-h-screen pt-16 bg-gradient-to-br from-white via-soft-gray to-white dark:from-gray-950 dark:via-charcoal dark:to-gray-950">
@@ -186,7 +199,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
           </nav>
         </aside>
         {/* Main content */}
-        <main className="flex-1 px-4 sm:px-6 lg:px-8 py-4 md:py-6">
+        <main className={`flex-1 ${isFullBleed ? 'min-h-0 p-0' : 'px-4 sm:px-6 lg:px-8 py-4 md:py-6'}`}>
           {children}
         </main>
       </div>
