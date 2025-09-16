@@ -21,6 +21,8 @@ import AdminContactSubmissions from './pages/AdminContactSubmissions';
 const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
+  const location = useLocation();
+
   useEffect(() => {
     try {
       const userEmail = localStorage.getItem('userEmail');
@@ -32,6 +34,28 @@ const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     } catch { setAllowed(false); }
     setReady(true);
   }, []);
+
+  // Trap the back button ONLY when admin is allowed and at the admin root
+  useEffect(() => {
+    if (!allowed) return;
+    const normalize = (p: string) => p.replace(/\/+$/, '');
+    const isAtAdminRoot = normalize(window.location.pathname) === '/dashboard/admin';
+    if (!isAtAdminRoot) return;
+
+    // Push a state to start a new history entry, so first back hits our handler
+    try { window.history.pushState(null, '', window.location.href); } catch {}
+
+    const onPopState = (e: PopStateEvent) => {
+      const stillAtRoot = normalize(window.location.pathname) === '/dashboard/admin';
+      if (stillAtRoot) {
+        // Cancel the back navigation by pushing the same state again
+        try { window.history.pushState(null, '', window.location.href); } catch {}
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [allowed, location.pathname]);
+
   if (!ready) return null;
   return allowed ? <>{children}</> : <Navigate to="/admin_login" replace />;
 };

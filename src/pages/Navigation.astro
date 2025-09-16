@@ -2,6 +2,14 @@
 import DarkModeToggle from '../components/ui/DarkModeToggle';
 import AuthModal from '../components/home/AuthModal';
 import AuthNavClient from '../components/common/AuthNavClient';
+
+// Server-side auth hint
+// Do NOT access window/localStorage here; this code runs on the server.
+// Default to logged-out; client scripts will correct immediately.
+const authState = {
+  isAuthed: false,
+  greeting: ''
+} as const;
 ---
 
 <header class="fixed top-0 left-0 right-0 z-[100] bg-white/95 dark:bg-charcoal/95 backdrop-blur-md border-b border-gray-200/60 dark:border-gray-700/60 shadow-sm">
@@ -44,7 +52,7 @@ import AuthNavClient from '../components/common/AuthNavClient';
       <div class="flex items-center space-x-2 md:space-x-4">
         <DarkModeToggle client:load />
         <div class="hidden md:block">
-          <a href="/login" data-open-auth="login" data-auth="signin-desktop" style="display:none" aria-hidden="true" class="relative inline-flex items-center px-4 py-2.5 text-sm md:text-base font-medium text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200 group overflow-hidden">
+          <a href="#" data-open-auth="login" data-auth="signin-desktop" aria-hidden="true" class="relative inline-flex items-center px-4 py-2.5 text-sm md:text-base font-medium text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200 group overflow-hidden">
             <div class="absolute inset-0 bg-gradient-to-r from-white/10 to-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
             <svg class="w-4 h-4 mr-2 relative z-10 group-hover:rotate-12 transition-transform duration-200" fill="currentColor" viewBox="0 0 20 20">
               <path fill-rule="evenodd" d="M3 3a1 1 0 011 1v12a1 1 0 11-2 0V4a1 1 0 011-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd"></path>
@@ -53,9 +61,15 @@ import AuthNavClient from '../components/common/AuthNavClient';
           </a>
         </div>
         <!-- Authenticated state (desktop): Username text and avatar dropdown -->
-        <span data-auth="user-desktop" style="display:none" class="hidden min-[601px]:inline-flex items-center text-sm md:text-base font-semibold text-teal"></span>
+        <span 
+          data-auth="user-desktop" 
+          class={`min-[601px]:inline-flex items-center text-sm md:text-base font-semibold text-teal ${authState.isAuthed ? 'inline-flex' : 'hidden'}`}
+          style={authState.isAuthed ? 'visibility: visible; opacity: 1;' : 'visibility: hidden; opacity: 0;'}
+        >
+          {authState.greeting}
+        </span>
         <!-- Avatar dropdown -->
-        <div data-auth="user-menu-desktop" style="display:none" class="relative hidden min-[601px]:inline-block">
+        <div data-auth="user-menu-desktop" class="relative hidden min-[601px]:inline-block">
           <div data-auth="user-menu-trigger" class="h-8 w-8 rounded-full flex items-center justify-center bg-teal text-white cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
@@ -83,7 +97,7 @@ import AuthNavClient from '../components/common/AuthNavClient';
         <a href="/gallery" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Gallery</a>
         <a href="/contact" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Contact</a>
         <!-- Mobile auth: Sign In (hidden when authed by AuthNavClient) -->
-        <a href="/login" data-open-auth="login" data-auth="signin-mobile" class="block px-4 py-3 mt-3 text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl text-center font-medium shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200">Sign In</a>
+        <a href="#" data-open-auth="login" data-auth="signin-mobile" class="block px-4 py-3 mt-3 text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl text-center font-medium shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200">Sign In</a>
 
         <!-- Mobile auth: User button (shown when authed by AuthNavClient) -->
         <button type="button" data-auth="user-mobile" style="display:none" class="hidden w-full px-4 py-3 mt-3 text-teal bg-teal/10 hover:bg-teal/20 rounded-xl text-center font-semibold transition-all duration-200">Hi there</button>
@@ -98,6 +112,55 @@ import AuthNavClient from '../components/common/AuthNavClient';
 <!-- Inline React Auth Modal -->
 <AuthModal client:load />
 
+<!-- Server-rendered auth hint for pre-hydration script -->
+<meta id="auth-hint" data-is-authed={authState.isAuthed ? '1' : '0'} />
+
+<!-- Set initial auth state from server-rendered value -->
+<script is:inline>
+  (function(){
+    try {
+      const hint = document.getElementById('auth-hint');
+      const hintAuth = hint?.getAttribute('data-is-authed') === '1';
+
+      const computeAuth = () => {
+        try { return !!localStorage.getItem('userEmail'); } catch { return hintAuth; }
+      };
+
+      const firstFromEmail = (email) => {
+        if (!email) return '';
+        const local = (email.split('@')[0]||'').trim();
+        const first = (local.split(/[._-]+/)[0]||local).trim();
+        return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+      };
+
+      const applyAuthUI = (isAuthed) => {
+        document.documentElement.setAttribute('data-auth', isAuthed ? '1' : '0');
+        const signInEl = document.querySelector('[data-auth="signin-desktop"]');
+        const userTextEl = document.querySelector('[data-auth="user-desktop"]');
+        if (signInEl instanceof HTMLElement) signInEl.style.display = isAuthed ? 'none' : 'inline-flex';
+        if (userTextEl instanceof HTMLElement) {
+          userTextEl.style.display = isAuthed ? 'inline-flex' : 'none';
+          if (isAuthed && !userTextEl.textContent?.trim()) {
+            try {
+              const email = localStorage.getItem('userEmail') || '';
+              const name = firstFromEmail(email);
+              userTextEl.textContent = name ? `Hi ${name}` : 'Hi there';
+            } catch {}
+          }
+        }
+      };
+
+      // Initial apply
+      applyAuthUI(computeAuth());
+
+      // Re-apply on Astro view transitions
+      document.addEventListener('astro:page-load', () => applyAuthUI(computeAuth()));
+    } catch (e) {
+      console.error('Error setting initial auth state:', e);
+    }
+  })();
+</script>
+
 <!-- Pre-hydration: minimize auth UI flash using localStorage heuristic -->
 <script>
   // @ts-nocheck
@@ -109,27 +172,32 @@ import AuthNavClient from '../components/common/AuthNavClient';
       const first = (local.split(/[._-]+/)[0]||local).trim();
       return toTitle(first);
     }
-    function setText(el, text){ if(el){ el.textContent = text && text.trim()? text : 'Dashboard'; } }
-    function show(el, yes){ if(!el) return; const e=el; if(yes){e.classList.remove('hidden'); e.style.display=''; e.setAttribute('aria-hidden','false');} else {e.classList.add('hidden'); e.style.display='none'; e.setAttribute('aria-hidden','true');} }
-    try{
-      const email = localStorage.getItem('userEmail');
-      const role = (localStorage.getItem('userRole')||'').toString().toLowerCase();
-      const signIn = document.querySelector('[data-auth="signin-desktop"]');
-      const userText = document.querySelector('[data-auth="user-desktop"]');
-      const userMenu = document.querySelector('[data-auth="user-menu-desktop"]');
-      const isAuthed = !!email;
-      if (isAuthed) {
-        show(signIn, false);
-        show(userText, true);
-        show(userMenu, true);
-        setText(userText, `Hi ${firstFromEmail(email) || 'there'}`);
-      } else {
-        // Only show Sign In early when not authed
-        show(signIn, true);
-        show(userText, false);
-        show(userMenu, false);
+    
+    function updateGreeting() {
+      try {
+        const email = localStorage.getItem('userEmail');
+        if (email) {
+          const userText = document.querySelector('[data-auth="user-desktop"]');
+          if (userText) {
+            userText.textContent = `Hi ${firstFromEmail(email) || 'there'}`;
+            userText.style.display = 'inline-flex';
+            userText.style.visibility = 'visible';
+            userText.style.opacity = '1';
+          }
+        }
+      } catch (e) {
+        console.error('[Auth] Error updating greeting:', e);
       }
-    } catch {}
+    }
+    
+    // Run immediately
+    updateGreeting();
+    
+    // Also run after a short delay to catch any DOM changes
+    setTimeout(updateGreeting, 50);
+    
+    // And again after hydration
+    document.addEventListener('astro:page-load', updateGreeting);
   })();
   // AuthNavClient will refine this once hydrated (role checks, Firestore, etc.)
 </script>
@@ -147,7 +215,66 @@ import AuthNavClient from '../components/common/AuthNavClient';
     filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
   }
   
-  /* No hover-override; visibility is controlled by JS via classes */
+  /* Force visibility states with !important */
+  html[data-auth="1"] [data-auth="signin-desktop"],
+  html[data-auth="1"] [data-auth="signin-desktop"] * {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    width: 0 !important;
+    height: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    position: absolute !important;
+    clip: rect(0, 0, 0, 0) !important;
+    clip-path: inset(100%) !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+  }
+  
+  html[data-auth="1"] [data-auth="user-desktop"],
+  html[data-auth="1"] [data-auth="user-menu-desktop"] {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  
+  /* Hide by default until we know the auth state */
+  [data-auth="signin-desktop"],
+  [data-auth="user-desktop"],
+  [data-auth="user-menu-desktop"] {
+    display: none !important;
+  }
+  
+  /* Only show Sign In when explicitly set to unauth */
+  html[data-auth="0"] [data-auth="signin-desktop"] {
+    display: inline-flex !important;
+  }
+  
+  /* Show user menu when authed */
+  html[data-auth="1"] [data-auth="user-desktop"],
+  html[data-auth="1"] [data-auth="user-menu-desktop"] {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+  
+  /* Ensure the greeting is always visible when authed */
+  html[data-auth="1"] [data-auth="user-desktop"] {
+    display: inline-flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    position: relative !important;
+    clip: auto !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
 </style>
 
 <script>
@@ -157,157 +284,170 @@ import AuthNavClient from '../components/common/AuthNavClient';
     const init = () => {
       if ((window as any).__mobileMenuInit) return;
       (window as any).__mobileMenuInit = true;
-
-      const menuButton = document.getElementById('mobile-menu-button');
-      const mobileMenu = document.getElementById('mobile-menu');
-
-      let toggling = false; // debounce to avoid double-fire on touch/click
-
-      const closeMenu = () => {
-        if (!mobileMenu) return;
-        // If already hidden or not expanded, ensure flags are reset and bail
-        const alreadyHidden = mobileMenu.classList.contains('hidden') || mobileMenu.style.display === 'none';
-        if (alreadyHidden) {
-          document.documentElement.classList.remove('overflow-hidden');
-          document.body.classList.remove('overflow-hidden');
-          menuButton?.setAttribute('aria-expanded', 'false');
-          mobileMenu.classList.add('hidden');
-          mobileMenu.classList.remove('block');
-          toggling = false;
-          return;
-        }
-
-        // Animate close
-        mobileMenu.style.maxHeight = '0px';
-        mobileMenu.style.opacity = '0';
-        document.documentElement.classList.remove('overflow-hidden');
-        document.body.classList.remove('overflow-hidden');
-        menuButton?.setAttribute('aria-expanded', 'false');
-
-        let ended = false;
-        const onEnd = () => {
-          if (ended) return;
-          ended = true;
-          mobileMenu.classList.add('hidden');
-          mobileMenu.classList.remove('block');
-          mobileMenu.removeEventListener('transitionend', onEnd);
-          toggling = false;
-        };
-        mobileMenu.addEventListener('transitionend', onEnd);
-        // Fallback in case transitionend doesn't fire (e.g., display change, quick resize)
-        window.setTimeout(onEnd, 400);
-      };
-
-      const handleToggle = (e: Event) => {
-        if (!mobileMenu) return;
-        e.stopPropagation();
-        if (toggling) return;
-        toggling = true;
-        const isHidden = mobileMenu.classList.contains('hidden');
-        if (isHidden) {
-          // Prepare and animate open
-          mobileMenu.classList.remove('hidden');
-          mobileMenu.classList.add('block');
-          // Force reflow to ensure transition runs
-          void mobileMenu.offsetHeight;
-          mobileMenu.style.maxHeight = mobileMenu.scrollHeight + 'px';
-          mobileMenu.style.opacity = '1';
-          document.documentElement.classList.add('overflow-hidden');
-          document.body.classList.add('overflow-hidden');
-          menuButton?.setAttribute('aria-expanded', 'true');
-          const onOpenEnd = () => {
-            // Allow content growth without jump after open
-            mobileMenu.style.maxHeight = 'none';
-            mobileMenu.removeEventListener('transitionend', onOpenEnd);
-            toggling = false;
-          };
-          mobileMenu.addEventListener('transitionend', onOpenEnd);
+      
+      const menu = document.getElementById('mobile-menu');
+      const button = document.getElementById('mobile-menu-button');
+      if (!menu || !button) return;
+      
+      // Toggle mobile menu
+      const toggleMenu = (open?: boolean) => {
+        const isOpen = !menu.classList.contains('max-h-0');
+        if (open === undefined) open = !isOpen;
+        
+        if (open) {
+          menu.style.maxHeight = menu.scrollHeight + 'px';
+          menu.classList.remove('opacity-0');
+          menu.classList.add('opacity-100');
+          button.setAttribute('aria-expanded', 'true');
         } else {
-          closeMenu();
+          menu.style.maxHeight = '0';
+          menu.classList.remove('opacity-100');
+          menu.classList.add('opacity-0');
+          button.setAttribute('aria-expanded', 'false');
         }
       };
-
-      // Use click only to avoid double-trigger (pointerdown + click)
-      menuButton?.addEventListener('click', handleToggle);
-
-      document.addEventListener('click', (e) => {
-        if (!mobileMenu || !menuButton) return;
-        const target = e.target as HTMLElement;
-        if (target.closest('#mobile-menu') || target.closest('#mobile-menu-button')) return;
-        closeMenu();
-      });
-
-      // Close when clicking a link inside the mobile menu
-      mobileMenu?.addEventListener('click', (e) => {
-        const t = e.target as HTMLElement | null;
-        if (t && t.closest('a')) {
-          closeMenu();
+      
+      // Close menu when clicking outside
+      const handleClickOutside = (e: MouseEvent) => {
+        const target = e.target as Node;
+        if (!menu.contains(target) && !button.contains(target)) {
+          toggleMenu(false);
         }
-      });
-
-      // Close on resize to desktop
-      window.addEventListener('resize', () => {
-        if (window.innerWidth >= 911) closeMenu();
-      });
+      };
+      
+      // Toggle on button click
+      button.addEventListener('click', () => toggleMenu());
+      
+      // Close when clicking outside
+      document.addEventListener('click', handleClickOutside);
+      
+      // Cleanup function
+      return () => {
+        button.removeEventListener('click', toggleMenu as any);
+        document.removeEventListener('click', handleClickOutside as any);
+        delete (window as any).__mobileMenuInit;
+      };
     };
-
-    document.addEventListener('DOMContentLoaded', init);
-    document.addEventListener('astro:page-load', () => {
-      // Allow re-init after swaps
-      (window as any).__mobileMenuInit = false;
-      init();
-    });
+    
+    // Initialize
+    init();
+    
+    // Re-initialize on page transitions
+    document.addEventListener('astro:page-load', init as any);
   })();
 </script>
 
 <script>
   // Open AuthModal instead of navigating to /login
   (function(){
-    function bindAuthOpen() {
-      const triggers = document.querySelectorAll('[data-open-auth]');
-      triggers.forEach((el) => {
-        const node = el as HTMLElement;
-        if (node.dataset.authBound === '1') return;
-        node.dataset.authBound = '1';
-        // Accessibility hints
-        node.setAttribute('role', 'button');
-        node.setAttribute('aria-haspopup', 'dialog');
-        node.addEventListener(
-          'click',
-          (e) => {
-            e.preventDefault();
-            const view = (node.getAttribute('data-open-auth') || 'login').toLowerCase();
-            const openFn = (window as any).__authOpen;
-            if (typeof openFn === 'function') openFn(view);
-          },
-          { passive: false }
-        );
-      });
-    }
+    const init = () => {
+      const modal = document.getElementById('auth-modal');
 
-    document.addEventListener('DOMContentLoaded', bindAuthOpen);
-    document.addEventListener('astro:page-load', bindAuthOpen);
+      const openModal = (type) => {
+        // Try dispatching to modal element
+        if (modal) {
+          modal.dispatchEvent(new CustomEvent('open', { detail: { type } }));
+        }
+        // Also emit a global event in case the component listens on document
+        document.dispatchEvent(new CustomEvent('auth:open', { detail: { type } }));
+        // Optional window hook if provided by AuthModal
+        const fn = (window as any).__authOpen;
+        if (typeof fn === 'function') fn(type);
+      };
 
-    // Delegated handler as a safety net across dynamic DOM changes
-    if (!(window as any).__authDelegationBound) {
-      (window as any).__authDelegationBound = true;
-      document.addEventListener(
-        'click',
-        (e) => {
-          const t = e.target as HTMLElement | null;
-          if (!t) return;
-          const trigger = t.closest('[data-open-auth]') as HTMLElement | null;
-          if (!trigger) return;
-          // Intercept any navigation and open auth modal
-          e.preventDefault();
-          const view = (trigger.getAttribute('data-open-auth') || 'login').toLowerCase();
-          const openFn = (window as any).__authOpen;
-          if (typeof openFn === 'function') openFn(view);
-        },
-        { capture: true, passive: false }
-      );
-    }
+      // Delegated listener catches dynamically inserted links and works across partial reloads
+      const onClick = (e: Event) => {
+        const t = e.target as HTMLElement | null;
+        if (!t) return;
+        const trigger = (t.closest && t.closest('[data-open-auth]')) as HTMLElement | null;
+        if (!trigger) return;
+        // Intercept navigation and open modal
+        e.preventDefault();
+        e.stopPropagation();
+        const type = (trigger.getAttribute('data-open-auth') || 'login').toLowerCase();
+        openModal(type);
+      };
+
+      document.addEventListener('click', onClick, { capture: true });
+
+      // Close modal when clicking its backdrop if available
+      if (modal) {
+        modal.addEventListener('click', (e: Event) => {
+          if (e.target === modal) {
+            modal.dispatchEvent(new Event('close'));
+          }
+        });
+      }
+
+      // Save cleanup to window so we don't duplicate on view transitions
+      (window as any).__authBindCleanup?.();
+      (window as any).__authBindCleanup = () => {
+        document.removeEventListener('click', onClick, { capture: true } as any);
+      };
+    };
+
+    // Run now and on Astro view transitions
+    init();
+    document.addEventListener('astro:page-load', init as any);
   })();
 </script>
 
-<!-- Firebase Auth UI script removed; handled by AuthNavClient React component -->
+<script>
+  // Debug: Track auth UI state
+  (function() {
+    console.log('[Auth Debug] Script loaded');
+    
+    function logAuthState() {
+      const signInEl = document.querySelector<HTMLElement>('[data-auth="signin-desktop"]');
+      const userTextEl = document.querySelector<HTMLElement>('[data-auth="user-desktop"]');
+      const userMenuEl = document.querySelector<HTMLElement>('[data-auth="user-menu-desktop"]');
+      
+      const getElementState = (el: HTMLElement | null) => {
+        if (!el) return null;
+        const style = window.getComputedStyle(el);
+        return {
+          display: style.display,
+          hidden: el.classList.contains('hidden'),
+          styleDisplay: el.style.display || 'not set',
+          textContent: el.textContent?.trim()
+        };
+      };
+      
+      try {
+        console.log('[Auth Debug] Current state:', {
+          htmlDataAuth: document.documentElement.getAttribute('data-auth'),
+          localStorageUserEmail: localStorage.getItem('userEmail'),
+          signIn: getElementState(signInEl),
+          userText: getElementState(userTextEl),
+          userMenu: getElementState(userMenuEl)
+        });
+      } catch (error) {
+        console.error('[Auth Debug] Error logging auth state:', error);
+      }
+    }
+    
+    // Log initial state
+    setTimeout(logAuthState, 0);
+    
+    // Log state changes
+    const observer = new MutationObserver((mutations: MutationRecord[]) => {
+      const shouldLog = mutations.some(mutation => 
+        mutation.type === 'attributes' && 
+        (mutation.attributeName === 'class' || 
+         mutation.attributeName === 'style' || 
+         mutation.attributeName === 'data-auth')
+      );
+      if (shouldLog) {
+        logAuthState();
+      }
+    });
+    
+    observer.observe(document.documentElement, { 
+      attributes: true, 
+      attributeFilter: ['class', 'style', 'data-auth']
+    });
+    
+    // Also log when localStorage changes (in case other tabs update it)
+    window.addEventListener('storage', () => logAuthState());
+  })();
+</script>

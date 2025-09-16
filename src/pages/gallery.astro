@@ -348,3 +348,22 @@ import { StaggerContainer, StaggerItem } from '../components/ui/MotionIsland';
   
   <Footer />
 </Layout>
+
+<script>
+  // Debug: Check userEmail in localStorage before hydration on /gallery
+  // Remove after verification
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      console.log('[gallery] Before hydration userEmail =', localStorage.getItem('userEmail'));
+    } catch (e) {
+      const msg = (e && (e as any).message) ? (e as any).message : e;
+      console.log('[gallery] Unable to read localStorage.userEmail:', msg);
+    }
+  });
+
+  document.addEventListener('astro:page-load', () => {
+    try {
+      console.log('[gallery] After astro:page-load userEmail =', localStorage.getItem('userEmail'));
+    } catch {}
+  });
+</script>

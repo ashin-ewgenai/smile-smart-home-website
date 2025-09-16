@@ -12,7 +12,7 @@ import {
   Timestamp,
   getDoc,
 } from 'firebase/firestore';
-import { estimationQuotesCollection, accountDoc } from '../../../models/Collections';
+import { estimationQuotesCollection, estimationQuoteDoc, accountDoc } from '../../../models/Collections';
 
 // Firestore Document Shape
 // Collection: notifications
@@ -51,6 +51,28 @@ function toDate(ts?: NotificationItem['createdAt']): Date | null {
   return null;
 }
 
+// Format a Firestore Timestamp-like value or Date into a localized date/time string
+function formatTS(ts: any, options?: Intl.DateTimeFormatOptions): string {
+  try {
+    if (!ts) return '—';
+    if (typeof ts?.toDate === 'function') {
+      return ts.toDate().toLocaleString(undefined, options);
+    }
+    if (typeof ts?.seconds === 'number') {
+      return new Date(ts.seconds * 1000).toLocaleString(undefined, options);
+    }
+    if (ts instanceof Date) {
+      return ts.toLocaleString(undefined, options);
+    }
+    // If it's a primitive string/number, attempt to format
+    if (typeof ts === 'string' || typeof ts === 'number') {
+      const d = new Date(ts);
+      if (!isNaN(d.getTime())) return d.toLocaleString(undefined, options);
+    }
+  } catch {}
+  return '—';
+}
+
 export default function NotificationsPage() {
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
   const [userEmail, setUserEmail] = useState<string | null>(auth.currentUser?.email ?? null);
@@ -60,6 +82,11 @@ export default function NotificationsPage() {
   const [quoteItems, setQuoteItems] = useState<NotificationItem[]>([]);
   // Track dismissed synthetic notifications (e.g., estq_*) so they stay hidden after refresh
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  // Modal state for viewing an estimation quote in detail
+  const [isQuoteOpen, setIsQuoteOpen] = useState(false);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [quoteData, setQuoteData] = useState<any | null>(null);
 
   // Hydration guard for SSR
   const hydrated = useMemo(() => typeof window !== 'undefined', []);
@@ -90,6 +117,28 @@ export default function NotificationsPage() {
     if (!hydrated) return;
     const key = uid ? `dismissed_user_notifications:${uid}` : 'dismissed_user_notifications:anonymous';
     try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+  };
+
+  const openQuoteFromNotification = async (n: NotificationItem) => {
+    if (n.type !== 'quote') return;
+    // Expecting id like estq_<docId>
+    const baseId = n.id.startsWith('estq_') ? n.id.substring(5) : n.id;
+    setIsQuoteOpen(true);
+    setQuoteLoading(true);
+    setQuoteError(null);
+    setQuoteData(null);
+    try {
+      const snap = await getDoc(estimationQuoteDoc(db, baseId));
+      if (!snap.exists()) {
+        setQuoteError('Quote not found');
+        return;
+      }
+      setQuoteData({ id: snap.id, ...(snap.data() as any) });
+    } catch (e: any) {
+      setQuoteError(e?.message || 'Failed to load quote');
+    } finally {
+      setQuoteLoading(false);
+    }
   };
 
   // Resolve user's email from Accounts/{uid} if not present on auth
@@ -310,7 +359,10 @@ export default function NotificationsPage() {
                 <div className={`mt-0.5 text-lg ${n.type === 'quote' ? 'text-teal-600' : 'text-indigo-600'}`}>🔔</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                    <h3
+                      className={`font-medium text-gray-900 dark:text-gray-100 truncate ${n.type === 'quote' ? 'cursor-pointer hover:underline' : ''}`}
+                      onClick={() => (n.type === 'quote' ? openQuoteFromNotification(n) : undefined)}
+                    >
                       {n.title || (n.type === 'quote' ? 'Quote Update' : 'Notification')}
                     </h3>
                     <div className="flex items-center gap-3">
@@ -337,6 +389,109 @@ export default function NotificationsPage() {
           );
         })}
       </ul>
+      {/* Quote Details Modal */}
+      {isQuoteOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setIsQuoteOpen(false)} />
+          <div className="relative z-[61] w-full max-w-3xl rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold">Quote Details</h3>
+              <button className="rounded px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Close" onClick={() => setIsQuoteOpen(false)}>×</button>
+            </div>
+            <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
+              {quoteLoading && (
+                <div className="text-gray-600 dark:text-gray-300">Loading...</div>
+              )}
+              {quoteError && (
+                <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 px-3 py-2 text-sm">{quoteError}</div>
+              )}
+              {!quoteLoading && !quoteError && quoteData && (
+                <>
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <div className="text-gray-500">Type</div>
+                        <div className="font-medium">{quoteData?.quoteType || quoteData?.type || '—'}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500">Status</div>
+                        <div className="font-medium">{quoteData?.status || '—'}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500">Budget</div>
+                        <div className="font-medium">{quoteData?.budget ? `INR ${quoteData.budget}` : '—'}</div>
+                      </div>
+                      <div>
+                        <div className="text-gray-500">Created</div>
+                        <div className="font-medium">{formatTS(quoteData?.createdAt)}</div>
+                      </div>
+                    </div>
+                    <div className="text-sm">
+                      <div className="text-gray-500">Details</div>
+                      <div className="mt-1 whitespace-pre-line">{quoteData?.details || '—'}</div>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <h4 className="font-semibold">Admin Estimation</h4>
+                    <div className="mt-3 space-y-3 text-sm">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-gray-500">Estimation ID</div>
+                          <div className="font-medium">{quoteData?.estimationId || quoteData?.estimateId || quoteData?.id || '—'}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Status</div>
+                          <div className="font-medium">{quoteData?.status || '—'}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Issue Date</div>
+                          <div className="font-medium">{quoteData?.issueDate ? formatTS(quoteData.issueDate, { year: 'numeric', month: 'numeric', day: 'numeric' }) : formatTS(quoteData?.updatedAt, { year: 'numeric', month: 'numeric', day: 'numeric' })}</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-500">Grand Total</div>
+                          <div className="font-medium">{quoteData?.grandTotal != null ? `₹ ${Number(quoteData.grandTotal).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : '—'}</div>
+                        </div>
+                      </div>
+
+                      {Array.isArray(quoteData?.items) && quoteData.items.length > 0 && (
+                        <div className="mt-3 overflow-x-auto">
+                          <table className="min-w-full text-sm">
+                            <thead>
+                              <tr className="text-left text-gray-500">
+                                <th className="py-2 pr-3">Item</th>
+                                <th className="py-2 pr-3">Description</th>
+                                <th className="py-2 pr-3">Qty</th>
+                                <th className="py-2 pr-3">Unit</th>
+                                <th className="py-2 pr-3">Discount</th>
+                                <th className="py-2 pr-3">Tax %</th>
+                                <th className="py-2 pr-3">Total</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                              {quoteData.items.map((it: any, idx: number) => (
+                                <tr key={idx} className="text-gray-800 dark:text-gray-200">
+                                  <td className="py-2 pr-3">{it?.item || it?.name || '—'}</td>
+                                  <td className="py-2 pr-3">{it?.description || '—'}</td>
+                                  <td className="py-2 pr-3">{it?.quantity ?? it?.qty ?? '—'}</td>
+                                  <td className="py-2 pr-3">{it?.unitPrice ?? it?.unit ?? '—'}</td>
+                                  <td className="py-2 pr-3">{it?.discount ?? 0}</td>
+                                  <td className="py-2 pr-3">{it?.taxPercent ?? it?.tax ?? 0}</td>
+                                  <td className="py-2 pr-3">{it?.total ?? '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -78,19 +78,20 @@ export default function AuthNavClient() {
 
     async function updateUI(user: any) {
       const isAuthed = !!user;
-      let role: string | undefined;
-      if (isAuthed) role = await resolveRole(user);
-      const normRole = (role || '').toString().toLowerCase();
-      const isUserRole = isAuthed && normRole === 'user';
 
-      // Desktop (keep role-specific behavior as-is)
-      show(els.signIn, !isUserRole);
-      show(els.signUp, !isUserRole);
-      show(els.userText, isUserRole);
-      show(els.userMenu, isUserRole);
-      if (isUserRole) setText(els.userText, usernameFrom(user));
+      // Persist minimal identity for pre-hydration script
+      if (isAuthed) {
+        try { if (user.email) localStorage.setItem('userEmail', user.email); } catch {}
+      }
 
-      // Mobile (use authentication state, not role)
+      // Desktop: show based on authentication (do not wait for role)
+      show(els.signIn, !isAuthed);
+      show(els.signUp, !isAuthed);
+      show(els.userText, isAuthed);
+      show(els.userMenu, isAuthed);
+      if (isAuthed) setText(els.userText, usernameFrom(user));
+
+      // Mobile (use authentication state)
       show(els.mSignIn, !isAuthed);
       show(els.mSignUp, !isAuthed);
       show(els.mUserBtn, isAuthed);
@@ -99,32 +100,64 @@ export default function AuthNavClient() {
     }
 
     try {
-      // Initial paint
-      void updateUI(auth.currentUser);
-      // Fallback immediate username from localStorage if present
-      if (!auth.currentUser) {
+      // Initial paint: prefer localStorage heuristic to avoid flash
+      const current = auth.currentUser;
+      if (current) {
+        void updateUI(current);
+      } else {
         const email = localStorage.getItem('userEmail');
-        const role = (localStorage.getItem('userRole') || '').toString().toLowerCase();
         if (email) {
-          const isUserRole = role === 'user';
           const name = `Hi ${firstFromEmail(email) || 'there'}`;
-          // Desktop based on role from localStorage
-          show(els.signIn, !isUserRole);
-          show(els.signUp, !isUserRole);
-          show(els.userText, isUserRole);
-          show(els.userMenu, isUserRole);
-          if (isUserRole) setText(els.userText, name);
+          // Desktop based on authentication presence
+          show(els.signIn, false);
+          show(els.signUp, false);
+          show(els.userText, true);
+          show(els.userMenu, true);
+          setText(els.userText, name);
           // Mobile uses auth presence (email in LS implies logged in previously)
           show(els.mSignIn, false);
           show(els.mSignUp, false);
           show(els.mUserBtn, true);
           show(els.mLogout, true);
           setText(els.mUserBtn, name);
+        } else {
+          // No hints; render minimal unauthenticated state
+          void updateUI(null);
         }
       }
     } catch {}
 
-    const unsub = onAuthStateChanged(auth, (user) => {
+    const unsub = onAuthStateChanged(auth, async (user) => {
+      // If Firebase briefly reports null but we have a stored email, avoid showing unauth state
+      if (!user) {
+        try {
+          const email = localStorage.getItem('userEmail');
+          if (email) {
+            const name = `Hi ${firstFromEmail(email) || 'there'}`;
+            // Desktop: keep authenticated UI visible
+            show(els.signIn, false);
+            show(els.signUp, false);
+            show(els.userText, true);
+            show(els.userMenu, true);
+            setText(els.userText, name);
+            // Mobile
+            show(els.mSignIn, false);
+            show(els.mSignUp, false);
+            show(els.mUserBtn, true);
+            show(els.mLogout, true);
+            setText(els.mUserBtn, name);
+            // Do not early-return; allow subsequent auth to refine
+          }
+        } catch {}
+      }
+
+      // Persist cached role when available
+      if (user) {
+        try {
+          const r = await resolveRole(user);
+          if (r) localStorage.setItem('userRole', r);
+        } catch {}
+      }
       void updateUI(user);
       // Close dropdown on sign-out
       if (!user && els.userMenuDropdown) (els.userMenuDropdown as HTMLElement).classList.add('hidden');
