@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { auth, db, functions, storage } from '../../lib/firebase';
-import { addDoc, collection, doc, getDoc, onSnapshot, orderBy, query, serverTimestamp, setDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 // Removed unused triageChat import - functionality integrated into chatWithOpenAI
@@ -283,54 +283,40 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             }
           }
         } else if (messages.length === 0) {
-          // Show welcome message first, then check for tickets
-          const welcomeMsg: ChatMsg = {
+          // Seed a single combined welcome message; do NOT check existing tickets or auto-create any
+          const combined: ChatMsg = {
             role: 'assistant',
-            content: '👋 Hello! I\'m your Smart Home Support Assistant. I\'m here to help you with any issues or questions about your smart home devices.\n\n🔍 Let me check if you have any active support tickets I can help with...',
+            content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Or raise a new support ticket using the button below',
+            showTicketCTA: true,
             ts: Date.now(),
           };
-          setMessages([welcomeMsg]);
 
-          // Check for unresolved tickets after welcome
-          console.log('Checking for unresolved tickets');
-          const analyzeTicket = httpsCallable(functions, 'analyzeUserUnresolvedTicket');
-          const result = await analyzeTicket({});
-          const data = result.data as any;
+          if (uid && sessionId) {
+            try {
+              const sessionRef = doc(db, 'chat_sessions', sessionId);
+              await setDoc(sessionRef, {
+                ownerUid: uid,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                status: 'ai',
+                type: 'ai',
+              }, { merge: true });
 
-          if (data.status === 'no_unresolved_tickets') {
-            setTicketData(null);
-            const noTicketMsg: ChatMsg = {
-              role: 'assistant',
-              content: '✅ Great! You don\'t have any unresolved tickets at the moment.\n\n💬 How can I assist you today? You can:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Create a new support ticket if needed\n\nJust type your question and I\'ll be happy to help!',
-              showTicketCTA: false,
-              ts: Date.now() + 500,
-            };
-            setMessages(prev => [...prev, noTicketMsg]);
-            hasInitialized.current = true; // Set after messages are added
-          } else if (data.status === 'analyzed' || data.status === 'already_analyzed') {
-            setTicketData({
-              ticketId: data.ticketId,
-              subject: data.subject,
-              needsSerial: data.needsSerial,
-              initialSolution: data.initialSolution
-            });
-
-            const ticketFoundMsg: ChatMsg = {
-              role: 'assistant',
-              content: `🎫 I found an active support ticket: "${data.subject}"\n\nHere's what I can help you with:\n\n${data.initialSolution}`,
-              ts: Date.now() + 500,
-            };
-            setMessages(prev => [...prev, ticketFoundMsg]);
-
-            if (data.needsSerial) {
-              const serialMsg: ChatMsg = {
-                role: 'assistant',
-                content: '📷 I need to see the serial number on your device to provide more specific help. Can you upload a photo of the serial number?',
-                ts: Date.now() + 1000,
-              };
-              setMessages(prev => [...prev, serialMsg]);
+              // Seed only if there are no existing messages
+              const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+              const existsSnap = await getDocs(query(msgsCol, limit(1)));
+              if (existsSnap.empty) {
+                await addDoc(msgsCol, { role: 'assistant', content: combined.content, ts: Date.now(), source: 'system', showTicketCTA: true });
+              }
+            } catch (e) {
+              console.warn('Failed to persist welcome messages:', e);
             }
+          } else {
+            // Fallback for non-auth edge (should be rare): local render only
+            setMessages([combined]);
           }
+
+          hasInitialized.current = true; // Set after messages are added
         }
       } catch (error) {
         console.error('Error analyzing ticket:', error);
@@ -897,11 +883,12 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                           {raiseTicketsHref ? (
                             <a
                               href={raiseTicketsHref}
-                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-rose-600 text-white hover:bg-rose-700 text-xs"
+                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white text-xs shadow-md hover:from-teal-600 hover:to-blue-600 focus:outline-none focus:ring-2 focus:ring-teal-400/60 dark:focus:ring-teal-300/40 transition-colors"
                               target="_blank"
                               rel="noopener noreferrer"
                             >
-                              🎫 Raise a Support Ticket
+                              <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-white/20 text-[10px]">🎫</span>
+                              <span>Raise a Support Ticket</span>
                             </a>
                           ) : (
                             <div className="text-xs text-rose-700">

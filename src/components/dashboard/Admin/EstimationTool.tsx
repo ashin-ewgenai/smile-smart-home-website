@@ -1101,7 +1101,7 @@ const EstimationTool: React.FC = () => {
           </div>
         ) : (
           <div className="lg:col-span-2">
-            <div className="glass-surface rounded-2xl shadow-soft-lg overflow-hidden">
+            <div className="rounded-2xl overflow-hidden bg-transparent shadow-none">
               <div className="p-4 border-b border-white/50 dark:border-white/10">
                 <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Pending Quotes</h2>
               </div>
@@ -1112,7 +1112,7 @@ const EstimationTool: React.FC = () => {
                   {quotes.map((quote) => (
                     <li
                       key={quote.id}
-                      className="px-6 py-4 hover:bg-white/40 dark:hover:bg-white/10 cursor-pointer"
+                      className="px-6 py-4 hover:bg-white/20 dark:hover:bg-white/5 cursor-pointer"
                       onClick={() => setSelectedQuote(quote)}
                     >
                       <div className="w-full flex items-center">

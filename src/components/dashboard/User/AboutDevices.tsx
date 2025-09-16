@@ -504,7 +504,7 @@ const AboutDevices: React.FC = () => {
                   }}
                 />
               ) : (
-                <div className="w-full h-40 flex items-center justify-center bg-gray-800/50">
+                <div className="w-full h-40 flex items-center justify-center bg-gray-100 dark:bg-gray-800/50">
                   <svg className="h-16 w-16 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
@@ -513,7 +513,7 @@ const AboutDevices: React.FC = () => {
               
               <div className="p-4">
                 <div className="min-w-0">
-                  <h3 className="text-sm font-semibold text-white truncate mb-3" title={device.deviceName || device.name || 'Unnamed Device'}>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate mb-3" title={device.deviceName || device.name || 'Unnamed Device'}>
                     {device.deviceName || device.name || 'Unnamed Device'}
                   </h3>
                 </div>
@@ -521,20 +521,20 @@ const AboutDevices: React.FC = () => {
                 <div className="mt-3 grid grid-cols-1 gap-2 text-xs">
                   {device.brand && (
                     <div className="truncate">
-                      <span className="text-gray-400">Brand:</span>
-                      <span className="ml-1 text-gray-300" title={device.brand}>{device.brand}</span>
+                      <span className="text-gray-600 dark:text-gray-400">Brand:</span>
+                      <span className="ml-1 text-gray-900 dark:text-gray-300" title={device.brand}>{device.brand}</span>
                     </div>
                   )}
                   {device.modelNumber && (
                     <div className="truncate">
-                      <span className="text-gray-400">Model:</span>
-                      <span className="ml-1 text-gray-300" title={device.modelNumber}>{device.modelNumber}</span>
+                      <span className="text-gray-600 dark:text-gray-400">Model:</span>
+                      <span className="ml-1 text-gray-900 dark:text-gray-300" title={device.modelNumber}>{device.modelNumber}</span>
                     </div>
                   )}
                   {device.type && (
                     <div className="truncate">
-                      <span className="text-gray-400">Type:</span>
-                      <span className="ml-1 text-gray-300" title={device.type}>{device.type}</span>
+                      <span className="text-gray-600 dark:text-gray-400">Type:</span>
+                      <span className="ml-1 text-gray-900 dark:text-gray-300" title={device.type}>{device.type}</span>
                     </div>
                   )}
                 </div>
@@ -561,13 +561,13 @@ const AboutDevices: React.FC = () => {
         >
           <div
             ref={modalRef}
-            className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg bg-gray-900 border border-gray-800 shadow-xl overflow-hidden"
+            className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-              <h3 className="text-sm font-semibold text-white">Device Details</h3>
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Device Details</h3>
               <button
-                className="text-gray-400 hover:text-white"
+                className="text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"
                 aria-label="Close"
                 onClick={() => { setSelectedDevice(null); setSelectedDeviceCount(null); setUserTotalDevices(null); }}
               >
@@ -582,70 +582,70 @@ const AboutDevices: React.FC = () => {
               onWheelCapture={onContentWheel}
               tabIndex={0}
             >
-              <div className="bg-gray-800/50 p-4 rounded-lg">
-                <h4 className="font-medium text-gray-200 mb-3">Device Information</h4>
+              <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-900 dark:text-gray-200 mb-3">Device Information</h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <div className="text-xs text-gray-400">Name</div>
-                    <div className="text-gray-200">{selectedDevice.deviceName || selectedDevice.name || '—'}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Name</div>
+                    <div className="text-gray-800 dark:text-gray-200">{selectedDevice.deviceName || selectedDevice.name || '—'}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-400">Brand</div>
-                    <div className="text-gray-200">{selectedDevice.brand || '—'}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Brand</div>
+                    <div className="text-gray-800 dark:text-gray-200">{selectedDevice.brand || '—'}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-400">Model</div>
-                    <div className="text-gray-200">{selectedDevice.modelNumber || '—'}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Model</div>
+                    <div className="text-gray-800 dark:text-gray-200">{selectedDevice.modelNumber || '—'}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-gray-400">Type</div>
-                    <div className="text-gray-200">{selectedDevice.type || '—'}</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Type</div>
+                    <div className="text-gray-800 dark:text-gray-200">{selectedDevice.type || '—'}</div>
                   </div>
                   {selectedDeviceCount !== null && (
                     <div>
-                      <div className="text-xs text-gray-400">Quantity</div>
-                      <div className="text-gray-200">{selectedDeviceCountLoading ? 'Loading…' : selectedDeviceCount}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Quantity</div>
+                      <div className="text-gray-800 dark:text-gray-200">{selectedDeviceCountLoading ? 'Loading…' : selectedDeviceCount}</div>
                     </div>
                   )}
                 </div>
               </div>
 
               {selectedDevice.description && (
-                <div className="bg-gray-800/50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gray-200 mb-2">Description</h4>
-                  <p className="text-gray-300 text-sm">{selectedDevice.description}</p>
+                <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
+                  <h4 className="font-medium text-gray-900 dark:text-gray-200 mb-2">Description</h4>
+                  <p className="text-gray-700 dark:text-gray-300 text-sm">{selectedDevice.description}</p>
                 </div>
               )}
 
-              <div className="bg-gray-800/50 p-4 rounded-lg">
-                <h4 className="font-medium text-gray-200 mb-3">Serial Numbers</h4>
+              <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-900 dark:text-gray-200 mb-3">Serial Numbers</h4>
                 {selectedDevice.serials && selectedDevice.serials.length > 0 ? (
                   <div className="space-y-2">
                     {selectedDevice.serials.map((serialItem: SerialItem, index: number) => (
-                      <div key={index} className="grid grid-cols-2 gap-4 p-3 bg-gray-700/30 rounded">
+                      <div key={index} className="grid grid-cols-2 gap-4 p-3 bg-gray-100 dark:bg-gray-700/30 rounded">
                         <div>
-                          <div className="text-xs text-gray-400">Serial Number</div>
-                          <div className="text-gray-200 font-mono">{serialItem.serialNumber || '—'}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Serial Number</div>
+                          <div className="text-gray-800 dark:text-gray-200 font-mono">{serialItem.serialNumber || '—'}</div>
                         </div>
                         <div>
-                          <div className="text-xs text-gray-400">Warranty Expiry</div>
-                          <div className="text-gray-200">{serialItem.warrantyExpiry ? new Date(serialItem.warrantyExpiry).toLocaleDateString() : '—'}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">Warranty Expiry</div>
+                          <div className="text-gray-800 dark:text-gray-200">{serialItem.warrantyExpiry ? new Date(serialItem.warrantyExpiry).toLocaleDateString() : '—'}</div>
                         </div>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-gray-400 text-sm">No serial numbers available</p>
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">No serial numbers available</p>
                 )}
               </div>
 
               {selectedDevice.documentationUrl && (
-                <div className="mt-4 pt-4 border-t border-gray-800">
+                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
                   <a
                     href={selectedDevice.documentationUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-400 hover:text-blue-300 text-sm flex items-center"
+                    className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm flex items-center"
                   >
                     <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -656,10 +656,10 @@ const AboutDevices: React.FC = () => {
               )}
             </div>
 
-            <div className="px-4 py-3 bg-gray-800/50 border-t border-gray-700 flex justify-end flex-shrink-0">
+            <div className="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 flex justify-end flex-shrink-0">
               <button
                 onClick={() => setSelectedDevice(null)}
-                className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors"
+                className="px-3 py-1 text-xs bg-gray-200 hover:bg-gray-300 text-gray-800 rounded transition-colors dark:bg-gray-700 dark:hover:bg-gray-600 dark:text-white"
               >
                 Close
               </button>
