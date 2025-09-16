@@ -21,6 +21,13 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
   const [loading, setLoading] = useState(true);
   const [estimation, setEstimation] = useState<EstimationQuote | null>(null);
   const [estLoading, setEstLoading] = useState(false);
+  
+  // Handle wheel events for scrollable content
+  const onContentWheel = React.useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    // Do NOT call preventDefault to avoid passive listener issues
+    el.scrollTop += e.deltaY;
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -122,7 +129,12 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+    <div 
+      className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 max-h-[80vh] overflow-y-auto custom-scrollbar"
+      onWheel={onContentWheel}
+      onWheelCapture={onContentWheel}
+      tabIndex={0}
+    >
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Quote Details</h2>
         <div className="h-1 w-20 bg-indigo-600 rounded" />

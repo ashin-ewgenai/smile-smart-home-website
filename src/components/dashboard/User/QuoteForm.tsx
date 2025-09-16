@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import LocationSelector from '../../common/LocationSelector';
 import { auth, db } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -116,6 +116,13 @@ type QuoteDoc = {
 const MAX_QUOTES = 4;
 
 export default function QuoteForm({ userEmail: emailProp, className = '', onSubmitted }: QuoteFormProps) {
+  // Handle wheel events for scrollable content
+  const onContentWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    const el = e.currentTarget;
+    // Do NOT call preventDefault to avoid passive listener issues
+    el.scrollTop += e.deltaY;
+  }, []);
+
   const userEmail = useMemo(() => emailProp ?? (typeof window !== 'undefined' ? localStorage.getItem('userEmail') : null), [emailProp]);
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => { setHydrated(true); }, []);
@@ -168,6 +175,32 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
   const [selectedQuote, setSelectedQuote] = useState<QuoteDoc | null>(null);
   const [estimation, setEstimation] = useState<any | null>(null);
   const [estLoading, setEstLoading] = useState(false);
+  
+  // Lock background scroll when modal is open
+  useEffect(() => {
+    if (!modalOpen) return;
+    const body = document.body;
+    const html = document.documentElement;
+    const scrollY = window.scrollY;
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+    html.style.overflow = 'hidden';
+
+    return () => {
+      body.style.position = '';
+      body.style.top = '';
+      body.style.left = '';
+      body.style.right = '';
+      body.style.width = '';
+      body.style.overflow = '';
+      html.style.overflow = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, [modalOpen]);
   // User's installed devices (from /User_Devices by uid)
   const [userDevices, setUserDevices] = useState<string[]>([]);
 
@@ -1085,7 +1118,12 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
               <h3 className="text-lg font-semibold">Quote Details</h3>
               <button onClick={closeModal} className="rounded px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Close">×</button>
             </div>
-            <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
+            <div 
+              className="p-5 space-y-5 max-h-[70vh] overflow-y-auto custom-scrollbar"
+              onWheel={onContentWheel}
+              onWheelCapture={onContentWheel}
+              tabIndex={0}
+            >
               {selectedQuote ? (
                 <div className="space-y-2">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
