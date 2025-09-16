@@ -859,7 +859,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
               const prev = i > 0 ? messages[i - 1] : undefined;
               const roleChanged = !prev || prev.role !== m.role;
               const isUser = m.role === 'user';
-              const containerClass = isUser ? 'flex items-end justify-end' : 'flex items-end justify-start';
+              const containerClass = isUser ? 'flex items-center justify-end' : 'flex items-center justify-start';
               let bubbleClass = '';
               if (isUser) {
                 bubbleClass = 'bg-gradient-to-r from-teal-500 to-blue-500 text-white shadow-lg';
@@ -868,7 +868,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                 agentCount += 1;
               }
               return (
-                <div key={m.id || `${m.ts}-${m.role}-${(m.content||'').slice(0,8)}`} className={`${containerClass} ${roleChanged ? 'mt-4' : 'mt-1'} gap-2`}>
+                <div key={m.id || `${m.ts}-${m.role}-${(m.content||'').slice(0,8)}`} className={`${containerClass} ${roleChanged ? 'mt-4' : 'mt-2'} ${isUser ? 'gap-0.5' : 'gap-2'}`}>
                   {!isUser && (
                     <div className="relative">
                       <div className="relative h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 flex items-center justify-center text-xs text-white font-medium shadow-md">
@@ -880,14 +880,17 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                     </div>
                   )}
                   <div className="relative">
-                    <div className={`max-w-[80vw] sm:max-w-[70%] rounded-2xl px-3 py-2 text-sm ${bubbleClass}`}>
+                    <div className={`inline-block max-w-[90vw] sm:max-w-[85%] lg:max-w-[75%] min-w-[96px] sm:min-w-[150px] rounded-2xl px-3 py-1.5 text-sm ${bubbleClass}`}>
                       {m.imageUrl ? (
                         <a href={m.imageUrl} target="_blank" rel="noreferrer" className="block group">
                           <img src={m.imageUrl} alt="uploaded" className={`max-h-64 rounded-md ${isUser ? 'border border-white/20' : 'border border-gray-200 dark:border-gray-600'}`} />
                           {m.content && <div className="mt-1">{m.content}</div>}
                         </a>
                       ) : (
-                        <div>{m.content}</div>
+                        <div className="flex items-baseline justify-between gap-1">
+                          <div className="whitespace-pre-wrap break-words flex-1 mr-1">{m.content}</div>
+                          <div className="text-[10px] opacity-70 whitespace-nowrap flex-shrink-0">{new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        </div>
                       )}
                       {m.showTicketCTA && (
                         <div className="mt-2">
@@ -973,17 +976,19 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                       {m.uploading && (
                         <div className="mt-1 text-[10px] opacity-70">Uploading…</div>
                       )}
-                      <div className="mt-1 text-[10px] opacity-70">{new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      {m.imageUrl && (
+                        <div className="mt-0.5 text-[10px] opacity-70">{new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                      )}
                     </div>
                     {/* bubble tail */}
                     {isUser ? (
-                      <div className="absolute -right-1 bottom-2 h-2 w-2 bg-teal rotate-45"></div>
+                      <div className="absolute right-[-1px] top-1/2 -translate-y-1/2 h-2 w-2 bg-teal-500 rotate-45"></div>
                     ) : (
-                      <div className={`absolute -left-1 bottom-2 h-2 w-2 rotate-45 ${bubbleClass.replace('rounded-bl-sm','').replace('rounded-2xl','')}`}></div>
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 h-2 w-2 rotate-45 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600"></div>
                     )}
                   </div>
                   {isUser && (
-                    <div className="relative">
+                    <div className="relative shrink-0 ml-0">
                       <div className="relative h-8 w-8 rounded-full bg-gradient-to-r from-sky-500 to-indigo-500 text-white flex items-center justify-center text-xs font-medium shadow-md">
                         {/* User silhouette */}
                         <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

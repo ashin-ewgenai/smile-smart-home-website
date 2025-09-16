@@ -379,7 +379,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
           <div className="text-gray-300">No estimation found for this quote.</div>
           <button
             onClick={initNew}
-            className="px-4 py-2 rounded bg-indigo-600 hover:bg-indigo-700 text-white"
+            className="px-4 py-2 rounded-full bg-teal-600 hover:bg-teal-700 text-white"
           >
             Create Estimation
           </button>
@@ -453,7 +453,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                           <div className="text-gray-400">New Rooms to Automate</div>
                           <div className="mt-1 flex flex-wrap gap-2">
                             {rooms.map((r: string, idx: number) => (
-                              <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/40 text-blue-200">{r}</span>
+                              <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-900/30 text-teal-200">{r}</span>
                             ))}
                           </div>
                         </div>
@@ -477,7 +477,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                         <div className="text-gray-400">Devices Required</div>
                         <div className="mt-1 flex flex-wrap gap-2">
                           {devices.map((d: string, idx: number) => (
-                            <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-900/40 text-blue-200">{d}</span>
+                            <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-900/30 text-teal-200">{d}</span>
                           ))}
                         </div>
                       </div>
@@ -633,7 +633,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
               </div>
               <div className="bg-gray-800/60 rounded-md p-4 border border-gray-700 flex items-center justify-between">
                 <span className="text-base font-medium text-gray-100">Grand Total</span>
-                <span className="text-xl font-semibold text-indigo-400">
+                <span className="text-xl font-semibold text-teal-400">
                   {(() => {
                     const { subtotal, taxes } = computeTotals(draft.items || []);
                     const afterDiscount = Math.max(0, subtotal - (Number(draft.overallDiscount) || 0));
@@ -712,7 +712,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
               <ul className="mt-2 list-disc list-inside text-sm text-gray-300 space-y-1">
                 {draft.attachments.map((url: string, idx: number) => (
                   <li key={idx}>
-                    <a href={url} target="_blank" rel="noreferrer" className="text-indigo-400 hover:underline">Attachment {idx + 1}</a>
+                    <a href={url} target="_blank" rel="noreferrer" className="text-teal-400 hover:underline">Attachment {idx + 1}</a>
                   </li>
                 ))}
               </ul>

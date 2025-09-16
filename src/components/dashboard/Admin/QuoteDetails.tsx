@@ -28,7 +28,7 @@ const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote, onBac
       <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
         <div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Quote Details</h2>
-          <div className="h-1 w-20 bg-indigo-600 rounded"></div>
+          <div className="h-1 w-20 bg-teal-600 rounded-full"></div>
         </div>
         {onBack && (
           <button
@@ -110,7 +110,7 @@ const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote, onBac
             <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">New Rooms to Automate</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               {quote.newRoomsToAutomate.map((room, index) => (
-                <span key={index} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                <span key={index} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200">
                   {room}
                 </span>
               ))}
@@ -156,7 +156,7 @@ const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote, onBac
         <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
           <button
             type="button"
-            className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500"
+            className="inline-flex justify-center rounded-full border border-transparent px-4 py-2 text-sm font-medium text-white shadow-soft focus:outline-none focus:ring-2 focus:ring-offset-2 bg-teal-600 hover:bg-teal-700 focus:ring-teal-500"
             onClick={onCreateQuote}
           >
             Create Estimation Quote

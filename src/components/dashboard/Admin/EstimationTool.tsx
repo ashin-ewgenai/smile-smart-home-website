@@ -522,14 +522,14 @@ const EstimationTool: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 border border-gray-200 dark:border-gray-700 p-4 text-sm sm:text-base -mx-6 sm:mx-0 rounded-none sm:rounded-lg">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 glass-surface p-4 text-sm sm:text-base rounded-[24px]">
         {showCreateForm ? (
           <div className="lg:col-span-3">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+            <div className="glass-surface rounded-2xl shadow-soft-lg p-6">
               <div className="mb-6 flex items-start justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Create Estimation Quote</h2>
-                  <div className="h-1 w-20 bg-indigo-600 rounded" />
+                  <div className="h-1 w-20 bg-teal/70 rounded-full" />
                 </div>
                 <button
                   type="button"
@@ -942,7 +942,7 @@ const EstimationTool: React.FC = () => {
                     </div>
                     <div className="bg-gray-50 dark:bg-gray-700 rounded-md p-4 flex items-center justify-between">
                       <span className="text-base font-medium text-gray-900 dark:text-white">Grand Total</span>
-                      <span className="text-xl font-semibold text-indigo-600">{totals.grand.toFixed(2)}</span>
+                      <span className="text-xl font-semibold text-teal-600">{totals.grand.toFixed(2)}</span>
                     </div>
                     {/* Payable Summary */}
                     <div className="mt-2 bg-gray-50 dark:bg-gray-700 rounded-md p-4 space-y-1 text-sm">
@@ -951,7 +951,7 @@ const EstimationTool: React.FC = () => {
                       <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Tax</span><span className="text-gray-900 dark:text-white">{totals.taxes.toFixed(2)}</span></div>
                       <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Shipping</span><span className="text-gray-900 dark:text-white">{createForm.shippingCharges.toFixed?.(2) ?? Number(createForm.shippingCharges).toFixed(2)}</span></div>
                       <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Installation</span><span className="text-gray-900 dark:text-white">{createForm.installationCharges.toFixed?.(2) ?? Number(createForm.installationCharges).toFixed(2)}</span></div>
-                      <div className="flex justify-between font-semibold"><span className="text-gray-900 dark:text-white">Payable</span><span className="text-indigo-600">{totals.grand.toFixed(2)}</span></div>
+                      <div className="flex justify-between font-semibold"><span className="text-gray-900 dark:text-white">Payable</span><span className="text-teal-600">{totals.grand.toFixed(2)}</span></div>
                     </div>
                   </div>
                 </div>
@@ -998,7 +998,7 @@ const EstimationTool: React.FC = () => {
                     <ul className="mt-2 list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
                       {createForm.attachments.map((url, idx) => (
                         <li key={idx} className="flex items-center gap-2">
-                          <a href={url} target="_blank" rel="noreferrer" className="text-indigo-600 dark:text-indigo-400 hover:underline">Attachment {idx + 1}</a>
+                          <a href={url} target="_blank" rel="noreferrer" className="text-teal-600 dark:text-teal-400 hover:underline">Attachment {idx + 1}</a>
                           <button
                             type="button"
                             className="text-xs text-red-600 dark:text-red-400 hover:underline"
@@ -1014,7 +1014,7 @@ const EstimationTool: React.FC = () => {
 
                 {/* Actions */}
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row flex-wrap gap-3">
-                  <button type="button" className="inline-flex justify-center rounded-md border border-transparent px-4 py-2 text-sm font-medium text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500 disabled:opacity-50" onClick={() => {
+                  <button type="button" className="inline-flex justify-center rounded-full border border-transparent px-4 py-2 text-sm font-medium text-white shadow-soft focus:outline-none focus:ring-2 focus:ring-offset-2 bg-teal-600 hover:bg-teal-700 focus:ring-teal-500 disabled:opacity-50" onClick={() => {
                     setValidationError(null);
                     const missingFields: string[] = [];
                     if (!createForm.quoteId.trim()) missingFields.push('Quote ID');
@@ -1039,7 +1039,7 @@ const EstimationTool: React.FC = () => {
                   >
                     Download PDF
                   </button>
-                  <button type="button" className="inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => setShowCreateForm(false)}>Cancel</button>
+                  <button type="button" className="inline-flex justify-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => setShowCreateForm(false)}>Cancel</button>
                 </div>
               </div>
             </div>
@@ -1096,39 +1096,39 @@ const EstimationTool: React.FC = () => {
                     setItems([{ id: `row-${Date.now()}`, name: '', description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 }]);
                   }
                 }
-              }} 
+              }}
             />
           </div>
         ) : (
           <div className="lg:col-span-2">
-            <div className="bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-              <div className="p-4 border-b border-gray-300 dark:border-gray-600">
+            <div className="glass-surface rounded-2xl shadow-soft-lg overflow-hidden">
+              <div className="p-4 border-b border-white/50 dark:border-white/10">
                 <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Pending Quotes</h2>
               </div>
               {quotes.length === 0 ? (
-                <div className="p-6 text-center">
-                  <p className="text-gray-500 dark:text-gray-400">No pending quotes found</p>
-                </div>
+                <div className="p-6 text-sm text-gray-600 dark:text-gray-400">No pending quotes.</div>
               ) : (
-                <ul className="divide-y divide-gray-300 dark:divide-gray-600">
-                  {quotes.map((quote: QuoteItem) => (
-                    <li key={quote.id} className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-600 last:border-0" onClick={() => handleQuoteSelect(quote)}>
-                      <div className="w-full">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center">
-                            <span className="text-indigo-600 dark:text-indigo-300 font-medium text-sm sm:text-base">{quote.customerEmail ? quote.customerEmail.charAt(0).toUpperCase() : 'Q'}</span>
-                          </div>
-                          <div className="ml-3 sm:ml-4 min-w-0">
-                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{quote.customerEmail || 'No email provided'}</div>
-                            <div className="text-sm text-gray-500 break-words">{quote.quoteType || 'No type specified'} • {quote.propertyType || 'No property type'}</div>
-                          </div>
-                          <div className="hidden sm:block ml-auto">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">{quote.status || 'Pending'}</span>
-                          </div>
+                <ul className="divide-y divide-white/50 dark:divide-white/10">
+                  {quotes.map((quote) => (
+                    <li
+                      key={quote.id}
+                      className="px-6 py-4 hover:bg-white/40 dark:hover:bg-white/10 cursor-pointer"
+                      onClick={() => setSelectedQuote(quote)}
+                    >
+                      <div className="w-full flex items-center">
+                        <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-xs font-medium text-indigo-700 dark:text-indigo-300">
+                          {(quote.customerEmail || 'U').toString().charAt(0).toUpperCase()}
                         </div>
-                        <div className="mt-2 sm:hidden">
+                        <div className="ml-3 sm:ml-4 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{quote.customerEmail || 'No email provided'}</div>
+                          <div className="text-sm text-gray-500 break-words">{quote.quoteType || 'No type specified'} • {quote.propertyType || 'No property type'}</div>
+                        </div>
+                        <div className="hidden sm:block ml-auto">
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">{quote.status || 'Pending'}</span>
                         </div>
+                      </div>
+                      <div className="mt-2 sm:hidden">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">{quote.status || 'Pending'}</span>
                       </div>
                     </li>
                   ))}
@@ -1152,7 +1152,7 @@ const EstimationTool: React.FC = () => {
                     {({ loading }) => (
                       <button
                         type="button"
-                        className="inline-flex justify-center rounded-md px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700"
+                        className="inline-flex justify-center rounded-full px-3 py-1.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700"
                       >
                         {loading ? 'Preparing…' : 'Download PDF'}
                       </button>

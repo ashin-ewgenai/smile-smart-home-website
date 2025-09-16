@@ -510,7 +510,7 @@ const AboutDevices: React.FC = () => {
                 <div className="mt-4 flex justify-end">
                   <button
                     onClick={() => openDetails(device)}
-                    className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-500 text-white rounded-full transition-colors shadow-soft"
+                    className="px-5 py-2 text-sm bg-teal-600 hover:bg-teal-500 text-white rounded-full shadow-soft select-none transform-gpu transition-transform duration-150 ease-out hover:scale-[1.03] active:scale-95 focus:outline-none focus:ring-0 touch-manipulation"
                   >
                     View Details
                   </button>

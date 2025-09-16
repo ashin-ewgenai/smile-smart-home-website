@@ -285,7 +285,7 @@ const AdminDashboard: React.FC = () => {
   
   return (
     <div>
-      <div className="mb-6 rounded-2xl bg-gradient-to-r from-white to-gray-50 border border-gray-200 shadow-sm dark:bg-none dark:bg-gray-900/80 dark:border-gray-700 px-4 py-4">
+      <div className="mb-6 glass-surface rounded-[24px] px-4 py-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
         <div className="mt-2 flex items-center justify-between">
           <p className="text-gray-600 dark:text-gray-400">Welcome to your admin dashboard</p>
@@ -324,6 +324,42 @@ const AdminDashboard: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* KPI Summary moved inside header glass section */}
+        {!isLoading && (
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-fr gap-4">
+            {kpis.map((kpi) => {
+              const Icon = kpi.icon as any;
+              const isUp = kpi.delta >= 0;
+              return (
+                <div key={kpi.key} className="h-full">
+                  <div className="bg-white/95 dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow p-6 border border-gray-200 dark:border-gray-700 h-full flex flex-col">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="text-base text-gray-600 dark:text-gray-400">{kpi.label}</span>
+                        <div className="mt-2 flex items-end gap-3">
+                          <span className="text-4xl font-bold text-gray-900 dark:text-white">
+                            {kpi.key === 'users' ? animatedUsersCount.toLocaleString() : kpi.value}
+                          </span>
+                          <span className={`text-sm font-medium flex items-center ${isUp ? 'text-emerald-600' : 'text-red-500'}`}>
+                            {isUp ? <TrendingUp className="h-5 w-5 mr-1" /> : <TrendingDown className="h-5 w-5 mr-1" />}
+                            {isUp ? '+' : ''}{kpi.delta}
+                          </span>
+                        </div>
+                      </div>
+                      <div className={`p-3 rounded-md ${kpi.color.replace('text-', 'bg-').replace('-500', '-100')} dark:bg-gray-700`}>
+                        <Icon className={`h-6 w-6 ${kpi.color}`} />
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <Sparkline data={kpi.data} />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
       
       {isLoading ? (
@@ -332,59 +368,6 @@ const AdminDashboard: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* KPI Summary */
-          }
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-fr gap-4 mb-6">
-            {kpis.map((kpi) => {
-              const Icon = kpi.icon as any;
-              const isUp = kpi.delta >= 0;
-              const cardInner = (
-                <div className="bg-white/95 dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow p-6 border border-gray-200 dark:border-gray-700 h-full flex flex-col">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-base text-gray-600 dark:text-gray-400">{kpi.label}</span>
-                      <div className="mt-2 flex items-end gap-3">
-                        <span className="text-4xl font-bold text-gray-900 dark:text-white">
-                          {kpi.key === 'users' ? animatedUsersCount.toLocaleString() : kpi.value}
-                        </span>
-                        <span className={`text-sm font-medium flex items-center ${isUp ? 'text-emerald-600' : 'text-red-500'}`}>
-                          {isUp ? <TrendingUp className="h-5 w-5 mr-1" /> : <TrendingDown className="h-5 w-5 mr-1" />}
-                          {isUp ? '+' : ''}{kpi.delta}
-                        </span>
-                      </div>
-                    </div>
-                    <div className={`p-3 rounded-md ${kpi.color.replace('text-', 'bg-').replace('-500', '-100')} dark:bg-gray-700`}> 
-                      <Icon className={`h-6 w-6 ${kpi.color}`} />
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <Sparkline data={kpi.data} />
-                  </div>
-                  {kpi.key === 'active' && (
-                    <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-                      <a href="/dashboard/admin/devices" className="text-teal-600 dark:text-teal-400 hover:underline text-sm font-medium flex items-center">
-                        View All Devices
-                        <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"></path>
-                        </svg>
-                      </a>
-                    </div>
-                  )}
-                </div>
-              );
-              return kpi.key === 'alerts' ? (
-                <a key={kpi.key} href="#recent-alerts" className="block h-full focus:outline-none focus:ring-2 focus:ring-teal-500 rounded-lg cursor-pointer">
-                  {cardInner}
-                </a>
-              ) : (
-                <div key={kpi.key} className="h-full">
-                  {cardInner}
-                </div>
-              );
-            })}
-          </div>
-          
-          
           <div className="grid grid-cols-1 gap-6">
             {/* Recent Users */}
             <div className="bg-white/95 dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">

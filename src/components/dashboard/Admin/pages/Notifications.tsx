@@ -176,11 +176,11 @@ const Notifications: React.FC = () => {
             <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
               {item.status === 'pending' ? 'NEW REPORT' : 'REPORT'}
             </span>
-            <span className="mx-2 text-blue-600 dark:text-gray-400">from</span>
+            <span className="mx-2 text-teal-600 dark:text-gray-400">from</span>
             <button
               type="button"
               onClick={onView}
-              className="text-gray-900 dark:text-indigo-300 font-medium underline-offset-2 hover:underline"
+              className="text-gray-900 dark:text-teal-300 font-medium underline-offset-2 hover:underline"
             >
               {displayName}
             </button>
@@ -208,12 +208,12 @@ const Notifications: React.FC = () => {
         
         return (
           <>
-            <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">QUOTE</span>
-            <span className="mx-2 text-blue-600 dark:text-gray-400">from</span>
+            <span className="px-2 py-1 text-xs rounded-full bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300">QUOTE</span>
+            <span className="mx-2 text-teal-600 dark:text-gray-400">from</span>
             <button
               type="button"
               onClick={onView}
-              className="text-gray-900 dark:text-indigo-300 font-sans text-lg font-medium underline-offset-2 hover:underline"
+              className="text-gray-900 dark:text-teal-300 font-sans text-lg font-medium underline-offset-2 hover:underline"
             >
               {displayEmail}
             </button>
@@ -225,7 +225,7 @@ const Notifications: React.FC = () => {
         return nameOrEmail 
           ? <>
               <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">CONTACT MESSAGE</span>
-              <span className="mx-2 text-blue-600 dark:text-gray-400">from</span>
+              <span className="mx-2 text-teal-600 dark:text-gray-400">from</span>
               <button
                 type="button"
                 onClick={onView}
@@ -257,7 +257,7 @@ const Notifications: React.FC = () => {
       case 'estimation_quote': {
         const email = item.customerEmail || item.userEmail || item.email;
         return email 
-          ? <>{'Estimation Quote from '}<button type="button" onClick={onView} className="text-gray-900 dark:text-indigo-300 font-mono text-sm underline-offset-2 hover:underline">{email}</button></>
+          ? <>{'Estimation Quote from '}<button type="button" onClick={onView} className="text-gray-900 dark:text-teal-300 font-mono text-sm underline-offset-2 hover:underline">{email}</button></>
           : 'Estimation Quote from Unknown';
       }
       default:
@@ -786,7 +786,7 @@ const Notifications: React.FC = () => {
               type="checkbox"
               checked={unreadOnly}
               onChange={(e) => setUnreadOnly(e.target.checked)}
-              className="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500"
+              className="rounded border-gray-300 dark:border-gray-600 text-teal-600 focus:ring-teal-500"
             />
             <span>Unread only</span>
           </label>
@@ -800,7 +800,7 @@ const Notifications: React.FC = () => {
             onClick={() => setFilter(filterType)}
             className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
               filter === filterType
-                ? 'bg-indigo-600 text-white'
+                ? 'bg-teal-600 text-white'
                 : 'text-gray-400 hover:text-white hover:bg-gray-700'
             }`}
           >

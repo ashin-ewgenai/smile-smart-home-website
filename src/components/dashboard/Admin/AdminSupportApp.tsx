@@ -300,7 +300,7 @@ const AdminSupportApp: React.FC = () => {
                 const roleChanged = !prev || prev.role !== m.role;
                 const isAI = m.role === 'assistant' || m.source === 'ai';
                 const isAgent = m.role === 'agent' || isAI;
-                const container = isAgent ? 'flex items-end justify-end' : 'flex items-end justify-start';
+                const container = isAgent ? 'flex items-center justify-end' : 'flex items-center justify-start';
                 let bubble = '';
                 if (isAgent) {
                   bubble = isAI
@@ -315,10 +315,10 @@ const AdminSupportApp: React.FC = () => {
                 }
                 return (
                   <div key={m.id || `${m.ts}-${m.role}`}
-                    className={`${container} ${roleChanged ? 'mt-4' : 'mt-1'} gap-2`}
+                    className={`${container} ${roleChanged ? 'mt-4' : 'mt-2'} ${isAgent ? 'gap-0.5' : 'gap-2'}`}
                   >
                     {!isAgent && (
-                      <div className="relative">
+                      <div className="relative shrink-0">
                         <div className="relative h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 flex items-center justify-center text-xs text-white font-medium shadow-md">U</div>
                       </div>
                     )}
@@ -339,18 +339,18 @@ const AdminSupportApp: React.FC = () => {
                       </div>
                       {/* bubble tail */}
                       {isAgent ? (
-                        <div className={`absolute -right-1 bottom-2 h-2 w-2 rotate-45 ${isAI ? 'bg-blue-500' : 'bg-blue-500'}`}></div>
+                        <div className={`absolute right-[-1px] top-1/2 -translate-y-1/2 h-2 w-2 rotate-45 ${isAI ? 'bg-teal-500' : 'bg-teal-500'}`}></div>
                       ) : (
-                        <div className={`absolute -left-1 bottom-2 h-2 w-2 rotate-45 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600`}></div>
+                        <div className={`absolute left-0 top-1/2 -translate-y-1/2 h-2 w-2 rotate-45 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600`}></div>
                       )}
                     </div>
                     {isAgent && (
                       isAI ? (
-                        <div className="h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white flex items-center justify-center select-none">
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white flex items-center justify-center select-none shrink-0">
                           <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full bg-white/20 border border-white/30 text-white">AI</span>
                         </div>
                       ) : (
-                        <div className="h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white flex items-center justify-center text-xs select-none">A</div>
+                        <div className="h-8 w-8 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white flex items-center justify-center text-xs select-none shrink-0">A</div>
                       )
                     )}
                   </div>
