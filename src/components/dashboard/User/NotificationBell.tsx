@@ -53,7 +53,6 @@ export default function NotificationBell() {
       className="relative inline-flex items-center justify-center p-2 rounded-full text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition"
       aria-label="Notifications"
     >
-      <span className="text-xl">🔔</span>
       {unread > 0 && (
         <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center rounded-full bg-red-600 text-white text-[10px] font-semibold h-4 min-w-4 px-1 shadow">
           {unread > 99 ? '99+' : unread}

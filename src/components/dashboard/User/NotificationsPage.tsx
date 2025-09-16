@@ -58,6 +58,8 @@ export default function NotificationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [quoteItems, setQuoteItems] = useState<NotificationItem[]>([]);
+  // Track dismissed synthetic notifications (e.g., estq_*) so they stay hidden after refresh
+  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 
   // Hydration guard for SSR
   const hydrated = useMemo(() => typeof window !== 'undefined', []);
@@ -72,6 +74,23 @@ export default function NotificationsPage() {
     });
     return () => unsub();
   }, [hydrated]);
+
+  // Load dismissed synthetic notification IDs from localStorage on mount or uid change
+  useEffect(() => {
+    if (!hydrated) return;
+    const key = uid ? `dismissed_user_notifications:${uid}` : 'dismissed_user_notifications:anonymous';
+    try {
+      const raw = localStorage.getItem(key);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) setDismissedIds(parsed as string[]);
+    } catch {}
+  }, [hydrated, uid]);
+
+  const persistDismissed = (next: string[]) => {
+    if (!hydrated) return;
+    const key = uid ? `dismissed_user_notifications:${uid}` : 'dismissed_user_notifications:anonymous';
+    try { localStorage.setItem(key, JSON.stringify(next)); } catch {}
+  };
 
   // Resolve user's email from Accounts/{uid} if not present on auth
   useEffect(() => {
@@ -215,7 +234,19 @@ export default function NotificationsPage() {
   const markAsRead = async (id: string) => {
     try {
       // Skip for Estimation Quote-derived notifications
-      if (id.startsWith('estq_')) return;
+      if (id.startsWith('estq_')) {
+        // Persist dismissal locally and update UI
+        setDismissedIds((prev) => {
+          const next = prev.includes(id) ? prev : [...prev, id];
+          persistDismissed(next);
+          return next;
+        });
+        // Also remove from in-memory list immediately
+        setQuoteItems((prev) => prev.filter((n) => n.id !== id));
+        return;
+      }
+      // Optimistically update UI
+      setItems((prev) => prev.filter((n) => n.id !== id));
       await updateDoc(doc(db, 'notifications', id), { status: 'read' });
     } catch (e: any) {
       console.error('Failed to mark as read:', e);
@@ -224,14 +255,18 @@ export default function NotificationsPage() {
 
   // Merge notifications (from 'notifications' collection) with quote-derived items
   const displayItems = React.useMemo(() => {
-    const merged = [...items, ...quoteItems];
+    // Filter out dismissed synthetic notifications
+    const filteredQuotes = quoteItems.filter((q) => !dismissedIds.includes(q.id));
+    // Only show unread regular notifications
+    const unreadRegular = items.filter((n) => String(n.status || 'unread') === 'unread');
+    const merged = [...unreadRegular, ...filteredQuotes];
     merged.sort((a, b) => {
       const da = toDate(a.createdAt)?.getTime() ?? 0;
       const dbt = toDate(b.createdAt)?.getTime() ?? 0;
       return dbt - da;
     });
     return merged;
-  }, [items, quoteItems]);
+  }, [items, quoteItems, dismissedIds]);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
@@ -265,12 +300,11 @@ export default function NotificationsPage() {
             <li
               key={n.id}
               className={
-                `rounded-xl border transition-colors cursor-pointer ` +
+                `rounded-xl border transition-colors ` +
                 (isUnread
                   ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800'
                   : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800')
               }
-              onClick={() => markAsRead(n.id)}
             >
               <div className="p-4 sm:p-5 flex items-start gap-3">
                 <div className={`mt-0.5 text-lg ${n.type === 'quote' ? 'text-teal-600' : 'text-indigo-600'}`}>🔔</div>
@@ -279,7 +313,18 @@ export default function NotificationsPage() {
                     <h3 className="font-medium text-gray-900 dark:text-gray-100 truncate">
                       {n.title || (n.type === 'quote' ? 'Quote Update' : 'Notification')}
                     </h3>
-                    {rel && <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{rel}</span>}
+                    <div className="flex items-center gap-3">
+                      {rel && <span className="shrink-0 text-xs text-gray-500 dark:text-gray-400">{rel}</span>}
+                      <button
+                        type="button"
+                        onClick={() => markAsRead(n.id)}
+                        className="shrink-0 inline-flex items-center rounded-md border border-gray-300 dark:border-gray-700 bg-white/70 dark:bg-gray-800 px-2.5 py-1 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        aria-label="Mark as read"
+                        title="Mark as read"
+                      >
+                        Mark as read
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-2 flex items-center gap-2">
                     {isUnread && (
