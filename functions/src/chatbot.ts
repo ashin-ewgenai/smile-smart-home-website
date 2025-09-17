@@ -91,6 +91,8 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
   const msgs = request.data?.messages as Array<{ role: string; content: string }> | undefined;
   const model = (request.data?.model as string | undefined) || "gpt-4o-mini";
   const providedTicketId = (request.data?.ticketId as string | undefined)?.trim();
+  const noTicket: boolean = Boolean(request.data?.noTicket);
+  const skipTicketId = (request.data?.skipTicketId as string | undefined)?.trim();
   let sessionId: string = (request.data?.sessionId as string | undefined)?.trim() || "";
 
   if (!sessionId && authCtx?.uid) {
@@ -135,12 +137,27 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
         status: "active",
         model,
         type: "ai",
+        ...(providedTicketId ? { activeTicketId: providedTicketId } : {}),
       },
       { merge: true },
     );
     const lastUser = [...clean].reverse().find((m) => m.role === "user");
     if (lastUser) {
       await sessionsCol.doc(sessionId).collection("messages").add({ role: "user", content: lastUser.content, ts: now });
+    }
+  } catch {}
+
+  // Optional server-side safeguard: cancel ticket when explicitly requested by client
+  try {
+    if (noTicket && skipTicketId) {
+      const tRef = db.collection(CONFIG.COLLECTIONS.TICKETS).doc(skipTicketId);
+      const tSnap = await tRef.get();
+      if (tSnap.exists) {
+        const t = tSnap.data() as any;
+        if (t.uid === uid && String(t.status).toLowerCase() === 'pending') {
+          await tRef.set({ status: 'cancelled', manuallyUnbound: true, updatedAt: Date.now() }, { merge: true });
+        }
+      }
     }
   } catch {}
 
@@ -154,15 +171,27 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
   let activeTicket = null;
 
   try {
-    // Use provided ticket ID or fetch latest unresolved ticket
-    if (providedTicketId) {
+    // Determine active ticket strictly by provided ticket or session-bound activeTicketId when not in noTicket mode.
+    if (!noTicket && providedTicketId) {
       const ticketDoc = await db.collection(CONFIG.COLLECTIONS.TICKETS).doc(providedTicketId).get();
       const ticketData = ticketDoc.data();
       if (ticketDoc.exists && ticketData && ticketData.uid === uid) {
         activeTicket = { ticketId: providedTicketId, data: ticketData as any };
       }
-    } else {
-      activeTicket = await fetchLatestUnresolvedTicket(uid);
+    } else if (!noTicket) {
+      // Try to read session-bound activeTicketId and use it; do NOT fallback to latest unresolved
+      try {
+        const sSnap = await sessionsCol.doc(sessionId).get();
+        const sData = sSnap.data();
+        const sessTid = (sData?.activeTicketId as string | undefined) || undefined;
+        if (sessTid) {
+          const tDoc = await db.collection(CONFIG.COLLECTIONS.TICKETS).doc(sessTid).get();
+          const tData = tDoc.data();
+          if (tDoc.exists && tData && tData.uid === uid) {
+            activeTicket = { ticketId: sessTid, data: tData as any };
+          }
+        }
+      } catch {}
     }
 
     if (activeTicket) {
@@ -197,16 +226,16 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
 
 IMPORTANT RULES:
 1. ONLY answer questions related to smart home devices, automation, IoT, home security, lighting, climate control, entertainment systems, and Smile Smart Homes products/services.
-2. When handling device verification, compare extracted serial numbers with registered devices and state clearly if they match or not.
+2. When handling device verification, compare user-typed serial numbers with registered devices and state clearly if they match or not.
 3. Analyze each user message to determine if it's a COMPLAINT or GENERAL QUERY.
 4. If the message is unclear, ask ONE concise clarifying question (<=20 words).
 5. If no prior assistant message exists, begin with a brief greeting.
 
-SERIAL VERIFICATION WORKFLOW:
-- When a user uploads an image for serial verification, extract the serial number using OCR
-- Compare extracted serial with their registered devices
+SERIAL VERIFICATION WORKFLOW (TEXT ONLY):
+- Ask the user to TYPE the serial number
+- Compare the provided serial with their registered devices
 - If serials match: ✅ Confirm verification and proceed with troubleshooting
-- If serials don't match: ⚠️ Mention politely, suggest rechecking the label, still provide basic troubleshooting
+- If serials don't match: ⚠️ Mention politely and suggest rechecking the label; still provide basic troubleshooting
 - Keep verification responses short, clear, and professional
 - Don't exceed what's needed to move the support process forward
 
@@ -218,14 +247,14 @@ WORKFLOW RULES:
 - If active ticket context is provided, ALWAYS acknowledge the existing ticket first
 - Consider troubleshooting history to avoid repeating failed solutions
 - If troubleshooting attempts are at 3/3, suggest escalation to human support
-- When device needs serial verification: Ask user to upload image of device serial number
+- When device needs serial verification: Ask the user to type the serial number in the chat
 
 RESPONSE FORMAT:
 - Provide natural, conversational responses without technical prefixes
 - For complaints needing ticket: Explain that they should create a support ticket for better assistance
 - For ticket verification: Acknowledge their existing ticket and confirm you can help
 - For device selection: Ask them to specify which device needs help
-- For serial verification: Ask user to "Please upload an image of your device showing the serial number"
+- For serial verification: Ask user to enter their device serial number as text
 - When providing serial verification results, be clear about match status
 - Keep responses concise and professional (under 150 words)
 - NEVER start responses with technical codes like "REQUIRES_TICKET:" or "DEVICE_SELECTION:"
@@ -346,8 +375,8 @@ ${deviceContext}${ticketContext}`,
       }
     }
 
-    // If there's an active ticket and AI didn't acknowledge it, add acknowledgment
-    if (ticketContext && !content.toLowerCase().includes('ticket') && !content.startsWith('COMPLAINT_DETECTED:') && !content.startsWith('REQUIRES_TICKET:')) {
+    // If there's an active ticket and AI didn't acknowledge it, add acknowledgment (only if not in noTicket mode)
+    if (!noTicket && ticketContext && !content.toLowerCase().includes('ticket') && !content.startsWith('COMPLAINT_DETECTED:') && !content.startsWith('REQUIRES_TICKET:')) {
       const ticketMatch = ticketContext.match(/Ticket ID: #([^\n]+)/);
       const subjectMatch = ticketContext.match(/Subject: "([^"]+)"/);
       if (ticketMatch && subjectMatch) {
@@ -373,165 +402,12 @@ ${deviceContext}${ticketContext}`,
 });
 
 
-// ===== Ticket-related helper callables used by chatbot workflow =====
-// ===== Consolidated ticket fetching utility =====
-// Utility function to fetch the latest unresolved ticket for a user
-async function fetchLatestUnresolvedTicket(uid: string) {
-  try {
-    console.log(`Fetching unresolved tickets for user: ${uid}`);
-    const ticketsQuery = await db.collection(CONFIG.COLLECTIONS.TICKETS)
-      .where("uid", "==", uid)
-      // Include common status variants; primarily look for lowercase 'pending'
-      .where("status", "in", ["Pending", "pending", "In Progress", "in progress"])
-      .orderBy("createdAt", "desc")
-      .limit(1)
-      .get();
-
-    console.log(`Found ${ticketsQuery.size} unresolved tickets`);
-    if (ticketsQuery.empty) {
-      return null;
-    }
-
-    const ticketDoc = ticketsQuery.docs[0];
-    const ticketData = ticketDoc.data();
-    console.log(`Retrieved ticket ${ticketDoc.id} with status: ${ticketData.status}`);
-    return { ticketDoc, ticketId: ticketDoc.id, data: ticketData as any };
-  } catch (error) {
-    console.error("Error fetching unresolved ticket:", error);
-    throw new HttpsError("internal", "Failed to fetch ticket information");
-  }
-};
+// Removed fetchLatestUnresolvedTicket – backend no longer falls back to implicit tickets
 
 // ===== Check for active unresolved tickets =====
 // removed unused checkActiveUnresolvedTicket callable
 
-export const extractSerialFromImage = onCall({secrets: [OPENAI_API_KEY], cors: true}, async (request) => {
-  const authCtx = request.auth;
-  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
-  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
-  const imageUrl = (request.data?.imageUrl as string | undefined)?.trim();
-  if (!ticketId || !imageUrl) throw new HttpsError("invalid-argument", "ticketId and imageUrl are required");
-
-  const tRef = db.collection(CONFIG.COLLECTIONS.TICKETS).doc(ticketId);
-  const s = await tRef.get();
-  if (!s.exists) throw new HttpsError("not-found", "Ticket not found");
-  const t = s.data() as any;
-  if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
-
-  const apiKey = OPENAI_API_KEY.value();
-  if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY not configured");
-
-  console.log(`[extractSerialFromImage] Processing image for ticket ${ticketId}: ${imageUrl}`);
-
-  const makeMessages = (imgRef: string) => ([
-    {
-      role: "user",
-      content: [
-        { type: "text", text: "From this image, extract the DEVICE SERIAL NUMBER only. Prefer the text located next to labels such as 'Serial', 'S/N', 'SN', 'Serial No', or 'Serial Number'. Ignore model numbers, product codes, warranty dates, barcodes, and any text near labels like 'Model' or 'Product'. Return ONLY the serial string without any extra words. If you cannot identify a serial with high confidence, reply exactly: NONE" },
-        { type: "image_url", image_url: { url: imgRef } },
-      ],
-    },
-  ]);
-
-  // Helper to call OpenAI
-  const callOpenAI = async (imgRef: string) => {
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: CONFIG.OPENAI.MODEL, messages: makeMessages(imgRef), temperature: 0.0, max_tokens: 50 }),
-    } as any);
-    return resp;
-  };
-
-  // Attempt 1: direct URL to OpenAI
-  try {
-    let resp = await callOpenAI(imageUrl);
-    if (!resp.ok) {
-      const errorText = await resp.text();
-      console.warn(`[extractSerialFromImage] OpenAI error on direct URL (${resp.status}). Will retry with data URL. Body: ${errorText}`);
-
-      // Attempt 2: server-side fetch -> data URL fallback
-      try {
-        const imgResp = await fetch(imageUrl);
-        if (!imgResp.ok) {
-          const t = await imgResp.text();
-          console.error(`[extractSerialFromImage] Failed to fetch image from Storage: ${imgResp.status} ${t}`);
-          throw new HttpsError("unavailable", "IMAGE_FETCH_FAILED", { reason: "image_fetch_failed", status: imgResp.status });
-        }
-        const contentType = imgResp.headers.get("content-type") || "image/png";
-        const buf = Buffer.from(await imgResp.arrayBuffer());
-        const dataUrl = `data:${contentType};base64,${buf.toString("base64")}`;
-        resp = await callOpenAI(dataUrl);
-        if (!resp.ok) {
-          const et = await resp.text();
-          console.error(`[extractSerialFromImage] OpenAI error after data URL retry: ${resp.status} - ${et}`);
-          throw new HttpsError("unavailable", "OPENAI_DATA_URL_FAILED", { reason: "openai_data_url_failed", status: resp.status });
-        }
-      } catch (retryErr) {
-        if (retryErr instanceof HttpsError) throw retryErr;
-        console.error(`[extractSerialFromImage] Retry with data URL failed:`, retryErr);
-        throw new HttpsError("internal", "RETRY_FAILED", { reason: "retry_failed" });
-      }
-    }
-
-    const data = await resp.json();
-    const content: string = (data?.choices?.[0]?.message?.content || "").trim();
-    // Try to be resilient: allow common serial patterns, trim whitespace
-    const cleaned = content.replace(/\s+/g, " ").trim();
-    const match = cleaned.match(/[A-Z0-9]{4,}[\-]?[A-Z0-9]{3,}/i);
-    const extractedSerial = cleaned === "NONE" ? "" : (match ? match[0] : cleaned).replace(/[^A-Za-z0-9\-]/g, "").slice(0, 64);
-    
-    console.log(`[extractSerialFromImage] Extracted serial: "${extractedSerial}"`);
-    
-    if (!extractedSerial) {
-      await tRef.set({deviceSerial: null, updatedAt: Date.now()}, {merge: true});
-      return {
-        serial: null,
-        verificationStatus: "No serial number could be detected from the uploaded image.",
-        deviceVerified: false
-      };
-    }
-
-    // Verify device ownership
-    console.log(`[extractSerialFromImage] Verifying device ownership for serial: ${extractedSerial}`);
-    
-    const userDevicesSnap = await db.collection(CONFIG.COLLECTIONS.DEVICES)
-      .where("uid", "==", authCtx.uid)
-      .where("serial", "==", extractedSerial)
-      .get();
-
-    let deviceDetails: any = null;
-    let verificationStatus = "";
-    
-    if (!userDevicesSnap.empty) {
-      deviceDetails = {id: userDevicesSnap.docs[0].id, ...userDevicesSnap.docs[0].data()};
-      verificationStatus = `✅ Device verified: The serial number ${extractedSerial} matches your registered ${deviceDetails.deviceName || deviceDetails.name}.`;
-      console.log(`[extractSerialFromImage] Device verified: ${deviceDetails.deviceName || deviceDetails.name}`);
-    } else {
-      verificationStatus = `⚠️ Serial number ${extractedSerial} was found in your image, but it doesn't match any registered devices. Please double-check the serial label on your device.`;
-      console.log(`[extractSerialFromImage] Device not found in user's registered devices`);
-    }
-
-    // Update ticket with serial and verification info
-    await tRef.set({
-      deviceSerial: extractedSerial, 
-      deviceVerified: !!deviceDetails,
-      deviceDetails: deviceDetails,
-      updatedAt: Date.now()
-    }, {merge: true});
-
-    return {
-      serial: extractedSerial,
-      verificationStatus,
-      deviceVerified: !!deviceDetails,
-      deviceDetails
-    };
-    
-  } catch (error) {
-    console.error(`[extractSerialFromImage] Error processing image:`, error);
-    throw error;
-  }
-});
+// Removed extractSerialFromImage callable – switched to manual serial verification
 
 export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) => {
   const authCtx = request.auth;
@@ -721,7 +597,7 @@ ${ticketContent}
 ---
 
 Important guidance:
-- If you require a device serial number image for verification, include the token 'SERIAL_NEEDED:' followed by a one-line reason.
+- If you require the device serial number for verification, include the token 'SERIAL_NEEDED:' followed by a one-line reason.
 - Keep total length under 180 words.
 - Do not include prefatory phrases or system notes; respond as a message to the user.`;
 

@@ -1,5 +1,4 @@
 ---
-import ConsultationPopup from '../components/common/ConsultationPopup';
 import NotificationBell from '../components/dashboard/User/NotificationBell';
 import { ViewTransitions } from 'astro:transitions';
 
@@ -104,11 +103,6 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       <NotificationBell client:only="react" />
     </div>
     <slot />
-    {(
-      !Astro.url.pathname.startsWith('/dashboard') &&
-      !Astro.url.pathname.startsWith('/admin') &&
-      Astro.url.pathname !== '/admin_login'
-    ) && <ConsultationPopup client:load />}
     <script type="module" src="/src/lib/lenis-init.ts"></script>
     <script type="module">
       // Initialize animations

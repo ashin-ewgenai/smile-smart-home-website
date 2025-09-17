@@ -390,7 +390,6 @@ const TicketCenter: React.FC = () => {
                 </div>
                 <div className="mt-2 text-sm text-amber-700 dark:text-amber-300">
                   <p>You already have an unresolved support ticket. Use Support Chat to get help resolving it, or cancel it to raise a new one.</p>
-                  <p className="mt-1">Click "Support Chat" on your existing ticket below to get immediate assistance.</p>
                   {pendingPromptTicket && (
                     <div className="mt-3 flex items-center gap-2">
                       <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">AI response ready</span>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { auth, db, functions, storage } from '../../lib/firebase';
-import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit, updateDoc, deleteField } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 // Removed unused triageChat import - functionality integrated into chatWithOpenAI
@@ -65,11 +65,22 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const [ticketLoading, setTicketLoading] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [workflowStep, setWorkflowStep] = useState<'initial' | 'ticket_verification' | 'device_selection' | 'troubleshooting'>('initial');
+  // Manual serial capture state (replaces OCR flow)
+  const [serialRequestActive, setSerialRequestActive] = useState(false);
+  const [serialInput, setSerialInput] = useState('');
+  // Session-bound active ticket id for consistent context across openings
+  const [sessionActiveTicketId, setSessionActiveTicketId] = useState<string | null>(null);
+  // No-ticket mode ensures backend receives noTicket and avoids any ticket fallback
+  const [noTicketMode, setNoTicketMode] = useState<boolean>(false);
+  const lastUnboundTicketIdRef = useRef<string | null>(null);
+  // Confirmation modal for starting a new chat
+  const [confirmNewChatOpen, setConfirmNewChatOpen] = useState(false);
   
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const msgsUnsubRef = useRef<null | (() => void)>(null);
+  // File input for image sharing with human agents only (no OCR)
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Auto-scroll to bottom when messages change
@@ -128,15 +139,20 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     return () => unsub();
   }, [uid]);
 
-  // Fetch ticket data if ticketId is provided
+  // Fetch ticket data if ticketId is provided OR a session-bound ticket exists
   useEffect(() => {
-    if (!providedTicketId) {
+    if (noTicketMode) {
+      setTicketData(null);
+      return;
+    }
+    const effectiveTicketId = providedTicketId || sessionActiveTicketId || undefined;
+    if (!effectiveTicketId) {
       setTicketData(null);
       return;
     }
 
     setTicketLoading(true);
-    const unsub = onSnapshot(doc(db, 'Support_Tickets', providedTicketId), (snap) => {
+    const unsub = onSnapshot(doc(db, 'Support_Tickets', effectiveTicketId), (snap) => {
       if (snap.exists()) {
         setTicketData(snap.data() as TicketData);
       } else {
@@ -146,7 +162,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     });
 
     return () => unsub();
-  }, [providedTicketId]);
+  }, [providedTicketId, sessionActiveTicketId, noTicketMode]);
 
   // Prevent double AI initialization
   const hasInitialized = useRef(false);
@@ -161,13 +177,26 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         setTicketLoading(true);
         // Don't set hasInitialized here - set it after messages are added
         
-        // If specific ticketId provided, analyze that ticket specifically
-        if (providedTicketId) {
-          console.log(`Analyzing specific ticket: ${providedTicketId}`);
-          const ticketDoc = await getDoc(doc(db, 'Support_Tickets', providedTicketId));
+        // If specific ticketId provided or session-bound, analyze that ticket specifically
+        const effectiveTicketId = providedTicketId || sessionActiveTicketId;
+        if (noTicketMode) {
+          // Render welcome only in no-ticket mode
+          const combined: ChatMsg = {
+            role: 'assistant',
+            content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Or raise a new support ticket using the button below',
+            showTicketCTA: true,
+            ts: Date.now(),
+          };
+          setMessages([combined]);
+          hasInitialized.current = true;
+          return;
+        }
+        if (effectiveTicketId) {
+          console.log(`Analyzing specific ticket: ${effectiveTicketId}`);
+          const ticketDoc = await getDoc(doc(db, 'Support_Tickets', effectiveTicketId));
           
           if (!ticketDoc.exists()) {
-            console.error('Ticket not found:', providedTicketId);
+            console.error('Ticket not found:', effectiveTicketId);
             setTicketData(null);
             const errorMsg: ChatMsg = {
               role: 'agent',
@@ -196,7 +225,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
           // Set ticket data for context
           setTicketData({
-            ticketId: providedTicketId,
+            ticketId: effectiveTicketId,
             subject: ticketData.subject,
             description: ticketData.description,
             category: ticketData.category,
@@ -205,7 +234,13 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             initialSolution: ticketData.initialSolution
           });
 
-          const ticketNumber = ticketData.ticketNumber || `#${providedTicketId.slice(-6).toUpperCase()}`;
+          const ticketNumber = ticketData.ticketNumber || `#${effectiveTicketId.slice(-6).toUpperCase()}`;
+          // Persist active ticket binding on the session for future openings
+          try {
+            if (uid && sessionId) {
+              await setDoc(doc(db, 'chat_sessions', sessionId), { activeTicketId: effectiveTicketId, updatedAt: serverTimestamp() }, { merge: true });
+            }
+          } catch {}
           
           if (ticketData.initialSolution) {
             // Show existing analysis
@@ -218,9 +253,10 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             hasInitialized.current = true; // Set after messages are added
             
             if (ticketData.needsSerial) {
+              setSerialRequestActive(true);
               const serialMsg: ChatMsg = {
                 role: 'assistant',
-                content: 'I need to see the serial number on your device to provide more specific help. Can you upload a photo of the serial number?',
+                content: 'To continue, please type the serial number of your device in the serial input below and press Verify.',
                 ts: Date.now() + 1,
               };
               setMessages(prev => [...prev, serialMsg]);
@@ -229,7 +265,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             // No analysis yet: fetch from DB and analyze via backend callable
             try {
               const analyze = httpsCallable(functions, 'analyzeTicketById');
-              const res = await analyze({ ticketId: providedTicketId, sessionId });
+              const res = await analyze({ ticketId: effectiveTicketId, sessionId });
               const data: any = res?.data || {};
               const analysis = data.initialSolution as string | undefined;
               const needsSerial: boolean = !!data.needsSerial;
@@ -242,9 +278,10 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                 };
                 setMessages([analysisMsg]);
                 if (needsSerial) {
+                  setSerialRequestActive(true);
                   const serialMsg: ChatMsg = {
                     role: 'assistant',
-                    content: 'I need to see the serial number on your device to provide more specific help. Can you upload a photo of the serial number?',
+                    content: 'Please type the serial number of your device in the serial input below and press Verify.',
                     ts: Date.now() + 1,
                   };
                   setMessages(prev => [...prev, serialMsg]);
@@ -255,7 +292,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                   content: `I found your active support ticket ${ticketNumber}. Let me verify the details with you first:`,
                   showTicketVerification: true,
                   ticketDetails: {
-                    ticketId: providedTicketId,
+                    ticketId: effectiveTicketId,
                     ticketNumber: ticketNumber,
                     subject: ticketData.subject || 'No subject',
                     description: ticketData.description || 'No description',
@@ -345,7 +382,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     if (messages.length === 0) {
       fetchAndAnalyzeTicket();
     }
-  }, [providedTicketId, uid, isAuthenticated, messages.length]);
+  }, [providedTicketId, sessionActiveTicketId, uid, isAuthenticated, messages.length]);
 
   // Online (human) vs Offline (bot) mode handling
   useEffect(() => {
@@ -367,6 +404,12 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           type: 'ai',
         }, { merge: true });
       }
+      // Load any previously bound active ticket
+      try {
+        const sdata = (await getDoc(sessionRef)).data();
+        setSessionActiveTicketId((sdata?.activeTicketId as string) || null);
+        if (!sdata?.activeTicketId) setNoTicketMode(false);
+      } catch {}
       const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
       msgsUnsubRef.current = onSnapshot(query(msgsCol, orderBy('ts', 'asc')), (qSnap) => {
         const list: ChatMsg[] = qSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
@@ -413,30 +456,24 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
       // If ticket also needs serial number, add image prompt
       if (ticketData.needsSerial) {
-        const imageMsg: ChatMsg = {
-          role: 'agent',
-          content: 'Please click the image button below to upload a photo of your device showing the serial number.',
+        setSerialRequestActive(true);
+        const promptMsg: ChatMsg = {
+          role: 'assistant',
+          content: 'To proceed, please enter your device serial number in the serial input below and press Verify.',
           ts: Date.now() + 1,
         };
-
-        setMessages(prev => [...prev, imageMsg]);
+        setMessages(prev => [...prev, promptMsg]);
       }
     }
     // If no initial solution but needs serial, prompt for image
     else if (ticketData.needsSerial) {
+      setSerialRequestActive(true);
       const promptMsg: ChatMsg = {
-        role: 'agent',
-        content: 'To better assist you with your issue, we need to verify your device. Please upload a clear photo of your device showing the serial number.',
+        role: 'assistant',
+        content: 'To better assist you, please enter your device serial number in the serial input below and press Verify.',
         ts: Date.now(),
       };
-
-      const imageMsg: ChatMsg = {
-        role: 'agent',
-        content: 'Please click the image button below to upload a photo of your device showing the serial number.',
-        ts: Date.now() + 1,
-      };
-
-      setMessages([promptMsg, imageMsg]);
+      setMessages([promptMsg]);
     }
   }, [providedTicketId, ticketData, messages.length]);
 
@@ -501,13 +538,15 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           content: msg.content || ''
         }));
 
+        const ticketForPayload = noTicketMode ? undefined : (providedTicketId || (ticketData as any)?.ticketId || sessionActiveTicketId || undefined);
         const payload = {
           messages: [
             ...recentMessages,
             { role: 'user', content },
           ],
           sessionId: sessionId, // Use consistent session ID for admin dashboard
-          ...(providedTicketId && { ticketId: providedTicketId }), // Include ticket ID if available
+          ...(ticketForPayload && { ticketId: ticketForPayload }), // Include ticket ID if available
+          ...(noTicketMode ? { noTicket: true, skipTicketId: lastUnboundTicketIdRef.current || undefined } : {}),
         };
         const call = httpsCallable(functions, 'chatWithOpenAI');
         const res = await call(payload);
@@ -534,117 +573,39 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     // unified: no legacy branch; authenticated users handled above; unauthenticated triage handled earlier.
   };
 
-  // Image upload handling
-  const onPickImage = () => fileInputRef.current?.click();
-  const onFileSelected: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
-    const file = e.target.files?.[0];
-    if (fileInputRef.current) fileInputRef.current.value = '';
-    if (!file) return;
-    if (!file.type.startsWith('image/')) return;
-    const maxBytes = 8 * 1024 * 1024; // 8MB
-    if (file.size > maxBytes) {
-      const errMsg: ChatMsg = { role: 'agent', content: 'Selected image is larger than 8MB.', ts: Date.now() };
-      setMessages((prev) => [...prev, errMsg]);
+  // Manual serial verification handling
+  const getActiveTicketId = () => (ticketData as any)?.ticketId || providedTicketId || sessionActiveTicketId || null;
+  const submitSerial = async () => {
+    const serial = serialInput.trim();
+    if (!serial) return;
+    const activeTicketId = getActiveTicketId();
+    if (!activeTicketId) {
+      const warn: ChatMsg = { role: 'agent', content: 'Please create or open a support ticket first before verifying the serial number.', ts: Date.now() };
+      setMessages(prev => [...prev, warn]);
       return;
     }
-
-    const tempId = Math.random().toString(36).slice(2);
-    setMessages((prev) => [...prev, { id: tempId, role: 'user', uploading: true, ts: Date.now() }]);
-
-    const uid = auth.currentUser?.uid || 'anon';
-    const sid = sessionId || 'local';
-    const path = `support_chat/${uid}/${sid}/${Date.now()}_${file.name}`;
-    const ref = storageRef(storage, path);
-    const task = uploadBytesResumable(ref, file, { contentType: file.type });
-
-    task.on('state_changed', undefined, (error) => {
-      setMessages((prev) => prev.map((m) => m.id === tempId ? ({ id: tempId, role: 'agent', content: `Upload failed: ${error?.message || 'unknown error'}`, ts: Date.now() }) : m));
-    }, async () => {
-      const url = await getDownloadURL(task.snapshot.ref);
-      const imageMessage = { id: tempId, role: 'user' as const, imageUrl: url, ts: Date.now() };
-      setMessages((prev) => prev.map((m) => m.id === tempId ? imageMessage : m));
-      
-      // Save image message to Firestore if user is authenticated and we have a session
-      // Persist regardless of human claimed state so chat history is consistent in AI mode
-      if (uid && sessionId) {
-        try {
-          const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
-          await addDoc(msgsCol, { role: 'user', imageUrl: url, ts: Date.now() });
-        } catch (error) {
-          console.error('Failed to save image message to Firestore:', error);
-        }
+    try {
+      const verifySerial = httpsCallable(functions, 'verifySerialAndFetchDocs');
+      const suggestStep = httpsCallable(functions, 'suggestTroubleshootingStep');
+      const verifyResult = await verifySerial({ ticketId: activeTicketId, serial });
+      const verifyData = verifyResult.data as any;
+      if (verifyData?.valid) {
+        const sres = await suggestStep({ ticketId: activeTicketId, docs: (verifyData.links || []) });
+        const suggestion = (sres?.data as any)?.suggestion || 'Device-specific troubleshooting steps will be provided based on your device documentation.';
+        const okMsg: ChatMsg = { role: 'assistant', content: `✅ Device verified! Serial: ${serial}\n\n${suggestion}`, ts: Date.now() };
+        setMessages(prev => [...prev, okMsg]);
+        setSerialRequestActive(false);
+        setSerialInput('');
+      } else {
+        const errMsg: ChatMsg = { role: 'agent', content: '❌ Device not recognized or not registered to your account. Please check the serial and try again.', ts: Date.now() };
+        setMessages(prev => [...prev, errMsg]);
       }
-      
-      // Always trigger AI serial extraction and verification if ticket is present
-      // Prefer the ticket ID we loaded from Firestore analysis, then fall back to prop
-      const activeTicketId = (ticketData as any)?.ticketId || providedTicketId;
-      if (!activeTicketId) {
-        const warn: ChatMsg = { role: 'agent', content: 'Please create a support ticket first. Then upload the device photo here.', ts: Date.now() + 2 };
-        setMessages((prev) => [...prev, warn]);
-        return;
-      }
-      try {
-        const extractSerial = httpsCallable(functions, 'extractSerialFromImage');
-        const verifySerial = httpsCallable(functions, 'verifySerialAndFetchDocs');
-        const suggestStep = httpsCallable(functions, 'suggestTroubleshootingStep');
-        const extractResult = await extractSerial({ ticketId: activeTicketId, imageUrl: url });
-        const serial = (extractResult.data as any)?.serial;
-        if (serial) {
-          const verifyResult = await verifySerial({ ticketId: activeTicketId, serial });
-          const verifyData = verifyResult.data as any;
-          if (verifyData?.valid) {
-            const sres = await suggestStep({ ticketId: activeTicketId, docs: (verifyData.links || []) });
-            const suggestion = (sres?.data as any)?.suggestion || 'Device-specific troubleshooting steps will be provided based on your device documentation.';
-            const troubleshootMsg: ChatMsg = {
-              role: 'assistant',
-              content: `✅ Device verified! Serial: ${serial}\n\n${suggestion}`,
-              ts: Date.now() + 2
-            };
-            setMessages((prev) => [...prev, troubleshootMsg]);
-          } else {
-            const errorMsg: ChatMsg = {
-              role: 'agent',
-              content: '❌ Device not recognized or not registered to your account. Please ensure the image shows the serial number clearly.',
-              ts: Date.now() + 2
-            };
-            setMessages((prev) => [...prev, errorMsg]);
-          }
-        } else {
-          const noSerialMsg: ChatMsg = {
-            role: 'agent',
-            content: '❌ Could not extract serial number from image. Please ensure the serial number is clearly visible and try again.',
-            ts: Date.now() + 2
-          };
-          setMessages((prev) => [...prev, noSerialMsg]);
-        }
-      } catch (error: any) {
-        console.error('Serial extraction error:', error);
-        const code = (error && (error as any).code) || '';
-        const details = (error && (error as any).details) || {};
-        let msg = '❌ Failed to process device image. Please try again or contact support.';
-        if (code === 'functions/unavailable' && details?.reason === 'image_fetch_failed') {
-          msg = '❌ Could not fetch the image from storage. Please re-upload and try again.';
-        } else if (code === 'functions/unavailable' && details?.reason === 'openai_data_url_failed') {
-          msg = '❌ Our analyzer could not read the image. Please try a clearer photo of the serial label.';
-        } else if (code === 'functions/internal' && details?.reason === 'retry_failed') {
-          msg = '❌ Temporary processing issue. Please try again.';
-        } else if (code === 'functions/permission-denied') {
-          msg = '❌ You do not have permission to process this ticket image.';
-        } else if (code === 'functions/not-found') {
-          msg = '❌ Ticket not found. Please refresh and try again.';
-        } else if (code === 'functions/unauthenticated') {
-          msg = '❌ Please sign in to process the device image.';
-        } else if (code === 'functions/invalid-argument') {
-          msg = '❌ Missing information. Please try uploading the image again.';
-        }
-        const errorMsg: ChatMsg = {
-          role: 'agent',
-          content: msg,
-          ts: Date.now() + 2
-        };
-        setMessages((prev) => [...prev, errorMsg]);
-      }
-    });
+    } catch (error: any) {
+      console.error('Serial verification error:', error);
+      const msg = '❌ Failed to verify the serial number. Please try again later.';
+      const errMsg: ChatMsg = { role: 'agent', content: msg, ts: Date.now() };
+      setMessages(prev => [...prev, errMsg]);
+    }
   };
 
 
@@ -716,20 +677,14 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       };
       setMessages(prev => [...prev, confirmMsg]);
     } else {
-      // Request serial number verification
+      // Request manual serial entry
+      setSerialRequestActive(true);
       const serialMsg: ChatMsg = {
         role: 'assistant',
-        content: `Device selected: ${device.name}. To provide accurate troubleshooting, I need to verify your device. Please upload an image of your device showing the serial number.`,
+        content: `Device selected: ${device.name}. Please type the device serial number in the serial input below and press Verify.`,
         ts: Date.now() + 1
       };
       setMessages(prev => [...prev, serialMsg]);
-      
-      const uploadMsg: ChatMsg = {
-        role: 'agent',
-        content: 'Click the image button below to upload a photo of your device serial number.',
-        ts: Date.now() + 2
-      };
-      setMessages(prev => [...prev, uploadMsg]);
     }
   };
 
@@ -741,6 +696,32 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         at: Date.now(),
       }, { merge: true });
     } catch {}
+  };
+
+  // Start New Chat: cancel pending ticket, clear active binding, set no-ticket mode
+  const handleStartNewChat = async () => {
+    const currentId = (ticketData as any)?.ticketId || sessionActiveTicketId;
+    if (!uid || !sessionId) return;
+    try {
+      if (currentId) {
+        try {
+          // Cancel only if pending
+          const tRef = doc(db, 'Support_Tickets', currentId);
+          // Lightweight update; server will enforce ownership
+          await updateDoc(tRef, { status: 'cancelled', manuallyUnbound: true, updatedAt: serverTimestamp() });
+        } catch {}
+        // Clear session binding
+        await updateDoc(doc(db, 'chat_sessions', sessionId), { activeTicketId: deleteField(), updatedAt: serverTimestamp() });
+        lastUnboundTicketIdRef.current = currentId;
+      }
+      setSessionActiveTicketId(null);
+      setTicketData(null);
+      setNoTicketMode(true);
+      // System message
+      setMessages(prev => [...prev, { role: 'agent', content: 'Starting a new conversation. Your previous ticket has been cancelled.', ts: Date.now() }]);
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'agent', content: 'Could not start a new chat right now. Please try again.', ts: Date.now() }]);
+    }
   };
 
   // If not authenticated, show sign-in prompt
@@ -800,6 +781,32 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                   </button>
                 )}
               </div>
+              {/* Active Ticket header */}
+              {!noTicketMode && (ticketData as any)?.ticketId && (
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2 text-xs px-3 py-1 rounded-full bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200 border border-blue-200/70 dark:border-blue-700/50">
+                    <span>💼</span>
+                    <span>
+                      Active Ticket: {(ticketData as any)?.subject || 'Ticket'}
+                      {(() => { const id = (ticketData as any)?.ticketId as string | undefined; return id ? ` (Ticket #${(ticketData as any)?.ticketNumber || id.slice(-6).toUpperCase()})` : '' })()}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => { window.location.href = '/dashboard/user/support-tickets'; }}
+                    className="text-xs px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+                  >
+                    Change Ticket
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmNewChatOpen(true)}
+                    className="text-xs px-2 py-1 rounded-md bg-rose-100 hover:bg-rose-200 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-800 dark:text-rose-200"
+                  >
+                    Start New Chat
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -807,6 +814,41 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
       {/* Chat Messages Area (single container; inner scroller is transparent) */}
       <div className="px-4 sm:px-6">
+        {/* Confirm Start New Chat Modal */}
+        {confirmNewChatOpen && (ticketData as any)?.ticketId && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40">
+            <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xl p-5">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Start a New Chat?</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">Your current ticket will be cancelled and the conversation will start fresh.</p>
+              <div className="bg-gray-50 dark:bg-gray-900/30 rounded-lg p-3 mb-4 text-sm text-gray-800 dark:text-gray-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2 py-0.5 bg-blue-600 text-white text-xs rounded-full">{(ticketData as any)?.ticketNumber || ((ticketData as any)?.ticketId as string).slice(-6).toUpperCase()}</span>
+                  <span className="font-medium">{(ticketData as any)?.subject || 'Ticket'}</span>
+                </div>
+                <div className="text-xs opacity-80">
+                  <div>Status: {(ticketData as any)?.status || 'Pending'}</div>
+                  {(ticketData as any)?.createdAt && <div>Created: {typeof (ticketData as any).createdAt?.toDate === 'function' ? (ticketData as any).createdAt.toDate().toLocaleString() : ''}</div>}
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setConfirmNewChatOpen(false)}
+                  className="px-3 py-2 text-sm rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+                >
+                  Keep Current Chat
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => { setConfirmNewChatOpen(false); await handleStartNewChat(); }}
+                  className="px-3 py-2 text-sm rounded-md bg-rose-600 hover:bg-rose-700 text-white"
+                >
+                  Cancel Ticket and Start
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div
           ref={scrollRef}
           className="h-[calc(100vh-300px)] md:h-[calc(100vh-320px)] overflow-y-auto overscroll-y-contain py-4 pb-4 space-y-4 bg-transparent"
@@ -995,30 +1037,79 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
       {/* Input Section at the bottom of the chat */}
       <div className="px-4 pb-4 sm:px-6">
+        {serialRequestActive && (
+          <div className="mb-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700">
+            <label className="block text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">Enter device serial number</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={serialInput}
+                onChange={(e) => setSerialInput(e.target.value)}
+                placeholder="e.g., SN-ABC12345"
+                className="flex-1 pill-input"
+                disabled={!isAuthenticated}
+              />
+              <button
+                type="button"
+                onClick={submitSerial}
+                disabled={!isAuthenticated || !serialInput.trim()}
+                className="inline-flex items-center px-3 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50"
+              >
+                Verify
+              </button>
+            </div>
+          </div>
+        )}
         <form
           className="flex items-center gap-3 mt-4"
           onSubmit={(e) => { e.preventDefault(); send(); }}
         >
-          {/* Hidden file input for image pickup */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={onFileSelected}
-          />
-          {/* Image upload button on the left */}
-          <button
-            type="button"
-            onClick={onPickImage}
-            className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors shadow-sm"
-            title="Upload image"
-            disabled={!isAuthenticated}
-          >
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-          </button>
+          {/* Image upload for human support only (no OCR/AI processing) */}
+          {claimed && (
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                  if (!file || !uid || !sessionId) return;
+                  const tempId = Math.random().toString(36).slice(2);
+                  setMessages(prev => [...prev, { id: tempId, role: 'user', uploading: true, ts: Date.now() }]);
+                  try {
+                    const path = `support_chat/${uid}/${sessionId}/${Date.now()}_${file.name}`;
+                    const ref = storageRef(storage, path);
+                    const task = uploadBytesResumable(ref, file, { contentType: file.type });
+                    task.on('state_changed', undefined, (error) => {
+                      setMessages((prev) => prev.map((m) => m.id === tempId ? ({ id: tempId, role: 'agent', content: `Upload failed: ${error?.message || 'unknown error'}`, ts: Date.now() }) : m));
+                    }, async () => {
+                      const url = await getDownloadURL(task.snapshot.ref);
+                      setMessages((prev) => prev.map((m) => m.id === tempId ? ({ id: tempId, role: 'user', imageUrl: url, ts: Date.now() }) : m));
+                      try {
+                        const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+                        await addDoc(msgsCol, { role: 'user', imageUrl: url, ts: Date.now() });
+                      } catch {}
+                    });
+                  } catch (err) {
+                    setMessages(prev => [...prev, { role: 'agent', content: 'Image upload failed. Please try again.', ts: Date.now() }]);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors shadow-sm"
+                title="Upload image for human support"
+                disabled={!isAuthenticated}
+              >
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </button>
+            </>
+          )}
           <div className="flex-1 relative">
             <input
               type="text"
