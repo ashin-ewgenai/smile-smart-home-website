@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { collection, onSnapshot, query, where, getDocs, getDoc, doc, Timestamp } from 'firebase/firestore';
-import { auth, db } from '../../../lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
-import { userDevicesCollection } from '../../../models/Collections';
+import React, { useEffect, useMemo, useState } from 'react';
+import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
+import { useDevices } from '../../../contexts/DevicesContext';
 
 // Minimal view-model for Devices collection (aligns with `src/models/Collections.ts` Device)
 interface SerialItem {
@@ -35,11 +34,12 @@ type DeviceDoc = {
 // --- Component ---
 
 const AboutDevices: React.FC = () => {
-  const [devices, setDevices] = useState<DeviceDoc[]>([]);
-  const [deviceTypes, setDeviceTypes] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
+  const { devices, loading, error, uid } = useDevices();
+  const deviceTypes = useMemo(() => {
+    const s = new Set<string>();
+    devices.forEach(d => { if (d.type) s.add(d.type); });
+    return s;
+  }, [devices]);
   const [selectedDevice, setSelectedDevice] = useState<DeviceDoc | null>(null);
   const [selectedDeviceCount, setSelectedDeviceCount] = useState<number | null>(null);
   const [selectedDeviceCountLoading, setSelectedDeviceCountLoading] = useState(false);
@@ -174,184 +174,7 @@ const AboutDevices: React.FC = () => {
     }
   };
 
-  // Track auth state
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null));
-    return () => unsub();
-  }, []);
-
-  // Fetch user's devices and their details
-  useEffect(() => {
-    if (!uid) {
-      return;
-    }
-    
-    const fetchUserDevices = async () => {
-      try {
-        setLoading(true);
-        // 1. Get all user devices from flat collection
-        const userDevicesRef = collection(db, 'User_Devices');
-        const userDevicesQuery = query(userDevicesRef, where('uid', '==', uid));
-        
-        const userDevicesSnap = await getDocs(userDevicesQuery);
-        
-        // Track unique device types
-        const types = new Set<string>();
-        userDevicesSnap.forEach(doc => {
-          const data = doc.data();
-          if (data.type) {
-            types.add(data.type);
-          } else if (data.deviceType) {
-            types.add(data.deviceType);
-          }
-        });
-        setDeviceTypes(types);
-        
-        if (userDevicesSnap.empty) {
-          setDevices([]);
-          setLoading(false);
-          return;
-        }
-        
-        // 2. Get all device details using sourceDeviceId from user devices
-        const sourceDeviceIds = userDevicesSnap.docs.map(doc => doc.data().sourceDeviceId).filter(Boolean);
-        if (sourceDeviceIds.length === 0) {
-          setDevices([]);
-          setLoading(false);
-          return;
-        }
-        
-        // Get device details from main Devices collection using sourceDeviceId
-        const devicesRef = collection(db, 'Devices');
-        const devicesQuery = query(devicesRef, where('__name__', 'in', sourceDeviceIds));
-        const devicesSnap = await getDocs(devicesQuery);
-        
-        
-        // Create helpers to join Devices -> User_Devices using sourceDeviceId
-        const userDevicesMap = new Map(
-          userDevicesSnap.docs.map(doc => [doc.data().sourceDeviceId, doc.data()])
-        );
-        const userDevicesArray = userDevicesSnap.docs.map(d => ({ id: d.id, data: d.data() as any }));
-        
-        // 3. Combine device data with user-specific data
-        const deviceResults = devicesSnap.docs.map(doc => {
-          const deviceData = doc.data() as any;
-          // Get user device data using sourceDeviceId mapping
-          let userDeviceData: any = userDevicesMap.get(doc.id) || {};
-          
-          // Prefer user warranty, especially when stored per-serial
-          const serialHint = (userDeviceData?.serialNumber) || (userDeviceData?.serial) || (Array.isArray(userDeviceData?.serials) ? userDeviceData.serials[0] : undefined) || deviceData?.serial;
-          const userWarranty = getUserWarranty(userDeviceData, serialHint);
-          const deviceWarranty = deviceData.warranty ?? null;
-          const chosenWarranty = userWarranty ?? deviceWarranty ?? null;
-          const chosenSource: 'user' | 'device' | undefined = (userWarranty != null) ? 'user' : ((deviceWarranty != null) ? 'device' : undefined);
-
-          // Resolve serial with priority: userdevices -> devices
-          const resolveSerial = () => {
-            // Try common field names on user device doc
-            const possible = [
-              userDeviceData?.serial,
-              userDeviceData?.serialNumber,
-              userDeviceData?.Serial,
-              userDeviceData?.SerialNumber,
-              userDeviceData?.serial_no,
-              userDeviceData?.serialNo,
-              userDeviceData?.SerialNo,
-            ].filter(Boolean);
-            if (possible.length && typeof possible[0] === 'string') return possible[0] as string;
-            // Try array of serials
-            if (Array.isArray(userDeviceData?.serials) && userDeviceData.serials.length > 0) {
-              const first = userDeviceData.serials[0];
-              if (typeof first === 'string') return first;
-              if (first && typeof first === 'object') {
-                return (first.serialNumber || first.serial || first.code || first.id) ?? undefined;
-              }
-            }
-            // Fallback to device collection
-            return deviceData?.serial ?? undefined;
-          };
-
-          // Resolve serials array with proper formatting
-          const resolveSerials = (): SerialItem[] => {
-            // Check user device data first
-            if (Array.isArray(userDeviceData?.serials)) {
-              return userDeviceData.serials.map((s: any) => ({
-                serialNumber: s.serialNumber || s.serial || s.code || s.id || '—',
-                warrantyExpiry: s.warrantyExpiry || s.expiryDate || s.warrantyEnd || null
-              }));
-            }
-            // Fall back to device data
-            if (Array.isArray(deviceData?.serials)) {
-              return deviceData.serials.map((s: any) => ({
-                serialNumber: s.serialNumber || s.serial || s.code || s.id || '—',
-                warrantyExpiry: s.warrantyExpiry || s.expiryDate || s.warrantyEnd || null
-              }));
-            }
-            // Check for single serial in user data
-            const serial = resolveSerial();
-            if (serial) {
-              return [{
-                serialNumber: serial,
-                warrantyExpiry: userDeviceData?.warrantyExpiry || 
-                              userDeviceData?.warrantyEnd || 
-                              deviceData?.warrantyExpiry ||
-                              null
-              }];
-            }
-            return [];
-          };
-
-          const resolvedSerial = resolveSerial();
-          const resolvedSerials = resolveSerials();
-
-          return {
-            id: doc.id,
-            deviceName: deviceData.deviceName || deviceData.name || 'Unnamed Device',
-            name: deviceData.name,
-            type: deviceData.type,
-            status: userDeviceData.status || deviceData.status || 'Active',
-            serial: resolvedSerial || 'N/A',
-            serials: resolvedSerials,
-            modelNumber: deviceData.modelNumber,
-            imageUrl: deviceData.imageUrl,
-            price: typeof deviceData.price === 'number' ? deviceData.price : null,
-            stock: typeof deviceData.stock === 'number' ? deviceData.stock : null,
-            rating: typeof deviceData.rating === 'number' ? deviceData.rating : null,
-            discount: typeof deviceData.discount === 'number' ? deviceData.discount : null,
-            warranty: chosenWarranty,
-            warrantySource: chosenSource,
-            brand: deviceData.brand || deviceData.manufacturer || deviceData.company || undefined,
-            description: deviceData.description || deviceData.details || deviceData.summary || undefined,
-            documentationUrl: deviceData.documentationUrl || deviceData.documentation || deviceData.docs || deviceData.manualUrl || deviceData.datasheetUrl || undefined,
-          } as DeviceDoc;
-        });
-        
-        setDevices(deviceResults);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching user devices:', err);
-        setError('Failed to load your devices. Please try again later.');
-        setDevices([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchUserDevices();
-    
-    // Set up real-time updates for user's devices
-    const userDevicesRef = collection(db, 'User_Devices');
-    const userDevicesQuery = query(userDevicesRef, where('uid', '==', uid));
-    const unsubscribe = onSnapshot(userDevicesQuery, 
-      () => fetchUserDevices(),
-      (error) => {
-        // Error in real-time update
-        setError('Error receiving device updates');
-      }
-    );
-    
-    return () => unsubscribe();
-  }, [uid]);
+  // Devices list is provided by DevicesContext; no fetching here.
 
   // Open details modal and fetch this device's count from userdevices/{uid}/devices/{deviceId}
   const openDetails = async (device: DeviceDoc) => {
