@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { auth, db, functions, storage } from '../../lib/firebase';
-import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit, updateDoc, deleteField } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit, updateDoc, deleteField, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 // Removed unused triageChat import - functionality integrated into chatWithOpenAI
@@ -44,6 +44,15 @@ type ChatMsg = {
   showTicketCTA?: boolean;
   showTicketVerification?: boolean;
   showDeviceSelection?: boolean;
+  // New: prompt to continue an unresolved ticket or start fresh
+  showUnresolvedPrompt?: boolean;
+  unresolvedTicket?: {
+    id: string;
+    ticketNumber?: string;
+    subject?: string;
+    status?: string;
+    createdAt?: string;
+  };
   ticketDetails?: TicketData;
   devices?: Device[];
   ts: number;
@@ -75,6 +84,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const lastUnboundTicketIdRef = useRef<string | null>(null);
   // Confirmation modal for starting a new chat
   const [confirmNewChatOpen, setConfirmNewChatOpen] = useState(false);
+  // Track unresolved ticket (if any) shown in prompt
+  const unresolvedShownRef = useRef<string | null>(null);
   
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -320,7 +331,78 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             }
           }
         } else if (messages.length === 0) {
-          // Seed a single combined welcome message; do NOT check existing tickets or auto-create any
+          // If there is no bound ticket, check if user has an unresolved ticket and offer to continue
+          try {
+            if (uid) {
+              const unresolvedQ = query(
+                collection(db, 'Support_Tickets'),
+                // filter by uid on client by fetching few recent; Firestore requires an index for compound. Keep it simple here
+                orderBy('createdAt', 'desc'),
+                limit(5)
+              );
+              const snap = await getDocs(unresolvedQ);
+              const firstOwnUnresolved = snap.docs
+                .map((d) => ({ id: d.id, ...(d.data() as any) }))
+                .filter((t: any) => t.uid === uid && ['Pending', 'In Progress'].includes(String(t.status || ''))) [0];
+
+              if (firstOwnUnresolved && unresolvedShownRef.current !== firstOwnUnresolved.id) {
+                unresolvedShownRef.current = firstOwnUnresolved.id;
+                const prompt: ChatMsg = {
+                  role: 'assistant',
+                  content: 'You have an unresolved support ticket. Would you like to continue with it or start a new chat?',
+                  showUnresolvedPrompt: true,
+                  unresolvedTicket: {
+                    id: firstOwnUnresolved.id,
+                    ticketNumber: firstOwnUnresolved.ticketNumber || `#${firstOwnUnresolved.id.slice(-6).toUpperCase()}`,
+                    subject: firstOwnUnresolved.subject || 'Ticket',
+                    status: firstOwnUnresolved.status || 'Pending',
+                    createdAt: typeof firstOwnUnresolved.createdAt?.toDate === 'function' ? firstOwnUnresolved.createdAt.toDate().toLocaleDateString() : 'Unknown date',
+                  },
+                  ts: Date.now(),
+                };
+                setMessages([prompt]);
+                // Persist this prompt so the real-time snapshot doesn't wipe it
+                try {
+                  if (uid && sessionId) {
+                    const sessionRef = doc(db, 'chat_sessions', sessionId);
+                    await setDoc(sessionRef, {
+                      ownerUid: uid,
+                      updatedAt: Date.now(),
+                      status: 'ai',
+                      type: 'ai',
+                    }, { merge: true });
+                    const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+                    // Avoid creating duplicates: check if a prompt already exists for this ticket
+                    const existingSnap = await getDocs(query(
+                      msgsCol,
+                      where('showUnresolvedPrompt', '==', true),
+                      where('unresolvedTicketId', '==', firstOwnUnresolved.id),
+                      limit(1)
+                    ));
+                    if (existingSnap.empty) {
+                      await addDoc(msgsCol, {
+                        role: 'assistant',
+                        content: prompt.content,
+                        ts: prompt.ts,
+                        showUnresolvedPrompt: true,
+                        unresolvedTicket: prompt.unresolvedTicket,
+                        unresolvedTicketId: firstOwnUnresolved.id,
+                        source: 'system'
+                      });
+                    }
+                  }
+                } catch (e) {
+                  console.warn('Failed to persist unresolved prompt:', e);
+                }
+                hasInitialized.current = true;
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to check unresolved tickets:', e);
+          }
+
+          // No unresolved tickets: show welcome
           const combined: ChatMsg = {
             role: 'assistant',
             content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Or raise a new support ticket using the button below',
@@ -412,7 +494,17 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       } catch {}
       const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
       msgsUnsubRef.current = onSnapshot(query(msgsCol, orderBy('ts', 'asc')), (qSnap) => {
-        const list: ChatMsg[] = qSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        let list: ChatMsg[] = qSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        // Filter out resolved prompts and deduplicate unresolved prompts (keep first per ticketId)
+        const seenUnresolved: Record<string, boolean> = {};
+        list = list.filter((m) => {
+          if ((m as any).resolved === true) return false;
+          if (!m.showUnresolvedPrompt) return true;
+          const tid = (m as any).unresolvedTicketId || m.unresolvedTicket?.id || 'unknown';
+          if (seenUnresolved[tid]) return false;
+          seenUnresolved[tid] = true;
+          return true;
+        });
         setMessages(list);
         setTimeout(() => {
           if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -698,17 +790,96 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     } catch {}
   };
 
-  // Start New Chat: cancel pending ticket, clear active binding, set no-ticket mode
+  // Mark unresolved prompt as resolved in Firestore so it won't reappear
+  const dismissUnresolvedPrompt = async (forTicketId?: string) => {
+    try {
+      if (!uid || !sessionId) return;
+      const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+      // Find all prompts (rarely more than one due to dedupe) and mark resolved
+      const snap = await getDocs(query(
+        msgsCol,
+        where('showUnresolvedPrompt', '==', true),
+        ...(forTicketId ? [where('unresolvedTicketId', '==', forTicketId)] as any : []),
+        limit(5)
+      ));
+      const batch: Array<Promise<any>> = [];
+      snap.forEach((d) => {
+        batch.push(updateDoc(doc(db, 'chat_sessions', sessionId, 'messages', d.id), { resolved: true }));
+      });
+      await Promise.all(batch);
+    } catch (e) {
+      console.warn('Failed to mark unresolved prompt resolved:', e);
+    }
+  };
+
+  // Continue with unresolved ticket: bind to session and analyze
+  const continueWithTicket = async (tid: string) => {
+    if (!uid || !sessionId) return;
+    try {
+      await setDoc(doc(db, 'chat_sessions', sessionId), { activeTicketId: tid, updatedAt: serverTimestamp() }, { merge: true });
+      setSessionActiveTicketId(tid);
+      // Clear prompt and trigger analyze flow by calling analyzeTicketById directly for responsiveness
+      setMessages((prev) => prev.filter((m) => !m.showUnresolvedPrompt));
+      // Mark prompt as resolved in Firestore
+      await dismissUnresolvedPrompt(tid);
+      try {
+        const analyze = httpsCallable(functions, 'analyzeTicketById');
+        const res = await analyze({ ticketId: tid, sessionId });
+        const data: any = res?.data || {};
+        const analysis = data.initialSolution as string | undefined;
+        const needsSerial: boolean = !!data.needsSerial;
+        const ticketNumber = data.ticketId ? `#${String(data.ticketId).slice(-6).toUpperCase()}` : '';
+        if (analysis) {
+          setMessages((prev) => [...prev, { role: 'assistant', content: `I found your support ticket ${ticketNumber}. Here's what I can help you with:\n\n${analysis}`.trim(), ts: Date.now() }]);
+          if (needsSerial) {
+            setSerialRequestActive(true);
+            setMessages((prev) => [...prev, { role: 'assistant', content: 'Please type the serial number of your device in the serial input below and press Verify.', ts: Date.now() + 1 }]);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to analyze continued ticket:', e);
+      }
+    } catch (e) {
+      console.warn('Failed to bind unresolved ticket to session:', e);
+    }
+  };
+
+  // Start new chat by cancelling the provided unresolved ticket, then unbind.
+  const unbindTicketStartNew = async (ticketIdToCancel?: string) => {
+    if (!uid || !sessionId) return;
+    try {
+      if (ticketIdToCancel) {
+        try {
+          const tRef = doc(db, 'Support_Tickets', ticketIdToCancel);
+          await updateDoc(tRef, { status: 'Resolved', updatedAt: serverTimestamp(), manuallyUnbound: true });
+        } catch (e) {
+          console.warn('Failed to cancel unresolved ticket:', e);
+        }
+      }
+      await updateDoc(doc(db, 'chat_sessions', sessionId), { activeTicketId: deleteField(), updatedAt: serverTimestamp() });
+      setSessionActiveTicketId(null);
+      setTicketData(null);
+      setNoTicketMode(true);
+      // Mark any unresolved prompt as resolved to hide it
+      await dismissUnresolvedPrompt(ticketIdToCancel);
+      const note = ticketIdToCancel ? 'Previous ticket has been marked as resolved. Starting a new conversation.' : 'Starting a new conversation not linked to your previous ticket.';
+      setMessages((prev) => prev.filter((m) => !m.showUnresolvedPrompt).concat({ role: 'agent', content: note, ts: Date.now() }));
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'agent', content: 'Could not start a new chat right now. Please try again.', ts: Date.now() }]);
+    }
+  };
+
+  // Start New Chat: resolve pending ticket, clear active binding, set no-ticket mode
   const handleStartNewChat = async () => {
     const currentId = (ticketData as any)?.ticketId || sessionActiveTicketId;
     if (!uid || !sessionId) return;
     try {
       if (currentId) {
         try {
-          // Cancel only if pending
+          // Resolve only if pending
           const tRef = doc(db, 'Support_Tickets', currentId);
           // Lightweight update; server will enforce ownership
-          await updateDoc(tRef, { status: 'cancelled', manuallyUnbound: true, updatedAt: serverTimestamp() });
+          await updateDoc(tRef, { status: 'Resolved', manuallyUnbound: true, updatedAt: serverTimestamp() });
         } catch {}
         // Clear session binding
         await updateDoc(doc(db, 'chat_sessions', sessionId), { activeTicketId: deleteField(), updatedAt: serverTimestamp() });
@@ -718,7 +889,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setTicketData(null);
       setNoTicketMode(true);
       // System message
-      setMessages(prev => [...prev, { role: 'agent', content: 'Starting a new conversation. Your previous ticket has been cancelled.', ts: Date.now() }]);
+      setMessages(prev => [...prev, { role: 'agent', content: 'Starting a new conversation. Your previous ticket has been marked as resolved.', ts: Date.now() }]);
     } catch (e) {
       setMessages(prev => [...prev, { role: 'agent', content: 'Could not start a new chat right now. Please try again.', ts: Date.now() }]);
     }
@@ -918,6 +1089,37 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                         <div className="flex items-baseline justify-between gap-1">
                           <div className="whitespace-pre-wrap break-words flex-1 mr-1">{m.content}</div>
                           <div className="text-[10px] opacity-70 whitespace-nowrap flex-shrink-0">{new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+                        </div>
+                      )}
+                      {m.showUnresolvedPrompt && m.unresolvedTicket && (
+                        <div className="mt-3 rounded-xl border border-gray-200/80 dark:border-gray-700/60 bg-gradient-to-b from-gray-50 to-gray-50/60 dark:from-gray-900/10 dark:to-gray-900/5 shadow-sm">
+                          {/* Header */}
+                          <div className="flex items-center gap-2 px-3 sm:px-4 pt-3 sm:pt-4">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] sm:text-[11px] font-semibold bg-gray-700 text-white shadow-sm">Unresolved</span>
+                            <span className="text-[13px] sm:text-sm font-semibold text-gray-900 dark:text-gray-100">Existing Ticket</span>
+                          </div>
+                          {/* Ticket card */}
+                          <div className="mx-3 sm:mx-4 mt-2 sm:mt-3 mb-3 sm:mb-4 rounded-lg bg-white/90 dark:bg-gray-800/90 border border-gray-200/80 dark:border-gray-700/60 p-2.5 sm:p-3">
+                            <div className="flex flex-wrap items-center gap-2 mb-1">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md bg-blue-600 text-white text-[10px] sm:text-[11px] font-mono shadow-sm break-all">{m.unresolvedTicket.ticketNumber}</span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] bg-gray-100 text-gray-800 dark:bg-gray-900/40 dark:text-gray-200 shadow-sm">{m.unresolvedTicket.status}</span>
+                            </div>
+                            <div className="text-[13px] sm:text-sm font-medium text-gray-900 dark:text-gray-100">{m.unresolvedTicket.subject}</div>
+                            <div className="text-[10px] sm:text-[11px] mt-0.5 text-gray-500 dark:text-gray-400">Created: {m.unresolvedTicket.createdAt}</div>
+                          </div>
+                          {/* Actions */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 px-3 sm:px-4 pb-3 sm:pb-4">
+                            <button
+                              onClick={() => continueWithTicket(m.unresolvedTicket!.id)}
+                              className="W-full inline-flex items-center justify-center min-h-[44px] rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white text-[13px] sm:text-sm font-semibold shadow-md hover:from-teal-600 hover:to-blue-600 focus:outline-none focus:ring-2 focus:ring-teal-400/60 dark:focus:ring-teal-300/40 transition-all">
+                              Continue with this ticket
+                            </button>
+                            <button
+                              onClick={() => unbindTicketStartNew(m.unresolvedTicket!.id)}
+                              className="w-full inline-flex items-center justify-center min-h-[44px] rounded-full bg-white/80 dark:bg-gray-800/70 text-gray-800 dark:text-gray-100 text-[13px] sm:text-sm font-semibold border border-gray-200/80 dark:border-gray-700/60 hover:bg-white dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-gray-300/60 dark:focus:ring-gray-600/40 transition-all">
+                              Start new chat
+                            </button>
+                          </div>
                         </div>
                       )}
                       {m.showTicketCTA && (
