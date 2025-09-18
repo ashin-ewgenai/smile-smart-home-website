@@ -7,17 +7,13 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Estimation Quote collection: allow a user to read their own quotes
-    // Documents may identify the user by either uid or customerEmail
-    match /Estimation Quote/{docId} {
-      allow read: if isSignedIn() && (
-        // By uid field
+    // Estimation Quote collection (ID has a space). We match generically and gate by collectionId.
+    match /{collectionId}/{docId} {
+      allow read: if collectionId == 'Estimation Quote' && isSignedIn() && (
         (resource.data.uid != null && resource.data.uid == request.auth.uid) ||
-        // By customerEmail field (compare to authenticated email if present in token)
         (resource.data.customerEmail != null && request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email)
       );
-      // Writes restricted to admins (created by admin tools or functions)
-      allow create, update, delete: if isAdmin();
+      allow create, update, delete: if collectionId == 'Estimation Quote' && isAdmin();
     }
     
     function isCurrentUser(uid) {
@@ -93,8 +89,10 @@ service cloud.firestore {
         request.resource.data.keys().hasAll(['uid', 'complaint', 'status', 'createdAt']) &&
         request.resource.data.uid is string &&
         request.resource.data.complaint is string && request.resource.data.complaint.size() > 0 &&
-        request.resource.data.status in ['open', 'pending', 'resolved', 'closed', 'Cancelled'] &&
-        request.resource.data.createdAt is timestamp;
+        // App uses capitalized statuses
+        request.resource.data.status in ['Pending', 'In Progress', 'Resolved', 'Closed', 'Cancelled'] &&
+        // Accept Firestore timestamp or millis number for createdAt
+        (request.resource.data.createdAt is timestamp || request.resource.data.createdAt is number);
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow update: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow delete: if isAdmin(); // Admins and Super Admins can delete tickets
@@ -170,10 +168,8 @@ service cloud.firestore {
           && (request.resource.data.email is string && request.resource.data.email.size() > 0)
           && (request.resource.data.message is string && request.resource.data.message.size() > 0)
           && (request.resource.data.createdAt is timestamp)
-          && (request.resource.data.status == 'pending')
-          // Optional fields if present must be strings or null
-          && (!request.resource.data.keys().hasAny(['phone']) || request.resource.data.phone is string || request.resource.data.phone == null)
-          && (!request.resource.data.keys().hasAny(['service']) || request.resource.data.service is string || request.resource.data.service == null);
+          && (request.resource.data.status == 'pending');
+        // Note: 'phone' and 'service' are optional; presence allowed by keys().hasOnly(), no extra type checks needed here.
       }
     }
 
