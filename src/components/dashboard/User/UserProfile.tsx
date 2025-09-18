@@ -1,44 +1,160 @@
 import React, { useState, useEffect } from 'react';
 import { Save, User, Mail, Phone, MapPin, Calendar, Home } from 'lucide-react';
+import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
+import { COLLECTION_USER_DEVICES } from '../../../models/Collections';
+
+interface UserData {
+  Email: string;
+  FullName: string;
+  LastLoginAt: any; // Firestore timestamp
+  CreatedAt: any;   // Firestore timestamp
+  address: string;
+  phoneNumber: string;
+  [key: string]: any; // Add index signature to allow string indexing
+}
 
 const UserProfile: React.FC = () => {
-  const [email, setEmail] = useState('user@smilesmarthome.in');
-  const [name, setName] = useState('User');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [joinDate, setJoinDate] = useState('August 14, 2025');
+  const [loading, setLoading] = useState(true);
+  const [userData, setUserData] = useState<UserData>({
+    Email: '',
+    FullName: '',
+    LastLoginAt: null,
+    CreatedAt: null,
+    address: '',
+    phoneNumber: ''
+  });
   const [saveStatus, setSaveStatus] = useState('');
+  const [deviceCount, setDeviceCount] = useState(0);
   
-  // Get user info from localStorage
+  // Fetch user's device count
   useEffect(() => {
-    const storedEmail = localStorage.getItem('userEmail');
-    if (storedEmail) {
-      setEmail(storedEmail);
-      
-      // Extract name from email (simple approach)
-      const extractedName = storedEmail.split('@')[0];
-      // Capitalize first letter
-      setName(extractedName.charAt(0).toUpperCase() + extractedName.slice(1));
-    }
+    const fetchDeviceCount = async () => {
+      try {
+        const userId = localStorage.getItem('userId');
+        if (!userId) return;
+        
+        const q = query(
+          collection(db, COLLECTION_USER_DEVICES),
+          where('uid', '==', userId)
+        );
+        
+        const querySnapshot = await getDocs(q);
+        setDeviceCount(querySnapshot.size);
+      } catch (error) {
+        console.error('Error fetching device count:', error);
+      }
+    };
     
-    // Get other profile data if available
-    const storedPhone = localStorage.getItem('userPhone');
-    if (storedPhone) setPhone(storedPhone);
-    
-    const storedAddress = localStorage.getItem('userAddress');
-    if (storedAddress) setAddress(storedAddress);
+    fetchDeviceCount();
+  }, []);
+  
+  // Fetch user data from Firestore
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        setLoading(true);
+        const userEmail = localStorage.getItem('userEmail') || '';
+        const userId = localStorage.getItem('userId') || '';
+        
+        if (!userId) {
+          setSaveStatus('User not authenticated');
+          setLoading(false);
+          return;
+        }
+
+        // Get user document from Firestore using UID
+        const userDocRef = doc(db, 'Accounts', userId);
+        const userDoc = await getDoc(userDocRef);
+        
+        if (userDoc.exists()) {
+          const data = userDoc.data() as UserData;
+          setUserData({
+            Email: data.Email || userEmail,
+            FullName: data.FullName || userEmail.split('@')[0],
+            LastLoginAt: data.LastLoginAt || new Date(),
+            CreatedAt: data.CreatedAt || new Date(),
+            address: data.address || '',
+            phoneNumber: data.phoneNumber || ''
+          });
+          
+          // Update local storage with the latest values
+          if (data.phoneNumber) localStorage.setItem('userPhone', data.phoneNumber);
+          if (data.address) localStorage.setItem('userAddress', data.address);
+        } else {
+          // If user document doesn't exist, create it with default values
+          const defaultData: UserData = {
+            Email: userEmail,
+            FullName: userEmail.split('@')[0],
+            LastLoginAt: new Date(),
+            CreatedAt: new Date(),
+            address: '',
+            phoneNumber: ''
+          };
+          // Create a new document with the user's UID as the document ID
+          await setDoc(userDocRef, defaultData);
+          setUserData(defaultData);
+          
+          // Also update local storage with default values
+          localStorage.setItem('userPhone', defaultData.phoneNumber);
+          localStorage.setItem('userAddress', defaultData.address);
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        setSaveStatus('Error loading profile data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
   }, []);
   
   // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Save profile data to localStorage
-    localStorage.setItem('userPhone', phone);
-    localStorage.setItem('userAddress', address);
-    
-    // Show success message
-    setSaveStatus('Profile updated successfully!');
+    try {
+      const userId = localStorage.getItem('userId');
+      const userEmail = localStorage.getItem('userEmail') || '';
+      
+      if (!userId) {
+        setSaveStatus('User not authenticated');
+        return;
+      }
+      
+      // Create update data object
+      const now = new Date();
+      const updateData = {
+        Email: userEmail,
+        FullName: userData.FullName || '',
+        phoneNumber: userData.phoneNumber || '',
+        address: userData.address || '',
+        LastLoginAt: now,  // Update last login time
+        // Don't update CreatedAt as it should remain the original creation date
+        ...(userData.CreatedAt ? {} : { CreatedAt: now }) // Only set if it doesn't exist
+      };
+      
+      // Update Firestore document using UID
+      const userDocRef = doc(db, 'Accounts', userId);
+      await setDoc(userDocRef, updateData, { merge: true });
+      
+      // Update local storage for quick access
+      localStorage.setItem('userPhone', updateData.phoneNumber);
+      localStorage.setItem('userAddress', updateData.address);
+      
+      // Update local state to ensure UI is in sync
+      setUserData(prev => ({
+        ...prev,
+        ...updateData
+      }));
+      
+      // Show success message
+      setSaveStatus('Profile updated successfully!');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      setSaveStatus('Error updating profile');
+    }
     
     // Clear success message after 3 seconds
     setTimeout(() => {
@@ -46,6 +162,14 @@ const UserProfile: React.FC = () => {
     }, 3000);
   };
   
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="mb-6">
@@ -59,33 +183,45 @@ const UserProfile: React.FC = () => {
           <div className="h-24 w-24 rounded-full bg-blue-500 flex items-center justify-center mb-4">
             <User className="h-12 w-12 text-white" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{name}</h2>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{userData.FullName || 'User'}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Smart Home User</p>
           
           <div className="w-full space-y-3">
             <div className="flex items-center text-sm">
               <Mail className="h-4 w-4 text-gray-500 dark:text-gray-400 mr-2" />
-              <span className="text-gray-600 dark:text-gray-300">{email}</span>
+              <span className="text-gray-600 dark:text-gray-300">{userData.Email}</span>
             </div>
-            {phone && (
+            {userData.phoneNumber && (
               <div className="flex items-center text-sm">
                 <Phone className="h-4 w-4 text-gray-500 dark:text-gray-400 mr-2" />
-                <span className="text-gray-600 dark:text-gray-300">{phone}</span>
+                <span className="text-gray-600 dark:text-gray-300">{userData.phoneNumber}</span>
               </div>
             )}
-            {address && (
+            {userData.address && (
               <div className="flex items-center text-sm">
                 <MapPin className="h-4 w-4 text-gray-500 dark:text-gray-400 mr-2" />
-                <span className="text-gray-600 dark:text-gray-300">{address}</span>
+                <span className="text-gray-600 dark:text-gray-300">{userData.address}</span>
               </div>
             )}
             <div className="flex items-center text-sm">
               <Calendar className="h-4 w-4 text-gray-500 dark:text-gray-400 mr-2" />
-              <span className="text-gray-600 dark:text-gray-300">Joined: {joinDate}</span>
+              <span className="text-gray-600 dark:text-gray-300">
+                Last Login: {userData.LastLoginAt ? (typeof userData.LastLoginAt === 'object' ? new Date(userData.LastLoginAt.seconds * 1000).toLocaleString() : new Date(userData.LastLoginAt).toLocaleString()) : 'N/A'}
+              </span>
             </div>
+            {userData.CreatedAt && (
+              <div className="flex items-center text-sm">
+                <Calendar className="h-4 w-4 text-gray-500 dark:text-gray-400 mr-2" />
+                <span className="text-gray-600 dark:text-gray-300">
+                  Member Since: {typeof userData.CreatedAt === 'object' ? new Date(userData.CreatedAt.seconds * 1000).toLocaleDateString() : new Date(userData.CreatedAt).toLocaleDateString()}
+                </span>
+              </div>
+            )}
             <div className="flex items-center text-sm">
               <Home className="h-4 w-4 text-gray-500 dark:text-gray-400 mr-2" />
-              <span className="text-gray-600 dark:text-gray-300">Devices: 8</span>
+              <span className="text-gray-600 dark:text-gray-300">
+                Devices: {deviceCount}
+              </span>
             </div>
           </div>
         </div>
@@ -104,8 +240,8 @@ const UserProfile: React.FC = () => {
                   type="text"
                   id="name"
                   name="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  value={userData.FullName}
+                  onChange={(e) => setUserData({...userData, FullName: e.target.value})}
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
@@ -117,7 +253,7 @@ const UserProfile: React.FC = () => {
                   type="email"
                   id="email"
                   name="email"
-                  value={email}
+                  value={userData.Email}
                   disabled
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 />
@@ -133,21 +269,9 @@ const UserProfile: React.FC = () => {
                   type="tel"
                   id="phone"
                   name="phone"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  value={userData.phoneNumber || ''}
+                  onChange={(e) => setUserData({...userData, phoneNumber: e.target.value})}
                   placeholder="e.g., +1 (555) 123-4567"
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
-                />
-              </div>
-              <div>
-                <label htmlFor="homeName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Home Name
-                </label>
-                <input
-                  type="text"
-                  id="homeName"
-                  name="homeName"
-                  defaultValue="My Smart Home"
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
@@ -160,26 +284,41 @@ const UserProfile: React.FC = () => {
               <textarea
                 id="address"
                 name="address"
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
+                value={userData.address}
+                onChange={(e) => setUserData({...userData, address: e.target.value})}
                 rows={3}
                 placeholder="Enter your address"
                 className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
               ></textarea>
             </div>
             
-            <div>
-              <label htmlFor="joinDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Join Date
-              </label>
-              <input
-                type="text"
-                id="joinDate"
-                name="joinDate"
-                value={joinDate}
-                disabled
-                className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="lastLogin" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Last Login
+                </label>
+                <input
+                  type="text"
+                  id="lastLogin"
+                  name="lastLogin"
+                  value={userData.LastLoginAt ? (typeof userData.LastLoginAt === 'object' ? new Date(userData.LastLoginAt.seconds * 1000).toLocaleString() : new Date(userData.LastLoginAt).toLocaleString()) : 'N/A'}
+                  disabled
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+              <div>
+                <label htmlFor="memberSince" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                  Member Since
+                </label>
+                <input
+                  type="text"
+                  id="memberSince"
+                  name="memberSince"
+                  value={userData.CreatedAt ? (typeof userData.CreatedAt === 'object' ? new Date(userData.CreatedAt.seconds * 1000).toLocaleDateString() : new Date(userData.CreatedAt).toLocaleDateString()) : 'N/A'}
+                  disabled
+                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                />
+              </div>
             </div>
             
             {/* Save Button */}

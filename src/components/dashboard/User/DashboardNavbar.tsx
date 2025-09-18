@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, User, LogOut, Settings, Bell, ArrowLeft, Moon, Sun } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
 import { handleLogout } from './LogoutHandler';
 
 interface DashboardNavbarProps {
@@ -11,6 +12,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const location = useLocation();
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -139,26 +141,38 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                     <p className="font-medium">{actualUserName}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{userType}</p>
                   </div>
-                  <a 
-                    href={`/dashboard/${userType}/profile`} 
+                  <Link 
+                    to={`/dashboard/${userType}/profile`} 
                     className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" 
                     role="menuitem"
+                    onClick={() => {
+                      setIsProfileDropdownOpen(false);
+                      if (location.pathname === `/dashboard/${userType}/profile`) {
+                        window.location.reload();
+                      }
+                    }}
                   >
                     <div className="flex items-center">
                       <User className="mr-2 h-4 w-4" />
                       Profile
                     </div>
-                  </a>
-                  <a 
-                    href={`/dashboard/${userType}/settings`} 
+                  </Link>
+                  <Link 
+                    to={`/dashboard/${userType}/settings`} 
                     className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" 
                     role="menuitem"
+                    onClick={() => {
+                      setIsProfileDropdownOpen(false);
+                      if (location.pathname === `/dashboard/${userType}/settings`) {
+                        window.location.reload();
+                      }
+                    }}
                   >
                     <div className="flex items-center">
                       <Settings className="mr-2 h-4 w-4" />
                       Settings
                     </div>
-                  </a>
+                  </Link>
                   <button 
                     onClick={handleLogout}
                     className="w-full text-left block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" 
@@ -194,44 +208,43 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
       {isMobileMenuOpen && (
         <div className="md:hidden">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-            <a 
-              href={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
+            <Link 
+              to={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Dashboard
-            </a>
+            </Link>
             {userType === 'admin' && (
-              <a 
-                href="/e" 
+              <Link 
+                to="/e" 
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Manage Users
-              </a>
+              </Link>
             )}
-            <a
-              href={`/dashboard/${userType}/quote-portal`}
+            <Link 
+              to={`/dashboard/${userType}/quote-portal`} 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Quote Portal
-            </a>
-            <a
-              href={`/dashboard/${userType}/about-device`}
+            </Link>
+            <Link 
+              to={`/dashboard/${userType}/about-device`} 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               About Device
-            </a>
-            {/* Bill link removed as requested */}
-            <a
-              href={`/dashboard/${userType}/support-tickets`}
+            </Link>
+            <Link 
+              to={`/dashboard/${userType}/support-tickets`} 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Raise Tickets
-            </a>
+            </Link>
             <button
               type="button"
               onClick={() => {
@@ -265,20 +278,30 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               </button>
             </div>
             <div className="mt-3 px-2 space-y-1">
-              <a 
-                href={`/dashboard/${userType}/profile`} 
-                className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-                onClick={() => setIsMobileMenuOpen(false)}
+              <Link 
+                to={`/dashboard/${userType}/profile`} 
+                className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  if (location.pathname === `/dashboard/${userType}/profile`) {
+                    window.location.reload();
+                  }
+                }}
               >
                 Profile
-              </a>
-              <a 
-                href={`/dashboard/${userType}/settings`} 
-                className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-                onClick={() => setIsMobileMenuOpen(false)}
+              </Link>
+              <Link 
+                to={`/dashboard/${userType}/settings`} 
+                className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  if (location.pathname === `/dashboard/${userType}/settings`) {
+                    window.location.reload();
+                  }
+                }}
               >
                 Settings
-              </a>
+              </Link>
               <button 
                 onClick={handleLogout}
                 className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"

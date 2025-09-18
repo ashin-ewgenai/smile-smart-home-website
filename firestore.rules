@@ -148,6 +148,22 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // User_Devices collection - user devices mapping
+    match /User_Devices/{docId} {
+      allow read, write: if isSignedIn() && (
+        // Users can read/write their own device mappings
+        resource.data.uid == request.auth.uid ||
+        // Or if they're an admin
+        isAdmin()
+      );
+    }
+    
+    // Devices collection - allow read for all authenticated users
+    match /Devices/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // Product documentation
     match /product_docs/{docId} {
       allow read: if isSignedIn();

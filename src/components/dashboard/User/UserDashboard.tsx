@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, Wrench, ChevronRight } from 'lucide-react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import RequestServiceModal from './RequestServiceModal';
 import RequestStatusModal from './RequestStatusModal';
 import { db, auth } from '../../../lib/firebase';
@@ -29,6 +30,10 @@ interface UserDashboardProps {
 }
 
 const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [isNavigating, setIsNavigating] = useState(false);
+  
   // Get actual user name from Firestore or localStorage
   const [actualUserName, setActualUserName] = useState(userName);
   const [serviceRequestOpen, setServiceRequestOpen] = useState(false);
@@ -38,8 +43,26 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const myDevicesRef = useRef<HTMLDivElement>(null);
+  // Handle navigation with loading state and connection management
+  const handleNavigation = useCallback((path: string) => {
+    setIsNavigating(true);
+    
+    // Clean up Firebase listeners before navigation
+    firebaseListeners.current.forEach(unsubscribe => unsubscribe());
+    firebaseListeners.current = [];
+    
+    // Add a small delay to ensure cleanup completes
+    setTimeout(() => {
+      navigate(path);
+      // Reset navigation state after a short delay
+      setTimeout(() => setIsNavigating(false), 500);
+    }, 100);
+  }, [navigate]);
   // Billing & Warranty compact toggle
   const [billingCompact, setBillingCompact] = useState(false);
+  
+  // Store Firebase listeners for cleanup
+  const firebaseListeners = useRef<Array<() => void>>([]);
 
   // Request Service form state
   const [reqService, setReqService] = useState<'installation' | 'maintenance' | 'troubleshooting' | 'warranty' | 'internet' | 'tv'>('installation');
@@ -75,6 +98,28 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     setReqSuccess('');
     setReqError('');
   };
+
+  // Wrap your Firebase subscriptions to track them
+  const setupFirebaseListeners = useCallback((userId: string) => {
+    const devicesQuery = query(
+      collection(db, 'User_Devices'),
+      where('uid', '==', userId)
+    );
+    
+    const unsubscribe = onSnapshot(devicesQuery, (snapshot) => {
+      // Handle device updates
+      const devices = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      // Update your devices state here
+    });
+    
+    // Store the unsubscribe function
+    firebaseListeners.current.push(unsubscribe);
+    
+    return () => unsubscribe();
+  }, []);
 
   // Fetch user's devices
   useEffect(() => {
@@ -175,6 +220,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     // Get current user
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
+        setupFirebaseListeners(user.uid);
         fetchUserDevices(user.uid);
       }
     });
@@ -183,7 +229,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
       isMounted = false;
       unsubscribe();
     };
-  }, [reqDevice]);
+  }, [reqDevice, setupFirebaseListeners]);
 
   useEffect(() => {
     let cancelled = false;
@@ -603,8 +649,12 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                   )}
                 </button>
                 {/* About Device */}
-                <a
-                  href="/dashboard/user/about-device"
+                <Link
+                  to="/dashboard/user/about-device"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleNavigation("/dashboard/user/about-device");
+                  }}
                   className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
                   aria-label="Open About Device"
                 >
@@ -614,10 +664,14 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                   {!billingCompact && (
                     <span className="text-sm font-medium text-gray-900 dark:text-white">About Device</span>
                   )}
-                </a>
+                </Link>
                 {/* Quote Portal */}
-                <a
-                  href="/dashboard/user/quote-portal"
+                <Link
+                  to="/dashboard/user/quote-portal"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleNavigation("/dashboard/user/quote-portal");
+                  }}
                   className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
                   aria-label="Open Quote Portal"
                 >
@@ -627,7 +681,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                   {!billingCompact && (
                     <span className="text-sm font-medium text-gray-900 dark:text-white">Quote Portal</span>
                   )}
-                </a>
+                </Link>
               </div>
             </div>
           </div>
