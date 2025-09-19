@@ -499,7 +499,7 @@ export interface EstimationQuote {
   createdByEmail?: string;
 }
 
-export const COLLECTION_ESTIMATION_QUOTES = 'Estimation Quote';
+export const COLLECTION_ESTIMATION_QUOTES = 'Estimation_Quote';
 
 export function estimationQuotesCollection(db: Firestore): CollectionReference<EstimationQuote> {
   return collection(db, COLLECTION_ESTIMATION_QUOTES) as CollectionReference<EstimationQuote>;

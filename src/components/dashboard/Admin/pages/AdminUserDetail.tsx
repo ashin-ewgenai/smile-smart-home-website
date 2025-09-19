@@ -8,6 +8,8 @@ import {
   supportTicketsCollection,
   supportTicketDoc,
   plannerLeadsCollection,
+  estimationQuoteDoc,
+  estimationQuotesCollection,
 } from '../../../../models/Collections';
 import { getDocs, getDoc, limit, query, where, updateDoc, doc, Timestamp, collection, onSnapshot } from 'firebase/firestore';
 import DeviceDetailsModal from '../components/DeviceDetailsModal';
@@ -319,8 +321,8 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         for (const id of candidates) {
           if (!id) continue;
           try {
-            const ref = doc(db, 'Estimation Quote', id);
-            const snap = await getDoc(ref);
+            const ref = estimationQuoteDoc(db, id);
+            const snap = await getDoc(ref as ReturnType<typeof doc>);
             if (snap.exists()) { found = { id: snap.id, ...snap.data() }; break; }
           } catch {}
         }
@@ -328,7 +330,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         // Fallback: search by originalQuoteId field
         if (!found) {
           try {
-            const col = collection(db, 'Estimation Quote');
+            const col = estimationQuotesCollection(db);
             const qs = await getDocs(query(col, where('originalQuoteId', '==', selected.id), limit(1)));
             if (!qs.empty) {
               const d = qs.docs[0];

@@ -951,8 +951,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
 
       <form 
         onSubmit={handleSubmit} 
-        className={`bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm relative ${hasPendingQuotes ? 'opacity-60' : ''}`}
-        style={{ pointerEvents: hasPendingQuotes ? 'none' : 'auto' }}
+        className={`bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm relative`}
       >
         {renderStep()}
 

@@ -71,8 +71,8 @@ export const adminDeleteUserAndData = onCall({ region: "us-central1", cors: true
     // 2) quotes (flat) by uid only
     summary.quotes = await deleteByQuery("quotes", "uid", targetUid);
 
-    // 3) Estimation Quote (flat) by uid only
-    summary.estimation_quote = await deleteByQuery("Estimation Quote", "uid", targetUid);
+    // 3) Estimation_Quote (flat) by uid only
+    summary.estimation_quote = await deleteByQuery("Estimation_Quote", "uid", targetUid);
 
     // 4) chat_sessions where ownerUid == targetUid (delete session docs only)
     summary.chat_sessions = await deleteByQuery("chat_sessions", "ownerUid", targetUid);
