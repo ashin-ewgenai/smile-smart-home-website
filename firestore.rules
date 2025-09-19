@@ -2,204 +2,154 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper functions
+    // ================= Helper Functions =================
     function isSignedIn() {
       return request.auth != null;
     }
 
-    // Estimation Quote collection (ID has a space). We match generically and gate by collectionId.
-    match /{collectionId}/{docId} {
-      allow read: if collectionId == 'Estimation Quote' && isSignedIn() && (
-        (resource.data.uid != null && resource.data.uid == request.auth.uid) ||
-        (resource.data.customerEmail != null && request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email)
-      );
-      allow create, update, delete: if collectionId == 'Estimation Quote' && isAdmin();
-    }
-    
     function isCurrentUser(uid) {
       return isSignedIn() && request.auth.uid == uid;
     }
-    
+
+    function userRole() {
+      return isSignedIn() && exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) ?
+        get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role : null;
+    }
+
     function isAdmin() {
-      return isSignedIn() && 
-        exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role in ['Admin', 'Super Admin'];
+      let role = userRole();
+      return role == 'admin' || role == 'Super Admin';
     }
 
-    // Users collection (existing project may already have rules; keep permissive here)
-    match /users/{uid} {
-      allow read, write: if isCurrentUser(uid);
+    function isValidEmail(email) {
+      return email.matches('^[^@]+@[^@]+\\.[^@]+$');
     }
 
-    // Accounts collection - user role information
+    // ================= Accounts =================
     match /Accounts/{uid} {
       allow read: if isCurrentUser(uid) || isAdmin();
-      allow create: if isAdmin(); // Admins and Super Admins can create accounts
-      allow update: if isAdmin(); // Admins and Super Admins can update accounts
-      allow delete: if isAdmin(); // Admins and Super Admins can delete accounts
+      allow create, update, delete: if isAdmin();
     }
 
-    // Chat sessions stored at top-level: chat_sessions/{sessionId}
-    match /chat_sessions/{sessionId} {
-      allow read, write: if isOwner() || isAdmin();
+    // ================= Estimation Quote =================
+    match /Estimation_Quote/{docId} {
+      // Read: Admin OR owner (by email)
+      allow read: if isAdmin() ||
+        (isSignedIn() && request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email);
 
-      function isOwner() {
-        // On create, `ownerUid` comes from request.resource
-        return isSignedIn() && (
-          request.resource.data.ownerUid == request.auth.uid ||
-          resource.data.ownerUid == request.auth.uid
-        );
-      }
+      // Create: Must match logged-in email
+      allow create: if isSignedIn() &&
+        request.auth.token.email != null &&
+        request.resource.data.customerEmail == request.auth.token.email;
 
-      // Messages subcollection
-      match /messages/{msgId} {
-        allow read, write: if isOwner() || isAdmin();
-      }
+      // Update: Owner (by email) or admin
+      allow update: if isSignedIn() &&
+        ((request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email) || isAdmin());
+
+      // Delete: Admin only
+      allow delete: if isAdmin();
     }
 
-    // Devices collection
-    match /devices/{deviceId} {
-      allow read: if isSignedIn() && resource.data.ownerUid == request.auth.uid;
-      allow create, update, delete: if isAdmin(); // Admins and Super Admins can manage devices
+    // ================= Planner Leads =================
+    match /Planner_Leads/{docId} {
+      allow read, write: if isAdmin();
     }
 
-    // Quotes: top-level collection `quotes/{quoteId}`
-    // - Authenticated users can create a quote only for themselves (userUid must match request.auth.uid)
-    // - Authenticated users can read only their own quotes
-    // - Admins can read/update any quote
-    // - Admins can delete quotes
-    match /quotes/{quoteId} {
-      allow create: if isSignedIn() && request.resource.data.userUid == request.auth.uid &&
-        // Validate required fields and types
-        request.resource.data.keys().hasAll(['userUid', 'details', 'status', 'createdAt']) &&
-        request.resource.data.userUid is string &&
-        request.resource.data.details is string && request.resource.data.details.size() > 0 &&
-        request.resource.data.status == 'pending' &&
-        request.resource.data.createdAt is timestamp;
-      allow read: if isSignedIn() && (resource.data.userUid == request.auth.uid || isAdmin());
-      allow update: if isAdmin();
-      allow delete: if isAdmin(); // Admins and Super Admins can delete quotes
-    }
-
-    // Support tickets: flat collection Support_Tickets/{ticketId}
-    // Allow authenticated user to read/write ONLY their own tickets (based on uid field)
-    match /Support_Tickets/{ticketId} {
-      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid &&
-        // Validate required fields
-        request.resource.data.keys().hasAll(['uid', 'complaint', 'status', 'createdAt']) &&
-        request.resource.data.uid is string &&
-        request.resource.data.complaint is string && request.resource.data.complaint.size() > 0 &&
-        // App uses capitalized statuses
-        request.resource.data.status in ['Pending', 'In Progress', 'Resolved', 'Closed', 'Cancelled'] &&
-        // Accept Firestore timestamp or millis number for createdAt
-        (request.resource.data.createdAt is timestamp || request.resource.data.createdAt is number);
+    // ================= Request Service =================
+    match /Request_service/{requestId} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow update: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
-      allow delete: if isAdmin(); // Admins and Super Admins can delete tickets
-    }
-
-    // Global support availability status
-    // support_status/global -> { online: boolean, updatedAt: number, updatedBy: uid }
-    match /support_status/{docId} {
-      allow read: if isSignedIn(); // any signed-in user can read status
-      allow write: if isAdmin(); // Admins and Super Admins can toggle
-    }
-
-    // Per-user human claim: when true, humans handle this user's chat (AI disabled)
-    match /support_claims/{uid} {
-      allow read: if isCurrentUser(uid) || isAdmin();
-      allow write: if isAdmin();
-    }
-
-    // Per-user human request: user can raise, admin can clear
-    match /support_requests/{uid} {
-      allow read: if isCurrentUser(uid) || isAdmin();
-      allow create, update: if isCurrentUser(uid);
+      allow update: if isSignedIn() &&
+        ((resource.data.uid == request.auth.uid) || isAdmin());
       allow delete: if isAdmin();
     }
 
-    // Rate limiting collection for chat functions
-    match /rate_limits/{uid} {
-      allow read, write: if isCurrentUser(uid) || isAdmin();
-    }
-
-    // Admin notifications
-    match /admin_notifications/{notificationId} {
-      allow read: if isAdmin();
-      allow create: if isSignedIn(); // Functions can create notifications
-      allow update, delete: if isAdmin();
-    }
-
-    // User notifications: top-level collection `notifications/{notificationId}`
-    // Allow authenticated users to read ONLY their own notifications (matched by userId field)
-    match /notifications/{notificationId} {
-      // Read allowed if the document's userId equals the requester uid
-      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
-      // Optional: allow creation from client or functions, adjust as needed
-      // Consider restricting to Cloud Functions or admins only in production
-      allow create: if isSignedIn();
-      // Allow the owner (or admin) to update only the 'status' field (e.g., mark as read)
-      allow update: if (
-        (isSignedIn() && resource.data.userId == request.auth.uid &&
-          request.resource.data.diff(resource.data).changedKeys().hasOnly(['status']))
-        || isAdmin()
-      );
-      // Disallow deletes by default (adjust if you want to let admins delete)
+    // ================= Support Tickets =================
+    match /Support_Tickets/{ticketId} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read, update: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
 
-    // User_Devices collection - user devices mapping
+    // ================= User Devices =================
     match /User_Devices/{docId} {
-      allow read, write: if isSignedIn() && (
-        // Users can read/write their own device mappings
-        resource.data.uid == request.auth.uid ||
-        // Or if they're an admin
-        isAdmin()
-      );
+      allow read, write: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
     }
-    
-    // Devices collection - allow read for all authenticated users
+
+    // ================= User Notifications =================
+    match /User_Notifications/{notificationId} {
+      allow list, get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update: if isSignedIn() &&
+        (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // ================= Chat Sessions =================
+    match /chat_sessions/{sessionId} {
+      allow read, create, update: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isAdmin());
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        allow read, create: if isSignedIn() &&
+          (get(/databases/$(database)/documents/chat_sessions/$(sessionId)).data.ownerUid == request.auth.uid || isAdmin());
+        allow update, delete: if false;
+      }
+    }
+
+    // ================= Contact Requests =================
+    match /contactRequests/{docId} {
+      allow create: if request.resource.data.keys().hasOnly(['fullName','email','phone','message','createdAt','status','service']);
+      allow read, update, delete: if false;
+    }
+
+    // ================= Quotes =================
+    match /quotes/{quoteId} {
+      // Read: user can read their own quotes or admin can read all
+      allow list, get: if isSignedIn() && (resource.data.userUid == request.auth.uid || isAdmin());
+
+      // Create: only owner can create their quote
+      allow create: if isSignedIn() && request.resource.data.userUid == request.auth.uid;
+
+      // Update: only owner or admin
+      allow update: if isSignedIn() && (resource.data.userUid == request.auth.uid || isAdmin());
+
+      // Delete only admin
+      allow delete: if isAdmin();
+    }
+
+    // ================= Devices =================
     match /Devices/{docId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // Product documentation
+    // ================= Product Docs =================
     match /product_docs/{docId} {
       allow read: if isSignedIn();
-      allow create, update, delete: if isAdmin(); // Admins and Super Admins can manage product docs
+      allow create, update, delete: if isAdmin();
     }
 
-    // Public contact form submissions: create-only into contactRequests
-    // Anyone (including unauthenticated) may create a request, but no reads/updates/deletes
-    match /contactRequests/{docId} {
-      allow create: if isValidContactRequest();
-      allow read, update, delete: if false;
-
-      function isValidContactRequest() {
-        // Only allow these fields
-        return request.resource.data.keys().hasOnly(['fullName','email','phone','message','createdAt','status','service'])
-          // Required fields and types
-          && (request.resource.data.fullName is string && request.resource.data.fullName.size() > 0)
-          && (request.resource.data.email is string && request.resource.data.email.size() > 0)
-          && (request.resource.data.message is string && request.resource.data.message.size() > 0)
-          && (request.resource.data.createdAt is timestamp)
-          && (request.resource.data.status == 'pending');
-        // Note: 'phone' and 'service' are optional; presence allowed by keys().hasOnly(), no extra type checks needed here.
-      }
+    // ================= Rate Limits =================
+    match /rate_limits/{uid} {
+      allow read, write: if isCurrentUser(uid) || isAdmin();
     }
 
-    // Contact messages from the website
-    match /Contact_Messages/{messageId} {
-      // Allow admins to read all contact messages
-      allow read: if isAdmin();
-      // Allow creation of new contact messages (from the website)
-      allow create: if request.resource.data.keys().hasAll(['email', 'message', 'createdAt'])
-        && request.resource.data.email is string
-        && request.resource.data.message is string
-        && request.resource.data.createdAt is timestamp;
-      // Allow admins to update status of messages
-      allow update: if isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'adminRead']);
+    // ================= Support Status / Claims =================
+    match /support_status/{docId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /support_claims/{uid} {
+      allow read: if isCurrentUser(uid) || isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /support_requests/{uid} {
+      allow read: if isCurrentUser(uid) || isAdmin();
+      allow create, update: if isCurrentUser(uid);
+      allow delete: if isAdmin();
     }
   }
 }
