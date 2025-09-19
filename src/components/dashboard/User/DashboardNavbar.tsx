@@ -12,7 +12,8 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-  const location = useLocation();
+  // Safely use location only in browser environment
+  const location = typeof window !== 'undefined' ? useLocation() : { pathname: '' };
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);

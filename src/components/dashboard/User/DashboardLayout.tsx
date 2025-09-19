@@ -23,8 +23,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
     setMounted(true);
   }, []);
   // Support both SPA (with Router) and non-SPA usage
-  const inRouter = useInRouterContext();
-  const location = inRouter ? useLocation() : (null as unknown as ReturnType<typeof useLocation>);
+  const inRouter = typeof window !== 'undefined' && useInRouterContext();
+  const location = inRouter ? useLocation() : { pathname: '' };
 
   const base = `/dashboard/${userType}`;
   const items = [
