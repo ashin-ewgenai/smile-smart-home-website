@@ -955,6 +955,12 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       >
         {renderStep()}
 
+        {activeQuotesCount >= MAX_QUOTES && (
+          <div className="mt-4 p-3 rounded-xl bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200 border border-amber-200 dark:border-amber-700">
+            You’ve reached the maximum of {MAX_QUOTES} active quotes. Cancel an existing quote or wait for a response to submit a new one.
+          </div>
+        )}
+
         {submitError && <p className="mt-6 text-sm text-red-600">{submitError}</p>}
 
         <div className="mt-8 flex justify-between">
@@ -980,13 +986,10 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
             <button
               type="submit"
               className="px-5 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
-              disabled={submitting || hasPendingQuotes || activeQuotesCount >= MAX_QUOTES}
-              title={`submitting: ${submitting}, hasPendingQuotes: ${hasPendingQuotes}, activeQuotesCount: ${activeQuotesCount}, MAX_QUOTES: ${MAX_QUOTES}`}
+              disabled={submitting || activeQuotesCount >= MAX_QUOTES}
+              title={`submitting: ${submitting}, activeQuotesCount: ${activeQuotesCount}, MAX_QUOTES: ${MAX_QUOTES}`}
             >
-              {submitting ? 'Submitting...' : 
-               hasPendingQuotes ? 'Complete Pending Quotes' :
-               activeQuotesCount >= MAX_QUOTES ? 'Limit Reached' : 
-               'Submit Quote'}
+              {submitting ? 'Submitting...' : activeQuotesCount >= MAX_QUOTES ? 'Limit Reached' : 'Submit Quote'}
             </button>
           )}
         </div>
