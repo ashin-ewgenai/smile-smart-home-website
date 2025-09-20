@@ -1,5 +1,4 @@
 ---
-import NotificationBell from '../components/dashboard/User/NotificationBell';
 import { ViewTransitions } from 'astro:transitions';
 
 export interface Props {
@@ -98,10 +97,6 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
   </head>
   <body>
     <ViewTransitions />
-    <!-- Global header actions placeholder: show NotificationBell in top-right across pages -->
-    <div class="fixed top-4 right-4 z-50">
-      <NotificationBell client:only="react" />
-    </div>
     <slot />
     <script type="module" src="/src/lib/lenis-init.ts"></script>
     <script type="module">
@@ -126,20 +121,6 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (prefersReducedMotion) {
           // lenis.destroy(); // Removed this line as lenis is not defined here
-        }
-      });
-    </script>
-    <script>
-      // Make any bell icon button clickable to navigate to notifications
-      // Matches buttons that contain an SVG with class 'lucide-bell'
-      document.addEventListener('click', (e) => {
-        const el = e.target;
-        if (!(el instanceof Element)) return;
-        const btn = el.closest('button');
-        if (!btn) return;
-        const hasBellIcon = btn.querySelector('svg.lucide-bell');
-        if (hasBellIcon) {
-          window.location.href = '/user/notifications';
         }
       });
     </script>

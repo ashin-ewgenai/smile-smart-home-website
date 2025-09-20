@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, User, LogOut, Settings, Bell, ArrowLeft, Moon, Sun } from 'lucide-react';
+import { Menu, X, User, LogOut, Settings, ArrowLeft, Moon, Sun } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 import { handleLogout } from './LogoutHandler';
 
@@ -108,12 +108,6 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               title={darkMode ? 'Light mode' : 'Dark mode'}
             >
               {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-            </button>
-            <button 
-              type="button" 
-              className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none ml-3"
-            >
-              <Bell className="h-5 w-5" />
             </button>
             <div className="ml-3 relative">
               <div>
@@ -261,22 +255,16 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
             </button>
           </div>
           <div className="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex items-center px-5">
+            <div className="flex items-center px-4">
               <div className="flex-shrink-0">
-                <div className="h-10 w-10 rounded-full flex items-center justify-center bg-black dark:bg-teal-500 text-white ring-1 ring-gray-300/60 dark:ring-teal-300/40 shadow-sm">
-                  <User className="h-6 w-6" />
+                <div className="h-10 w-10 rounded-full bg-teal-500 flex items-center justify-center text-white">
+                  {actualUserName.charAt(0).toUpperCase()}
                 </div>
               </div>
               <div className="ml-3">
                 <div className="text-base font-medium text-gray-800 dark:text-white">{actualUserName}</div>
-                <div className="text-sm font-medium text-gray-500 dark:text-gray-400 capitalize">{userType}</div>
+                <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{userType}</div>
               </div>
-              <button 
-                type="button" 
-                className="ml-auto flex-shrink-0 p-1 rounded-full text-gray-400 hover:text-gray-500 dark:hover:text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-              >
-                <Bell className="h-6 w-6" />
-              </button>
             </div>
             <div className="mt-3 px-2 space-y-1">
               <Link 
