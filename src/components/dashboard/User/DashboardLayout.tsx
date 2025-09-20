@@ -100,9 +100,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
         {!collapsed && <span className="truncate">{label}</span>}
       </>
     );
-    // Support Chat is now a regular navigation item
+    // When inside a Router with a basename (e.g., "/dashboard/user"),
+    // Link's `to` should be relative to that basename. Our `href` values are absolute
+    // (e.g., "/dashboard/user/support-tickets"), so we strip the `base` prefix for SPA links.
+    const to = inRouter
+      ? (href.startsWith(base) ? (href.slice(base.length) || '/') : href)
+      : href;
+
     return inRouter ? (
-      <Link to={href} title={title} className={common}>{children}</Link>
+      <Link to={to} title={title} className={common}>{children}</Link>
     ) : (
       <a href={href} title={title} className={common}>{children}</a>
     );
