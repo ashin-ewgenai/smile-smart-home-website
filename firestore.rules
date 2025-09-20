@@ -111,8 +111,14 @@ service cloud.firestore {
       // Create: only owner can create their quote
       allow create: if isSignedIn() && request.resource.data.userUid == request.auth.uid;
 
-      // Update: only owner or admin
-      allow update: if isSignedIn() && (resource.data.userUid == request.auth.uid || isAdmin());
+      // Update: admin OR owner may cancel their own quote (narrow field changes only)
+      allow update: if isAdmin() || (
+        isSignedIn() &&
+        resource.data.userUid == request.auth.uid &&
+        // Owner may set status to 'Cancelled' and record who/when
+        request.resource.data.status == 'Cancelled' &&
+        request.resource.data.cancelledByUid == request.auth.uid
+      );
 
       // Delete only admin
       allow delete: if isAdmin();

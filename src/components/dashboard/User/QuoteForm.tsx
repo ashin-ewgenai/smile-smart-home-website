@@ -517,8 +517,9 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       return;
     }
 
-    // Require authentication to submit
-    if (!auth.currentUser) {
+    // Require authentication to submit (use stable currentUid captured from onAuthStateChanged)
+    const uid = currentUid || auth.currentUser?.uid || null;
+    if (!uid) {
       setSubmitError('Please sign in to submit your quote.');
       try {
         // Open login modal if available
@@ -538,10 +539,17 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
 
     setSubmitting(true);
     try {
+      // Debug: surface key context during submit
+      console.debug('[QuoteForm] Submitting quote', {
+        uid,
+        email: userEmail,
+        activeQuotesCount,
+        MAX_QUOTES,
+      });
       const quoteData = {
         customerId: userEmail, // Using email as customer ID for now
         customerEmail: userEmail ?? null,
-        userUid: auth.currentUser?.uid ?? null,
+        userUid: uid,
         status: 'Pending',
         createdAt: serverTimestamp(),
         quoteType: formData.quoteType,
@@ -601,7 +609,13 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       console.error('Error submitting quote:', error);
       const code = error?.code || '';
       if (code === 'permission-denied') {
-        setSubmitError('Permission denied. Please sign in and try again.');
+        // Provide clearer hints for common causes
+        setSubmitError('Permission denied. Make sure you are signed in and your account has access.');
+        showToast('Permission denied when creating quote. Please sign in again.');
+        console.warn('[QuoteForm] permission-denied creating quotes doc. Hints: ensure request.auth.uid is set and matches userUid in payload; verify rules on /quotes allow create. Payload userUid:', uid);
+      } else if (code === 'unauthenticated') {
+        setSubmitError('You are not signed in. Please sign in and try again.');
+        showToast('Not signed in. Please log in.');
       } else {
         setSubmitError(error?.message || 'Failed to submit. Please try again.');
       }
