@@ -37,10 +37,11 @@ service cloud.firestore {
       allow read: if isAdmin() ||
         (isSignedIn() && request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email);
 
-      // Create: Must match logged-in email
-      allow create: if isSignedIn() &&
-        request.auth.token.email != null &&
-        request.resource.data.customerEmail == request.auth.token.email;
+      // Create: Admin can create for any customer, or customer can create for themselves
+      allow create: if isSignedIn() && (
+        isAdmin() ||
+        (request.auth.token.email != null && request.resource.data.customerEmail == request.auth.token.email)
+      );
 
       // Update: Owner (by email) or admin
       allow update: if isSignedIn() &&
@@ -73,16 +74,22 @@ service cloud.firestore {
 
     // ================= User Devices =================
     match /User_Devices/{docId} {
-      allow read, write: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+      // Users can read/write their own devices, admin can access all
+      allow read, write: if isSignedIn() && (
+        resource.data.uid == request.auth.uid || 
+        request.resource.data.uid == request.auth.uid ||
+        isAdmin()
+      );
     }
 
     // ================= User Notifications =================
     match /User_Notifications/{notificationId} {
-      allow list, get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow update: if isSignedIn() &&
-        (resource.data.userId == request.auth.uid || isAdmin());
-      allow delete: if isAdmin();
+      // Users can read/write their own notifications, admin can access all
+      allow read, write: if isSignedIn() && (
+        resource.data.uid == request.auth.uid || 
+        request.resource.data.uid == request.auth.uid ||
+        isAdmin()
+      );
     }
 
     // ================= Chat Sessions =================
@@ -99,8 +106,10 @@ service cloud.firestore {
 
     // ================= Contact Requests =================
     match /contactRequests/{docId} {
+      // Public can create with only expected fields
       allow create: if request.resource.data.keys().hasOnly(['fullName','email','phone','message','createdAt','status','service']);
-      allow read, update, delete: if false;
+      // Admin can read and moderate (mark as read, delete)
+      allow read, update, delete: if isAdmin();
     }
 
     // ================= Quotes =================
@@ -156,6 +165,50 @@ service cloud.firestore {
       allow read: if isCurrentUser(uid) || isAdmin();
       allow create, update: if isCurrentUser(uid);
       allow delete: if isAdmin();
+    }
+
+    // ================= Nested Quotes per User =================
+    match /Quotes/{uid} {
+      // Container doc (if used)
+      allow read: if isCurrentUser(uid) || isAdmin();
+
+      // Quote list under each user (used via collectionGroup queries)
+      match /Quote_List/{id} {
+        allow read: if isCurrentUser(uid) || isAdmin();
+        allow create: if isCurrentUser(uid);
+        // Owner or admin can update/delete (e.g., adminRead flag)
+        allow update, delete: if isCurrentUser(uid) || isAdmin();
+      }
+    }
+
+    // ================= Admin Service Requests (flat) =================
+    match /service_requests/{docId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    // ================= Users lookup (admin-only) =================
+    match /users/{uid} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ================= Legacy Support Tickets (Contact_Messages) =================
+    match /Contact_Messages/{docId} {
+      allow read, update, delete: if isAdmin();
+      allow create: if false;
+    }
+
+    // ================= Nested Support Tickets =================
+    match /supportTickets/{uid} {
+      allow read: if isAdmin();
+      match /ticket/{ticketId} {
+        allow read, create, update, delete: if isAdmin();
+      }
+    }
+
+    // ================= Alerts (admin-only) =================
+    match /Alerts/{docId} {
+      allow read, create, update, delete: if isAdmin();
     }
   }
 }

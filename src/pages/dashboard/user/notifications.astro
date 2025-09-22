@@ -1,0 +1,11 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import DashboardApp from '../../../components/dashboard/User/DashboardApp';
+---
+
+<Layout title="Notifications - Smile Smart Homes">
+  <DashboardApp client:only="react" />
+</Layout>
+
+<!-- Navigation and content handled by React Router SPA -->
+<script type="module">import '/src/pages/dashboard/authGateUser.client.ts';</script>

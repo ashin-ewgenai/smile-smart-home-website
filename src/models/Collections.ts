@@ -439,6 +439,27 @@ export function userDeviceDoc(db: Firestore, id: string): DocumentReference<User
   return doc(db, COLLECTION_USER_DEVICES, id) as DocumentReference<UserDevice>;
 }
 
+// User Notifications collection
+export const COLLECTION_USER_NOTIFICATIONS = 'User_Notifications';
+
+export interface UserNotification {
+  uid: string;
+  title: string;
+  message: string;
+  type: 'system' | 'device' | 'billing' | 'support' | string;
+  status: 'read' | 'unread' | string;
+  createdAt: Timestamp;
+  [key: string]: any;
+}
+
+export function userNotificationsCollection(db: Firestore): CollectionReference<UserNotification> {
+  return collection(db, COLLECTION_USER_NOTIFICATIONS) as CollectionReference<UserNotification>;
+}
+
+export function userNotificationDoc(db: Firestore, id: string): DocumentReference<UserNotification> {
+  return doc(db, COLLECTION_USER_NOTIFICATIONS, id) as DocumentReference<UserNotification>;
+}
+
 export function userDevicePayloadFromDevice(device: Device & { id?: string }, uid: string): UserDevice & { UpdatedAt: FieldValue; status: string; DeviceCount: number } {
   return {
     uid,

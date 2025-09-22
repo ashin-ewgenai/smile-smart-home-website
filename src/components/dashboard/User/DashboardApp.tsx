@@ -11,6 +11,7 @@ import TicketCenter from './TicketCenter';
 import ChangePassword from './ChangePassword';
 import SupportChatPanel from '../../supportChat/SupportChatPanel';
 import { DevicesProvider } from '../../../contexts/DevicesContext';
+import NotificationsPage from './NotificationsPage';
 
 // Simple wrapper to show the Quote Portal within standard padding
 const QuotePortalPage: React.FC = () => (
@@ -25,6 +26,12 @@ const SupportTicketsPage: React.FC = () => (
   </section>
 );
 
+const NotificationsRoutePage: React.FC = () => (
+  <section className="p-6">
+    <NotificationsPage />
+  </section>
+);
+
 const DashboardApp: React.FC = () => {
   return (
     <BrowserRouter basename="/dashboard/user">
@@ -33,6 +40,7 @@ const DashboardApp: React.FC = () => {
           <Routes>
           <Route path="/" element={<UserDashboard userName="User" />} />
           <Route path="/settings" element={<UserSettings />} />
+          <Route path="/notifications" element={<NotificationsRoutePage />} />
           <Route path="/quote-portal" element={<QuotePortalPage />} />
           <Route path="/support-tickets" element={<SupportTicketsPage />} />
           <Route path="/support-chat" element={<SupportChatPanel raiseTicketsHref="/support-tickets" />} />
