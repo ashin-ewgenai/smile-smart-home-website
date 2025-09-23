@@ -56,7 +56,7 @@ export default function ContactForm() {
       setErrorMsg('');
       try {
         // Write to contactRequests with required fields
-        await addDoc(collection(db, 'contactRequests'), {
+        const contactDocRef = await addDoc(collection(db, 'contactRequests'), {
           fullName: values.name.trim(),
           email: values.email.trim().toLowerCase(),
           phone: values.phone.trim(),
@@ -65,6 +65,7 @@ export default function ContactForm() {
           status: 'pending',
           service: values.service || null,
         });
+
         setSuccessMsg('your data submitted successfully');
         setValues(initialState);
       } catch (err) {

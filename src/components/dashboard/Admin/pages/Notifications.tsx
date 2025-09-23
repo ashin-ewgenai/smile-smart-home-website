@@ -1,74 +1,35 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db } from '../../../../lib/firebase';
-import { query, orderBy, updateDoc, getDoc, setDoc, deleteDoc, getDocs, where, collectionGroup, collection, doc, onSnapshot, limit, type Timestamp } from 'firebase/firestore';
+import { auth, db, firebaseApp } from '../../../../lib/firebase';
+import { query, orderBy, updateDoc, deleteDoc, getDocs, getDoc, onSnapshot, addDoc, serverTimestamp, type Timestamp } from 'firebase/firestore';
 import { 
-  serviceRequestsCollection, 
-  serviceRequestDoc, 
-  usersCollection, 
-  userDoc,
-  contactRequestsCollection,
-  plannerLeadsCollection,
-  plannerLeadDoc,
-  SUBCOLLECTION_QUOTE,
-  COLLECTION_QUOTES_ROOT,
   adminNotificationsCollection,
   adminNotificationDoc,
   type AdminNotification
 } from '../../../../models/Collections';
+import { accountDoc, contactRequestsCollection, contactRequestDoc } from '../../../../models/Collections';
 import { showToast } from '../../../../lib/toast';
-import { contactRequestDoc, quoteDoc, supportTicketDoc, estimationQuotesCollection, estimationQuoteDoc } from '../../../../models/Collections';
 
-type Priority = 'High' | 'Normal' | 'Low' | string;
-type Status = 'new' | 'ack' | 'done' | string;
-type NotificationType = 'service_request' | 'quote_request' | 'contact_message' | 'plan_lead' | 'support_ticket' | 'estimation_quote';
+type NotificationType = 'estimation_quote' | 'user_action' | 'system' | 'quote_request' | 'support_ticket' | string;
 
 type UnifiedNotification = {
   id?: string;
   type: NotificationType;
   createdAt?: Date | string | number | Timestamp | null;
-  created_at?: Date | string | number | Timestamp | null;
-  ts?: Date | string | number | Timestamp | null;
   adminRead?: boolean;
-  // For nested paths
-  parentUid?: string; // e.g., quotes/{uid}/Quote_List/{id} or supportTickets/{uid}/ticket/{id}
   
-  // Service Request fields
-  preferredDate?: string;
-  preferred_date?: string;
-  preferredTime?: string;
-  preferred_time?: string;
-  priority?: Priority;
-  status?: Status;
-  service?: string;
-  device?: string;
-  
-  // User and contact information
-  userEmail?: string;
-  email?: string;
-  fromEmail?: string;
-  userName?: string;
-  displayName?: string;
-  userId?: string;
-  uid?: string;
-  user?: string | { email?: string };
-  customer?: { email?: string };
-  customerEmail?: string;
-  
-  // Quote specific fields
-  quoteType?: string;
-  location?: string;
-  sqft?: number | string;
-  area?: string;
-  details?: string;
-  
-  // Contact Message fields
-  name?: string;
-  phone?: string;
+  // Admin Notification fields
+  title?: string;
   message?: string;
+  priority?: 'high' | 'medium' | 'low' | string;
+  status?: 'read' | 'unread' | string;
+  customerEmail?: string;
+  customerUid?: string;
+  relatedEntityId?: string;
+  relatedEntityType?: string;
   
-  // Plan Lead fields
-  [key: string]: any;
+  // Additional fields for compatibility
+  timestamp?: number;
 };
 
 const fmt = (ts?: Date | string | number | Timestamp | null) => {
@@ -95,32 +56,12 @@ const Notifications: React.FC = () => {
   const [filter, setFilter] = useState<NotificationType | 'all'>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
-  interface UserCache {
-    displayName?: string;
-    email?: string;
-    name?: string;
-  }
-
-  // Extend the Window interface to include user data
-  interface UserData {
-    email: string;
-    displayName?: string;
-    name?: string;
-    [key: string]: any;
-  }
+  const [authError, setAuthError] = useState<string | null>(null);
   
-  const [userCache, setUserCache] = useState<Record<string, UserCache | null>>({});
 
   const isUnread = (item: UnifiedNotification): boolean => {
-    // If explicitly marked read, treat as read for all types
-    if (item.adminRead === true) return false;
-    // For service requests, also consider read if status is 'ack' or 'done'
-    if (item.type === 'service_request') {
-      const st = String(item.status || '').toLowerCase();
-      if (st === 'ack' || st === 'done') return false;
-    }
-    // Otherwise treat as unread
-    return true;
+    // For admin notifications, check status field
+    return item.status !== 'read';
   };
 
   const filteredItems = useMemo(() => {
@@ -143,8 +84,8 @@ const Notifications: React.FC = () => {
       }
       
       // If both are read or both are unread, sort by timestamp (newest first)
-      const aTime = a.createdAt || a.created_at || a.ts || 0;
-      const bTime = b.createdAt || b.created_at || b.ts || 0;
+      const aTime = a.createdAt || a.timestamp || 0;
+      const bTime = b.createdAt || b.timestamp || 0;
       const aTimestamp = aTime instanceof Date ? aTime.getTime() : typeof aTime === 'number' ? aTime : 0;
       const bTimestamp = bTime instanceof Date ? bTime.getTime() : typeof bTime === 'number' ? bTime : 0;
       
@@ -166,195 +107,36 @@ const Notifications: React.FC = () => {
   }, [filteredItems]);
 
   const getNotificationTitle = (item: UnifiedNotification, onView?: (e: React.MouseEvent) => void): React.ReactNode => {
-    switch (item.type) {
-      case 'service_request':
-        return `Service Request: ${item.service || 'Unknown'}`;
-      case 'support_ticket': {
-        const email = item.email || item.userEmail || 'Unknown Sender';
-        const displayName = item.fullName || item.name || email.split('@')[0];
-        const service = item.service ? ` • ${item.service}` : '';
-        
-        return (
+    // Admin notification format
+    const priorityColor = item.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                         item.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                         'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+    
+    return (
+      <>
+        <span className={`px-2 py-1 text-xs rounded-full ${priorityColor}`}>
+          {item.priority?.toUpperCase() || 'MEDIUM'} PRIORITY
+        </span>
+        <span className="mx-2 text-gray-600 dark:text-gray-400">•</span>
+        <span className="text-gray-900 dark:text-white font-medium">{item.title || 'Admin Notification'}</span>
+        {item.customerEmail && (
           <>
-            <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300">
-              {item.status === 'pending' ? 'NEW REPORT' : 'REPORT'}
-            </span>
-            <span className="mx-2 text-teal-600 dark:text-gray-400">from</span>
+            <span className="mx-2 text-gray-600 dark:text-gray-400">from</span>
             <button
               type="button"
               onClick={onView}
-              className="text-gray-900 dark:text-teal-300 font-medium underline-offset-2 hover:underline"
+              className="text-teal-600 dark:text-teal-300 font-mono text-sm underline-offset-2 hover:underline"
             >
-              {displayName}
+              {item.customerEmail}
             </button>
           </>
-        );
-      }
-      case 'quote_request': {
-        // Check if this is an admin notification (has title field) or legacy format
-        if (item.title) {
-          // Admin notification format
-          const priorityColor = item.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-                               item.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                               'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
-          
-          return (
-            <>
-              <span className={`px-2 py-1 text-xs rounded-full ${priorityColor}`}>
-                {item.priority?.toUpperCase() || 'MEDIUM'} PRIORITY
-              </span>
-              <span className="mx-2 text-gray-600 dark:text-gray-400">•</span>
-              <span className="text-gray-900 dark:text-white font-medium">{item.title}</span>
-              {item.customerEmail && (
-                <>
-                  <span className="mx-2 text-gray-600 dark:text-gray-400">from</span>
-                  <button
-                    type="button"
-                    onClick={onView}
-                    className="text-teal-600 dark:text-teal-300 font-mono text-sm underline-offset-2 hover:underline"
-                  >
-                    {item.customerEmail}
-                  </button>
-                </>
-              )}
-            </>
-          );
-        } else {
-          // Legacy format
-          // Get email from various possible fields in order of priority
-          const possibleEmailFields = [
-            item.email,
-            item.userEmail,
-            item.customerEmail,
-            item.customer?.email,
-            typeof item.user === 'object' ? item.user?.email : item.user,
-            typeof item.user === 'string' ? item.user : null
-          ];
-          
-          // Find the first non-empty email
-          const email = possibleEmailFields.find(
-            field => field && typeof field === 'string' && field.includes('@')
-          ) || 'Unknown Sender';
-          
-          // Ensure we have a valid email string
-          const displayEmail = typeof email === 'string' ? email : 'Unknown Sender';
-          
-          return (
-            <>
-              <span className="px-2 py-1 text-xs rounded-full bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300">QUOTE</span>
-              <span className="mx-2 text-teal-600 dark:text-gray-400">from</span>
-              <button
-                type="button"
-                onClick={onView}
-                className="text-gray-900 dark:text-teal-300 font-sans text-lg font-medium underline-offset-2 hover:underline"
-              >
-                {displayEmail}
-              </button>
-            </>
-          );
-        }
-      }
-      case 'contact_message': {
-        const nameOrEmail = item.name || item.email;
-        return nameOrEmail 
-          ? <>
-              <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">CONTACT MESSAGE</span>
-              <span className="mx-2 text-teal-600 dark:text-gray-400">from</span>
-              <button
-                type="button"
-                onClick={onView}
-                className="text-gray-900 dark:text-indigo-300 font-sans text-lg font-medium underline-offset-2 hover:underline"
-              >{nameOrEmail}</button>
-            </>
-          : <>
-              <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">CONTACT MESSAGE</span>
-              <span className="mx-2 text-blue-600 dark:text-gray-400">from</span>
-              <span>Unknown Sender</span>
-            </>;
-      }
-      case 'plan_lead': {
-        const email = item.email || item.userEmail || 'No email provided';
-        return (
-          <>
-            <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">PLAN LEAD</span>
-            <span className="mx-2 text-blue-600 dark:text-gray-400">from</span>
-            <button
-              type="button"
-              onClick={onView}
-              className="text-gray-900 dark:text-indigo-300 font-sans text-lg font-medium underline-offset-2 hover:underline"
-            >
-              {email}
-            </button>
-          </>
-        );
-      }
-      case 'estimation_quote': {
-        // Check if this is an admin notification (has title field) or legacy format
-        if (item.title) {
-          // Admin notification format
-          const priorityColor = item.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
-                               item.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
-                               'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
-          
-          return (
-            <>
-              <span className={`px-2 py-1 text-xs rounded-full ${priorityColor}`}>
-                {item.priority?.toUpperCase() || 'ADMIN'} NOTIFICATION
-              </span>
-              <span className="mx-2 text-gray-600 dark:text-gray-400">•</span>
-              <span className="text-gray-900 dark:text-white font-medium">{item.title}</span>
-              {item.customerEmail && (
-                <>
-                  <span className="mx-2 text-gray-600 dark:text-gray-400">for</span>
-                  <button
-                    type="button"
-                    onClick={onView}
-                    className="text-teal-600 dark:text-teal-300 font-mono text-sm underline-offset-2 hover:underline"
-                  >
-                    {item.customerEmail}
-                  </button>
-                </>
-              )}
-            </>
-          );
-        } else {
-          // Legacy format
-          const email = item.customerEmail || item.userEmail || item.email;
-          return email 
-            ? <>{'Estimation Quote from '}<button type="button" onClick={onView} className="text-gray-900 dark:text-teal-300 font-mono text-sm underline-offset-2 hover:underline">{email}</button></>
-            : 'Estimation Quote from Unknown';
-        }
-      }
-      default:
-        return 'Notification';
-    }
+        )}
+      </>
+    );
   };
 
   const getNotificationDescription = (item: UnifiedNotification): string => {
-    switch (item.type) {
-      case 'service_request':
-        return `Device: ${item.device || 'N/A'} | Priority: ${item.priority || 'Normal'}`;
-      case 'quote_request':
-        // Check if this is an admin notification with message or legacy format
-        if (item.message) {
-          return item.message;
-        }
-        return `Area: ${item.area || 'N/A'} | Size: ${item.sqft || 'N/A'} sqft`;
-      case 'contact_message':
-        return `Service: ${item.service || 'N/A'} | Phone: ${item.phone || 'N/A'}`;
-      case 'plan_lead':
-        return `Email: ${item.email || 'Not provided'}`;
-      case 'support_ticket':
-        return `Category: ${item.category || 'General'}${item.description ? ` • ${item.description}` : ''}`;
-      case 'estimation_quote':
-        // Check if this is an admin notification with message or legacy format
-        if (item.message) {
-          return item.message;
-        }
-        return 'A new estimation quote has been created';
-      default:
-        return '';
-    }
+    return item.message || 'Admin notification';
   };
 
   const markAsRead = async (item: UnifiedNotification) => {
@@ -363,46 +145,18 @@ const Notifications: React.FC = () => {
       setUpdating(key);
       if (!item.id) return;
       
-      if (item.type === 'quote_request') {
-        // Check if this is an admin notification or legacy quote
-        if (item.title) {
-          // This is an admin notification, update its status to 'read'
-          await updateDoc(adminNotificationDoc(db, item.id), { status: 'read' });
-        } else {
-          // Legacy quote format - update root quotes doc if this item is from root collection
-          try { await updateDoc(doc(db, 'quotes', item.id), { adminRead: true }); } catch {}
-          // If we have a parentUid, also update nested subcollection doc so collectionGroup fetch reflects it
-          if (item.parentUid) {
-            try { await updateDoc(doc(db, COLLECTION_QUOTES_ROOT, item.parentUid, SUBCOLLECTION_QUOTE, item.id), { adminRead: true }); } catch {}
-          }
-        }
-      } else if (item.type === 'service_request') {
-        await updateDoc(serviceRequestDoc(db, item.id), { adminRead: true });
-      } else if (item.type === 'contact_message') {
-        await updateDoc(contactRequestDoc(db, item.id), { adminRead: true });
-      } else if (item.type === 'plan_lead') {
-        try { await updateDoc(plannerLeadDoc(db, item.id), { adminRead: true }); } catch {}
-      } else if (item.type === 'support_ticket') {
-        if (item.parentUid) {
-          // For nested support tickets, update the nested path
-          await updateDoc(doc(db, 'supportTickets', item.parentUid, 'ticket', item.id), { adminRead: true });
-        } else {
-          // Some support tickets are sourced from Contact_Messages; update that doc as well
-          try { await updateDoc(doc(db, 'Contact_Messages', item.id), { adminRead: true }); } catch {}
-        }
-      } else if (item.type === 'estimation_quote' && item.title) {
-        // This is an admin notification, update its status to 'read'
-        await updateDoc(adminNotificationDoc(db, item.id), { status: 'read' });
-      }
+      // Update admin notification status to 'read'
+      await updateDoc(adminNotificationDoc(db, item.id), { status: 'read' });
       
       // Update local state
       setItems(prev => prev.map(i => 
-        i.id === item.id ? { ...i, adminRead: true } : i
+        i.id === item.id ? { ...i, status: 'read' } : i
       ));
       
-      // Toast removed per UX: avoid showing a top-right popup on mark-as-read
     } catch (error) {
       showToast('Failed to mark as read', 'error');
+    } finally {
+      setUpdating(null);
     }
   };
 
@@ -412,16 +166,8 @@ const Notifications: React.FC = () => {
     try {
       setUpdating(`delete:${item.id}`);
       
-      if (item.type === 'support_ticket' && item.parentUid) {
-        // For support tickets, we need to use the parentUid to build the correct path
-        await deleteDoc(doc(db, 'supportTickets', item.parentUid, 'ticket', item.id));
-      } else if (item.type === 'quote_request') {
-        await deleteDoc(doc(db, 'quotes', item.id));
-      } else if (item.type === 'service_request') {
-        await deleteDoc(serviceRequestDoc(db, item.id));
-      } else if (item.type === 'contact_message') {
-        await deleteDoc(contactRequestDoc(db, item.id));
-      }
+      // Delete admin notification
+      await deleteDoc(adminNotificationDoc(db, item.id));
       
       // Update local state by filtering out the deleted notification
       setItems(prev => prev.filter(i => i.id !== item.id));
@@ -443,494 +189,182 @@ const Notifications: React.FC = () => {
       markAsRead(item);
     }
     
-    // Use the base path without /dashboard/admin since the router is already under that path
-    switch (item.type) {
-      case 'estimation_quote':
-        // Navigate to the estimates page with the quote ID
-        navigate(`/estimates?quoteId=${item.id}`);
-        break;
-      case 'contact_message':
-        // For contact messages, navigate to the contact submissions list
-        navigate('/contact-submissions');
-        break;
-      case 'service_request':
-        // For service requests, navigate to the service requests list with the ID
-        navigate(`/service-requests?id=${item.id}`);
-        break;
-      case 'quote_request':
-        // For quote requests, navigate to the estimates page with the quote ID
-        navigate(`/estimates?quoteId=${item.id}`);
-        break;
-      case 'plan_lead':
-        // For plan leads, navigate to the plan leads list
-        navigate('/plan-leads');
-        break;
-      case 'support_ticket':
-        // For support tickets, navigate to the support tickets list with the ID
-        navigate(`/support/tickets?id=${item.id}`);
-        break;
-      default:
-        break;
+    // Navigate based on related entity type and ID
+    if (item.relatedEntityType && item.relatedEntityId) {
+      switch (item.relatedEntityType) {
+        case 'quote':
+          navigate(`/estimates?quoteId=${item.relatedEntityId}`);
+          break;
+        case 'estimation_quote':
+          navigate(`/estimates?quoteId=${item.relatedEntityId}`);
+          break;
+        case 'support_ticket':
+          navigate(`/support/tickets?id=${item.relatedEntityId}`);
+          break;
+        default:
+          // Default navigation or no navigation
+          break;
+      }
     }
   };
 
 
-  // Fetch quote requests from the flat 'quotes' collection (root)
-  const fetchQuoteRequests = async (): Promise<UnifiedNotification[]> => {
-    try {
-      const q = query(
-        collection(db, 'quotes'),
-        where('status', '==', 'Pending'),
-        orderBy('createdAt', 'desc'),
-        limit(50)
-      );
-      const snapshot = await getDocs(q);
-      return snapshot.docs
-        .map(d => {
-          const data: any = d.data();
-          return {
-            id: d.id,
-            ...data,
-            type: 'quote_request' as NotificationType,
-            // Normalize common fields used by renderer
-            email: data.email || data.userEmail || data.customerEmail || '',
-            userEmail: data.userEmail || data.email || data.customerEmail || '',
-            adminRead: data.adminRead === true,
-            // Ensure we have a consistent timestamp for sorting
-            timestamp: data.createdAt?.toMillis?.() || data.ts || Date.now(),
-            createdAt: data.createdAt || null,
-          } as UnifiedNotification;
-        })
-        // Defensive client-side filter in case some docs lack proper index
-        .filter((x) => (x as any).status === 'Pending');
-    } catch (error) {
-      return [];
-    }
-  };
 
-  // Function to fetch support tickets from Contact_Messages collection
-  const fetchSupportTickets = async () => {
-    try {
-      console.log('Fetching support tickets from Contact_Messages collection...');
-      const contactMessagesRef = collection(db, 'Contact_Messages');
-      const q = query(contactMessagesRef, orderBy('createdAt', 'desc'), limit(50));
-      const snapshot = await getDocs(q);
-      
-      console.log(`Found ${snapshot.docs.length} support tickets`);
-      
-      return snapshot.docs.map(doc => {
-        const data = doc.data();
-        console.log('Processing support ticket:', doc.id, data);
-        
-        return {
-          id: doc.id,
-          ...data,
-          type: 'support_ticket' as const,
-          timestamp: data.createdAt?.toMillis?.() || Date.now(),
-          // Map common fields
-          email: data.email || data.userEmail || '',
-          userEmail: data.email || data.userEmail || '',
-          message: data.message || data.description || '',
-          // Ensure we have a title/name for display
-          title: data.service ? `Support: ${data.service}` : 'Support Request',
-          // Map status with a default
-          status: data.status || 'pending',
-          // Map name field if available
-          name: data.name || data.userName || data.displayName || ''
-        };
-      });
-    } catch (error) {
-      console.error('Error fetching support tickets:', error);
-      return [];
-    }
-  };
 
-  // Function to fetch plan leads
-  const fetchPlanLeads = async () => {
-    try {
-      const planLeadsSnapshot = await getDocs(plannerLeadsCollection(db));
-      const planLeads = planLeadsSnapshot.docs.map(doc => {
-        const data = doc.data();
-        
-        // Try to find the email in various possible fields
-        const email = data.email || data.userEmail || data.customerEmail || data.fromEmail || 'No email provided';
-        const name = data.name || data.userName || data.displayName || 'Anonymous User';
-        
-        return {
-          id: doc.id,
-          ...data,
-          type: 'plan_lead' as NotificationType,
-          timestamp: data.createdAt?.toMillis() || Date.now(),
-          email: email,
-          name: name,
-          // Make sure these fields are available for the notification
-          userEmail: email,
-          userName: name
-        };
-      });
-      
-      return planLeads;
-    } catch (error) {
-      return [];
-    }
-  };
 
   useEffect(() => {
     let unsubs: Array<() => void> = [];
-    const localKeyCandidates = ['serviceRequests', 'smile-service-requests', 'service_requests'];
 
-    const tryLocal = () => {
-      for (const key of localKeyCandidates) {
-        try {
-          const raw = localStorage.getItem(key);
-          if (raw) {
-            const arr = JSON.parse(raw);
-            if (Array.isArray(arr)) {
-              setItems(arr);
-              showToast('Loaded local requests.', 'info');
-              setLoaded(true);
-              return;
-            }
-          }
-        } catch {}
-      }
-      setItems([]);
-      showToast('No requests found.', 'info');
-      setLoaded(true);
-    };
-
-    const enrichWithUsers = async (list: UnifiedNotification[]): Promise<UnifiedNotification[]> => {
+    const fetchAdminNotifications = async () => {
       try {
-        const uniqueUids = Array.from(new Set(list.map((x) => x.userId || x.uid).filter(Boolean))) as string[];
-        const fetches: Promise<void>[] = [];
-        for (const uid of uniqueUids) {
-          if (!(uid in userCache)) {
-            fetches.push((async () => {
-              try {
-                const snap = await getDoc(userDoc(db, uid));
-                if (snap.exists()) {
-                  const data: any = snap.data();
-                  setUserCache(prev => ({
-                    ...prev,
-                    [uid]: { displayName: data.displayName || data.name || '', email: data.email || '' }
-                  }));
-                } else {
-                  setUserCache(prev => ({
-                    ...prev,
-                    [uid]: null
-                  }));
-                }
-              } catch {
-                setUserCache(prev => ({
-                  ...prev,
-                  [uid]: null
-                }));
-              }
-            })());
-          }
-        }
-        // Lookup by email for records missing uid
-        const emailsNeedingLookup = Array.from(new Set(list
-          .filter((x) => !(x.userId || x.uid) && (x.userEmail || x.email))
-          .map((x) => (x.userEmail || x.email))
-          .filter(Boolean))) as string[];
-        const emailCache = new Map<string, { displayName: string; email: string } | null>();
-        for (const email of emailsNeedingLookup) {
-          if (!emailCache.has(email)) {
-            fetches.push((async () => {
-              try {
-                const q = query(usersCollection(db), where('email', '==', email));
-                const snaps = await getDocs(q);
-                const docSnap = snaps.docs[0];
-                if (docSnap) {
-                  const data: any = docSnap.data();
-                  emailCache.set(email, { displayName: data.displayName || data.name || '', email: data.email || '' });
-                } else {
-                  emailCache.set(email, null);
-                }
-              } catch { emailCache.set(email, null); }
-            })());
-          }
-        }
-        if (fetches.length) await Promise.all(fetches);
-        return list.map((x) => {
-          const uid = (x.userId || x.uid) as string | undefined;
-          const cached = uid ? userCache[uid] : null;
-          const email = x.userEmail || x.email || '';
-          const cachedByEmail = (!uid && email) ? emailCache.get(email) : null;
-          return {
-            ...x,
-            userName: x.userName || x.displayName || (cached?.displayName || cachedByEmail?.displayName || ''),
-            userEmail: x.userEmail || x.email || (cached?.email || cachedByEmail?.email || x.userEmail || x.email || ''),
-          };
-        });
-      } catch {
-        return list;
-      }
-    };
-
-    (async () => {
-      try {
-        // Fetch each source independently so one failure doesn't kill the page
-        const results: UnifiedNotification[] = [];
-        let failures = 0;
-
-        // Fetch support tickets
-        try {
-          const supportTickets = await fetchSupportTickets();
-          console.log('Fetched support tickets:', supportTickets);
-          results.push(...supportTickets);
-          console.log('Results after adding support tickets:', results);
-        } catch (err) {
-          console.error('Error fetching support tickets:', err);
-          failures++;
-        }
-
-        // Fetch quote requests from the flat 'quotes' collection
-        try {
-          const quotes = await fetchQuoteRequests();
-          results.push(...quotes);
-        } catch (err) {
-          failures++;
-        }
-
-        // Fetch plan leads
-        try {
-          const planLeads = await fetchPlanLeads();
-          results.push(...planLeads);
-        } catch (err) {
-          failures++;
-        }
-
-        try {
-          const snap = await getDocs(query(serviceRequestsCollection(db), orderBy('createdAt', 'desc')));
-          results.push(...snap.docs.map(d => ({ ...d.data(), id: d.id, type: 'service_request' as NotificationType })));
-        } catch (err) {
-          failures++;
-        }
-
-        try {
-          const snap = await getDocs(query(contactRequestsCollection(db), orderBy('createdAt', 'desc')));
-          results.push(...snap.docs.map(d => ({ ...d.data(), id: d.id, type: 'contact_message' as NotificationType })));
-        } catch (err) {
-          failures++;
-        }
-
-        try {
-          const snap = await getDocs(query(plannerLeadsCollection(db), orderBy('createdAt', 'desc')));
-          results.push(...snap.docs.map(d => ({ ...d.data(), id: d.id, type: 'plan_lead' as NotificationType })));
-        } catch (err) {
-          failures++;
-        }
-
-        try {
-          const snap = await getDocs(collectionGroup(db, SUBCOLLECTION_QUOTE));
-          const quotes = snap.docs
-            .map(d => {
-              const data: any = d.data();
-              return {
-                id: d.id,
-                type: 'quote_request' as NotificationType,
-                parentUid: d.ref.parent.parent?.id,
-                // Map email fields from the quote data
-                email: data.email || data.userEmail || data.customerEmail,
-                userEmail: data.userEmail || data.email || data.customerEmail,
-                // Preserve adminRead so unread state persists
-                adminRead: data.adminRead === true,
-                // Ensure we have a timestamp for sorting
-                timestamp: data.createdAt?.toMillis?.() || 0,
-                status: data.status,
-              } as UnifiedNotification & { status?: string };
-            })
-            .filter(x => (x as any).status === 'Pending');
-          // Sort by timestamp in descending order
-          quotes.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-          results.push(...quotes);
-        } catch (err) {
-          failures++;
-        }
-
-        // Fetch admin notifications
-        try {
-          const snap = await getDocs(query(adminNotificationsCollection(db), orderBy('createdAt', 'desc')));
-          const adminNotifications = snap.docs.map(d => {
-            const data = d.data() as AdminNotification;
-            return {
-              id: d.id,
-              type: data.type as NotificationType,
-              title: data.title,
-              message: data.message,
-              createdAt: data.createdAt,
-              adminRead: data.status === 'read',
-              customerEmail: data.customerEmail,
-              relatedEntityId: data.relatedEntityId,
-              relatedEntityType: data.relatedEntityType,
-              priority: data.priority,
-              timestamp: data.createdAt?.toMillis?.() || 0,
-            } as UnifiedNotification;
-          });
-          results.push(...adminNotifications);
-        } catch (err) {
-          console.error('Error fetching admin notifications:', err);
-          failures++;
-        }
-
-        // Sort and set
-        results.sort((a, b) => {
-          const aTime = a.createdAt || a.created_at || a.ts || 0;
-          const bTime = b.createdAt || b.created_at || b.ts || 0;
-          return new Date(bTime as any).getTime() - new Date(aTime as any).getTime();
-        });
-
-        const enrichedList = await enrichWithUsers(results);
-        setItems(enrichedList);
-        setLoaded(true);
-        try { localStorage.setItem('unified_notifications', JSON.stringify(enrichedList)); } catch {}
-
-        // If everything failed, fall back to local
-        if (failures >= 5) {
-          showToast('Using local data (no Firebase config).', 'warn');
-          tryLocal();
+        // Check if user is authenticated
+        if (!auth.currentUser) {
+          setAuthError('You must be signed in to view admin notifications.');
+          setLoaded(true);
           return;
         }
 
-        // Add real-time listeners
-        const setupRealtimeListeners = () => {
-          // Listen for new service requests
-          const serviceRequestsQuery = query(
-            collectionGroup(db, 'service_requests'),
-            limit(50)
-          );
+        // Ensure fresh auth token to avoid stale/expired token causing permission-denied
+        try { await auth.currentUser.getIdToken(true); } catch {}
 
-          const unsub1 = onSnapshot(serviceRequestsQuery, (snapshot) => {
-            const newItems = snapshot.docs.map(doc => {
-              const data = doc.data();
+        // Read Accounts/{uid} to verify role and log to console for debugging
+        const uid = auth.currentUser.uid;
+        const email = auth.currentUser.email || null;
+        const projectId = (firebaseApp?.options as any)?.projectId || (firebaseApp as any)?.options?.projectId;
+        try {
+          const accSnap = await getDoc(accountDoc(db, uid));
+          const role = accSnap.exists() ? (accSnap.data() as any).Role : null;
+          console.log('[AdminNotifications] Authenticated user context', { uid, email, role, projectId });
+          if (role !== 'admin' && role !== 'Super Admin') {
+            setAuthError(`Signed in as ${email || uid}, but role is '${role ?? 'unknown'}'. Admin access required.`);
+            setLoaded(true);
+            return;
+          }
+        } catch (roleErr) {
+          console.warn('[AdminNotifications] Failed to read Accounts doc for role verification', roleErr);
+        }
+
+        // Fetch admin notifications
+        const snap = await getDocs(query(adminNotificationsCollection(db), orderBy('createdAt', 'desc')));
+        const adminNotifications = snap.docs.map(d => {
+          const data = d.data() as AdminNotification;
+          return {
+            id: d.id,
+            type: data.type as NotificationType,
+            title: data.title,
+            message: data.message,
+            createdAt: data.createdAt,
+            status: data.status,
+            customerEmail: data.customerEmail,
+            customerUid: data.customerUid,
+            relatedEntityId: data.relatedEntityId,
+            relatedEntityType: data.relatedEntityType,
+            priority: data.priority,
+            timestamp: data.createdAt?.toMillis?.() || 0,
+          } as UnifiedNotification;
+        });
+        
+        setItems(adminNotifications);
+        setAuthError(null);
+        setLoaded(true);
+        const existingRelatedIds = new Set(adminNotifications.map(n => n.relatedEntityId).filter(Boolean) as string[]);
+        
+        // Set up real-time listener for admin notifications
+        const unsubscribeAdminNotifications = onSnapshot(
+          query(adminNotificationsCollection(db), orderBy('createdAt', 'desc')),
+          (snapshot) => {
+            const updatedNotifications = snapshot.docs.map(doc => {
+              const data = doc.data() as AdminNotification;
               return {
                 id: doc.id,
-                ...data,
-                type: 'service_request' as NotificationType,
-                parentUid: doc.ref.parent.parent?.id,
-                timestamp: data.createdAt?.toMillis?.() || data.timestamp || Date.now()
-              };
+                type: data.type as NotificationType,
+                title: data.title,
+                message: data.message,
+                createdAt: data.createdAt,
+                status: data.status,
+                customerEmail: data.customerEmail,
+                customerUid: data.customerUid,
+                relatedEntityId: data.relatedEntityId,
+                relatedEntityType: data.relatedEntityType,
+                priority: data.priority,
+                timestamp: data.createdAt?.toMillis?.() || 0,
+              } as UnifiedNotification;
             });
-            
-            setItems(prev => {
-              const filtered = prev.filter(x => x.type !== 'service_request');
-              const merged = [...newItems, ...filtered];
-              return merged.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-            });
-          });
-          unsubs.push(unsub1);
-          
-          // Listen for new contact requests
-          const unsubscribeContacts = onSnapshot(
-            query(contactRequestsCollection(db), orderBy('createdAt', 'desc'), limit(50)),
-            (snapshot) => {
-              const updatedItems = snapshot.docs.map(doc => ({
-                ...doc.data(),
-                id: doc.id,
-                type: 'contact_message' as NotificationType
-              }));
-              setItems(prev => mergeAndSort(prev, updatedItems));
-            },
-            (error) => {
-              console.error('Error in contact requests listener:', error);
+            setItems(updatedNotifications);
+          },
+          (error) => {
+            console.error('Error in admin notifications listener:', error);
+            if (error.code === 'permission-denied') {
+              setAuthError('You do not have permission to view admin notifications. Please ensure you are signed in as an admin.');
             }
-          );
-          unsubs.push(unsubscribeContacts);
+          }
+        );
+        unsubs.push(unsubscribeAdminNotifications);
 
-          // Listen for flat 'quotes' collection changes
-          const unsubscribeQuotes = onSnapshot(
-            query(
-              collection(db, 'quotes'),
-              where('status', '==', 'Pending'),
-              orderBy('createdAt', 'desc'),
-              limit(50)
-            ),
-            (snapshot) => {
-              const updated = snapshot.docs.map(d => {
-                const data: any = d.data();
-                return {
-                  id: d.id,
-                  ...data,
-                  type: 'quote_request' as NotificationType,
-                  email: data.email || data.userEmail || data.customerEmail || '',
-                  userEmail: data.userEmail || data.email || data.customerEmail || '',
-                  adminRead: data.adminRead === true,
-                  timestamp: data.createdAt?.toMillis?.() || data.ts || Date.now(),
-                  createdAt: data.createdAt || null,
-                } as UnifiedNotification;
-              }).filter((x) => (x as any).status === 'Pending');
-              setItems(prev => mergeAndSort(prev, updated));
+        // Admin-side mirroring: watch contactRequests and create Admin_Notifications for new items
+        const unsubscribeContactMirror = onSnapshot(
+          query(contactRequestsCollection(db), orderBy('createdAt', 'desc')),
+          async (snapshot) => {
+            for (const docSnap of snapshot.docs) {
+              const data: any = docSnap.data();
+              const id = docSnap.id;
+              // Skip if already marked as notified to prevent duplicates
+              if (data.adminNotified === true) continue;
+              // Skip if we've already mirrored based on existing relatedEntityId set
+              if (existingRelatedIds.has(id)) continue;
+              try {
+                const name = data.fullName || data.name || 'Anonymous';
+                const email = data.email || '';
+                const service = data.service || '';
+                await addDoc(adminNotificationsCollection(db), {
+                  title: 'New Contact Message',
+                  message: `From ${name}${email ? ` (${email})` : ''}${service ? ` • Service: ${service}` : ''}`,
+                  type: 'support_ticket',
+                  status: 'unread',
+                  createdAt: (await import('firebase/firestore')).serverTimestamp(),
+                  priority: 'medium',
+                  customerEmail: email || null,
+                  relatedEntityId: id,
+                  relatedEntityType: 'contact_request',
+                } as any);
+                // Mark source as notified
+                try { await updateDoc(contactRequestDoc(db, id), { adminNotified: true }); } catch {}
+                existingRelatedIds.add(id);
+              } catch (mirrorErr) {
+                console.warn('Failed to mirror contact request to Admin_Notifications:', mirrorErr);
+              }
             }
-          );
-          unsubs.push(unsubscribeQuotes);
-
-          // Listen for admin notifications
-          const unsubscribeAdminNotifications = onSnapshot(
-            query(adminNotificationsCollection(db), orderBy('createdAt', 'desc'), limit(50)),
-            (snapshot) => {
-              const adminNotifications = snapshot.docs.map(doc => {
-                const data = doc.data() as AdminNotification;
-                return {
-                  id: doc.id,
-                  type: data.type as NotificationType,
-                  title: data.title,
-                  message: data.message,
-                  createdAt: data.createdAt,
-                  adminRead: data.status === 'read',
-                  customerEmail: data.customerEmail,
-                  relatedEntityId: data.relatedEntityId,
-                  relatedEntityType: data.relatedEntityType,
-                  priority: data.priority,
-                  timestamp: data.createdAt?.toMillis?.() || 0,
-                } as UnifiedNotification;
-              });
-              setItems(prev => mergeAndSort(prev, adminNotifications));
-            },
-            (error) => {
-              console.error('Error in admin notifications listener:', error);
-            }
-          );
-          unsubs.push(unsubscribeAdminNotifications);
-          
-          return () => {
-            unsubs.forEach(unsub => { try { unsub(); } catch {} });
-          };
-        };
+          },
+          (error) => {
+            console.error('Error in contactRequests mirror listener:', error);
+          }
+        );
+        unsubs.push(unsubscribeContactMirror);
         
-        setupRealtimeListeners();
-      } catch (e) {
-        showToast('Using local data (no Firebase config).', 'warn');
-        tryLocal();
+      } catch (error: any) {
+        console.error('Error fetching admin notifications:', error);
+        if (error.code === 'permission-denied') {
+          setAuthError('You do not have permission to view admin notifications. Please ensure you are signed in as an admin.');
+        } else {
+          setAuthError('Failed to load notifications. Please try again.');
+        }
+        setItems([]);
+        setLoaded(true);
       }
-    })();
+    };
 
-    return () => { unsubs.forEach(u => { try { u(); } catch {} }); };
-  }, [db, userCache]);
+    fetchAdminNotifications();
 
-  const mergeAndSort = (prev: UnifiedNotification[], incoming: UnifiedNotification[]) => {
-    const map = new Map<string, UnifiedNotification>();
-    const keyOf = (x: UnifiedNotification) => `${x.type}:${x.id}`;
-    for (const x of prev) { if (x.id) map.set(keyOf(x), x); }
-    for (const x of incoming) { if (x.id) map.set(keyOf(x), { ...map.get(keyOf(x)), ...x }); }
-    const arr = Array.from(map.values());
-    arr.sort((a, b) => {
-      const aTime = a.createdAt || a.created_at || a.ts || 0;
-      const bTime = b.createdAt || b.created_at || b.ts || 0;
-      return new Date(bTime as any).getTime() - new Date(aTime as any).getTime();
-    });
-    return arr;
-  };
+    return () => { 
+      unsubs.forEach(u => { 
+        try { 
+          u(); 
+        } catch {} 
+      }); 
+    };
+  }, [db]);
 
-  const handleUpdate = async (id: string, action: 'ack' | 'done') => {
-    try {
-      await updateDoc(serviceRequestDoc(db, id), { status: action === 'ack' ? 'ack' : 'done' });
-      showToast(action === 'ack' ? 'Request acknowledged' : 'Request marked done', 'success');
-    } catch {
-      showToast('Update failed. Please retry.', 'error');
-    }
-  };
+
 
   const getNotificationIcon = (type: NotificationType) => {
     switch (type) {
@@ -967,7 +401,7 @@ const Notifications: React.FC = () => {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {(['all', 'quote_request', 'contact_message', 'plan_lead', 'support_ticket'] as const).map((filterType) => (
+        {(['all', 'quote_request', 'estimation_quote', 'support_ticket', 'system'] as const).map((filterType) => (
           <button
             key={filterType}
             onClick={() => setFilter(filterType)}
@@ -979,15 +413,21 @@ const Notifications: React.FC = () => {
           >
             {filterType === 'all' ? 'All' : 
              filterType === 'quote_request' ? 'Quote Requests' :
-             filterType === 'contact_message' ? 'Contact Messages' :
-             filterType === 'plan_lead' ? 'Plan Leads' :
-             'Reports'}
+             filterType === 'estimation_quote' ? 'Estimation Quotes' :
+             filterType === 'support_ticket' ? 'Support Tickets' :
+             'System'}
           </button>
         ))}
       </div>
 
       {!loaded ? (
         <div className="rounded-xl border border-gray-300 dark:border-gray-800 bg-white/80 dark:bg-gray-900/50 p-6 text-gray-700 dark:text-gray-300">Loading…</div>
+      ) : authError ? (
+        <div className="rounded-xl border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-6 text-red-700 dark:text-red-300">
+          <h3 className="font-semibold mb-2">Authentication Error</h3>
+          <p>{authError}</p>
+          <p className="mt-2 text-sm">Please sign in with an admin account to view notifications.</p>
+        </div>
       ) : filteredItems.length === 0 ? (
         <div className="rounded-xl border border-gray-300 dark:border-gray-800 bg-white/80 dark:bg-gray-900/50 p-6 text-gray-700 dark:text-gray-300">
           {filter === 'all' ? 'No notifications yet.' : `No ${filter.replace('_', ' ')} notifications.`}
@@ -996,9 +436,7 @@ const Notifications: React.FC = () => {
         <div className="space-y-4">
           {displayedItems.map((item) => {
             const id = item.id || '';
-            const createdAt = item.createdAt || item.created_at || item.ts || null;
-            const email = item.userEmail || item.email || item.user || '';
-            const name = item.userName || item.displayName || item.name || '';
+            const createdAt = item.createdAt || null;
             const unread = isUnread(item);
             return (
               <div 
@@ -1023,9 +461,11 @@ const Notifications: React.FC = () => {
                         )}
                       </span>
                     </h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                      {getNotificationDescription(item)}
+                    </p>
                   </div>
                   <div className="flex items-center space-x-2">
-                    {/* View button removed; click the highlighted email/name instead */}
                     {unread && (
                       <>
                         <span className="ml-2 px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
@@ -1036,7 +476,8 @@ const Notifications: React.FC = () => {
                             e.stopPropagation();
                             markAsRead(item);
                           }}
-                          className="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30"
+                          disabled={updating === `${item.type}:${item.id}`}
+                          className="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300 px-2 py-1 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900/30 disabled:opacity-50"
                         >
                           Mark as Read
                         </button>
@@ -1047,7 +488,8 @@ const Notifications: React.FC = () => {
                               deleteNotification(item);
                             }
                           }}
-                          className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
+                          disabled={updating === `delete:${item.id}`}
+                          className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 disabled:opacity-50"
                         >
                           Delete
                         </button>
