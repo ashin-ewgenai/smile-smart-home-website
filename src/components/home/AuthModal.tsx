@@ -110,14 +110,28 @@ export default function AuthModal() {
           } catch (e) {
             console.warn('lastLoginAt update failed:', (e as any)?.message);
           }
-          // Persist a few items
-          try { localStorage.setItem('userEmail', user.email); } catch {}
-          try { localStorage.setItem('userRole', 'user'); } catch {}
-          // Cache user's name for quick greeting fallback
+          // Persist user data in localStorage
           try {
+            localStorage.setItem('userEmail', user.email || '');
+            localStorage.setItem('userId', user.uid);
+            localStorage.setItem('userRole', 'user');
+            
+            // Cache user's name for quick greeting fallback
             const cachedName = (data?.FullName || data?.fullName || data?.displayName || data?.name || user.displayName || '').toString();
-            if (cachedName) localStorage.setItem('userName', cachedName);
-          } catch {}
+            if (cachedName) {
+              localStorage.setItem('userName', cachedName);
+            }
+            
+            // Also store any additional user data that might be needed
+            if (data?.phoneNumber) {
+              localStorage.setItem('userPhone', data.phoneNumber);
+            }
+            if (data?.address) {
+              localStorage.setItem('userAddress', data.address);
+            }
+          } catch (error) {
+            console.error('Error storing user data in localStorage:', error);
+          }
           // Redirect to user dashboard
           window.location.href = '/dashboard/user';
           return;

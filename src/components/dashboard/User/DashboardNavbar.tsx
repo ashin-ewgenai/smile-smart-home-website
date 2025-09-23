@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, User, LogOut, Settings, ArrowLeft, Moon, Sun } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { handleLogout } from './LogoutHandler';
 
 interface DashboardNavbarProps {
@@ -14,6 +14,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
   const [darkMode, setDarkMode] = useState(false);
   // Safely use location only in browser environment
   const location = typeof window !== 'undefined' ? useLocation() : { pathname: '' };
+  const navigate = useNavigate();
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen(!isMobileMenuOpen);
@@ -137,15 +138,10 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                     <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{userType}</p>
                   </div>
                   <Link 
-                    to={`/dashboard/${userType}/profile`} 
+                    to="profile"
                     className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" 
                     role="menuitem"
-                    onClick={() => {
-                      setIsProfileDropdownOpen(false);
-                      if (location.pathname === `/dashboard/${userType}/profile`) {
-                        window.location.reload();
-                      }
-                    }}
+                    onClick={() => setIsProfileDropdownOpen(false)}
                   >
                     <div className="flex items-center">
                       <User className="mr-2 h-4 w-4" />
@@ -153,15 +149,10 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                     </div>
                   </Link>
                   <Link 
-                    to={`/dashboard/${userType}/settings`} 
+                    to="settings"
                     className="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700" 
                     role="menuitem"
-                    onClick={() => {
-                      setIsProfileDropdownOpen(false);
-                      if (location.pathname === `/dashboard/${userType}/settings`) {
-                        window.location.reload();
-                      }
-                    }}
+                    onClick={() => setIsProfileDropdownOpen(false)}
                   >
                     <div className="flex items-center">
                       <Settings className="mr-2 h-4 w-4" />

@@ -1,21 +1,42 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Save, User, Mail, Phone, MapPin, Calendar, Home } from 'lucide-react';
-import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, setDoc, where, Timestamp } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { COLLECTION_USER_DEVICES } from '../../../models/Collections';
+import { useNavigate } from 'react-router-dom';
+
+// Helper function to safely convert Firestore Timestamp to Date
+const toDate = (value: unknown): Date | null => {
+  if (!value) return null;
+  if (value instanceof Date) return value;
+  if (value && typeof value === 'object') {
+    if ('toDate' in value) {
+      return (value as { toDate: () => Date }).toDate();
+    }
+    // Handle Firestore Timestamp with seconds and nanoseconds
+    if ('seconds' in value && typeof (value as any).seconds === 'number') {
+      return new Date((value as any).seconds * 1000);
+    }
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    return new Date(value);
+  }
+  return null;
+};
 
 interface UserData {
   Email: string;
   FullName: string;
-  LastLoginAt: any; // Firestore timestamp
-  CreatedAt: any;   // Firestore timestamp
+  LastLoginAt: Date | Timestamp | null;
+  CreatedAt: Date | Timestamp | null;
   address: string;
   phoneNumber: string;
-  [key: string]: any; // Add index signature to allow string indexing
+  [key: string]: unknown;
 }
 
 const UserProfile: React.FC = () => {
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState<boolean>(true);
   const [userData, setUserData] = useState<UserData>({
     Email: '',
     FullName: '',
@@ -24,91 +45,98 @@ const UserProfile: React.FC = () => {
     address: '',
     phoneNumber: ''
   });
-  const [saveStatus, setSaveStatus] = useState('');
-  const [deviceCount, setDeviceCount] = useState(0);
-  
+  const [saveStatus, setSaveStatus] = useState<string>('');
+  const [deviceCount, setDeviceCount] = useState<number>(0);
+
   // Fetch user's device count
-  useEffect(() => {
-    const fetchDeviceCount = async () => {
-      try {
-        const userId = localStorage.getItem('userId');
-        if (!userId) return;
-        
-        const q = query(
-          collection(db, COLLECTION_USER_DEVICES),
-          where('uid', '==', userId)
-        );
-        
-        const querySnapshot = await getDocs(q);
-        setDeviceCount(querySnapshot.size);
-      } catch (error) {
-        console.error('Error fetching device count:', error);
-      }
-    };
-    
-    fetchDeviceCount();
+  const fetchDeviceCount = useCallback(async () => {
+    try {
+      const userId = localStorage.getItem('userId');
+      if (!userId) return;
+      
+      const q = query(
+        collection(db, COLLECTION_USER_DEVICES),
+        where('uid', '==', userId)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      setDeviceCount(querySnapshot.size);
+    } catch (error) {
+      console.error('Error fetching device count:', error);
+    }
   }, []);
-  
+
   // Fetch user data from Firestore
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        setLoading(true);
-        const userEmail = localStorage.getItem('userEmail') || '';
-        const userId = localStorage.getItem('userId') || '';
-        
-        if (!userId) {
-          setSaveStatus('User not authenticated');
-          setLoading(false);
-          return;
-        }
-
-        // Get user document from Firestore using UID
-        const userDocRef = doc(db, 'Accounts', userId);
-        const userDoc = await getDoc(userDocRef);
-        
-        if (userDoc.exists()) {
-          const data = userDoc.data() as UserData;
-          setUserData({
-            Email: data.Email || userEmail,
-            FullName: data.FullName || userEmail.split('@')[0],
-            LastLoginAt: data.LastLoginAt || new Date(),
-            CreatedAt: data.CreatedAt || new Date(),
-            address: data.address || '',
-            phoneNumber: data.phoneNumber || ''
-          });
-          
-          // Update local storage with the latest values
-          if (data.phoneNumber) localStorage.setItem('userPhone', data.phoneNumber);
-          if (data.address) localStorage.setItem('userAddress', data.address);
-        } else {
-          // If user document doesn't exist, create it with default values
-          const defaultData: UserData = {
-            Email: userEmail,
-            FullName: userEmail.split('@')[0],
-            LastLoginAt: new Date(),
-            CreatedAt: new Date(),
-            address: '',
-            phoneNumber: ''
-          };
-          // Create a new document with the user's UID as the document ID
-          await setDoc(userDocRef, defaultData);
-          setUserData(defaultData);
-          
-          // Also update local storage with default values
-          localStorage.setItem('userPhone', defaultData.phoneNumber);
-          localStorage.setItem('userAddress', defaultData.address);
-        }
-      } catch (error) {
-        console.error('Error fetching user data:', error);
-        setSaveStatus('Error loading profile data');
-      } finally {
+  const fetchUserData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const userEmail = localStorage.getItem('userEmail');
+      const userId = localStorage.getItem('userId');
+      
+      if (!userId || !userEmail) {
+        console.error('User authentication data missing');
+        setSaveStatus('Please sign in to view your profile');
         setLoading(false);
+        // Don't navigate here, just show the error message
+        return;
       }
-    };
 
+      // Get user document from Firestore using UID
+      const userDocRef = doc(db, 'Accounts', userId);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (userDoc.exists()) {
+        const data = userDoc.data() as UserData;
+        console.log('User data from Firestore:', data);
+        
+        // Convert Firestore Timestamps to Date objects if needed
+        const userDataUpdate: UserData = {
+          Email: data.Email || userEmail,
+          FullName: data.FullName || userEmail.split('@')[0],
+          LastLoginAt: data.LastLoginAt ? toDate(data.LastLoginAt) : new Date(),
+          CreatedAt: data.CreatedAt ? toDate(data.CreatedAt) : new Date(),
+          address: data.address || '',
+          phoneNumber: data.phoneNumber || ''
+        };
+        
+        setUserData(userDataUpdate);
+        
+        // Update local storage with the latest values
+        if (data.phoneNumber) localStorage.setItem('userPhone', data.phoneNumber as string);
+        if (data.address) localStorage.setItem('userAddress', data.address as string);
+      } else {
+        console.log('No user document found, creating new one');
+        // If user document doesn't exist, create it with default values
+        const defaultData: UserData = {
+          Email: userEmail,
+          FullName: userEmail.split('@')[0],
+          LastLoginAt: new Date(),
+          CreatedAt: new Date(),
+          address: '',
+          phoneNumber: ''
+        };
+        
+        // Create a new document with the user's UID as the document ID
+        await setDoc(userDocRef, defaultData);
+        setUserData(defaultData);
+        
+        // Also update local storage with default values
+        localStorage.setItem('userPhone', defaultData.phoneNumber);
+        localStorage.setItem('userAddress', defaultData.address);
+      }
+    } catch (error) {
+      console.error('Error in fetchUserData:', error);
+      setSaveStatus('Error loading profile data');
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate]);
+
+  // Fetch data on component mount
+  useEffect(() => {
     fetchUserData();
-  }, []);
+    fetchDeviceCount();
+  }, [fetchUserData, fetchDeviceCount]);
   
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
@@ -125,23 +153,30 @@ const UserProfile: React.FC = () => {
       
       // Create update data object
       const now = new Date();
-      const updateData = {
+      const updateData: Partial<UserData> = {
         Email: userEmail,
         FullName: userData.FullName || '',
         phoneNumber: userData.phoneNumber || '',
         address: userData.address || '',
-        LastLoginAt: now,  // Update last login time
-        // Don't update CreatedAt as it should remain the original creation date
-        ...(userData.CreatedAt ? {} : { CreatedAt: now }) // Only set if it doesn't exist
+        LastLoginAt: now
       };
+
+      // Only set CreatedAt if it doesn't exist
+      if (!userData.CreatedAt) {
+        updateData.CreatedAt = now;
+      }
       
       // Update Firestore document using UID
       const userDocRef = doc(db, 'Accounts', userId);
       await setDoc(userDocRef, updateData, { merge: true });
       
       // Update local storage for quick access
-      localStorage.setItem('userPhone', updateData.phoneNumber);
-      localStorage.setItem('userAddress', updateData.address);
+      if (updateData.phoneNumber) {
+        localStorage.setItem('userPhone', updateData.phoneNumber);
+      }
+      if (updateData.address) {
+        localStorage.setItem('userAddress', updateData.address);
+      }
       
       // Update local state to ensure UI is in sync
       setUserData(prev => ({
@@ -151,21 +186,40 @@ const UserProfile: React.FC = () => {
       
       // Show success message
       setSaveStatus('Profile updated successfully!');
+      
+      // Clear success message after 3 seconds
+      const timer = setTimeout(() => {
+        setSaveStatus('');
+      }, 3000);
+      
+      return () => clearTimeout(timer);
     } catch (error) {
       console.error('Error updating profile:', error);
       setSaveStatus('Error updating profile');
     }
-    
-    // Clear success message after 3 seconds
-    setTimeout(() => {
-      setSaveStatus('');
-    }, 3000);
   };
   
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
+      <div className="flex flex-col items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500 mb-4"></div>
+        <p className="text-gray-600 dark:text-gray-400">Loading your profile...</p>
+      </div>
+    );
+  }
+  
+  if (saveStatus && (saveStatus.startsWith('Error') || saveStatus === 'User not authenticated' || saveStatus === 'Please sign in to view your profile')) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64">
+        <div className="bg-red-100 dark:bg-red-900/30 p-4 rounded-lg mb-4">
+          <p className="text-red-700 dark:text-red-300">{saveStatus}</p>
+        </div>
+        <button 
+          onClick={() => window.location.href = '/login'}
+          className="px-4 py-2 bg-teal-600 text-white rounded-md hover:bg-teal-700 transition-colors"
+        >
+          Go to Login
+        </button>
       </div>
     );
   }
@@ -206,14 +260,14 @@ const UserProfile: React.FC = () => {
             <div className="flex items-center text-sm">
               <Calendar className="h-4 w-4 text-gray-500 dark:text-gray-400 mr-2" />
               <span className="text-gray-600 dark:text-gray-300">
-                Last Login: {userData.LastLoginAt ? (typeof userData.LastLoginAt === 'object' ? new Date(userData.LastLoginAt.seconds * 1000).toLocaleString() : new Date(userData.LastLoginAt).toLocaleString()) : 'N/A'}
+                Last Login: {userData.LastLoginAt ? (userData.LastLoginAt instanceof Date ? userData.LastLoginAt.toLocaleString() : 'N/A') : 'N/A'}
               </span>
             </div>
             {userData.CreatedAt && (
               <div className="flex items-center text-sm">
                 <Calendar className="h-4 w-4 text-gray-500 dark:text-gray-400 mr-2" />
                 <span className="text-gray-600 dark:text-gray-300">
-                  Member Since: {typeof userData.CreatedAt === 'object' ? new Date(userData.CreatedAt.seconds * 1000).toLocaleDateString() : new Date(userData.CreatedAt).toLocaleDateString()}
+                  Member Since: {userData.CreatedAt instanceof Date ? userData.CreatedAt.toLocaleDateString() : 'N/A'}
                 </span>
               </div>
             )}
@@ -301,7 +355,7 @@ const UserProfile: React.FC = () => {
                   type="text"
                   id="lastLogin"
                   name="lastLogin"
-                  value={userData.LastLoginAt ? (typeof userData.LastLoginAt === 'object' ? new Date(userData.LastLoginAt.seconds * 1000).toLocaleString() : new Date(userData.LastLoginAt).toLocaleString()) : 'N/A'}
+                  value={userData.LastLoginAt ? toDate(userData.LastLoginAt)?.toLocaleString() || 'N/A' : 'N/A'}
                   disabled
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 />
@@ -314,7 +368,7 @@ const UserProfile: React.FC = () => {
                   type="text"
                   id="memberSince"
                   name="memberSince"
-                  value={userData.CreatedAt ? (typeof userData.CreatedAt === 'object' ? new Date(userData.CreatedAt.seconds * 1000).toLocaleDateString() : new Date(userData.CreatedAt).toLocaleDateString()) : 'N/A'}
+                  value={userData.CreatedAt ? toDate(userData.CreatedAt)?.toLocaleDateString() || 'N/A' : 'N/A'}
                   disabled
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                 />
