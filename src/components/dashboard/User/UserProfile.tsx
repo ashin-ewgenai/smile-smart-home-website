@@ -141,42 +141,48 @@ const UserProfile: React.FC = () => {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setSaveStatus('Saving changes...');
     
     try {
       const userId = localStorage.getItem('userId');
       const userEmail = localStorage.getItem('userEmail') || '';
       
       if (!userId) {
-        setSaveStatus('User not authenticated');
-        return;
+        throw new Error('User not authenticated');
       }
       
-      // Create update data object
-      const now = new Date();
-      const updateData: Partial<UserData> = {
+      console.log('Updating profile for user:', userId);
+      
+      // Create update data object with only changed fields
+      const updateData: Record<string, any> = {
         Email: userEmail,
         FullName: userData.FullName || '',
         phoneNumber: userData.phoneNumber || '',
         address: userData.address || '',
-        LastLoginAt: now
+        LastLoginAt: new Date(),
+        updatedAt: new Date()
       };
 
       // Only set CreatedAt if it doesn't exist
       if (!userData.CreatedAt) {
-        updateData.CreatedAt = now;
+        updateData.CreatedAt = new Date();
       }
       
-      // Update Firestore document using UID
+      console.log('Update data:', updateData);
+      
+      // Update Firestore document using UID with merge option
       const userDocRef = doc(db, 'Accounts', userId);
+      console.log('Updating document at path:', userDocRef.path);
+      
       await setDoc(userDocRef, updateData, { merge: true });
       
+      console.log('Document updated successfully');
+      
       // Update local storage for quick access
-      if (updateData.phoneNumber) {
-        localStorage.setItem('userPhone', updateData.phoneNumber);
-      }
-      if (updateData.address) {
-        localStorage.setItem('userAddress', updateData.address);
-      }
+      localStorage.setItem('userPhone', updateData.phoneNumber);
+      localStorage.setItem('userAddress', updateData.address);
+      localStorage.setItem('userName', updateData.FullName);
       
       // Update local state to ensure UI is in sync
       setUserData(prev => ({
@@ -193,9 +199,17 @@ const UserProfile: React.FC = () => {
       }, 3000);
       
       return () => clearTimeout(timer);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating profile:', error);
-      setSaveStatus('Error updating profile');
+      const errorMessage = error?.message || 'Failed to update profile. Please try again.';
+      console.error('Error details:', {
+        code: error?.code,
+        message: errorMessage,
+        stack: error?.stack
+      });
+      setSaveStatus(`Error: ${errorMessage}`);
+    } finally {
+      setLoading(false);
     }
   };
   

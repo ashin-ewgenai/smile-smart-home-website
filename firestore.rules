@@ -27,8 +27,17 @@ service cloud.firestore {
 
     // ================= Accounts =================
     match /Accounts/{uid} {
+      // Users can read and update their own account, admins can manage all accounts
       allow read: if isCurrentUser(uid) || isAdmin();
-      allow create, update, delete: if isAdmin();
+      allow create: if isSignedIn(); // Allow any authenticated user to create their account
+      allow update: if isCurrentUser(uid) || isAdmin();
+      allow delete: if isAdmin();
+      
+      // More permissive update rules
+      allow update: if isCurrentUser(uid) && (
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['FullName', 'phoneNumber', 'address', 'LastLoginAt', 'Email']) ||
+        isAdmin()
+      );
     }
 
     // ================= Estimation Quote =================
