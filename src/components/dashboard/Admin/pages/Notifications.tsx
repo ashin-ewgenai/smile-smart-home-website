@@ -11,7 +11,10 @@ import {
   plannerLeadsCollection,
   plannerLeadDoc,
   SUBCOLLECTION_QUOTE,
-  COLLECTION_QUOTES_ROOT
+  COLLECTION_QUOTES_ROOT,
+  adminNotificationsCollection,
+  adminNotificationDoc,
+  type AdminNotification
 } from '../../../../models/Collections';
 import { showToast } from '../../../../lib/toast';
 import { contactRequestDoc, quoteDoc, supportTicketDoc, estimationQuotesCollection, estimationQuoteDoc } from '../../../../models/Collections';
@@ -188,37 +191,68 @@ const Notifications: React.FC = () => {
         );
       }
       case 'quote_request': {
-        // Get email from various possible fields in order of priority
-        const possibleEmailFields = [
-          item.email,
-          item.userEmail,
-          item.customerEmail,
-          item.customer?.email,
-          typeof item.user === 'object' ? item.user?.email : item.user,
-          typeof item.user === 'string' ? item.user : null
-        ];
-        
-        // Find the first non-empty email
-        const email = possibleEmailFields.find(
-          field => field && typeof field === 'string' && field.includes('@')
-        ) || 'Unknown Sender';
-        
-        // Ensure we have a valid email string
-        const displayEmail = typeof email === 'string' ? email : 'Unknown Sender';
-        
-        return (
-          <>
-            <span className="px-2 py-1 text-xs rounded-full bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300">QUOTE</span>
-            <span className="mx-2 text-teal-600 dark:text-gray-400">from</span>
-            <button
-              type="button"
-              onClick={onView}
-              className="text-gray-900 dark:text-teal-300 font-sans text-lg font-medium underline-offset-2 hover:underline"
-            >
-              {displayEmail}
-            </button>
-          </>
-        );
+        // Check if this is an admin notification (has title field) or legacy format
+        if (item.title) {
+          // Admin notification format
+          const priorityColor = item.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                               item.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                               'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+          
+          return (
+            <>
+              <span className={`px-2 py-1 text-xs rounded-full ${priorityColor}`}>
+                {item.priority?.toUpperCase() || 'MEDIUM'} PRIORITY
+              </span>
+              <span className="mx-2 text-gray-600 dark:text-gray-400">•</span>
+              <span className="text-gray-900 dark:text-white font-medium">{item.title}</span>
+              {item.customerEmail && (
+                <>
+                  <span className="mx-2 text-gray-600 dark:text-gray-400">from</span>
+                  <button
+                    type="button"
+                    onClick={onView}
+                    className="text-teal-600 dark:text-teal-300 font-mono text-sm underline-offset-2 hover:underline"
+                  >
+                    {item.customerEmail}
+                  </button>
+                </>
+              )}
+            </>
+          );
+        } else {
+          // Legacy format
+          // Get email from various possible fields in order of priority
+          const possibleEmailFields = [
+            item.email,
+            item.userEmail,
+            item.customerEmail,
+            item.customer?.email,
+            typeof item.user === 'object' ? item.user?.email : item.user,
+            typeof item.user === 'string' ? item.user : null
+          ];
+          
+          // Find the first non-empty email
+          const email = possibleEmailFields.find(
+            field => field && typeof field === 'string' && field.includes('@')
+          ) || 'Unknown Sender';
+          
+          // Ensure we have a valid email string
+          const displayEmail = typeof email === 'string' ? email : 'Unknown Sender';
+          
+          return (
+            <>
+              <span className="px-2 py-1 text-xs rounded-full bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300">QUOTE</span>
+              <span className="mx-2 text-teal-600 dark:text-gray-400">from</span>
+              <button
+                type="button"
+                onClick={onView}
+                className="text-gray-900 dark:text-teal-300 font-sans text-lg font-medium underline-offset-2 hover:underline"
+              >
+                {displayEmail}
+              </button>
+            </>
+          );
+        }
       }
       case 'contact_message': {
         const nameOrEmail = item.name || item.email;
@@ -255,10 +289,41 @@ const Notifications: React.FC = () => {
         );
       }
       case 'estimation_quote': {
-        const email = item.customerEmail || item.userEmail || item.email;
-        return email 
-          ? <>{'Estimation Quote from '}<button type="button" onClick={onView} className="text-gray-900 dark:text-teal-300 font-mono text-sm underline-offset-2 hover:underline">{email}</button></>
-          : 'Estimation Quote from Unknown';
+        // Check if this is an admin notification (has title field) or legacy format
+        if (item.title) {
+          // Admin notification format
+          const priorityColor = item.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
+                               item.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
+                               'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
+          
+          return (
+            <>
+              <span className={`px-2 py-1 text-xs rounded-full ${priorityColor}`}>
+                {item.priority?.toUpperCase() || 'ADMIN'} NOTIFICATION
+              </span>
+              <span className="mx-2 text-gray-600 dark:text-gray-400">•</span>
+              <span className="text-gray-900 dark:text-white font-medium">{item.title}</span>
+              {item.customerEmail && (
+                <>
+                  <span className="mx-2 text-gray-600 dark:text-gray-400">for</span>
+                  <button
+                    type="button"
+                    onClick={onView}
+                    className="text-teal-600 dark:text-teal-300 font-mono text-sm underline-offset-2 hover:underline"
+                  >
+                    {item.customerEmail}
+                  </button>
+                </>
+              )}
+            </>
+          );
+        } else {
+          // Legacy format
+          const email = item.customerEmail || item.userEmail || item.email;
+          return email 
+            ? <>{'Estimation Quote from '}<button type="button" onClick={onView} className="text-gray-900 dark:text-teal-300 font-mono text-sm underline-offset-2 hover:underline">{email}</button></>
+            : 'Estimation Quote from Unknown';
+        }
       }
       default:
         return 'Notification';
@@ -270,6 +335,10 @@ const Notifications: React.FC = () => {
       case 'service_request':
         return `Device: ${item.device || 'N/A'} | Priority: ${item.priority || 'Normal'}`;
       case 'quote_request':
+        // Check if this is an admin notification with message or legacy format
+        if (item.message) {
+          return item.message;
+        }
         return `Area: ${item.area || 'N/A'} | Size: ${item.sqft || 'N/A'} sqft`;
       case 'contact_message':
         return `Service: ${item.service || 'N/A'} | Phone: ${item.phone || 'N/A'}`;
@@ -278,6 +347,10 @@ const Notifications: React.FC = () => {
       case 'support_ticket':
         return `Category: ${item.category || 'General'}${item.description ? ` • ${item.description}` : ''}`;
       case 'estimation_quote':
+        // Check if this is an admin notification with message or legacy format
+        if (item.message) {
+          return item.message;
+        }
         return 'A new estimation quote has been created';
       default:
         return '';
@@ -291,11 +364,17 @@ const Notifications: React.FC = () => {
       if (!item.id) return;
       
       if (item.type === 'quote_request') {
-        // Update root quotes doc if this item is from root collection
-        try { await updateDoc(doc(db, 'quotes', item.id), { adminRead: true }); } catch {}
-        // If we have a parentUid, also update nested subcollection doc so collectionGroup fetch reflects it
-        if (item.parentUid) {
-          try { await updateDoc(doc(db, COLLECTION_QUOTES_ROOT, item.parentUid, SUBCOLLECTION_QUOTE, item.id), { adminRead: true }); } catch {}
+        // Check if this is an admin notification or legacy quote
+        if (item.title) {
+          // This is an admin notification, update its status to 'read'
+          await updateDoc(adminNotificationDoc(db, item.id), { status: 'read' });
+        } else {
+          // Legacy quote format - update root quotes doc if this item is from root collection
+          try { await updateDoc(doc(db, 'quotes', item.id), { adminRead: true }); } catch {}
+          // If we have a parentUid, also update nested subcollection doc so collectionGroup fetch reflects it
+          if (item.parentUid) {
+            try { await updateDoc(doc(db, COLLECTION_QUOTES_ROOT, item.parentUid, SUBCOLLECTION_QUOTE, item.id), { adminRead: true }); } catch {}
+          }
         }
       } else if (item.type === 'service_request') {
         await updateDoc(serviceRequestDoc(db, item.id), { adminRead: true });
@@ -311,6 +390,9 @@ const Notifications: React.FC = () => {
           // Some support tickets are sourced from Contact_Messages; update that doc as well
           try { await updateDoc(doc(db, 'Contact_Messages', item.id), { adminRead: true }); } catch {}
         }
+      } else if (item.type === 'estimation_quote' && item.title) {
+        // This is an admin notification, update its status to 'read'
+        await updateDoc(adminNotificationDoc(db, item.id), { status: 'read' });
       }
       
       // Update local state
@@ -668,6 +750,31 @@ const Notifications: React.FC = () => {
           failures++;
         }
 
+        // Fetch admin notifications
+        try {
+          const snap = await getDocs(query(adminNotificationsCollection(db), orderBy('createdAt', 'desc')));
+          const adminNotifications = snap.docs.map(d => {
+            const data = d.data() as AdminNotification;
+            return {
+              id: d.id,
+              type: data.type as NotificationType,
+              title: data.title,
+              message: data.message,
+              createdAt: data.createdAt,
+              adminRead: data.status === 'read',
+              customerEmail: data.customerEmail,
+              relatedEntityId: data.relatedEntityId,
+              relatedEntityType: data.relatedEntityType,
+              priority: data.priority,
+              timestamp: data.createdAt?.toMillis?.() || 0,
+            } as UnifiedNotification;
+          });
+          results.push(...adminNotifications);
+        } catch (err) {
+          console.error('Error fetching admin notifications:', err);
+          failures++;
+        }
+
         // Sort and set
         results.sort((a, b) => {
           const aTime = a.createdAt || a.created_at || a.ts || 0;
@@ -758,6 +865,34 @@ const Notifications: React.FC = () => {
             }
           );
           unsubs.push(unsubscribeQuotes);
+
+          // Listen for admin notifications
+          const unsubscribeAdminNotifications = onSnapshot(
+            query(adminNotificationsCollection(db), orderBy('createdAt', 'desc'), limit(50)),
+            (snapshot) => {
+              const adminNotifications = snapshot.docs.map(doc => {
+                const data = doc.data() as AdminNotification;
+                return {
+                  id: doc.id,
+                  type: data.type as NotificationType,
+                  title: data.title,
+                  message: data.message,
+                  createdAt: data.createdAt,
+                  adminRead: data.status === 'read',
+                  customerEmail: data.customerEmail,
+                  relatedEntityId: data.relatedEntityId,
+                  relatedEntityType: data.relatedEntityType,
+                  priority: data.priority,
+                  timestamp: data.createdAt?.toMillis?.() || 0,
+                } as UnifiedNotification;
+              });
+              setItems(prev => mergeAndSort(prev, adminNotifications));
+            },
+            (error) => {
+              console.error('Error in admin notifications listener:', error);
+            }
+          );
+          unsubs.push(unsubscribeAdminNotifications);
           
           return () => {
             unsubs.forEach(unsub => { try { unsub(); } catch {} });

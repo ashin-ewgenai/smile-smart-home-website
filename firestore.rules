@@ -92,6 +92,13 @@ service cloud.firestore {
       );
     }
 
+    // ================= Admin Notifications =================
+    match /Admin_Notifications/{notificationId} {
+      // Only admins can read/write admin notifications
+      // Can be global (no adminUid) or specific to an admin (adminUid field)
+      allow read, write: if isAdmin();
+    }
+
     // ================= Chat Sessions =================
     match /chat_sessions/{sessionId} {
       allow read, create, update: if isSignedIn() && (resource.data.ownerUid == request.auth.uid || isAdmin());

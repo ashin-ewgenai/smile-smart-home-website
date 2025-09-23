@@ -460,6 +460,33 @@ export function userNotificationDoc(db: Firestore, id: string): DocumentReferenc
   return doc(db, COLLECTION_USER_NOTIFICATIONS, id) as DocumentReference<UserNotification>;
 }
 
+// Admin Notifications collection
+export const COLLECTION_ADMIN_NOTIFICATIONS = 'Admin_Notifications';
+
+export interface AdminNotification {
+  adminUid?: string; // Optional: specific admin, or null for all admins
+  title: string;
+  message: string;
+  type: 'estimation_quote' | 'user_action' | 'system' | 'quote_request' | 'support_ticket' | string;
+  status: 'read' | 'unread' | string;
+  createdAt: Timestamp;
+  // Additional context fields
+  relatedEntityId?: string; // ID of related quote, ticket, etc.
+  relatedEntityType?: string; // 'quote', 'ticket', 'user', etc.
+  customerEmail?: string;
+  customerUid?: string;
+  priority?: 'high' | 'medium' | 'low';
+  [key: string]: any;
+}
+
+export function adminNotificationsCollection(db: Firestore): CollectionReference<AdminNotification> {
+  return collection(db, COLLECTION_ADMIN_NOTIFICATIONS) as CollectionReference<AdminNotification>;
+}
+
+export function adminNotificationDoc(db: Firestore, id: string): DocumentReference<AdminNotification> {
+  return doc(db, COLLECTION_ADMIN_NOTIFICATIONS, id) as DocumentReference<AdminNotification>;
+}
+
 export function userDevicePayloadFromDevice(device: Device & { id?: string }, uid: string): UserDevice & { UpdatedAt: FieldValue; status: string; DeviceCount: number } {
   return {
     uid,

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import LocationSelector from '../../common/LocationSelector';
 import { auth, db } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs, limit, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs, limit, deleteDoc, doc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { adminNotificationsCollection } from '../../../models/Collections';
 
 import type { DocumentData } from 'firebase/firestore';
 
@@ -154,6 +155,33 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
   const [showOldQuotes, setShowOldQuotes] = useState(false);
   const [currentUid, setCurrentUid] = useState<string | null>(auth.currentUser?.uid ?? null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Create admin notification when quote is submitted
+  const createAdminNotificationForQuote = async (quoteId: string, customerEmail: string, quoteType: string, customerUid: string) => {
+    try {
+      const adminNotificationData = {
+        title: 'New Quote Request Received',
+        message: `A new ${quoteType} quote request has been submitted by ${customerEmail}. Please review and provide an estimation.`,
+        type: 'quote_request' as const,
+        status: 'unread' as const,
+        createdAt: Timestamp.now(),
+        relatedEntityId: quoteId,
+        relatedEntityType: 'quote',
+        customerEmail: customerEmail,
+        customerUid: customerUid,
+        priority: 'medium' as const
+      };
+
+      // Generate a unique notification ID for admin
+      const adminNotificationId = `admin_quote_notification_${Date.now()}_${quoteId}`;
+      
+      await setDoc(doc(adminNotificationsCollection(db), adminNotificationId), adminNotificationData);
+      console.log('Admin notification created successfully for quote:', quoteId);
+    } catch (error) {
+      console.error('Error creating admin notification for quote:', error);
+      // Don't throw error to avoid breaking the main quote submission flow
+    }
+  };
 
   // Active quotes (exclude inactive statuses) for submission limit
   const activeQuotesCount = useMemo(() => {
@@ -584,6 +612,12 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       };
 
       const docRef = await addDoc(collection(db, 'quotes'), quoteData);
+      
+      // Create admin notification for the new quote
+      if (userEmail && uid) {
+        await createAdminNotificationForQuote(docRef.id, userEmail, formData.quoteType as string, uid);
+      }
+      
       setSubmitSuccess('Quote submitted successfully.');
       showToast('Quote submitted successfully.');
       // Clear inline success to avoid showing the paragraph

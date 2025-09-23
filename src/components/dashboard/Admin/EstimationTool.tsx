@@ -6,7 +6,7 @@ import { Clock } from 'lucide-react';
 import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc, where, limit } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../../../lib/firebase';
-import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload, accountsCollection } from '../../../models/Collections';
+import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload, accountsCollection, userNotificationsCollection, adminNotificationsCollection } from '../../../models/Collections';
 import QuoteDetails from './QuoteDetails';
 
 interface QuoteItem {
@@ -391,6 +391,14 @@ const EstimationTool: React.FC = () => {
           status: 'confirmed',
           updatedAt: Timestamp.now()
         });
+
+        // Create notification for the user when quote is sent to customer
+        if (resolvedUserUid) {
+          await createUserNotification(resolvedUserUid, customerEmail, estimationId);
+        }
+
+        // Create notification for admins when quote is sent to customer
+        await createAdminNotification(customerEmail, estimationId, resolvedUserUid);
       } else {
         // For Draft/Pending, just add reference without changing status
         await updateDoc(doc(db, 'quotes', selectedQuote.id), {
@@ -446,6 +454,58 @@ const EstimationTool: React.FC = () => {
       alert('Failed to save quote. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // Create notification for user when estimation quote is sent
+  const createUserNotification = async (customerUid: string, customerEmail: string, quoteId: string) => {
+    try {
+      const notificationData = {
+        uid: customerUid,
+        title: 'New Estimation Quote Available',
+        message: `A new estimation quote (${quoteId}) has been created and sent to ${customerEmail}. Please review the details and pricing information.`,
+        type: 'system' as const,
+        status: 'unread' as const,
+        createdAt: Timestamp.now(),
+        quoteId: quoteId,
+        customerEmail: customerEmail
+      };
+
+      // Generate a unique notification ID
+      const notificationId = `notification_${Date.now()}_${customerUid}`;
+      
+      await setDoc(doc(userNotificationsCollection(db), notificationId), notificationData);
+      console.log('User notification created successfully for quote:', quoteId);
+    } catch (error) {
+      console.error('Error creating user notification:', error);
+      // Don't throw error to avoid breaking the main flow
+    }
+  };
+
+  // Create notification for admins when estimation quote is sent
+  const createAdminNotification = async (customerEmail: string, quoteId: string, customerUid?: string) => {
+    try {
+      const adminNotificationData = {
+        title: 'Estimation Quote Sent to Customer',
+        message: `Estimation quote ${quoteId} has been successfully sent to customer ${customerEmail}. The quote is now confirmed and awaiting customer response.`,
+        type: 'estimation_quote' as const,
+        status: 'unread' as const,
+        createdAt: Timestamp.now(),
+        relatedEntityId: quoteId,
+        relatedEntityType: 'estimation_quote',
+        customerEmail: customerEmail,
+        customerUid: customerUid,
+        priority: 'medium' as const
+      };
+
+      // Generate a unique notification ID for admin
+      const adminNotificationId = `admin_notification_${Date.now()}_${quoteId}`;
+      
+      await setDoc(doc(adminNotificationsCollection(db), adminNotificationId), adminNotificationData);
+      console.log('Admin notification created successfully for quote:', quoteId);
+    } catch (error) {
+      console.error('Error creating admin notification:', error);
+      // Don't throw error to avoid breaking the main flow
     }
   };
 
