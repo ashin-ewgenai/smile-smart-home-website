@@ -650,11 +650,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                 </button>
                 {/* About Device */}
                 <Link
-                  to="/dashboard/user/about-device"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleNavigation("/dashboard/user/about-device");
-                  }}
+                  to="/about-device"
                   className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
                   aria-label="Open About Device"
                 >
@@ -667,11 +663,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                 </Link>
                 {/* Quote Portal */}
                 <Link
-                  to="/dashboard/user/quote-portal"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleNavigation("/dashboard/user/quote-portal");
-                  }}
+                  to="/quote-portal"
                   className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
                   aria-label="Open Quote Portal"
                 >
