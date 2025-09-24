@@ -10,6 +10,7 @@ interface SerialItem {
   warrantyExpiry?: string | Date | any;
 }
 
+
 export type DeviceDoc = {
   id: string;
   deviceName?: string;
