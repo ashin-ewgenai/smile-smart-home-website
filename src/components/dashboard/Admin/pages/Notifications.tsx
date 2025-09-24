@@ -267,7 +267,7 @@ const Notifications: React.FC = () => {
         setItems(adminNotifications);
         setAuthError(null);
         setLoaded(true);
-        const existingRelatedIds = new Set(adminNotifications.map(n => n.relatedEntityId).filter(Boolean) as string[]);
+        
         
         // Set up real-time listener for admin notifications
         const unsubscribeAdminNotifications = onSnapshot(
@@ -300,46 +300,7 @@ const Notifications: React.FC = () => {
           }
         );
         unsubs.push(unsubscribeAdminNotifications);
-
-        // Admin-side mirroring: watch contactRequests and create Admin_Notifications for new items
-        const unsubscribeContactMirror = onSnapshot(
-          query(contactRequestsCollection(db), orderBy('createdAt', 'desc')),
-          async (snapshot) => {
-            for (const docSnap of snapshot.docs) {
-              const data: any = docSnap.data();
-              const id = docSnap.id;
-              // Skip if already marked as notified to prevent duplicates
-              if (data.adminNotified === true) continue;
-              // Skip if we've already mirrored based on existing relatedEntityId set
-              if (existingRelatedIds.has(id)) continue;
-              try {
-                const name = data.fullName || data.name || 'Anonymous';
-                const email = data.email || '';
-                const service = data.service || '';
-                await addDoc(adminNotificationsCollection(db), {
-                  title: 'New Contact Message',
-                  message: `From ${name}${email ? ` (${email})` : ''}${service ? ` • Service: ${service}` : ''}`,
-                  type: 'support_ticket',
-                  status: 'unread',
-                  createdAt: (await import('firebase/firestore')).serverTimestamp(),
-                  priority: 'medium',
-                  customerEmail: email || null,
-                  relatedEntityId: id,
-                  relatedEntityType: 'contact_request',
-                } as any);
-                // Mark source as notified
-                try { await updateDoc(contactRequestDoc(db, id), { adminNotified: true }); } catch {}
-                existingRelatedIds.add(id);
-              } catch (mirrorErr) {
-                console.warn('Failed to mirror contact request to Admin_Notifications:', mirrorErr);
-              }
-            }
-          },
-          (error) => {
-            console.error('Error in contactRequests mirror listener:', error);
-          }
-        );
-        unsubs.push(unsubscribeContactMirror);
+        
         
       } catch (error: any) {
         console.error('Error fetching admin notifications:', error);
@@ -401,7 +362,7 @@ const Notifications: React.FC = () => {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {(['all', 'quote_request', 'estimation_quote', 'support_ticket', 'system'] as const).map((filterType) => (
+        {(['all', 'quote_request', 'support_ticket'] as const).map((filterType) => (
           <button
             key={filterType}
             onClick={() => setFilter(filterType)}
@@ -411,11 +372,9 @@ const Notifications: React.FC = () => {
                 : 'text-gray-400 hover:text-white hover:bg-gray-700'
             }`}
           >
-            {filterType === 'all' ? 'All' : 
+            {filterType === 'all' ? 'All' :
              filterType === 'quote_request' ? 'Quote Requests' :
-             filterType === 'estimation_quote' ? 'Estimation Quotes' :
-             filterType === 'support_ticket' ? 'Support Tickets' :
-             'System'}
+             'Support Tickets'}
           </button>
         ))}
       </div>

@@ -1,4 +1,4 @@
-import { onDocumentCreated } from "firebase-functions/v2/firestore";
+import * as functionsV1 from "firebase-functions/v1";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 
@@ -10,15 +10,14 @@ if (!getApps().length) {
 const db = getFirestore();
 
 /**
- * When a new contact request is created by the public site, create an admin notification.
- * This keeps client security rules strict (no direct writes to Admin_Notifications from clients).
+ * Gen 1 Firestore trigger: When a new contact request is created, create an admin notification.
  */
-export const onContactRequestCreated = onDocumentCreated(
-  "contactRequests/{docId}",
-  async (event) => {
-    const snap = event.data;
-    if (!snap) return;
-
+export const onContactRequestCreated = functionsV1.firestore
+  .document("contactRequests/{docId}")
+  .onCreate(async (
+    snap: FirebaseFirestore.QueryDocumentSnapshot,
+    context: functionsV1.EventContext
+  ) => {
     const data = snap.data() as {
       fullName?: string;
       email?: string;
@@ -44,5 +43,4 @@ export const onContactRequestCreated = onDocumentCreated(
       relatedEntityId: docId,
       relatedEntityType: "contact_request",
     });
-  }
-);
+  });
