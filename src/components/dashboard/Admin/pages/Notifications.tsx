@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db, firebaseApp } from '../../../../lib/firebase';
 import { query, orderBy, updateDoc, deleteDoc, getDocs, getDoc, onSnapshot, addDoc, serverTimestamp, type Timestamp } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { 
   adminNotificationsCollection,
   adminNotificationDoc,
@@ -114,10 +115,6 @@ const Notifications: React.FC = () => {
     
     return (
       <>
-        <span className={`px-2 py-1 text-xs rounded-full ${priorityColor}`}>
-          {item.priority?.toUpperCase() || 'MEDIUM'} PRIORITY
-        </span>
-        <span className="mx-2 text-gray-600 dark:text-gray-400">•</span>
         <span className="text-gray-900 dark:text-white font-medium">{item.title || 'Admin Notification'}</span>
         {item.customerEmail && (
           <>
@@ -135,9 +132,7 @@ const Notifications: React.FC = () => {
     );
   };
 
-  const getNotificationDescription = (item: UnifiedNotification): string => {
-    return item.message || 'Admin notification';
-  };
+  // Description removed from UI
 
   const markAsRead = async (item: UnifiedNotification) => {
     const key = `${item.type}:${item.id}`;
@@ -188,7 +183,14 @@ const Notifications: React.FC = () => {
     if (isUnread(item)) {
       markAsRead(item);
     }
-    
+    // Contact notifications should always go to contact submissions
+    const typeStr = String(item.type || '').toLowerCase();
+    const titleStr = String(item.title || '').toLowerCase();
+    if (typeStr.includes('contact') || titleStr.includes('contact')) {
+      navigate('/contact-submissions');
+      return;
+    }
+
     // Navigate based on related entity type and ID
     if (item.relatedEntityType && item.relatedEntityId) {
       switch (item.relatedEntityType) {
@@ -215,21 +217,28 @@ const Notifications: React.FC = () => {
   useEffect(() => {
     let unsubs: Array<() => void> = [];
 
-    const fetchAdminNotifications = async () => {
+    // Listen for auth state; only fetch after Firebase restores the session
+    const stopAuth = onAuthStateChanged(auth, async (user) => {
+      // Clear any existing listeners when auth state changes
+      unsubs.forEach((u) => {
+        try { u(); } catch {}
+      });
+      unsubs = [];
+
+      if (!user) {
+        setItems([]);
+        setAuthError('You must be signed in to view admin notifications.');
+        setLoaded(true);
+        return;
+      }
+
       try {
-        // Check if user is authenticated
-        if (!auth.currentUser) {
-          setAuthError('You must be signed in to view admin notifications.');
-          setLoaded(true);
-          return;
-        }
+        // Ensure fresh token
+        try { await user.getIdToken(true); } catch {}
 
-        // Ensure fresh auth token to avoid stale/expired token causing permission-denied
-        try { await auth.currentUser.getIdToken(true); } catch {}
-
-        // Read Accounts/{uid} to verify role and log to console for debugging
-        const uid = auth.currentUser.uid;
-        const email = auth.currentUser.email || null;
+        // Verify role from Accounts/{uid}
+        const uid = user.uid;
+        const email = user.email || null;
         const projectId = (firebaseApp?.options as any)?.projectId || (firebaseApp as any)?.options?.projectId;
         try {
           const accSnap = await getDoc(accountDoc(db, uid));
@@ -244,7 +253,7 @@ const Notifications: React.FC = () => {
           console.warn('[AdminNotifications] Failed to read Accounts doc for role verification', roleErr);
         }
 
-        // Fetch admin notifications
+        // Initial fetch
         const snap = await getDocs(query(adminNotificationsCollection(db), orderBy('createdAt', 'desc')));
         const adminNotifications = snap.docs.map(d => {
           const data = d.data() as AdminNotification;
@@ -263,13 +272,12 @@ const Notifications: React.FC = () => {
             timestamp: data.createdAt?.toMillis?.() || 0,
           } as UnifiedNotification;
         });
-        
+
         setItems(adminNotifications);
         setAuthError(null);
         setLoaded(true);
-        
-        
-        // Set up real-time listener for admin notifications
+
+        // Real-time listener
         const unsubscribeAdminNotifications = onSnapshot(
           query(adminNotificationsCollection(db), orderBy('createdAt', 'desc')),
           (snapshot) => {
@@ -300,8 +308,6 @@ const Notifications: React.FC = () => {
           }
         );
         unsubs.push(unsubscribeAdminNotifications);
-        
-        
       } catch (error: any) {
         console.error('Error fetching admin notifications:', error);
         if (error.code === 'permission-denied') {
@@ -312,16 +318,13 @@ const Notifications: React.FC = () => {
         setItems([]);
         setLoaded(true);
       }
-    };
+    });
 
-    fetchAdminNotifications();
-
-    return () => { 
-      unsubs.forEach(u => { 
-        try { 
-          u(); 
-        } catch {} 
-      }); 
+    return () => {
+      try { stopAuth(); } catch {}
+      unsubs.forEach((u) => {
+        try { u(); } catch {}
+      });
     };
   }, [db]);
 
@@ -400,13 +403,20 @@ const Notifications: React.FC = () => {
             return (
               <div 
                 key={id}
-                className={`rounded-xl border p-6 transition-colors ${unread ? 'border-indigo-700/50 bg-indigo-900/20 hover:bg-indigo-900/30 dark:border-indigo-700/50 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30' : 'border-gray-300 bg-white/80 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/30 dark:hover:bg-gray-900/50'}`}
+                className={`rounded-xl border p-6 transition-colors ${unread ? 'border-indigo-700/50 bg-indigo-900/20 hover:bg-indigo-900/30 dark:border-indigo-700/50 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30' : 'border-gray-300 bg-white/80 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/30 dark:hover:bg-gray-900/50'} cursor-pointer`}
+                onClick={() => navigateToItem(item)}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                       <span className="inline-flex w-full items-center justify-between gap-3">
-                        <span className="min-w-0">
+                        <span
+                          className="min-w-0 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigateToItem(item);
+                          }}
+                        >
                           {getNotificationTitle(item, (e) => {
                             e.stopPropagation();
                             if (unread) { markAsRead(item); }
@@ -420,9 +430,7 @@ const Notifications: React.FC = () => {
                         )}
                       </span>
                     </h3>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                      {getNotificationDescription(item)}
-                    </p>
+                    {/* Description removed as requested */}
                   </div>
                   <div className="flex items-center space-x-2">
                     {unread && (

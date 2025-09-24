@@ -284,27 +284,18 @@ const NotificationsPage: React.FC = () => {
                   </span>
                 )}
               </h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Your latest alerts and updates</p>
             </div>
-            <div className="flex gap-2">
+            {unreadCount > 0 && (
               <button
-                onClick={createManualTestNotification}
-                className="text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
+                onClick={() => {
+                  // Mark all as read
+                  notifications.filter(n => n.status === 'unread').forEach(n => markAsRead(n.id));
+                }}
+                className="text-sm text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-medium"
               >
-                Test Notification
+                Mark all as read
               </button>
-              {unreadCount > 0 && (
-                <button
-                  onClick={() => {
-                    // Mark all as read
-                    notifications.filter(n => n.status === 'unread').forEach(n => markAsRead(n.id));
-                  }}
-                  className="text-sm text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-medium"
-                >
-                  Mark all as read
-                </button>
-              )}
-            </div>
+            )}
           </div>
         </div>
 

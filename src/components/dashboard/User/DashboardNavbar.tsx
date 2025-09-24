@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, X, User, LogOut, Settings, ArrowLeft, Moon, Sun } from 'lucide-react';
+import { Menu, X, User, LogOut, Settings, ArrowLeft, Moon, Sun, Bell } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { handleLogout } from './LogoutHandler';
 
@@ -101,6 +101,14 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
           {/* Centered desktop nav removed; sidebar will handle navigation */}
           <div className="flex items-center">
             {/* Help button removed; "Raise Tickets" is now in the sidebar and mobile menu */}
+            <Link
+              to="notifications"
+              className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white focus:outline-none ml-3"
+              aria-label="Notifications"
+              title="Notifications"
+            >
+              <Bell className="h-5 w-5" />
+            </Link>
             <button
               type="button"
               onClick={toggleDarkMode}
@@ -210,6 +218,13 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                 Manage Users
               </Link>
             )}
+            <Link 
+              to={`/dashboard/${userType}/notifications`} 
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => setIsMobileMenuOpen(false)}
+            >
+              Notifications
+            </Link>
             <Link 
               to={`/dashboard/${userType}/quote-portal`} 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
