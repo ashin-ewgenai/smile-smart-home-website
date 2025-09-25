@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import LocationSelector from '../../common/LocationSelector';
 import { auth, db } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs, limit, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs, getDoc, limit, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 
 import type { DocumentData } from 'firebase/firestore';
+import { estimationQuoteDoc, estimationQuotesCollection, type EstimationQuote } from '@/models/Collections';
 
 // ... (existing imports)
 
@@ -115,6 +116,29 @@ type QuoteDoc = {
 
 const MAX_QUOTES = 4;
 
+const formatEstimationDate = (value: unknown): string => {
+  if (!value) return '';
+  if (typeof value === 'string') return value;
+  if (value instanceof Date) return value.toLocaleDateString();
+  if (typeof value === 'object' && 'toDate' in (value as any) && typeof (value as any).toDate === 'function') {
+    try {
+      return (value as any).toDate().toLocaleDateString();
+    } catch {
+      return '';
+    }
+  }
+  return String(value);
+};
+
+const logEstimationFetchError = (err: unknown, context: string) => {
+  const code = typeof err === 'object' && err !== null && 'code' in err ? (err as any).code : undefined;
+  if (code === 'permission-denied' || code === 'missing-permissions') {
+    console.debug(`[QuoteForm] Estimation fetch skipped (${context}) due to permissions`, err);
+  } else {
+    console.warn(`[QuoteForm] Error ${context}`, err);
+  }
+};
+
 export default function QuoteForm({ userEmail: emailProp, className = '', onSubmitted }: QuoteFormProps) {
   // Handle wheel events for scrollable content
   const onContentWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
@@ -173,7 +197,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
   // Modal state for viewing a quote + estimation
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<QuoteDoc | null>(null);
-  const [estimation, setEstimation] = useState<any | null>(null);
+  const [estimation, setEstimation] = useState<(EstimationQuote & { id?: string }) | null>(null);
   const [estLoading, setEstLoading] = useState(false);
   
   // Lock background scroll when modal is open
@@ -212,24 +236,140 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     setModalOpen(true);
     setEstimation(null);
     setEstLoading(true);
+    const expectedRefId = (q as any).estimationQuoteId as string | undefined;
+    const matchesSelectedQuote = (est: Partial<EstimationQuote> | undefined, docId?: string) => {
+      if (!est) return false;
+      if (expectedRefId && (docId === expectedRefId || est.quoteId === expectedRefId)) return true;
+      if (docId === q.id) return true;
+      if (est.quoteId === q.id) return true;
+      if (est.originalQuoteId === q.id) return true;
+      return false;
+    };
     try {
-      // Lookup admin estimation by originalQuoteId
-      const qRef = query(
-        collection(db, 'Estimation Quote'),
-        where('originalQuoteId', '==', q.id),
-        limit(1)
-      );
-      const snap = await getDocs(qRef);
-      if (!snap.empty) {
-        setEstimation(snap.docs[0].data());
-      } else if ((q as any).estimationQuoteId) {
-        // fallback: if quote stored a direct estimation id, try fetch by that id
+      // 1) Direct reference via estimationQuoteId stored on quote
+      const directId = expectedRefId;
+      if (directId) {
         try {
-          const direct = await getDocs(query(collection(db, 'Estimation Quote'), where('quoteId', '==', (q as any).estimationQuoteId), limit(1)));
-          if (!direct.empty) setEstimation(direct.docs[0].data());
-        } catch {}
+          const directSnap = await getDocs(query(
+            estimationQuotesCollection(db),
+            where('quoteId', '==', directId),
+            limit(1)
+          ));
+          if (!directSnap.empty) {
+            const docSnap = directSnap.docs[0];
+            const payload = docSnap.data() as EstimationQuote;
+            if (matchesSelectedQuote(payload, docSnap.id)) {
+              setEstimation({ id: docSnap.id, ...payload });
+              return;
+            }
+          }
+          const directDoc = await getDoc(estimationQuoteDoc(db, directId));
+          if (directDoc.exists()) {
+            const payload = directDoc.data() as EstimationQuote;
+            if (matchesSelectedQuote(payload, directDoc.id)) {
+              setEstimation({ id: directDoc.id, ...payload });
+              return;
+            }
+          }
+        } catch (err) {
+          logEstimationFetchError(err, 'fetching estimation via estimationQuoteId');
+        }
       }
-    } catch {}
+
+      // 2) Try using quoteId itself as estimation document id
+      try {
+        const quoteDocSnap = await getDoc(estimationQuoteDoc(db, q.id));
+        if (quoteDocSnap.exists()) {
+          const payload = quoteDocSnap.data() as EstimationQuote;
+          if (matchesSelectedQuote(payload, quoteDocSnap.id)) {
+            setEstimation({ id: quoteDocSnap.id, ...payload });
+            return;
+          }
+        }
+      } catch (err) {
+        logEstimationFetchError(err, 'fetching estimation via quoteId doc');
+      }
+
+      // 3) Query by quoteId field in Estimation_Quote collection
+      try {
+        const byQuoteId = await getDocs(query(
+          estimationQuotesCollection(db),
+          where('quoteId', '==', q.id),
+          limit(5)
+        ));
+        for (const docSnap of byQuoteId.docs) {
+          const payload = docSnap.data() as EstimationQuote;
+          if (matchesSelectedQuote(payload, docSnap.id)) {
+            setEstimation({ id: docSnap.id, ...payload });
+            return;
+          }
+        }
+      } catch (err) {
+        logEstimationFetchError(err, 'querying estimation by quoteId');
+      }
+
+      // 4) Query by originalQuoteId field
+      try {
+        const byOriginal = await getDocs(query(
+          estimationQuotesCollection(db),
+          where('originalQuoteId', '==', q.id),
+          limit(5)
+        ));
+        for (const docSnap of byOriginal.docs) {
+          const payload = docSnap.data() as EstimationQuote;
+          if (matchesSelectedQuote(payload, docSnap.id)) {
+            setEstimation({ id: docSnap.id, ...payload });
+            return;
+          }
+        }
+      } catch (err) {
+        logEstimationFetchError(err, 'querying estimation by originalQuoteId');
+      }
+
+      // 5) Query by user email if available
+      const email = (q as any).userEmail || (q as any).customerEmail;
+      if (email) {
+        try {
+          const byEmail = await getDocs(query(
+            estimationQuotesCollection(db),
+            where('customerEmail', '==', email),
+            limit(5)
+          ));
+          for (const docSnap of byEmail.docs) {
+            const payload = docSnap.data() as EstimationQuote;
+            if (matchesSelectedQuote(payload, docSnap.id)) {
+              setEstimation({ id: docSnap.id, ...payload });
+              return;
+            }
+          }
+        } catch (err) {
+          logEstimationFetchError(err, 'querying estimation by customerEmail');
+        }
+      }
+
+      // 6) Query by uid if present on quote
+      const customerUid = (q as any).userUid || (q as any).uid;
+      if (customerUid) {
+        try {
+          const byUid = await getDocs(query(
+            estimationQuotesCollection(db),
+            where('uid', '==', customerUid),
+            limit(5)
+          ));
+          for (const docSnap of byUid.docs) {
+            const payload = docSnap.data() as EstimationQuote;
+            if (matchesSelectedQuote(payload, docSnap.id)) {
+              setEstimation({ id: docSnap.id, ...payload });
+              return;
+            }
+          }
+        } catch (err) {
+          logEstimationFetchError(err, 'querying estimation by uid');
+        }
+      }
+    } catch (err) {
+      console.warn('[QuoteForm] Unexpected error fetching estimation', err);
+    }
     finally {
       setEstLoading(false);
     }
@@ -1166,7 +1306,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div><div className="text-gray-500">Estimation ID</div><div className="font-medium">{estimation.quoteId || estimation.id || ''}</div></div>
                       <div><div className="text-gray-500">Status</div><div className="font-medium">{estimation.status}</div></div>
-                      <div><div className="text-gray-500">Issue Date</div><div className="font-medium">{typeof estimation.issueDate === 'string' ? estimation.issueDate : (estimation.issueDate?.toDate ? estimation.issueDate.toDate().toLocaleDateString() : '')}</div></div>
+                      <div><div className="text-gray-500">Issue Date</div><div className="font-medium">{formatEstimationDate(estimation.issueDate)}</div></div>
                       <div><div className="text-gray-500">Grand Total</div><div className="font-medium">₹ {Number(estimation.grandTotal || 0).toFixed(2)}</div></div>
                     </div>
                     {Array.isArray(estimation.items) && estimation.items.length > 0 && (

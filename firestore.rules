@@ -27,37 +27,63 @@ service cloud.firestore {
 
     // ================= Accounts =================
     match /Accounts/{uid} {
-      // Users can read and update their own account, admins can manage all accounts
       allow read: if isCurrentUser(uid) || isAdmin();
-      allow create: if isSignedIn(); // Allow any authenticated user to create their account
+      allow create: if isSignedIn();
       allow update: if isCurrentUser(uid) || isAdmin();
       allow delete: if isAdmin();
-      
-      // More permissive update rules
+
       allow update: if isCurrentUser(uid) && (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['FullName', 'phoneNumber', 'address', 'LastLoginAt', 'Email']) ||
-        isAdmin()
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+          ['FullName', 'phoneNumber', 'address', 'LastLoginAt', 'Email']
+        ) || isAdmin()
       );
     }
 
     // ================= Estimation Quote =================
-    match /Estimation_Quote/{docId} {
-      // Read: Admin OR owner (by email)
-      allow read: if isAdmin() ||
-        (isSignedIn() && request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email);
+    function isEstimationOwner(estDoc) {
+      return (
+        (request.auth.token.email != null && estDoc.customerEmail == request.auth.token.email) ||
+        (estDoc.uid != null && estDoc.uid == request.auth.uid)
+      );
+    }
 
-      // Create: Admin can create for any customer, or customer can create for themselves
+    function ownsOriginalQuote(estDoc) {
+      return isSignedIn() && estDoc.originalQuoteId != null &&
+        exists(/databases/$(database)/documents/quotes/$(estDoc.originalQuoteId)) &&
+        get(/databases/$(database)/documents/quotes/$(estDoc.originalQuoteId)).data.userUid == request.auth.uid;
+    }
+
+    match /Estimation_Quote/{docId} {
+      allow read: if isAdmin() || (isSignedIn() && (isEstimationOwner(resource.data) || ownsOriginalQuote(resource.data)));
+
       allow create: if isSignedIn() && (
         isAdmin() ||
-        (request.auth.token.email != null && request.resource.data.customerEmail == request.auth.token.email)
+        (request.auth.token.email != null && request.resource.data.customerEmail == request.auth.token.email) ||
+        (request.resource.data.uid != null && request.resource.data.uid == request.auth.uid)
       );
 
-      // Update: Owner (by email) or admin
       allow update: if isSignedIn() &&
-        ((request.auth.token.email != null && resource.data.customerEmail == request.auth.token.email) || isAdmin());
+        (isAdmin() || isEstimationOwner(resource.data));
 
-      // Delete: Admin only
       allow delete: if isAdmin();
+    }
+
+    // ================= Legacy Estimation Quote (with space in name) =================
+    match /{collectionId}/{docId} {
+      allow read: if collectionId == "Estimation Quote" &&
+        (isAdmin() || (isSignedIn() && isEstimationOwner(resource.data)));
+
+      allow create: if collectionId == "Estimation Quote" &&
+        isSignedIn() && (
+          isAdmin() ||
+          (request.auth.token.email != null && request.resource.data.customerEmail == request.auth.token.email) ||
+          (request.resource.data.uid != null && request.resource.data.uid == request.auth.uid)
+        );
+
+      allow update: if collectionId == "Estimation Quote" &&
+        (isSignedIn() && (isAdmin() || isEstimationOwner(resource.data)));
+
+      allow delete: if collectionId == "Estimation Quote" && isAdmin();
     }
 
     // ================= Planner Leads =================
@@ -83,7 +109,6 @@ service cloud.firestore {
 
     // ================= User Devices =================
     match /User_Devices/{docId} {
-      // Users can read/write their own devices, admin can access all
       allow read, write: if isSignedIn() && (
         resource.data.uid == request.auth.uid || 
         request.resource.data.uid == request.auth.uid ||
@@ -93,7 +118,6 @@ service cloud.firestore {
 
     // ================= User Notifications =================
     match /User_Notifications/{notificationId} {
-      // Users can read/write their own notifications, admin can access all
       allow read, write: if isSignedIn() && (
         resource.data.uid == request.auth.uid || 
         request.resource.data.uid == request.auth.uid ||
@@ -103,8 +127,6 @@ service cloud.firestore {
 
     // ================= Admin Notifications =================
     match /Admin_Notifications/{notificationId} {
-      // Only admins can read/write admin notifications
-      // Can be global (no adminUid) or specific to an admin (adminUid field)
       allow read, write: if isAdmin();
     }
 
@@ -122,30 +144,25 @@ service cloud.firestore {
 
     // ================= Contact Requests =================
     match /contactRequests/{docId} {
-      // Public can create with only expected fields
-      allow create: if request.resource.data.keys().hasOnly(['fullName','email','phone','message','createdAt','status','service']);
-      // Admin can read and moderate (mark as read, delete)
+      allow create: if request.resource.data.keys().hasOnly(
+        ['fullName','email','phone','message','createdAt','status','service']
+      );
       allow read, update, delete: if isAdmin();
     }
 
     // ================= Quotes =================
     match /quotes/{quoteId} {
-      // Read: user can read their own quotes or admin can read all
       allow list, get: if isSignedIn() && (resource.data.userUid == request.auth.uid || isAdmin());
 
-      // Create: only owner can create their quote
       allow create: if isSignedIn() && request.resource.data.userUid == request.auth.uid;
 
-      // Update: admin OR owner may cancel their own quote (narrow field changes only)
       allow update: if isAdmin() || (
         isSignedIn() &&
         resource.data.userUid == request.auth.uid &&
-        // Owner may set status to 'Cancelled' and record who/when
         request.resource.data.status == 'Cancelled' &&
         request.resource.data.cancelledByUid == request.auth.uid
       );
 
-      // Delete only admin
       allow delete: if isAdmin();
     }
 
@@ -185,14 +202,11 @@ service cloud.firestore {
 
     // ================= Nested Quotes per User =================
     match /Quotes/{uid} {
-      // Container doc (if used)
       allow read: if isCurrentUser(uid) || isAdmin();
 
-      // Quote list under each user (used via collectionGroup queries)
       match /Quote_List/{id} {
         allow read: if isCurrentUser(uid) || isAdmin();
         allow create: if isCurrentUser(uid);
-        // Owner or admin can update/delete (e.g., adminRead flag)
         allow update, delete: if isCurrentUser(uid) || isAdmin();
       }
     }
@@ -208,7 +222,7 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
 
-    // ================= Legacy Support Tickets (Contact_Messages) =================
+    // ================= Legacy Support Tickets =================
     match /Contact_Messages/{docId} {
       allow read, update, delete: if isAdmin();
       allow create: if false;
