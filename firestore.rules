@@ -29,13 +29,14 @@ service cloud.firestore {
     match /Accounts/{uid} {
       allow read: if isCurrentUser(uid) || isAdmin();
       allow create: if isSignedIn();
-      allow update: if isCurrentUser(uid) || isAdmin();
       allow delete: if isAdmin();
 
-      allow update: if isCurrentUser(uid) && (
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-          ['FullName', 'phoneNumber', 'address', 'LastLoginAt', 'Email']
-        ) || isAdmin()
+      // Only admins can freely update. A user may update ONLY these fields on their own doc.
+      allow update: if isAdmin() || (
+        isCurrentUser(uid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'FullName', 'phoneNumber', 'address', 'LastLoginAt', 'Email', 'profilePic', 'updatedAt'
+        ])
       );
     }
 

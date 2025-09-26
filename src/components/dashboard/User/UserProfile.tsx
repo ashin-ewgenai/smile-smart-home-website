@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Save, User, Mail, Phone, MapPin, Calendar, Home } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Save, User, Mail, Phone, MapPin, Calendar, Home, Camera } from 'lucide-react';
 import { collection, doc, getDoc, getDocs, query, setDoc, where, Timestamp } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
+import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { auth, db, storage, firebaseApp } from '../../../lib/firebase';
 import { COLLECTION_USER_DEVICES } from '../../../models/Collections';
 import { useNavigate } from 'react-router-dom';
 
@@ -31,6 +32,7 @@ interface UserData {
   CreatedAt: Date | Timestamp | null;
   address: string;
   phoneNumber: string;
+  profilePic?: string;
   [key: string]: unknown;
 }
 
@@ -47,6 +49,10 @@ const UserProfile: React.FC = () => {
   });
   const [saveStatus, setSaveStatus] = useState<string>('');
   const [deviceCount, setDeviceCount] = useState<number>(0);
+  const [profilePicUrl, setProfilePicUrl] = useState<string>('');
+  const [picStatus, setPicStatus] = useState<string>('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
 
   // Fetch user's device count
   const fetchDeviceCount = useCallback(async () => {
@@ -71,7 +77,7 @@ const UserProfile: React.FC = () => {
     try {
       setLoading(true);
       const userEmail = localStorage.getItem('userEmail');
-      const userId = localStorage.getItem('userId');
+      const userId = auth.currentUser?.uid || localStorage.getItem('userId');
       
       if (!userId || !userEmail) {
         console.error('User authentication data missing');
@@ -100,6 +106,7 @@ const UserProfile: React.FC = () => {
         };
         
         setUserData(userDataUpdate);
+        setProfilePicUrl(typeof data.profilePic === 'string' ? data.profilePic : '');
         
         // Update local storage with the latest values
         if (data.phoneNumber) localStorage.setItem('userPhone', data.phoneNumber as string);
@@ -138,6 +145,85 @@ const UserProfile: React.FC = () => {
     fetchDeviceCount();
   }, [fetchUserData, fetchDeviceCount]);
   
+  // Handle profile picture selection & upload (moved to component scope)
+  const onPickFile = () => {
+    fileInputRef.current?.click();
+  };
+
+  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      setPicStatus('Uploading photo...');
+
+      // Immediate local preview so the user sees the selected image instantly
+      try {
+        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+        const localUrl = URL.createObjectURL(file);
+        previewUrlRef.current = localUrl;
+        setProfilePicUrl(localUrl);
+      } catch {}
+
+      // Basic validation
+      const allowed = ['image/jpeg', 'image/png', 'image/jpg'];
+      if (!allowed.includes(file.type)) {
+        setPicStatus('Please select a JPG or PNG image.');
+        e.target.value = '';
+        return;
+      }
+
+      const uid = auth.currentUser?.uid || localStorage.getItem('userId');
+      if (!uid) {
+        setPicStatus('You must be signed in to upload a photo.');
+        return;
+      }
+
+      const ext = file.type === 'image/png' ? 'png' : 'jpg';
+      const path = `profile/${uid}.${ext}`;
+      const ref = storageRef(storage, path);
+      console.debug('[UserProfile] Starting upload', { uid, path, bucket: firebaseApp.options?.storageBucket });
+      const task = uploadBytesResumable(ref, file, { contentType: file.type });
+
+      // Watchdog: if no progress > 0 within 15s, cancel and hint likely causes
+      let stalled = true;
+      const stallTimer = setTimeout(() => {
+        if (stalled) {
+          try { task.cancel(); } catch {}
+          setPicStatus('Error: Upload stalled. Ensure you are signed in, Storage rules allow profile/{uid}.jpg|png, and storageBucket is set.');
+        }
+      }, 15000);
+
+      task.on('state_changed', (snap) => {
+        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
+        // Lightweight status feedback
+        setPicStatus(`Uploading... ${pct}%`);
+        if (pct > 0 && stalled) {
+          stalled = false;
+          clearTimeout(stallTimer);
+        }
+      });
+      await task;
+      clearTimeout(stallTimer);
+      const url = await getDownloadURL(ref);
+
+      // Save URL to Firestore (Accounts/{uid} profilePic)
+      const userDocRef = doc(db, 'Accounts', uid);
+      await setDoc(userDocRef, { profilePic: url, updatedAt: new Date() }, { merge: true });
+
+      // Replace local preview with the permanent download URL
+      setProfilePicUrl(url);
+      try { if (previewUrlRef.current) { URL.revokeObjectURL(previewUrlRef.current); previewUrlRef.current = null; } } catch {}
+      setPicStatus('Profile photo updated successfully.');
+      setTimeout(() => setPicStatus(''), 2500);
+    } catch (error: any) {
+      console.error('Failed to upload profile photo:', error);
+      const msg = error?.message || 'Failed to upload profile photo.';
+      setPicStatus(`Error: ${msg}`);
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
+
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -248,11 +334,35 @@ const UserProfile: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Profile Card */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 flex flex-col items-center">
-          <div className="h-24 w-24 rounded-full bg-blue-500 flex items-center justify-center mb-4">
-            <User className="h-12 w-12 text-white" />
+          <div className="relative h-24 w-24 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center mb-4">
+            {profilePicUrl ? (
+              <img src={profilePicUrl} alt="Profile" className="h-full w-full object-cover" />
+            ) : (
+              <User className="h-12 w-12 text-white" />
+            )}
+            <button
+              type="button"
+              onClick={onPickFile}
+              className="absolute bottom-0 right-0 mb-1 mr-1 inline-flex items-center justify-center h-8 w-8 rounded-full bg-black/70 text-white hover:bg-black/80 focus:outline-none border border-white/20"
+              title="Change photo"
+            >
+              <Camera className="h-4 w-4" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/jpg"
+              className="hidden"
+              onChange={onFileChange}
+            />
           </div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{userData.FullName || 'User'}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Smart Home User</p>
+          {picStatus && (
+            <div className={`text-xs mb-2 ${picStatus.startsWith('Error') ? 'text-red-600 dark:text-red-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
+              {picStatus}
+            </div>
+          )}
           
           <div className="w-full space-y-3">
             <div className="flex items-center text-sm">
