@@ -278,62 +278,102 @@ const authState = {
 </style>
 
 <script>
+  // @ts-nocheck
   // Mobile click handler with aria + outside click close + smooth transitions.
   // Re-initialize on Astro view transitions.
   (function(){
     const init = () => {
-      if ((window as any).__mobileMenuInit) return;
-      (window as any).__mobileMenuInit = true;
-      
+      // Use a data flag on <html> instead of extending window for init guard
+      const root = document.documentElement;
+      if (root.dataset.mobileMenuInit === '1') return;
+      root.dataset.mobileMenuInit = '1';
+
       const menu = document.getElementById('mobile-menu');
       const button = document.getElementById('mobile-menu-button');
       if (!menu || !button) return;
-      
+
+      // Ensure starting closed state is consistent
+      menu.classList.add('opacity-0');
+      menu.classList.add('max-h-0');
+
+      /** @type {(ev: TransitionEvent) => void | null} */
+      let transitionHandler = null;
+
+      /** @param {TransitionEvent} ev */
+      const onTransitionEnd = (ev) => {
+        // When finishing closing, hide from layout to prevent tab focus
+        const isOpen = button.getAttribute('aria-expanded') === 'true';
+        if (!isOpen) {
+          menu.classList.add('hidden');
+          menu.style.maxHeight = '0';
+        }
+      };
+
       // Toggle mobile menu
-      const toggleMenu = (open?: boolean) => {
-        const isOpen = !menu.classList.contains('max-h-0');
-        if (open === undefined) open = !isOpen;
-        
+      /** @param {boolean=} open */
+      const toggleMenu = (open) => {
+        const isOpen = button.getAttribute('aria-expanded') === 'true';
+        if (typeof open === 'undefined') open = !isOpen;
+
+        // Remove any previous transitionend handler to avoid duplicates
+        if (transitionHandler) {
+          menu.removeEventListener('transitionend', transitionHandler);
+          transitionHandler = null;
+        }
+
         if (open) {
-          menu.style.maxHeight = menu.scrollHeight + 'px';
-          menu.classList.remove('opacity-0');
-          menu.classList.add('opacity-100');
+          // Show
+          menu.classList.remove('hidden');
+          // Wait a frame so the browser registers display change before height transition
+          requestAnimationFrame(() => {
+            menu.style.maxHeight = menu.scrollHeight + 'px';
+            menu.classList.remove('opacity-0');
+            menu.classList.add('opacity-100');
+          });
           button.setAttribute('aria-expanded', 'true');
         } else {
+          // Hide with transition, then add hidden after transition completes
           menu.style.maxHeight = '0';
           menu.classList.remove('opacity-100');
           menu.classList.add('opacity-0');
           button.setAttribute('aria-expanded', 'false');
+          transitionHandler = onTransitionEnd;
+          menu.addEventListener('transitionend', transitionHandler, { once: true });
         }
       };
-      
+
       // Close menu when clicking outside
-      const handleClickOutside = (e: MouseEvent) => {
-        const target = e.target as Node;
+      /** @param {MouseEvent} e */
+      const handleClickOutside = (e) => {
+        const target = e.target;
         if (!menu.contains(target) && !button.contains(target)) {
           toggleMenu(false);
         }
       };
-      
+
+      // Named handler so we can remove it properly on cleanup
+      const handleButtonClick = () => toggleMenu();
+
       // Toggle on button click
-      button.addEventListener('click', () => toggleMenu());
-      
+      button.addEventListener('click', handleButtonClick);
+
       // Close when clicking outside
       document.addEventListener('click', handleClickOutside);
-      
+
       // Cleanup function
       return () => {
-        button.removeEventListener('click', toggleMenu as any);
-        document.removeEventListener('click', handleClickOutside as any);
-        delete (window as any).__mobileMenuInit;
+        button.removeEventListener('click', handleButtonClick);
+        document.removeEventListener('click', handleClickOutside);
+        if (transitionHandler) menu.removeEventListener('transitionend', transitionHandler);
+        delete root.dataset.mobileMenuInit;
       };
     };
-    
+
     // Initialize
     init();
-    
+
     // Re-initialize on page transitions
-    document.addEventListener('astro:page-load', init as any);
+    document.addEventListener('astro:page-load', init);
   })();
 </script>
 
