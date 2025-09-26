@@ -334,16 +334,15 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           // If there is no bound ticket, check if user has an unresolved ticket and offer to continue
           try {
             if (uid) {
-              const unresolvedQ = query(
+              const unresolvedSnap = await getDocs(query(
                 collection(db, 'Support_Tickets'),
-                // filter by uid on client by fetching few recent; Firestore requires an index for compound. Keep it simple here
+                where('uid', '==', uid),
                 orderBy('createdAt', 'desc'),
                 limit(5)
-              );
-              const snap = await getDocs(unresolvedQ);
-              const firstOwnUnresolved = snap.docs
+              ));
+              const firstOwnUnresolved = unresolvedSnap.docs
                 .map((d) => ({ id: d.id, ...(d.data() as any) }))
-                .filter((t: any) => t.uid === uid && ['Pending', 'In Progress'].includes(String(t.status || ''))) [0];
+                .find((t: any) => ['pending', 'in progress', 'awaiting_user', 'open'].includes(String(t.status || '').toLowerCase()));
 
               if (firstOwnUnresolved && unresolvedShownRef.current !== firstOwnUnresolved.id) {
                 unresolvedShownRef.current = firstOwnUnresolved.id;

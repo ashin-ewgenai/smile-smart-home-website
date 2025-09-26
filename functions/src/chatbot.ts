@@ -422,40 +422,88 @@ export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) =
   const t = tSnap.data() as any;
   if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
 
-  const devSnap = await db.collection(CONFIG.COLLECTIONS.MAIN_DEVICES).doc(serial).get();
-  if (!devSnap.exists) return {valid: false, message: "This product is not recognized."};
-  const dev = devSnap.data() as any;
-  if (dev.ownerUid !== authCtx.uid) return {valid: false, message: "This product is not recognized."};
+  // Attempt to locate the serial within the user's registered devices
+  let matchedDeviceDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
+  let matchedDeviceData: Record<string, any> | null = null;
 
-  const deviceType: string = dev.deviceType || "generic";
-  const deviceModel: string = dev.deviceModel || dev.model || "unknown";
-  await tRef.set({deviceSerial: serial, deviceType, deviceModel, updatedAt: Date.now()}, {merge: true});
+  try {
+    const userDevicesSnap = await db
+      .collection(CONFIG.COLLECTIONS.DEVICES)
+      .where("uid", "==", authCtx.uid)
+      .get();
+
+    for (const doc of userDevicesSnap.docs) {
+      const data = doc.data() as Record<string, any>;
+      const serials: Array<Record<string, any>> = Array.isArray(data.serials) ? data.serials : [];
+      const found = serials.find((entry) => typeof entry?.serialNumber === "string" && entry.serialNumber.trim() === serial);
+      if (found) {
+        matchedDeviceDoc = doc;
+        matchedDeviceData = data;
+        break;
+      }
+    }
+  } catch (error) {
+    console.warn("Failed to search user devices for serial:", error);
+  }
+
+  let deviceType: string = "generic";
+  let deviceModel: string = "unknown";
+  let deviceUID: string | undefined;
+
+  if (matchedDeviceDoc && matchedDeviceData) {
+    deviceType = matchedDeviceData.type || matchedDeviceData.deviceType || "generic";
+    deviceModel = matchedDeviceData.modelNumber || matchedDeviceData.deviceModel || matchedDeviceData.model || "unknown";
+    deviceUID = matchedDeviceData.sourceDeviceId || matchedDeviceDoc.id;
+  } else {
+    // Fallback to legacy main devices collection if present
+    const devSnap = await db.collection(CONFIG.COLLECTIONS.MAIN_DEVICES).doc(serial).get();
+    if (!devSnap.exists) {
+      return { valid: false, message: "This product is not recognized." };
+    }
+    const dev = devSnap.data() as any;
+    if (dev.ownerUid !== authCtx.uid) {
+      return { valid: false, message: "This product is not recognized." };
+    }
+    matchedDeviceData = dev;
+    deviceType = dev.deviceType || "generic";
+    deviceModel = dev.deviceModel || dev.model || "unknown";
+    deviceUID = dev.deviceUID || serial;
+  }
+
+  await tRef.set({ deviceSerial: serial, deviceType, deviceModel, updatedAt: Date.now() }, { merge: true });
 
   // Fetch device-specific support documents using the proper path structure
-  const deviceUID = dev.deviceUID || serial;
   let supportDocs: any[] = [];
-  
+
   try {
-    // Primary: Fetch user-specific device documents from flat collection
-    const userDeviceDocsSnap = await db.collection(CONFIG.COLLECTIONS.DEVICES).where("uid", "==", authCtx.uid).where("sourceDeviceId", "==", deviceUID).get();
-    if (!userDeviceDocsSnap.empty) {
-      supportDocs = userDeviceDocsSnap.docs.map(doc => ({id: doc.id, ...doc.data()}));
-    } else {
-      // No user-specific documents found, use empty array
-      supportDocs = [];
+    if (deviceUID) {
+      const userDeviceDocsSnap = await db
+        .collection(CONFIG.COLLECTIONS.DEVICES)
+        .where("uid", "==", authCtx.uid)
+        .where("sourceDeviceId", "==", deviceUID)
+        .get();
+
+      if (!userDeviceDocsSnap.empty) {
+        supportDocs = userDeviceDocsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      }
+    }
+
+    // If no additional docs were found, fall back to the matched device doc itself (if available)
+    if (supportDocs.length === 0 && matchedDeviceDoc && matchedDeviceData) {
+      supportDocs = [{ id: matchedDeviceDoc.id, ...matchedDeviceData }];
     }
   } catch (error) {
     console.warn("Failed to fetch support documents:", error);
   }
 
   return {
-    valid: true, 
-    deviceType, 
+    valid: true,
+    deviceType,
     deviceModel,
     deviceUID,
     supportDocs,
     // Legacy compatibility
-    links: supportDocs.map(doc => doc.url || doc.link).filter(Boolean)
+    links: supportDocs.map((doc) => doc.url || doc.link).filter(Boolean),
   };
 });
 
