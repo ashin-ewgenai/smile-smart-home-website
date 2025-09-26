@@ -282,8 +282,8 @@ const AboutDevices: React.FC = () => {
     <section className="p-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">My Devices</h1>
-          <p className="text-xs text-gray-400 mt-1">{devices.length} total • {filtered.length} shown</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Devices</h1>
+          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{devices.length} total • {filtered.length} shown</p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto">
@@ -292,19 +292,19 @@ const AboutDevices: React.FC = () => {
               value={queryText}
               onChange={(e)=>setQueryText(e.target.value)}
               placeholder="Search by name, brand, model..."
-              className="w-full md:w-72 px-10 py-2 rounded-xl bg-gray-900/40 border border-gray-800 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal/70"
+              className="w-full md:w-72 px-10 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100 dark:placeholder-gray-400"
             />
-            <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
             </svg>
           </div>
-          <select value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)} className="px-3 py-2 rounded-xl bg-gray-900/40 border border-gray-800 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal/70">
+          <select value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)} className="px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100">
             <option>All</option>
             {Array.from(deviceTypes).map(t => (
               <option key={t}>{t}</option>
             ))}
           </select>
-          <select value={sortBy} onChange={(e)=>setSortBy(e.target.value as any)} className="px-3 py-2 rounded-xl bg-gray-900/40 border border-gray-800 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal/70">
+          <select value={sortBy} onChange={(e)=>setSortBy(e.target.value as any)} className="px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100">
             <option value="name">Sort: Name</option>
             <option value="brand">Sort: Brand</option>
             <option value="type">Sort: Type</option>
@@ -313,12 +313,12 @@ const AboutDevices: React.FC = () => {
       </div>
       
       {filtered.length === 0 ? (
-        <div className="mt-8 text-center py-14 bg-gray-900/50 rounded-2xl border border-gray-800">
+        <div className="mt-8 text-center py-14 bg-gray-50 rounded-2xl border border-gray-200 dark:bg-gray-900/50 dark:border-gray-800">
           <svg className="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
-          <h3 className="mt-3 text-white font-medium">No devices match your filters</h3>
-          <p className="mt-1 text-sm text-gray-400">Try removing filters or searching with different keywords.</p>
+          <h3 className="mt-3 text-gray-900 dark:text-white font-medium">No devices match your filters</h3>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Try removing filters or searching with different keywords.</p>
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -327,7 +327,7 @@ const AboutDevices: React.FC = () => {
             const price = (device as any).price;
             const type = device.type;
             return (
-              <div key={device.id} className="group relative overflow-hidden rounded-2xl bg-gradient-to-b from-gray-900/60 to-gray-900/40 border border-gray-800 hover:border-teal/50 shadow-sm hover:shadow-teal-500/10 transition-all">
+              <div key={device.id} className="group relative overflow-hidden rounded-2xl bg-white dark:bg-gradient-to-b dark:from-gray-950/70 dark:to-gray-900/60 border border-gray-200 dark:border-gray-700 hover:border-teal/50 shadow-sm hover:shadow-teal-500/10 transition-all">
                 <div className="relative">
                   {device.imageUrl ? (
                     <img
@@ -337,26 +337,26 @@ const AboutDevices: React.FC = () => {
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
                         target.onerror = null;
-                        target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgNDAwIDIwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzk5OSI vPjwvc3ZnPg==';
+                        target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZWVlIi8+PC9zdmc+';
                       }}
                     />
                   ) : (
-                    <div className="w-full h-44 flex items-center justify-center bg-gray-800/60">
+                    <div className="w-full h-44 flex items-center justify-center bg-gray-100 dark:bg-gray-800/60">
                       <svg className="h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                     </div>
                   )}
                   {type && (
-                    <span className="absolute top-3 left-3 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 backdrop-blur text-white border border-white/10">{type}</span>
+                    <span className="absolute top-3 left-3 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/70 dark:bg-black/60 backdrop-blur text-white border border-white/10">{type}</span>
                   )}
                 </div>
-                <div className="p-4">
+                <div className="p-4 bg-white dark:bg-gray-900/70">
                   <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-sm font-semibold text-white truncate" title={title}>{title}</h3>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate" title={title}>{title}</h3>
                     {typeof price === 'number' && (
-                      <span className="text-xs text-teal-300 whitespace-nowrap">₹{price.toLocaleString()}</span>
+                      <span className="text-xs text-teal-700 dark:text-teal-300 whitespace-nowrap">₹{price.toLocaleString()}</span>
                     )}
                   </div>
-                  <div className="mt-2 flex items-center gap-3 text-xs text-gray-300">
+                  <div className="mt-2 flex items-center gap-3 text-xs text-gray-700 dark:text-gray-300">
                     {device.brand && <span className="truncate">{device.brand}</span>}
                     {device.modelNumber && <span className="truncate opacity-80">{device.modelNumber}</span>}
                   </div>
