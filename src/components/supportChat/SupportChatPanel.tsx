@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { auth, db, functions, storage } from '../../lib/firebase';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit, updateDoc, deleteField, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -1124,15 +1125,13 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                       {m.showTicketCTA && (
                         <div className="mt-2">
                           {raiseTicketsHref ? (
-                            <a
-                              href={raiseTicketsHref}
+                            <Link
+                              to={raiseTicketsHref}
                               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white text-xs shadow-md hover:from-teal-600 hover:to-blue-600 focus:outline-none focus:ring-2 focus:ring-teal-400/60 dark:focus:ring-teal-300/40 transition-colors"
-                              target="_blank"
-                              rel="noopener noreferrer"
                             >
                               <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-white/20 text-[10px]">🎫</span>
                               <span>Raise a Support Ticket</span>
-                            </a>
+                            </Link>
                           ) : (
                             <div className="text-xs text-rose-700">
                               Please go to your Dashboard → Support → Raise Ticket to proceed.
