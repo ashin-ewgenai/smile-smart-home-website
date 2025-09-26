@@ -40,6 +40,10 @@ const AboutDevices: React.FC = () => {
     devices.forEach(d => { if (d.type) s.add(d.type); });
     return s;
   }, [devices]);
+  // Modernized UI controls
+  const [queryText, setQueryText] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('All');
+  const [sortBy, setSortBy] = useState<'name'|'brand'|'type'>('name');
   const [selectedDevice, setSelectedDevice] = useState<DeviceDoc | null>(null);
   const [selectedDeviceCount, setSelectedDeviceCount] = useState<number | null>(null);
   const [selectedDeviceCountLoading, setSelectedDeviceCountLoading] = useState(false);
@@ -253,94 +257,119 @@ const AboutDevices: React.FC = () => {
     );
   }
 
+  // Derived filtered & sorted list
+  const filtered = useMemo(() => {
+    const q = queryText.trim().toLowerCase();
+    const t = typeFilter.toLowerCase();
+    let list = devices.filter(d => {
+      const name = String(d.deviceName || d.name || '').toLowerCase();
+      const brand = String(d.brand || '').toLowerCase();
+      const model = String(d.modelNumber || '').toLowerCase();
+      const type = String(d.type || '').toLowerCase();
+      const matchesQuery = !q || name.includes(q) || brand.includes(q) || model.includes(q);
+      const matchesType = t === 'all' || type === t;
+      return matchesQuery && matchesType;
+    });
+    list.sort((a,b) => {
+      const av = String((sortBy === 'name' ? (a.deviceName || a.name) : sortBy === 'brand' ? a.brand : a.type) || '').toLowerCase();
+      const bv = String((sortBy === 'name' ? (b.deviceName || b.name) : sortBy === 'brand' ? b.brand : b.type) || '').toLowerCase();
+      return av.localeCompare(bv);
+    });
+    return list;
+  }, [devices, queryText, typeFilter, sortBy]);
+
   return (
     <section className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-white">My Devices</h1>
-        <span className="text-sm text-gray-400">{devices.length} device{devices.length !== 1 ? 's' : ''}</span>
+      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-white">My Devices</h1>
+          <p className="text-xs text-gray-400 mt-1">{devices.length} total • {filtered.length} shown</p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto">
+          <div className="relative">
+            <input
+              value={queryText}
+              onChange={(e)=>setQueryText(e.target.value)}
+              placeholder="Search by name, brand, model..."
+              className="w-full md:w-72 px-10 py-2 rounded-xl bg-gray-900/40 border border-gray-800 text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal/70"
+            />
+            <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
+            </svg>
+          </div>
+          <select value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)} className="px-3 py-2 rounded-xl bg-gray-900/40 border border-gray-800 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal/70">
+            <option>All</option>
+            {Array.from(deviceTypes).map(t => (
+              <option key={t}>{t}</option>
+            ))}
+          </select>
+          <select value={sortBy} onChange={(e)=>setSortBy(e.target.value as any)} className="px-3 py-2 rounded-xl bg-gray-900/40 border border-gray-800 text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal/70">
+            <option value="name">Sort: Name</option>
+            <option value="brand">Sort: Brand</option>
+            <option value="type">Sort: Type</option>
+          </select>
+        </div>
       </div>
       
-      {devices.length === 0 ? (
-        <div className="mt-8 text-center py-12 bg-gray-900/50 rounded-lg border border-gray-800">
-          <svg
-            className="mx-auto h-12 w-12 text-gray-500"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-            />
+      {filtered.length === 0 ? (
+        <div className="mt-8 text-center py-14 bg-gray-900/50 rounded-2xl border border-gray-800">
+          <svg className="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
           </svg>
-          <h3 className="mt-2 text-sm font-medium text-white">No devices found</h3>
-          <p className="mt-1 text-sm text-gray-400">You don't have any devices assigned to your account.</p>
+          <h3 className="mt-3 text-white font-medium">No devices match your filters</h3>
+          <p className="mt-1 text-sm text-gray-400">Try removing filters or searching with different keywords.</p>
         </div>
       ) : (
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {devices.map((device) => (
-            <div key={device.id} className="glass-surface rounded-2xl overflow-hidden hover:shadow-soft-lg transition-all">
-              {device.imageUrl ? (
-                <img 
-                  src={device.imageUrl} 
-                  alt={device.deviceName || device.name || 'Device'} 
-                  className="w-full h-40 object-cover"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.onerror = null;
-                    target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgNDAwIDIwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzFhMjEyOSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjNGJmZjZmIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMTQiPk5vIGltYWdlIGF2YWlsYWJsZTwvdGV4dD48L3N2Zz4=';
-                  }}
-                />
-              ) : (
-                <div className="w-full h-40 flex items-center justify-center bg-gray-100 dark:bg-gray-800/50">
-                  <svg className="h-16 w-16 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                </div>
-              )}
-              
-              <div className="p-4">
-                <div className="min-w-0">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate mb-3" title={device.deviceName || device.name || 'Unnamed Device'}>
-                    {device.deviceName || device.name || 'Unnamed Device'}
-                  </h3>
-                </div>
-                
-                <div className="mt-3 grid grid-cols-1 gap-2 text-xs">
-                  {device.brand && (
-                    <div className="truncate">
-                      <span className="text-gray-600 dark:text-gray-400">Brand:</span>
-                      <span className="ml-1 text-gray-900 dark:text-gray-300" title={device.brand}>{device.brand}</span>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filtered.map((device) => {
+            const title = device.deviceName || device.name || 'Unnamed Device';
+            const price = (device as any).price;
+            const type = device.type;
+            return (
+              <div key={device.id} className="group relative overflow-hidden rounded-2xl bg-gradient-to-b from-gray-900/60 to-gray-900/40 border border-gray-800 hover:border-teal/50 shadow-sm hover:shadow-teal-500/10 transition-all">
+                <div className="relative">
+                  {device.imageUrl ? (
+                    <img
+                      src={device.imageUrl}
+                      alt={title}
+                      className="w-full h-44 object-cover transform-gpu transition-transform duration-300 group-hover:scale-[1.03]"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.onerror = null;
+                        target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MDAiIGhlaWdodD0iMjAwIiB2aWV3Qm94PSIwIDAgNDAwIDIwMCI+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0iIzk5OSI vPjwvc3ZnPg==';
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-44 flex items-center justify-center bg-gray-800/60">
+                      <svg className="h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                     </div>
                   )}
-                  {device.modelNumber && (
-                    <div className="truncate">
-                      <span className="text-gray-600 dark:text-gray-400">Model:</span>
-                      <span className="ml-1 text-gray-900 dark:text-gray-300" title={device.modelNumber}>{device.modelNumber}</span>
-                    </div>
-                  )}
-                  {device.type && (
-                    <div className="truncate">
-                      <span className="text-gray-600 dark:text-gray-400">Type:</span>
-                      <span className="ml-1 text-gray-900 dark:text-gray-300" title={device.type}>{device.type}</span>
-                    </div>
+                  {type && (
+                    <span className="absolute top-3 left-3 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/60 backdrop-blur text-white border border-white/10">{type}</span>
                   )}
                 </div>
-
-                <div className="mt-4 flex justify-end">
-                  <button
-                    onClick={() => openDetails(device)}
-                    className="px-5 py-2 text-sm bg-teal-600 hover:bg-teal-500 text-white rounded-full shadow-soft select-none transform-gpu transition-transform duration-150 ease-out hover:scale-[1.03] active:scale-95 focus:outline-none focus:ring-0 touch-manipulation"
-                  >
-                    View Details
-                  </button>
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="text-sm font-semibold text-white truncate" title={title}>{title}</h3>
+                    {typeof price === 'number' && (
+                      <span className="text-xs text-teal-300 whitespace-nowrap">₹{price.toLocaleString()}</span>
+                    )}
+                  </div>
+                  <div className="mt-2 flex items-center gap-3 text-xs text-gray-300">
+                    {device.brand && <span className="truncate">{device.brand}</span>}
+                    {device.modelNumber && <span className="truncate opacity-80">{device.modelNumber}</span>}
+                  </div>
+                  {/* Rating removed as requested */}
+                  <div className="mt-4 flex justify-end">
+                    <button onClick={() => openDetails(device)} className="px-4 py-2 text-xs bg-teal-600 hover:bg-teal-500 text-white rounded-full shadow-soft transform-gpu transition-transform duration-150 ease-out hover:scale-[1.03] active:scale-95 focus:outline-none">
+                      View Details
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
       {selectedDevice && (
