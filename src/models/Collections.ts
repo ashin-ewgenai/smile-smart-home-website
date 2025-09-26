@@ -466,8 +466,8 @@ export const COLLECTION_ADMIN_NOTIFICATIONS = 'Admin_Notifications';
 export interface AdminNotification {
   adminUid?: string; // Optional: specific admin, or null for all admins
   title: string;
-  message: string;
-  type: 'estimation_quote' | 'user_action' | 'system' | 'quote_request' | 'support_ticket' | string;
+  message?: string;
+  type: 'estimation_quote' | 'user_action' | 'system' | 'quote_request' | 'support_ticket' | 'contact_request' | string;
   status: 'read' | 'unread' | string;
   createdAt: Timestamp;
   // Additional context fields

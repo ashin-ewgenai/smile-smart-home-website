@@ -33,7 +33,7 @@ export const onContactRequestCreated = functions.firestore
     await db.collection("Admin_Notifications").add({
       title,
       message,
-      type: "support_ticket",
+      type: "contact_request",
       status: "unread",
       createdAt: FieldValue.serverTimestamp(),
       priority: "medium",
@@ -41,6 +41,19 @@ export const onContactRequestCreated = functions.firestore
       relatedEntityId: docId,
       relatedEntityType: "contact_request",
     });
+
+    // Cleanup: backfill any prior contact notifications with incorrect type
+    try {
+      const snap = await db
+        .collection("Admin_Notifications")
+        .where("relatedEntityId", "==", docId)
+        .where("relatedEntityType", "==", "contact_request")
+        .where("type", "==", "support_ticket")
+        .get();
+      const batch = db.batch();
+      snap.forEach((d) => batch.update(d.ref, { type: "contact_request" }));
+      if (!snap.empty) await batch.commit();
+    } catch {}
   });
 
 /**

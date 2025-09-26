@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { auth, db, firebaseApp } from '../../../../lib/firebase';
 import { query, orderBy, updateDoc, deleteDoc, getDocs, getDoc, onSnapshot, addDoc, serverTimestamp, type Timestamp } from 'firebase/firestore';
@@ -11,7 +12,7 @@ import {
 import { accountDoc, contactRequestsCollection, contactRequestDoc } from '../../../../models/Collections';
 import { showToast } from '../../../../lib/toast';
 
-type NotificationType = 'estimation_quote' | 'user_action' | 'system' | 'quote_request' | 'support_ticket' | string;
+type NotificationType = 'estimation_quote' | 'user_action' | 'system' | 'quote_request' | 'support_ticket' | 'contact_request' | string;
 
 type UnifiedNotification = {
   id?: string;
@@ -69,7 +70,16 @@ const Notifications: React.FC = () => {
     console.log('Filtering items. Total items:', items.length, 'Items:', items);
     console.log('Current filter:', filter, 'Unread only:', unreadOnly);
     const filtered = items.filter(item => {
-      const matchesFilter = filter === 'all' || item.type === filter;
+      let matchesFilter = false;
+      if (filter === 'all') {
+        matchesFilter = true;
+      } else if (filter === 'contact_request') {
+        // Treat both 'contact_request' and 'contact_message' as Contact Request
+        const t = String(item.type || '').toLowerCase();
+        matchesFilter = t === 'contact_request' || t === 'contact_message' || t.includes('contact');
+      } else {
+        matchesFilter = item.type === filter;
+      }
       const matchesUnread = !unreadOnly || isUnread(item);
       return matchesFilter && matchesUnread;
     });
@@ -335,6 +345,7 @@ const Notifications: React.FC = () => {
       case 'service_request': return '🔧';
       case 'quote_request': return '💰';
       case 'contact_message': return '📧';
+      case 'contact_request': return '📧';
       case 'plan_lead': return '📋';
       case 'support_ticket': return '📣';
       case 'estimation_quote': return '🧾';
@@ -365,7 +376,7 @@ const Notifications: React.FC = () => {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {(['all', 'quote_request', 'support_ticket'] as const).map((filterType) => (
+        {(['all', 'quote_request', 'support_ticket', 'contact_request'] as const).map((filterType) => (
           <button
             key={filterType}
             onClick={() => setFilter(filterType)}
@@ -377,7 +388,8 @@ const Notifications: React.FC = () => {
           >
             {filterType === 'all' ? 'All' :
              filterType === 'quote_request' ? 'Quote Requests' :
-             'Support Tickets'}
+             filterType === 'support_ticket' ? 'Support Tickets' :
+             filterType === 'contact_request' ? 'Contact Request' : String(filterType)}
           </button>
         ))}
       </div>
@@ -432,7 +444,7 @@ const Notifications: React.FC = () => {
                     </h3>
                     {/* Description removed as requested */}
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 ml-4">
                     {unread && (
                       <>
                         <span className="ml-2 px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
@@ -448,20 +460,22 @@ const Notifications: React.FC = () => {
                         >
                           Mark as Read
                         </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm('Are you sure you want to delete this notification?')) {
-                              deleteNotification(item);
-                            }
-                          }}
-                          disabled={updating === `delete:${item.id}`}
-                          className="text-xs text-red-600 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 disabled:opacity-50"
-                        >
-                          Delete
-                        </button>
                       </>
                     )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (window.confirm('Are you sure you want to delete this notification?')) {
+                          deleteNotification(item);
+                        }
+                      }}
+                      aria-label="Delete notification"
+                      title="Delete notification"
+                      disabled={updating === `delete:${item.id}`}
+                      className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50"
+                    >
+                      <Trash2 className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    </button>
                   </div>
                 </div>
               </div>

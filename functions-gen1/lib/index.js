@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onPlannerLeadCreated = exports.onQuoteCreated = exports.onContactRequestCreated = void 0;
+exports.onQuoteCreated = exports.onContactRequestCreated = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
@@ -59,7 +59,7 @@ exports.onContactRequestCreated = functions.firestore
     await db.collection("Admin_Notifications").add({
         title,
         message,
-        type: "support_ticket",
+        type: "contact_request",
         status: "unread",
         createdAt: firestore_1.FieldValue.serverTimestamp(),
         priority: "medium",
@@ -94,51 +94,4 @@ exports.onQuoteCreated = functions.firestore
         relatedEntityId: docId,
         relatedEntityType: "quote",
     });
-});
-/**
- * Gen 1 Firestore trigger: When a new plan lead is created, create an admin notification.
- * Path: Planner_Leads/{docId}
- */
-exports.onPlannerLeadCreated = functions.firestore
-    .document("Planner_Leads/{docId}")
-    .onCreate(async (snap) => {
-    console.log("🚀 Plan lead created trigger fired for doc:", snap.id);
-    try {
-        const data = snap.data();
-        console.log("📋 Plan lead data:", JSON.stringify(data, null, 2));
-        const docId = snap.id;
-        const email = (data.email || "").toString().trim().toLowerCase();
-        const complexity = (data.complexity || "Basic").toString().trim();
-        const spaceType = data.formData?.spaceType || "Unknown";
-        const roomCount = data.formData?.roomCount || "Unknown";
-        const goals = data.formData?.goals || [];
-        const budget = data.formData?.budget || "Unknown";
-        const title = "New Smart Home Plan Lead";
-        const message = `A new ${complexity.toLowerCase()} smart home plan has been created by ${email || "unknown user"}. Space: ${spaceType}, Rooms: ${roomCount}, Goals: ${goals.join(", ") || "None specified"}, Budget: ${budget}.`;
-        // Determine priority based on complexity and budget
-        let priority = "low";
-        if (complexity === "Advanced" || budget === "Premium") {
-            priority = "high";
-        }
-        else if (complexity === "Intermediate" || budget === "Standard") {
-            priority = "medium";
-        }
-        console.log("📧 Creating admin notification:", { title, message, priority });
-        await db.collection("Admin_Notifications").add({
-            title,
-            message,
-            type: "plan_lead",
-            status: "unread",
-            createdAt: firestore_1.FieldValue.serverTimestamp(),
-            priority,
-            customerEmail: email || null,
-            relatedEntityId: docId,
-            relatedEntityType: "planner_lead",
-        });
-        console.log("✅ Admin notification created successfully");
-    }
-    catch (error) {
-        console.error("❌ Error in onPlannerLeadCreated:", error);
-        throw error;
-    }
 });
