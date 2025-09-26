@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { auth, db, functions, storage } from '../../lib/firebase';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit, updateDoc, deleteField, where } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -334,16 +335,15 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           // If there is no bound ticket, check if user has an unresolved ticket and offer to continue
           try {
             if (uid) {
-              const unresolvedQ = query(
+              const unresolvedSnap = await getDocs(query(
                 collection(db, 'Support_Tickets'),
-                // filter by uid on client by fetching few recent; Firestore requires an index for compound. Keep it simple here
+                where('uid', '==', uid),
                 orderBy('createdAt', 'desc'),
                 limit(5)
-              );
-              const snap = await getDocs(unresolvedQ);
-              const firstOwnUnresolved = snap.docs
+              ));
+              const firstOwnUnresolved = unresolvedSnap.docs
                 .map((d) => ({ id: d.id, ...(d.data() as any) }))
-                .filter((t: any) => t.uid === uid && ['Pending', 'In Progress'].includes(String(t.status || ''))) [0];
+                .find((t: any) => ['pending', 'in progress', 'awaiting_user', 'open'].includes(String(t.status || '').toLowerCase()));
 
               if (firstOwnUnresolved && unresolvedShownRef.current !== firstOwnUnresolved.id) {
                 unresolvedShownRef.current = firstOwnUnresolved.id;
@@ -1125,15 +1125,13 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                       {m.showTicketCTA && (
                         <div className="mt-2">
                           {raiseTicketsHref ? (
-                            <a
-                              href={raiseTicketsHref}
+                            <Link
+                              to={raiseTicketsHref}
                               className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-teal-500 to-blue-500 text-white text-xs shadow-md hover:from-teal-600 hover:to-blue-600 focus:outline-none focus:ring-2 focus:ring-teal-400/60 dark:focus:ring-teal-300/40 transition-colors"
-                              target="_blank"
-                              rel="noopener noreferrer"
                             >
                               <span className="inline-flex h-4 w-4 items-center justify-center rounded bg-white/20 text-[10px]">🎫</span>
                               <span>Raise a Support Ticket</span>
-                            </a>
+                            </Link>
                           ) : (
                             <div className="text-xs text-rose-700">
                               Please go to your Dashboard → Support → Raise Ticket to proceed.

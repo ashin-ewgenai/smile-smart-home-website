@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, User, LogOut, Settings, ArrowLeft, Moon, Sun, Bell } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { onSnapshot, query, where, limit } from 'firebase/firestore';
+import { auth, db } from '../../../lib/firebase';
+import { userNotificationsCollection } from '../../../models/Collections';
 import { handleLogout } from './LogoutHandler';
 
 interface DashboardNavbarProps {
@@ -12,6 +15,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [hasUnread, setHasUnread] = useState(false);
   // Safely use location only in browser environment
   const location = typeof window !== 'undefined' ? useLocation() : { pathname: '' };
   const navigate = useNavigate();
@@ -47,6 +51,46 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
       if (initial) document.documentElement.classList.add('dark');
       else document.documentElement.classList.remove('dark');
     } catch {}
+  }, []);
+
+  // Listen for unread user notifications to toggle red dot on bell icon
+  useEffect(() => {
+    let unsubAuth: any;
+    let unsubNotif: any;
+    try {
+      unsubAuth = auth.onAuthStateChanged((user) => {
+        // Cleanup previous listener
+        try { if (unsubNotif) unsubNotif(); } catch {}
+        if (!user?.uid) {
+          setHasUnread(false);
+          return;
+        }
+        try {
+          const uq = query(
+            userNotificationsCollection(db),
+            where('uid', '==', user.uid),
+            limit(100)
+          );
+          unsubNotif = onSnapshot(uq, (snap) => {
+            const anyUnread = snap.docs.some(d => String((d.data() as any).status || '').toLowerCase() === 'unread');
+            // Debug logs are safe; remove if too chatty
+            try { console.debug('[UserNavbar] notif snapshot size:', snap.size, 'hasUnread:', anyUnread); } catch {}
+            setHasUnread(anyUnread);
+          }, (err) => {
+            try { console.warn('[UserNavbar] notif listener error', err); } catch {}
+            setHasUnread(false);
+          });
+        } catch {
+          setHasUnread(false);
+        }
+      });
+      return () => {
+        try { if (unsubNotif) unsubNotif(); } catch {}
+        try { if (unsubAuth) unsubAuth(); } catch {}
+      };
+    } catch {
+      setHasUnread(false);
+    }
   }, []);
 
   const toggleDarkMode = () => {
@@ -103,11 +147,17 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
             {/* Help button removed; "Raise Tickets" is now in the sidebar and mobile menu */}
             <Link
               to="notifications"
-              className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white focus:outline-none ml-3"
+              className="relative p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white focus:outline-none ml-3"
               aria-label="Notifications"
               title="Notifications"
             >
               <Bell className="h-5 w-5" />
+              {hasUnread && (
+                <span
+                  aria-hidden
+                  className="absolute top-1.5 right-1.5 inline-block h-2.5 w-2.5 rounded-full bg-red-500"
+                />
+              )}
             </Link>
             <button
               type="button"

@@ -227,6 +227,27 @@ const AboutDevices: React.FC = () => {
     }
   };
 
+  // Derived filtered & sorted list (must be before any early returns to satisfy Rules of Hooks)
+  const filtered = useMemo(() => {
+    const q = queryText.trim().toLowerCase();
+    const t = typeFilter.toLowerCase();
+    let list = devices.filter(d => {
+      const name = String(d.deviceName || d.name || '').toLowerCase();
+      const brand = String(d.brand || '').toLowerCase();
+      const model = String(d.modelNumber || '').toLowerCase();
+      const type = String(d.type || '').toLowerCase();
+      const matchesQuery = !q || name.includes(q) || brand.includes(q) || model.includes(q);
+      const matchesType = t === 'all' || type === t;
+      return matchesQuery && matchesType;
+    });
+    list.sort((a,b) => {
+      const av = String((sortBy === 'name' ? (a.deviceName || a.name) : sortBy === 'brand' ? a.brand : a.type) || '').toLowerCase();
+      const bv = String((sortBy === 'name' ? (b.deviceName || b.name) : sortBy === 'brand' ? b.brand : b.type) || '').toLowerCase();
+      return av.localeCompare(bv);
+    });
+    return list;
+  }, [devices, queryText, typeFilter, sortBy]);
+
   if (loading) {
     return (
       <section className="p-6">
@@ -257,54 +278,33 @@ const AboutDevices: React.FC = () => {
     );
   }
 
-  // Derived filtered & sorted list
-  const filtered = useMemo(() => {
-    const q = queryText.trim().toLowerCase();
-    const t = typeFilter.toLowerCase();
-    let list = devices.filter(d => {
-      const name = String(d.deviceName || d.name || '').toLowerCase();
-      const brand = String(d.brand || '').toLowerCase();
-      const model = String(d.modelNumber || '').toLowerCase();
-      const type = String(d.type || '').toLowerCase();
-      const matchesQuery = !q || name.includes(q) || brand.includes(q) || model.includes(q);
-      const matchesType = t === 'all' || type === t;
-      return matchesQuery && matchesType;
-    });
-    list.sort((a,b) => {
-      const av = String((sortBy === 'name' ? (a.deviceName || a.name) : sortBy === 'brand' ? a.brand : a.type) || '').toLowerCase();
-      const bv = String((sortBy === 'name' ? (b.deviceName || b.name) : sortBy === 'brand' ? b.brand : b.type) || '').toLowerCase();
-      return av.localeCompare(bv);
-    });
-    return list;
-  }, [devices, queryText, typeFilter, sortBy]);
-
   return (
     <section className="p-6">
       <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
-        <div>
+        <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Devices</h1>
-          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{devices.length} total • {filtered.length} shown</p>
+          <p className="text-xs text-gray-600 dark:text-gray-400 m-0">{devices.length} total • {filtered.length} shown</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full md:w-auto">
-          <div className="relative">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full min-w-0">
+          <div className="relative min-w-0">
             <input
               value={queryText}
               onChange={(e)=>setQueryText(e.target.value)}
               placeholder="Search by name, brand, model..."
-              className="w-full md:w-72 px-10 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100 dark:placeholder-gray-400"
+              className="w-full px-10 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100 dark:placeholder-gray-400"
             />
             <svg className="absolute left-3 top-2.5 h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
             </svg>
           </div>
-          <select value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)} className="px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100">
+          <select value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)} className="w-full min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100">
             <option>All</option>
             {Array.from(deviceTypes).map(t => (
               <option key={t}>{t}</option>
             ))}
           </select>
-          <select value={sortBy} onChange={(e)=>setSortBy(e.target.value as any)} className="px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100">
+          <select value={sortBy} onChange={(e)=>setSortBy(e.target.value as any)} className="w-full min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100">
             <option value="name">Sort: Name</option>
             <option value="brand">Sort: Brand</option>
             <option value="type">Sort: Type</option>

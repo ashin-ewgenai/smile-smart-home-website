@@ -487,7 +487,6 @@ const EstimationTool: React.FC = () => {
     try {
       const adminNotificationData = {
         title: 'Estimation Quote Sent to Customer',
-        message: `Estimation quote ${quoteId} has been successfully sent to customer ${customerEmail}. The quote is now confirmed and awaiting customer response.`,
         type: 'estimation_quote' as const,
         status: 'unread' as const,
         createdAt: Timestamp.now(),
