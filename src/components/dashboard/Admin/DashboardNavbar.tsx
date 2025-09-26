@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, User, LogOut, Bell, ArrowLeft, Crown } from 'lucide-react';
-import { onSnapshot, query, where, limit } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
-import { adminNotificationsCollection } from '../../../models/Collections';
+import { onSnapshot, query, where, limit, orderBy } from 'firebase/firestore';
+import { auth, db } from '../../../lib/firebase';
+import { adminNotificationsCollection, userNotificationsCollection } from '../../../models/Collections';
 import { Link } from 'react-router-dom';
 import { handleLogout } from './LogoutHandler';
 import DarkModeToggle from '../../ui/DarkModeToggle';
@@ -46,23 +46,54 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
 
   // Listen for unread admin notifications and toggle red dot
   useEffect(() => {
-    if (userType !== 'admin') {
-      setHasUnread(false);
-      return;
-    }
-    try {
-      const q = query(adminNotificationsCollection(db), where('status', '==', 'unread'), limit(1));
-      const unsub = onSnapshot(q, (snap) => {
-        setHasUnread(!snap.empty);
-      }, () => {
-        // On permission errors or any failure, don't break navbar; just hide dot
+    if (userType === 'admin') {
+      try {
+        const q = query(adminNotificationsCollection(db), where('status', '==', 'unread'), limit(1));
+        const unsub = onSnapshot(q, (snap) => {
+          setHasUnread(!snap.empty);
+        }, () => {
+          // On permission errors or any failure, don't break navbar; just hide dot
+          setHasUnread(false);
+        });
+        return () => {
+          try { unsub(); } catch {}
+        };
+      } catch {
         setHasUnread(false);
-      });
-      return () => {
-        try { unsub(); } catch {}
-      };
-    } catch {
-      setHasUnread(false);
+      }
+    } else {
+      // user navbar: show dot when the current user has unread notifications
+      let unsubAuth: any;
+      let unsubNotif: any;
+      try {
+        unsubAuth = auth.onAuthStateChanged((user) => {
+          // Cleanup any previous listener
+          try { if (unsubNotif) unsubNotif(); } catch {}
+          if (!user?.uid) {
+            setHasUnread(false);
+            return;
+          }
+          try {
+            const uq = query(
+              userNotificationsCollection(db),
+              where('uid', '==', user.uid),
+              limit(25)
+            );
+            unsubNotif = onSnapshot(uq, (snap) => {
+              const anyUnread = snap.docs.some(d => String((d.data() as any).status || '').toLowerCase() === 'unread');
+              setHasUnread(anyUnread);
+            }, () => setHasUnread(false));
+          } catch {
+            setHasUnread(false);
+          }
+        });
+        return () => {
+          try { if (unsubNotif) unsubNotif(); } catch {}
+          try { if (unsubAuth) unsubAuth(); } catch {}
+        };
+      } catch {
+        setHasUnread(false);
+      }
     }
   }, [userType]);
 
@@ -155,14 +186,19 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                   )}
                 </Link>
               ) : (
-                <button
-                  type="button"
-                  className="p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none"
-                  disabled
-                  aria-disabled="true"
+                <Link
+                  to="/dashboard/user/notifications"
+                  aria-label="Notifications"
+                  className="relative p-2 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white focus:outline-none"
                 >
-                  <Bell className="h-5 w-5 opacity-50" />
-                </button>
+                  <Bell className="h-5 w-5" />
+                  {hasUnread && (
+                    <span
+                      aria-hidden
+                      className="absolute top-1.5 right-1.5 inline-block h-2.5 w-2.5 rounded-full bg-red-500"
+                    />
+                  )}
+                </Link>
               )}
             </div>
             <div className="ml-3 relative hidden md:block">

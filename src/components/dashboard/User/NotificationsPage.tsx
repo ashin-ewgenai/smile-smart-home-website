@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { query, where, orderBy, onSnapshot, updateDoc, serverTimestamp, Timestamp, getDocs, setDoc } from 'firebase/firestore';
+import { query, where, orderBy, onSnapshot, updateDoc, serverTimestamp, Timestamp, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
 import { userNotificationsCollection, userNotificationDoc, userDevicesCollection, type UserNotification } from '../../../models/Collections';
 import GlassCard from '../../ui/GlassCard';
+import { Trash2 } from 'lucide-react';
 
 const NotificationsPage: React.FC = () => {
   const [notifications, setNotifications] = useState<(UserNotification & { id: string })[]>([]);
@@ -146,6 +147,21 @@ const NotificationsPage: React.FC = () => {
       console.error('Error marking notification as read:', error);
       // Revert optimistic update on failure
       setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, status: 'unread' } : n));
+    }
+  };
+
+  // Delete notification
+  const deleteNotification = async (notificationId: string) => {
+    if (!notificationId) return;
+    // Optimistic update to remove from UI immediately
+    const prevState = notifications;
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    try {
+      await deleteDoc(userNotificationDoc(db, notificationId));
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      // Revert on failure
+      setNotifications(prevState);
     }
   };
 
@@ -339,7 +355,6 @@ const NotificationsPage: React.FC = () => {
                               <span className="inline-flex h-2 w-2 rounded-full bg-teal-500" />
                             )}
                           </p>
-                          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{notification.message}</p>
                           <div className="mt-2 flex items-center gap-4">
                             <span className="text-xs text-gray-500 dark:text-gray-400">
                               {formatDate(notification.createdAt)}
@@ -355,14 +370,26 @@ const NotificationsPage: React.FC = () => {
                             </span>
                           </div>
                         </div>
-                        {notification.status === 'unread' && (
+                        <div className="flex items-center gap-2 ml-4">
+                          {notification.status === 'unread' && (
+                            <button
+                              onClick={() => markAsRead(notification.id)}
+                              className="text-xs text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-medium"
+                            >
+                              Mark as read
+                            </button>
+                          )}
                           <button
-                            onClick={() => markAsRead(notification.id)}
-                            className="ml-4 text-xs text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-medium"
+                            onClick={() => {
+                              if (window.confirm('Delete this notification?')) deleteNotification(notification.id);
+                            }}
+                            className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                            aria-label="Delete notification"
+                            title="Delete notification"
                           >
-                            Mark as read
+                            <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
                           </button>
-                        )}
+                        </div>
                       </div>
                     </div>
                   </div>
