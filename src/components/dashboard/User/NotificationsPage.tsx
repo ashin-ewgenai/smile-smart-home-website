@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { query, where, orderBy, onSnapshot, updateDoc, serverTimestamp, Timestamp, getDocs, setDoc, deleteDoc } from 'firebase/firestore';
+import { query, where, orderBy, onSnapshot, updateDoc, serverTimestamp, Timestamp, getDocs, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
 import { userNotificationsCollection, userNotificationDoc, userDevicesCollection, type UserNotification } from '../../../models/Collections';
 import GlassCard from '../../ui/GlassCard';
@@ -10,6 +10,7 @@ const NotificationsPage: React.FC = () => {
   const [notifications, setNotifications] = useState<(UserNotification & { id: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [userUid, setUserUid] = useState<string | null>(null);
+  const [processing, setProcessing] = useState<Record<string, boolean>>({});
 
   // Auth state
   useEffect(() => {
@@ -35,11 +36,17 @@ const NotificationsPage: React.FC = () => {
     );
 
     const unsub = onSnapshot(q, (snapshot) => {
-      const notifs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setNotifications(notifs);
+      const notifs = snapshot.docs.map(doc => {
+        const data: any = doc.data();
+        const statusRaw = (data?.status ?? 'unread');
+        const status = String(statusRaw).toLowerCase() === 'read' ? 'read' : 'unread';
+        return {
+          id: doc.id,
+          ...data,
+          status,
+        } as any;
+      });
+      setNotifications(notifs as any);
       setLoading(false);
     }, (error) => {
       console.error('Error fetching notifications:', error);
@@ -77,11 +84,10 @@ const NotificationsPage: React.FC = () => {
           }
         ) => {
           const ref = userNotificationDoc(db, notifId);
-          try {
-            await setDoc(ref, payload);
-          } catch (error: any) {
-            if (error.code !== 'already-exists') throw error;
-          }
+          // Only create if missing; do NOT overwrite existing doc (preserve read status)
+          const snap = await getDoc(ref);
+          if (snap.exists()) return;
+          await setDoc(ref, payload);
         };
 
         for (const d of snap.docs) {
@@ -126,8 +132,15 @@ const NotificationsPage: React.FC = () => {
             });
           }
         }
-      } catch (e) {
-        console.error('Warranty scan failed', e);
+      } catch (e: any) {
+        const msg = e?.message || '';
+        const code = e?.code || '';
+        // Gracefully ignore permission issues for User_Devices reads
+        if (code === 'permission-denied' || msg.includes('Missing or insufficient permissions')) {
+          try { console.debug('[NotificationsPage] Warranty scan skipped due to permissions'); } catch {}
+          return;
+        }
+        console.warn('Warranty scan failed', e);
       }
     };
 
@@ -136,6 +149,8 @@ const NotificationsPage: React.FC = () => {
 
   // Mark notification as read
   const markAsRead = async (notificationId: string) => {
+    if (!notificationId) return;
+    setProcessing(prev => ({ ...prev, [notificationId]: true }));
     // Optimistic update so the item disappears immediately
     setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, status: 'read' } : n));
     try {
@@ -147,6 +162,8 @@ const NotificationsPage: React.FC = () => {
       console.error('Error marking notification as read:', error);
       // Revert optimistic update on failure
       setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, status: 'unread' } : n));
+    } finally {
+      setProcessing(prev => ({ ...prev, [notificationId]: false }));
     }
   };
 
@@ -226,6 +243,19 @@ const NotificationsPage: React.FC = () => {
     notifications.filter(n => n.status === 'unread'), 
     [notifications]
   );
+
+  // Determine if a notification is a quote-related notification
+  const isQuoteNotification = (n: any): boolean => {
+    const title = (n?.title || '').toString().toLowerCase();
+    // Heuristic: our quote notifications include this title or a quoteId field
+    return title.includes('estimation quote') || !!n?.quoteId;
+  };
+
+  // Determine if a notification is a warranty/device-related notification
+  const isWarrantyNotification = (n: any): boolean => {
+    const title = (n?.title || '').toString().toLowerCase();
+    return (n?.type === 'device') && title.includes('warranty');
+  };
 
   // Warranty utility functions
   const parseYMD = (dateStr: string): Date | null => {
@@ -350,7 +380,27 @@ const NotificationsPage: React.FC = () => {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <p className="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                            {notification.title}
+                            {isQuoteNotification(notification) ? (
+                              <a
+                                href="/dashboard/user/quote-portal"
+                                className="hover:underline cursor-pointer"
+                                onClick={async (e) => { e.preventDefault(); e.stopPropagation(); await markAsRead(notification.id); try { window.location.href = '/dashboard/user/quote-portal'; } catch {} }}
+                                title="Go to Quote Portal"
+                              >
+                                {notification.title}
+                              </a>
+                            ) : isWarrantyNotification(notification) ? (
+                              <a
+                                href="/dashboard/user/about-device"
+                                className="hover:underline cursor-pointer"
+                                onClick={async (e) => { e.preventDefault(); e.stopPropagation(); await markAsRead(notification.id); try { window.location.href = '/dashboard/user/about-device'; } catch {} }}
+                                title="Go to About Device"
+                              >
+                                {notification.title}
+                              </a>
+                            ) : (
+                              <span>{notification.title}</span>
+                            )}
                             {notification.status === 'unread' && (
                               <span className="inline-flex h-2 w-2 rounded-full bg-teal-500" />
                             )}
@@ -373,10 +423,12 @@ const NotificationsPage: React.FC = () => {
                         <div className="flex items-center gap-2 ml-4">
                           {notification.status === 'unread' && (
                             <button
-                              onClick={() => markAsRead(notification.id)}
-                              className="text-xs text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-medium"
+                              onClick={(e) => { e.stopPropagation(); if (processing[notification.id]) return; void markAsRead(notification.id); }}
+                              disabled={!!processing[notification.id]}
+                              className={`text-xs font-medium ${processing[notification.id] ? 'opacity-50 cursor-not-allowed' : 'text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300'}`}
+                              aria-busy={processing[notification.id] ? true : undefined}
                             >
-                              Mark as read
+                              {processing[notification.id] ? 'Marking…' : 'Mark as read'}
                             </button>
                           )}
                           <button

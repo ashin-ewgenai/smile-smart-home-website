@@ -119,108 +119,207 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
 
       const sourceDeviceIds = userDevicesSnap.docs.map(doc => (doc.data() as any).sourceDeviceId).filter(Boolean);
+
+      // If we don't have sourceDeviceIds, try to build minimal devices from user docs
       if (sourceDeviceIds.length === 0) {
-        setDevices([]);
+        const minimal = userDevicesSnap.docs.map((d) => {
+          const data: any = d.data();
+          const resolveSerial = () => {
+            const possible = [data?.serial, data?.serialNumber].filter(Boolean);
+            if (possible.length && typeof possible[0] === 'string') return possible[0] as string;
+            if (Array.isArray(data?.serials) && data.serials.length > 0) {
+              const first = data.serials[0];
+              if (typeof first === 'string') return first;
+              if (first && typeof first === 'object') {
+                return (first.serialNumber || first.serial || first.code || first.id) ?? undefined;
+              }
+            }
+            return undefined;
+          };
+          const resolveSerials = (): SerialItem[] => {
+            if (Array.isArray(data?.serials)) {
+              return data.serials.map((s: any) => ({
+                serialNumber: s.serialNumber || s.serial || s.code || s.id || '—',
+                warrantyExpiry: s.warrantyExpiry || s.expiryDate || s.warrantyEnd || null,
+              }));
+            }
+            const serial = resolveSerial();
+            return serial ? [{ serialNumber: serial, warrantyExpiry: data?.warrantyExpiry || data?.warrantyEnd || null }] : [];
+          };
+          const chosenWarranty = getUserWarranty(data);
+          return {
+            id: data?.deviceId || data?.sourceDeviceId || d.id,
+            deviceName: data?.deviceName || data?.name || 'My Device',
+            name: data?.name,
+            type: data?.type,
+            status: data?.status || 'Active',
+            serial: resolveSerial() || 'N/A',
+            serials: resolveSerials(),
+            modelNumber: data?.modelNumber,
+            imageUrl: data?.imageUrl,
+            price: typeof data?.price === 'number' ? data.price : null,
+            stock: typeof data?.stock === 'number' ? data.stock : null,
+            rating: null,
+            discount: null,
+            warranty: chosenWarranty,
+            warrantySource: chosenWarranty != null ? 'user' : undefined,
+            brand: data?.brand,
+            description: data?.description,
+            documentationUrl: data?.documentationUrl,
+          } as DeviceDoc;
+        });
+        setDevices(minimal);
         setError(null);
         return;
       }
 
-      // Firestore's 'in' operator supports up to 10 elements; for simplicity assume <=10. For >10, we'd batch.
-      const devicesRef = collection(db, 'Devices');
-      // Batch if needed
-      const batches: string[][] = [];
-      for (let i = 0; i < sourceDeviceIds.length; i += 10) {
-        batches.push(sourceDeviceIds.slice(i, i + 10));
-      }
+      // Try joining with Devices collection; on permission error, fallback to minimal entries
+      let results: DeviceDoc[] | null = null;
+      try {
+        // Firestore's 'in' operator supports up to 10 elements; for simplicity assume <=10. For >10, we'd batch.
+        const devicesRef = collection(db, 'Devices');
+        const batches: string[][] = [];
+        for (let i = 0; i < sourceDeviceIds.length; i += 10) {
+          batches.push(sourceDeviceIds.slice(i, i + 10));
+        }
+        const deviceDocs: any[] = [];
+        for (const ids of batches) {
+          const qy = query(devicesRef, where('__name__', 'in', ids));
+          const snap = await getDocs(qy);
+          deviceDocs.push(...snap.docs);
+        }
 
-      const deviceDocs: any[] = [];
-      for (const ids of batches) {
-        const qy = query(devicesRef, where('__name__', 'in', ids));
-        const snap = await getDocs(qy);
-        deviceDocs.push(...snap.docs);
-      }
+        const userDevicesMap = new Map(
+          userDevicesSnap.docs.map(d => [ (d.data() as any).sourceDeviceId, d.data() ])
+        );
 
-      const userDevicesMap = new Map(
-        userDevicesSnap.docs.map(d => [ (d.data() as any).sourceDeviceId, d.data() ])
-      );
+        results = deviceDocs.map((d) => {
+          const deviceData = d.data() as any;
+          const userDeviceData: any = userDevicesMap.get(d.id) || {};
 
-      const results: DeviceDoc[] = deviceDocs.map((d) => {
-        const deviceData = d.data() as any;
-        const userDeviceData: any = userDevicesMap.get(d.id) || {};
+          const serialHint = (userDeviceData?.serialNumber) || (userDeviceData?.serial) || (Array.isArray(userDeviceData?.serials) ? userDeviceData.serials[0] : undefined) || deviceData?.serial;
+          const userWarranty = getUserWarranty(userDeviceData, serialHint);
+          const deviceWarranty = deviceData.warranty ?? null;
+          const chosenWarranty = userWarranty ?? deviceWarranty ?? null;
+          const chosenSource: 'user' | 'device' | undefined = (userWarranty != null) ? 'user' : ((deviceWarranty != null) ? 'device' : undefined);
 
-        const serialHint = (userDeviceData?.serialNumber) || (userDeviceData?.serial) || (Array.isArray(userDeviceData?.serials) ? userDeviceData.serials[0] : undefined) || deviceData?.serial;
-        const userWarranty = getUserWarranty(userDeviceData, serialHint);
-        const deviceWarranty = deviceData.warranty ?? null;
-        const chosenWarranty = userWarranty ?? deviceWarranty ?? null;
-        const chosenSource: 'user' | 'device' | undefined = (userWarranty != null) ? 'user' : ((deviceWarranty != null) ? 'device' : undefined);
-
-        const resolveSerial = () => {
-          const possible = [
-            userDeviceData?.serial,
-            userDeviceData?.serialNumber,
-            userDeviceData?.Serial,
-            userDeviceData?.SerialNumber,
-            userDeviceData?.serial_no,
-            userDeviceData?.serialNo,
-            userDeviceData?.SerialNo,
-          ].filter(Boolean);
-          if (possible.length && typeof possible[0] === 'string') return possible[0] as string;
-          if (Array.isArray(userDeviceData?.serials) && userDeviceData.serials.length > 0) {
-            const first = userDeviceData.serials[0];
-            if (typeof first === 'string') return first;
-            if (first && typeof first === 'object') {
-              return (first.serialNumber || first.serial || first.code || first.id) ?? undefined;
+          const resolveSerial = () => {
+            const possible = [
+              userDeviceData?.serial,
+              userDeviceData?.serialNumber,
+              userDeviceData?.Serial,
+              userDeviceData?.SerialNumber,
+              userDeviceData?.serial_no,
+              userDeviceData?.serialNo,
+              userDeviceData?.SerialNo,
+            ].filter(Boolean);
+            if (possible.length && typeof possible[0] === 'string') return possible[0] as string;
+            if (Array.isArray(userDeviceData?.serials) && userDeviceData.serials.length > 0) {
+              const first = userDeviceData.serials[0];
+              if (typeof first === 'string') return first;
+              if (first && typeof first === 'object') {
+                return (first.serialNumber || first.serial || first.code || first.id) ?? undefined;
+              }
             }
-          }
-          return deviceData?.serial ?? undefined;
-        };
+            return deviceData?.serial ?? undefined;
+          };
 
-        const resolveSerials = (): SerialItem[] => {
-          if (Array.isArray(userDeviceData?.serials)) {
-            return userDeviceData.serials.map((s: any) => ({
-              serialNumber: s.serialNumber || s.serial || s.code || s.id || '—',
-              warrantyExpiry: s.warrantyExpiry || s.expiryDate || s.warrantyEnd || null
-            }));
-          }
-          if (Array.isArray(deviceData?.serials)) {
-            return deviceData.serials.map((s: any) => ({
-              serialNumber: s.serialNumber || s.serial || s.code || s.id || '—',
-              warrantyExpiry: s.warrantyExpiry || s.expiryDate || s.warrantyEnd || null
-            }));
-          }
-          const serial = resolveSerial();
-          if (serial) {
-            return [{
-              serialNumber: serial,
-              warrantyExpiry: userDeviceData?.warrantyExpiry || userDeviceData?.warrantyEnd || deviceData?.warrantyExpiry || null
-            }];
-          }
-          return [];
-        };
+          const resolveSerials = (): SerialItem[] => {
+            if (Array.isArray(userDeviceData?.serials)) {
+              return userDeviceData.serials.map((s: any) => ({
+                serialNumber: s.serialNumber || s.serial || s.code || s.id || '—',
+                warrantyExpiry: s.warrantyExpiry || s.expiryDate || s.warrantyEnd || null
+              }));
+            }
+            if (Array.isArray(deviceData?.serials)) {
+              return deviceData.serials.map((s: any) => ({
+                serialNumber: s.serialNumber || s.serial || s.code || s.id || '—',
+                warrantyExpiry: s.warrantyExpiry || s.expiryDate || s.warrantyEnd || null
+              }));
+            }
+            const serial = resolveSerial();
+            if (serial) {
+              return [{
+                serialNumber: serial,
+                warrantyExpiry: userDeviceData?.warrantyExpiry || userDeviceData?.warrantyEnd || deviceData?.warrantyExpiry || null
+              }];
+            }
+            return [];
+          };
 
-        return {
-          id: d.id,
-          deviceName: deviceData.deviceName || deviceData.name || 'Unnamed Device',
-          name: deviceData.name,
-          type: deviceData.type,
-          status: userDeviceData.status || deviceData.status || 'Active',
-          serial: resolveSerial() || 'N/A',
-          serials: resolveSerials(),
-          modelNumber: deviceData.modelNumber,
-          imageUrl: deviceData.imageUrl,
-          price: typeof deviceData.price === 'number' ? deviceData.price : null,
-          stock: typeof deviceData.stock === 'number' ? deviceData.stock : null,
-          rating: typeof deviceData.rating === 'number' ? deviceData.rating : null,
-          discount: typeof deviceData.discount === 'number' ? deviceData.discount : null,
-          warranty: chosenWarranty,
-          warrantySource: chosenSource,
-          brand: deviceData.brand || deviceData.manufacturer || deviceData.company || undefined,
-          description: deviceData.description || deviceData.details || deviceData.summary || undefined,
-          documentationUrl: deviceData.documentationUrl || deviceData.documentation || deviceData.docs || deviceData.manualUrl || deviceData.datasheetUrl || undefined,
-        } as DeviceDoc;
-      });
+          return {
+            id: d.id,
+            deviceName: deviceData.deviceName || deviceData.name || 'Unnamed Device',
+            name: deviceData.name,
+            type: deviceData.type,
+            status: userDeviceData.status || deviceData.status || 'Active',
+            serial: resolveSerial() || 'N/A',
+            serials: resolveSerials(),
+            modelNumber: deviceData.modelNumber,
+            imageUrl: deviceData.imageUrl,
+            price: typeof deviceData.price === 'number' ? deviceData.price : null,
+            stock: typeof deviceData.stock === 'number' ? deviceData.stock : null,
+            rating: typeof deviceData.rating === 'number' ? deviceData.rating : null,
+            discount: typeof deviceData.discount === 'number' ? deviceData.discount : null,
+            warranty: chosenWarranty,
+            warrantySource: chosenSource,
+            brand: deviceData.brand || deviceData.manufacturer || deviceData.company || undefined,
+            description: deviceData.description || deviceData.details || deviceData.summary || undefined,
+            documentationUrl: deviceData.documentationUrl || deviceData.documentation || deviceData.docs || deviceData.manualUrl || deviceData.datasheetUrl || undefined,
+          } as DeviceDoc;
+        });
+      } catch (joinErr) {
+        console.warn('DevicesContext: join with Devices collection failed, using minimal entries', joinErr);
+        const minimal = userDevicesSnap.docs.map((d) => {
+          const data: any = d.data();
+          const chosenWarranty = getUserWarranty(data);
+          const resolveSerial = () => {
+            const possible = [data?.serial, data?.serialNumber].filter(Boolean);
+            if (possible.length && typeof possible[0] === 'string') return possible[0] as string;
+            if (Array.isArray(data?.serials) && data.serials.length > 0) {
+              const first = data.serials[0];
+              if (typeof first === 'string') return first;
+              if (first && typeof first === 'object') {
+                return (first.serialNumber || first.serial || first.code || first.id) ?? undefined;
+              }
+            }
+            return undefined;
+          };
+          const resolveSerials = (): SerialItem[] => {
+            if (Array.isArray(data?.serials)) {
+              return data.serials.map((s: any) => ({
+                serialNumber: s.serialNumber || s.serial || s.code || s.id || '—',
+                warrantyExpiry: s.warrantyExpiry || s.expiryDate || s.warrantyEnd || null,
+              }));
+            }
+            const serial = resolveSerial();
+            return serial ? [{ serialNumber: serial, warrantyExpiry: data?.warrantyExpiry || data?.warrantyEnd || null }] : [];
+          };
+          return {
+            id: data?.deviceId || data?.sourceDeviceId || d.id,
+            deviceName: data?.deviceName || data?.name || 'My Device',
+            name: data?.name,
+            type: data?.type,
+            status: data?.status || 'Active',
+            serial: resolveSerial() || 'N/A',
+            serials: resolveSerials(),
+            modelNumber: data?.modelNumber,
+            imageUrl: data?.imageUrl,
+            price: typeof data?.price === 'number' ? data.price : null,
+            stock: typeof data?.stock === 'number' ? data.stock : null,
+            rating: null,
+            discount: null,
+            warranty: chosenWarranty,
+            warrantySource: chosenWarranty != null ? 'user' : undefined,
+            brand: data?.brand,
+            description: data?.description,
+            documentationUrl: data?.documentationUrl,
+          } as DeviceDoc;
+        });
+        results = minimal;
+      }
 
-      setDevices(results);
+      setDevices(results || []);
       setError(null);
     } catch (e: any) {
       console.error('DevicesContext fetch error', e);

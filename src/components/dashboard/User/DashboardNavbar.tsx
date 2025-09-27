@@ -15,7 +15,13 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-  const [hasUnread, setHasUnread] = useState(false);
+  const [hasUnread, setHasUnread] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('hasUnreadNotifications') === '1';
+    } catch {
+      return false;
+    }
+  });
   // Safely use location only in browser environment
   const location = typeof window !== 'undefined' ? useLocation() : { pathname: '' };
   const navigate = useNavigate();
@@ -63,25 +69,30 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
         try { if (unsubNotif) unsubNotif(); } catch {}
         if (!user?.uid) {
           setHasUnread(false);
+          try { localStorage.setItem('hasUnreadNotifications', '0'); } catch {}
           return;
         }
         try {
           const uq = query(
             userNotificationsCollection(db),
             where('uid', '==', user.uid),
-            limit(100)
+            where('status', '==', 'unread'),
+            limit(1)
           );
           unsubNotif = onSnapshot(uq, (snap) => {
-            const anyUnread = snap.docs.some(d => String((d.data() as any).status || '').toLowerCase() === 'unread');
+            const anyUnread = !snap.empty;
             // Debug logs are safe; remove if too chatty
             try { console.debug('[UserNavbar] notif snapshot size:', snap.size, 'hasUnread:', anyUnread); } catch {}
             setHasUnread(anyUnread);
+            try { localStorage.setItem('hasUnreadNotifications', anyUnread ? '1' : '0'); } catch {}
           }, (err) => {
             try { console.warn('[UserNavbar] notif listener error', err); } catch {}
             setHasUnread(false);
+            try { localStorage.setItem('hasUnreadNotifications', '0'); } catch {}
           });
         } catch {
           setHasUnread(false);
+          try { localStorage.setItem('hasUnreadNotifications', '0'); } catch {}
         }
       });
       return () => {
@@ -90,6 +101,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
       };
     } catch {
       setHasUnread(false);
+      try { localStorage.setItem('hasUnreadNotifications', '0'); } catch {}
     }
   }, []);
 
@@ -253,7 +265,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
         <div className="md:hidden">
           <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
             <Link 
-              to={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
+              to={userType === 'admin' ? '/dashboard/admin' : '/'} 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setIsMobileMenuOpen(false)}
             >
@@ -268,93 +280,37 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                 Manage Users
               </Link>
             )}
+            {/* Removed Notifications link to avoid duplicate/incorrect LinkWithRef */}
             <Link 
-              to={`/dashboard/${userType}/notifications`} 
-              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              Notifications
-            </Link>
-            <Link 
-              to={`/dashboard/${userType}/quote-portal`} 
+              to="quote-portal" 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Quote Portal
             </Link>
             <Link 
-              to={`/dashboard/${userType}/about-device`} 
+              to="about-device" 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               About Device
             </Link>
             <Link 
-              to={`/dashboard/${userType}/support-tickets`} 
+              to="support-tickets" 
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setIsMobileMenuOpen(false)}
             >
               Raise Tickets
             </Link>
-            <button
-              type="button"
-              onClick={() => {
-                // Open Support Chat and close menu
-                try {
-                  window.dispatchEvent(new CustomEvent('open-chat'));
-                } catch {}
-                setIsMobileMenuOpen(false);
-              }}
-              className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+            <Link
+              to="support-chat"
+              className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+              onClick={() => setIsMobileMenuOpen(false)}
             >
               Support Chat
-            </button>
+            </Link>
           </div>
-          <div className="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex items-center px-4">
-              <div className="flex-shrink-0">
-                <div className="h-10 w-10 rounded-full bg-teal-500 flex items-center justify-center text-white">
-                  {actualUserName.charAt(0).toUpperCase()}
-                </div>
-              </div>
-              <div className="ml-3">
-                <div className="text-base font-medium text-gray-800 dark:text-white">{actualUserName}</div>
-                <div className="text-sm font-medium text-gray-500 dark:text-gray-400">{userType}</div>
-              </div>
-            </div>
-            <div className="mt-3 px-2 space-y-1">
-              <Link 
-                to={`/dashboard/${userType}/profile`} 
-                className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  if (location.pathname === `/dashboard/${userType}/profile`) {
-                    window.location.reload();
-                  }
-                }}
-              >
-                Profile
-              </Link>
-              <Link 
-                to={`/dashboard/${userType}/settings`} 
-                className="block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  if (location.pathname === `/dashboard/${userType}/settings`) {
-                    window.location.reload();
-                  }
-                }}
-              >
-                Settings
-              </Link>
-              <button 
-                onClick={handleLogout}
-                className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                Sign out
-              </button>
-            </div>
-          </div>
+          {/** Removed mobile profile/account section to avoid duplication in mobile view */}
         </div>
       )}
     </nav>
