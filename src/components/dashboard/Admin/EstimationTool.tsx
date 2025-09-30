@@ -6,6 +6,7 @@ import { Clock } from 'lucide-react';
 import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc, where, limit } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../../../lib/firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload, accountsCollection, userNotificationsCollection, adminNotificationsCollection } from '../../../models/Collections';
 import QuoteDetails from './QuoteDetails';
 
@@ -231,14 +232,54 @@ const EstimationTool: React.FC = () => {
     };
   }, [items, createForm.overallDiscountPercent, createForm.taxes, createForm.taxPercent, createForm.shippingCharges, createForm.installationCharges]);
 
+  // Debug: log current user's Accounts role and admin evaluation
+  const logCurrentUserRole = useCallback(async () => {
+    try {
+      const uid = auth.currentUser?.uid;
+      if (!uid) {
+        console.log('[Debug] Auth: no user signed in');
+        return { isAdmin: false as boolean, role: null as string | null };
+      }
+      const accRef = doc(db, 'Accounts', uid);
+      const accSnap = await getDoc(accRef);
+      const role = accSnap.exists() ? ((accSnap.data() as any)?.Role ?? null) : null;
+      const isAdmin = role === 'admin' || role === 'Super Admin';
+      console.log('[Debug] Accounts role check', { uid, role, isAdmin });
+      return { isAdmin, role };
+    } catch (e) {
+      console.error('[Debug] Failed to read Accounts role', e);
+      return { isAdmin: false as boolean, role: null as string | null };
+    }
+  }, []);
+
+  useEffect(() => {
+    // Log once on mount/auth ready
+    logCurrentUserRole();
+  }, [logCurrentUserRole]);
+
+  // Debug: subscribe to auth state to verify sign-in status on this origin
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (u) => {
+      console.log('[Debug] Auth state', { uid: u?.uid || null, email: u?.email || null });
+    });
+    return () => unsub();
+  }, []);
+
   // Upload attachments to Firebase Storage and store URLs
   const onFilesSelected = async (files: FileList | null) => {
     if (!files) return;
     try {
+      // Debug: verify role at time of upload
+      await logCurrentUserRole();
+      const uid = auth.currentUser?.uid;
+      if (!uid) {
+        alert('You must be signed in to upload attachments.');
+        return;
+      }
       const quoteId = createForm.quoteId || `Q-${Date.now()}`;
       const uploaded: string[] = [];
       for (const file of Array.from(files)) {
-        const path = `estimation_attachments/${quoteId}/${Date.now()}_${file.name}`;
+        const path = `estimation_attachments/${quoteId}/${uid}/${Date.now()}_${file.name}`;
         const storageRef = ref(storage, path);
         await uploadBytes(storageRef, file);
         const url = await getDownloadURL(storageRef);

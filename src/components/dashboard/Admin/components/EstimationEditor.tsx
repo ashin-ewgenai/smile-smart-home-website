@@ -341,9 +341,15 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
     setUploading(true);
     try {
       const quoteId = draft.quoteId || draft.id || `Q-${selected?.id ?? 'unknown'}`;
+      const uid = auth.currentUser?.uid;
+      if (!uid) {
+        alert('You must be signed in to upload attachments.');
+        setUploading(false);
+        return;
+      }
       const uploadedUrls: string[] = [];
       for (const file of Array.from(files)) {
-        const path = `estimation_attachments/${quoteId}/${Date.now()}_${file.name}`;
+        const path = `estimation_attachments/${quoteId}/${uid}/${Date.now()}_${file.name}`;
         const storageRef = ref(storage, path);
         await uploadBytes(storageRef, file);
         const url = await getDownloadURL(storageRef);

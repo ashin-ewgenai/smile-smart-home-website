@@ -129,7 +129,8 @@ const SmartHomePlanner = () => {
         await setDoc(
           plannerLeadDoc(db, emailKey),
           {
-            email: formData.email.trim(),
+            // Must match docId per rules (lowercased, trimmed)
+            email: emailKey,
             planText,
             formData,
             complexity,

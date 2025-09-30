@@ -300,8 +300,8 @@ export default function DeviceForm() {
         // Optional image upload to Firebase Storage (like TicketCenter)
         let uploadedImageUrl: string | undefined;
         if (imageFile) {
-          // Store under a shared devices/images/ path (no per-user UID segment)
-          const path = `devices/images/${Date.now()}_${imageFile.name}`;
+          // Store under devices/images/{uid}/... so rules can authorize owner-or-admin
+          const path = `devices/images/${uid}/${Date.now()}_${imageFile.name}`;
           const ref = storageRef(storage, path);
           await uploadBytes(ref, imageFile);
           uploadedImageUrl = await getDownloadURL(ref);
@@ -398,7 +398,7 @@ export default function DeviceForm() {
     const oldImageUrl = editing.imageUrl;
     if (editImageFile) {
       try {
-        const path = `devices/images/${Date.now()}_${editImageFile.name}`;
+        const path = `devices/images/${auth?.currentUser?.uid ?? 'unknown'}/${Date.now()}_${editImageFile.name}`;
         const imgRef = storageRef(storage, path);
         await uploadBytes(imgRef, editImageFile);
         uploadedImageUrl = await getDownloadURL(imgRef);

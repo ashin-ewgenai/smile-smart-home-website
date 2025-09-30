@@ -179,7 +179,8 @@ const UserProfile: React.FC = () => {
       }
 
       const ext = file.type === 'image/png' ? 'png' : 'jpg';
-      const path = `profile/${uid}.${ext}`;
+      // Store under profile/{uid}/... so Storage rules can authorize owner-or-admin without Firestore reads
+      const path = `profile/${uid}/${Date.now()}.${ext}`;
       const ref = storageRef(storage, path);
       console.debug('[UserProfile] Starting upload', { uid, path, bucket: firebaseApp.options?.storageBucket });
       const task = uploadBytesResumable(ref, file, { contentType: file.type });

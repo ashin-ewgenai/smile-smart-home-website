@@ -89,7 +89,17 @@ service cloud.firestore {
 
     // ================= Planner Leads =================
     match /Planner_Leads/{docId} {
-      allow read, write: if isAdmin();
+      // Public create with strict schema; client stores lowercase email to match docId
+      allow create: if
+        request.resource.data.keys().hasOnly([
+          'email', 'planText', 'formData', 'complexity', 'recommendedAreas', 'updatedAt'
+        ]) &&
+        isValidEmail(request.resource.data.email) &&
+        // Enforce docId == email (client sends lowercased+trimmed email)
+        request.resource.data.email == docId;
+
+      // Only admins can read/update/delete planner leads
+      allow read, update, delete: if isAdmin();
     }
 
     // ================= Request Service =================
