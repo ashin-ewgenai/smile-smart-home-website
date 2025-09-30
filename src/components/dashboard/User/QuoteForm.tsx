@@ -1325,8 +1325,13 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                           </thead>
                           <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                             {estimation.items.map((it: any) => {
-                              const line = Math.max(0, (it.quantity || 0) * (it.unitPrice || 0) - (it.discount || 0));
-                              const tax = (line * (it.taxPercent || 0)) / 100;
+                              const qty = Number(it.quantity) || 0;
+                              const unit = Number(it.unitPrice) || 0;
+                              const base = Math.max(0, qty * unit);
+                              const disc = Number(it.discount) || 0;
+                              const discountAmount = disc > 0 ? (disc <= 100 ? (base * disc) / 100 : Math.min(disc, base)) : 0;
+                              const line = Math.max(0, base - discountAmount);
+                              const tax = (line * (Number(it.taxPercent) || 0)) / 100;
                               const total = line + tax;
                               return (
                                 <tr key={it.id}>
@@ -1334,8 +1339,8 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                                   <td className="py-1 pr-3 hidden md:table-cell">{it.description}</td>
                                   <td className="py-1 pr-3">{it.quantity}</td>
                                   <td className="py-1 pr-3">{it.unitPrice}</td>
-                                  <td className="py-1 pr-3 hidden lg:table-cell">{it.discount}</td>
-                                  <td className="py-1 pr-3 hidden lg:table-cell">{it.taxPercent}</td>
+                                  <td className="py-1 pr-3 hidden lg:table-cell">{(Number(it.discount) || 0) <= 100 ? `${Number(it.discount) || 0}%` : `${Number(it.discount) || 0}`}</td>
+                                  <td className="py-1 pr-3 hidden lg:table-cell">{typeof it.taxPercent === 'number' ? `${it.taxPercent}%` : 'N/A'}</td>
                                   <td className="py-1">{total.toFixed(2)}</td>
                                 </tr>
                               );

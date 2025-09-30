@@ -357,8 +357,14 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
                       </thead>
                       <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                         {estimation.items.map((it) => {
-                          const line = Math.max(0, (it.quantity || 0) * (it.unitPrice || 0) - (it.discount || 0));
-                          const tax = (line * (it.taxPercent || 0)) / 100;
+                          const qty = Number(it.quantity) || 0;
+                          const unit = Number(it.unitPrice) || 0;
+                          const base = Math.max(0, qty * unit);
+                          const disc = Number(it.discount) || 0;
+                          // If discount is <= 100, treat as percent; otherwise treat as absolute amount
+                          const discountAmount = disc > 0 ? (disc <= 100 ? (base * disc) / 100 : Math.min(disc, base)) : 0;
+                          const line = Math.max(0, base - discountAmount);
+                          const tax = (line * (Number(it.taxPercent) || 0)) / 100;
                           const total = line + tax;
                           return (
                             <tr key={it.id} className="text-gray-900 dark:text-gray-100">
@@ -366,8 +372,8 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
                               <td className="py-2 pr-4 hidden md:table-cell">{it.description}</td>
                               <td className="py-2 pr-4">{it.quantity}</td>
                               <td className="py-2 pr-4">{formatCurrency(it.unitPrice)}</td>
-                              <td className="py-2 pr-4 hidden lg:table-cell">{formatCurrency(it.discount)}</td>
-                              <td className="py-2 pr-4 hidden lg:table-cell">{it.taxPercent}</td>
+                              <td className="py-2 pr-4 hidden lg:table-cell">{(Number(it.discount) || 0) <= 100 ? `${Number(it.discount) || 0}%` : formatCurrency(Number(it.discount) || 0)}</td>
+                              <td className="py-2 pr-4 hidden lg:table-cell">{typeof it.taxPercent === 'number' ? `${it.taxPercent}%` : 'N/A'}</td>
                               <td className="py-2">{formatCurrency(total)}</td>
                             </tr>
                           );

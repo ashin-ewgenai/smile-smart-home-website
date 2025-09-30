@@ -135,7 +135,13 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
   };
 
   const calcLine = (r: any) => {
-    const line = Math.max(0, (Number(r.quantity) || 0) * (Number(r.unitPrice) || 0) - (Number(r.discount) || 0));
+    const qty = Number(r.quantity) || 0;
+    const unit = Number(r.unitPrice) || 0;
+    const base = Math.max(0, qty * unit);
+    const disc = Number(r.discount) || 0;
+    // If discount is <= 100, treat as percent; otherwise treat as absolute amount
+    const discountAmount = disc > 0 ? (disc <= 100 ? (base * disc) / 100 : Math.min(disc, base)) : 0;
+    const line = Math.max(0, base - discountAmount);
     const tax = (line * (Number(r.taxPercent) || 0)) / 100;
     return { line, tax, total: line + tax };
   };
