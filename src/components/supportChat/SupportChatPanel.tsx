@@ -646,10 +646,18 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
         // Handle enhanced workflow responses
         const resData = res?.data as any;
+        console.log("Chatbot response data:", resData);
 
         // Do not write messages on the client in AI mode; backend persists both
-        if (resData?.ticketDetails) setWorkflowStep('ticket_verification');
-        else if (resData?.deviceSelection) setWorkflowStep('device_selection');
+        if (resData?.ticketDetails) {
+          console.log("Ticket details found:", resData.ticketDetails);
+          setWorkflowStep('ticket_verification');
+        } else if (resData?.deviceSelection) {
+          console.log("Device selection found:", resData.deviceSelection);
+          setWorkflowStep('device_selection');
+        } else {
+          console.log("No workflow data in response");
+        }
       } catch (error) {
         console.error('Chat error:', error);
         // Let backend handle error messaging or show a lightweight local notice if needed

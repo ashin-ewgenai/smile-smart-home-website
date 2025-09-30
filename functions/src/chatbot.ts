@@ -162,11 +162,85 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
   } catch {}
 
   // Device context for better answers
+  console.log("=== DEVICE FETCHING START ===");
+  console.log("Fetching User_Devices for UID:", uid);
   const devicesQuery = await db.collection(CONFIG.COLLECTIONS.DEVICES).where("uid", "==", uid).get();
-  const userDevices = devicesQuery.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) })) as Array<{ id: string; deviceName?: string; name?: string }>;
-  const deviceContext = userDevices.length > 0 ? `User has the following devices installed: ${userDevices.map((d) => d.deviceName || d.name || "Unknown Device").join(", ")}.` : "";
+  console.log("User_Devices query returned:", devicesQuery.size, "documents");
+  
+  const userDevices = devicesQuery.docs.map((doc) => {
+    const data = doc.data();
+    console.log("User device document:", doc.id, "data:", data);
+    return { id: doc.id, ...data };
+  }) as Array<{ id: string; deviceName?: string; name?: string; deviceType?: string; type?: string; deviceModel?: string; model?: string; sourceDeviceId?: string }>;
+  
+  console.log("Parsed user devices:", userDevices);
+  
+  // Fetch actual device details from Devices collection using sourceDeviceId
+  const deviceDetailsPromises = userDevices
+    .filter(ud => {
+      console.log("Checking user device:", ud.id, "has sourceDeviceId:", ud.sourceDeviceId);
+      return ud.sourceDeviceId;
+    })
+    .map(async (ud) => {
+      try {
+        console.log("Fetching device details for sourceDeviceId:", ud.sourceDeviceId);
+        const deviceDoc = await db.collection(CONFIG.COLLECTIONS.MAIN_DEVICES).doc(ud.sourceDeviceId!).get();
+        console.log("Device document exists:", deviceDoc.exists, "for ID:", ud.sourceDeviceId);
+        if (deviceDoc.exists) {
+          const deviceData = deviceDoc.data();
+          console.log("Device data:", deviceData);
+          return { ...deviceData, id: deviceDoc.id, userDeviceId: ud.id };
+        }
+      } catch (error) {
+        console.error(`Failed to fetch device details for ${ud.sourceDeviceId}:`, error);
+      }
+      return null;
+    });
+  
+  const deviceDetails = (await Promise.all(deviceDetailsPromises)).filter(Boolean) as Array<any>;
+  console.log("=== FINAL DEVICE DETAILS ===");
+  console.log("Total device details fetched:", deviceDetails.length);
+  console.log("Device details:", JSON.stringify(deviceDetails, null, 2));
+  
+  // If no device details were fetched via sourceDeviceId, use the user devices directly
+  const finalDeviceList = deviceDetails.length > 0 ? deviceDetails : userDevices;
+  console.log("Using device list:", finalDeviceList.length > 0 ? "device details" : "user devices");
+  
+  const deviceContext = finalDeviceList.length > 0 
+    ? `User has the following devices installed: ${finalDeviceList.map((d) => `${d.deviceName || d.name || "Unknown Device"} (Type: ${d.deviceType || d.type || "Unknown"}, Model: ${d.deviceModel || d.model || d.modelNumber || "Unknown"})`).join(", ")}.` 
+    : "";
+  console.log("Device context for AI:", deviceContext);
+  let finalDeviceContext = deviceContext;
+
+  // Fallback: If no devices found, try fetching specific known document (e.g., for debugging)
+  if (deviceDetails.length === 0 && userDevices.length === 0) {
+    try {
+      const fallbackDoc = await db.collection(CONFIG.COLLECTIONS.DEVICES).doc("0AE3Q2mJnr5JOw4fytKY").get();
+      if (fallbackDoc.exists) {
+        const fallbackUserDevice = { id: fallbackDoc.id, ...fallbackDoc.data() } as any;
+        console.log("Fallback user device fetched:", fallbackUserDevice);
+        
+        // Try to fetch device details using sourceDeviceId from fallback
+        if (fallbackUserDevice.sourceDeviceId) {
+          try {
+            const deviceDoc = await db.collection(CONFIG.COLLECTIONS.MAIN_DEVICES).doc(fallbackUserDevice.sourceDeviceId).get();
+            if (deviceDoc.exists) {
+              const deviceData = { ...deviceDoc.data(), id: deviceDoc.id } as any;
+              finalDeviceContext = `User has the following devices installed: ${deviceData.deviceName || deviceData.name || "Unknown Device"} (Type: ${deviceData.deviceType || deviceData.type || "Unknown"}, Model: ${deviceData.deviceModel || deviceData.model || "Unknown"}).`;
+              console.log("Fallback device details fetched:", deviceData);
+            }
+          } catch (error) {
+            console.warn("Failed to fetch fallback device details:", error);
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Fallback device fetch failed:", error);
+    }
+  }
 
   // Enhanced active tickets context with all required fields
+  console.log("Fetching tickets for UID:", uid);
   let ticketContext = "";
   let activeTicket = null;
 
@@ -215,10 +289,81 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
         `- Description: "${description}"\n` +
         `- Created: ${new Date(ticketData.createdAt?.toDate?.() || ticketData.createdAt || Date.now()).toLocaleString()}\n` +
         `\n\nIMPORTANT: Always acknowledge this ticket context in your response.`;
+      console.log("Active ticket found:", ticketId, ticketContext);
+    } else {
+      console.log("No active ticket found for UID:", uid);
     }
   } catch (error) {
     console.warn("Failed to fetch ticket context:", error);
   }
+
+  // Quick deterministic answers for device info queries (before calling OpenAI)
+  // Uses device data we already fetched (finalDeviceList) to answer directly when possible.
+  try {
+    const lastUserMsgRaw = [...clean].reverse().find((m) => m.role === "user")?.content ?? "";
+    const lastUserText = (typeof lastUserMsgRaw === "string" ? lastUserMsgRaw : JSON.stringify(lastUserMsgRaw)).toLowerCase();
+
+    let quickReply: string | null = null;
+
+    // 1) List device names
+    const listDevicesRegex = /(names?|list)\s+(of\s+)?(my\s+)?devices|what\s+devices\s+do\s+i\s+have|list\s+my\s+devices/;
+    if (listDevicesRegex.test(lastUserText)) {
+      const lines = (finalDeviceList as any[]).map((d: any, i: number) => `${i + 1}. ${d.deviceName || d.name || d.deviceType || d.type || d.id}`).join("\n");
+      if (lines) quickReply = `You have the following devices installed:\n\n${lines}`;
+    }
+
+    // 2) Model number lookup (e.g., "model number of CCTV")
+    if (!quickReply && /(model(\s*number)?|modelno|model no)/.test(lastUserText)) {
+      const normalize = (s: any) => String(s || "").toLowerCase();
+      const wanted = (() => {
+        // Try variants: "model number of X", "model of X", or "model X"
+        const m1 = lastUserText.match(/model(?:\s*number)?\s*(?:of|for)\s+([a-z0-9 \-&]+)/i);
+        const m2 = lastUserText.match(/model(?:\s*number)?\s+([a-z0-9 \-&]+)/i);
+        return (m1?.[1] || m2?.[1] || "").trim().toLowerCase();
+      })();
+
+      const candidates = (finalDeviceList as any[]).filter((d: any) => {
+        const hay = `${normalize(d.deviceName)} ${normalize(d.name)} ${normalize(d.deviceType)} ${normalize(d.type)}`;
+        if (wanted) return hay.includes(wanted);
+        if (lastUserText.includes("cctv") || lastUserText.includes("camera")) return /cctv|camera|cam/.test(hay);
+        return false;
+      });
+
+      const pick: any | null = candidates[0] || ((finalDeviceList as any[]).length === 1 ? (finalDeviceList as any[])[0] : null);
+
+      if (pick) {
+        const modelFromSerials = Array.isArray(pick.serials)
+          ? (pick.serials.find((s: any) => s?.modelNumber)?.modelNumber || pick.serials[0]?.modelNumber)
+          : undefined;
+        const model = pick.deviceModel || pick.model || pick.modelNumber || modelFromSerials;
+        const name = pick.deviceName || pick.name || pick.deviceType || pick.type || "your device";
+        if (model) quickReply = `The model number of ${name} is ${model}.`;
+        else quickReply = `I couldn't find a saved model number for ${name}. Please check the device label.`;
+      }
+    }
+
+    if (quickReply) {
+      let ticketDetails: any = null;
+      if (activeTicket) {
+        const ticketNumber = activeTicket.data.ticketNumber || `#${activeTicket.ticketId.slice(-6).toUpperCase()}`;
+        ticketDetails = {
+          ticketId: activeTicket.ticketId,
+          ticketNumber,
+          subject: activeTicket.data.subject,
+          description: activeTicket.data.description,
+          category: activeTicket.data.category,
+          status: activeTicket.data.status,
+          createdAt: activeTicket.data.createdAt?.toDate?.()?.toLocaleDateString(),
+        };
+      }
+
+      return {
+        reply: quickReply,
+        sessionId,
+        ...(ticketDetails && { ticketDetails }),
+      };
+    }
+  } catch {}
 
   const systemPrompt = {
     role: "system",
@@ -226,16 +371,16 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
 
 IMPORTANT RULES:
 1. ONLY answer questions related to smart home devices, automation, IoT, home security, lighting, climate control, entertainment systems, and Smile Smart Homes products/services.
-2. When handling device verification, compare user-typed serial numbers with registered devices and state clearly if they match or not.
+2. When handling device verification, compare user-typed model numbers with registered devices and state clearly if they match or not.
 3. Analyze each user message to determine if it's a COMPLAINT or GENERAL QUERY.
 4. If the message is unclear, ask ONE concise clarifying question (<=20 words).
 5. If no prior assistant message exists, begin with a brief greeting.
 
-SERIAL VERIFICATION WORKFLOW (TEXT ONLY):
-- Ask the user to TYPE the serial number
-- Compare the provided serial with their registered devices
-- If serials match: ✅ Confirm verification and proceed with troubleshooting
-- If serials don't match: ⚠️ Mention politely and suggest rechecking the label; still provide basic troubleshooting
+MODEL NUMBER VERIFICATION (TEXT ONLY):
+- Ask the user to TYPE the model number
+- Compare the provided model number with their registered devices
+- If model numbers match: ✅ Confirm verification and proceed with troubleshooting
+- If model numbers don't match: ⚠️ Mention politely and suggest rechecking the label; still provide basic troubleshooting
 - Keep verification responses short, clear, and professional
 - Don't exceed what's needed to move the support process forward
 
@@ -247,21 +392,22 @@ WORKFLOW RULES:
 - If active ticket context is provided, ALWAYS acknowledge the existing ticket first
 - Consider troubleshooting history to avoid repeating failed solutions
 - If troubleshooting attempts are at 3/3, suggest escalation to human support
-- When device needs serial verification: Ask the user to type the serial number in the chat
+- When device needs model verification: Ask the user to type the model number in the chat
 
 RESPONSE FORMAT:
 - Provide natural, conversational responses without technical prefixes
 - For complaints needing ticket: Explain that they should create a support ticket for better assistance
 - For ticket verification: Acknowledge their existing ticket and confirm you can help
 - For device selection: Ask them to specify which device needs help
-- For serial verification: Ask user to enter their device serial number as text
-- When providing serial verification results, be clear about match status
+- For model verification: Ask user to enter their device model number as text
+- When providing model verification results, be clear about match status
 - Keep responses concise and professional (under 150 words)
 - NEVER start responses with technical codes like "REQUIRES_TICKET:" or "DEVICE_SELECTION:"
 
 USER CONTEXT:
-${deviceContext}${ticketContext}`,
+${finalDeviceContext}${ticketContext}`,
   };
+  console.log("System prompt content:", systemPrompt.content);
 
   const messagesWithSystem = [systemPrompt, ...clean];
 
