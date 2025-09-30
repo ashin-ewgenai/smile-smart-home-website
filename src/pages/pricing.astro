@@ -1,0 +1,444 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Navigation from './Navigation.astro';
+import Footer from './Footer.astro';
+---
+
+<Layout title="Pricing - Smile Smart Homes">
+  <Navigation />
+  
+  <main class="pt-16">
+    <!-- Hero Section -->
+    <section class="bg-gradient-to-br from-teal to-charcoal text-white py-20">
+      <div class="container">
+        <div class="max-w-4xl mx-auto text-center">
+          <div class="inline-flex items-center justify-center w-20 h-20 bg-white/10 rounded-2xl mb-6">
+            <svg class="w-10 h-10" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M3,6H21V18H3V6M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9M7,8A2,2 0 0,1 5,10V14A2,2 0 0,1 7,16H17A2,2 0 0,1 19,14V10A2,2 0 0,1 17,8H7Z" />
+            </svg>
+          </div>
+          <h1 class="text-4xl md:text-5xl font-bold mb-4">Custom Pricing for Your Smart Home</h1>
+          <p class="text-xl text-gray-200 mb-8">
+            Every home is unique. We create personalized quotes based on your specific needs, space, and preferences.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Why Custom Pricing -->
+    <section class="section-padding bg-white dark:bg-gray-900">
+      <div class="container max-w-6xl">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
+            Why We Don't Have Fixed Prices
+          </h2>
+          <p class="text-lg text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
+            Smart home installations aren't one-size-fits-all. Your quote depends on multiple factors to ensure you get exactly what you need.
+          </p>
+        </div>
+
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <!-- Factor 1 -->
+          <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 hover:shadow-lg transition-shadow">
+            <div class="w-12 h-12 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M10,20V14H14V20H19V12H22L12,3L2,12H5V20H10Z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Property Size & Layout</h3>
+            <p class="text-gray-600 dark:text-gray-300">
+              Number of rooms, square footage, and architectural complexity affect installation scope and materials needed.
+            </p>
+          </div>
+
+          <!-- Factor 2 -->
+          <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 hover:shadow-lg transition-shadow">
+            <div class="w-12 h-12 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12,2A2,2 0 0,1 14,4V8A2,2 0 0,1 12,10A2,2 0 0,1 10,8V4A2,2 0 0,1 12,2M21,11H20A8,8 0 0,1 12,19A8,8 0 0,1 4,11H3A1,1 0 0,1 2,10A1,1 0 0,1 3,9H4A8,8 0 0,1 12,1A8,8 0 0,1 20,9H21A1,1 0 0,1 22,10A1,1 0 0,1 21,11M7,11A5,5 0 0,0 12,16A5,5 0 0,0 17,11H16A4,4 0 0,1 12,15A4,4 0 0,1 8,11H7Z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Device Selection</h3>
+            <p class="text-gray-600 dark:text-gray-300">
+              Brand preferences, device models, and feature requirements vary widely. We work with premium to budget-friendly options.
+            </p>
+          </div>
+
+          <!-- Factor 3 -->
+          <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 hover:shadow-lg transition-shadow">
+            <div class="w-12 h-12 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Service Type</h3>
+            <p class="text-gray-600 dark:text-gray-300">
+              New installations, upgrades, or custom integrations each require different expertise, time, and resources.
+            </p>
+          </div>
+
+          <!-- Factor 4 -->
+          <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 hover:shadow-lg transition-shadow">
+            <div class="w-12 h-12 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M4,1C2.89,1 2,1.89 2,3V7C2,8.11 2.89,9 4,9H1V11H13V9H10C11.11,9 12,8.11 12,7V3C12,1.89 11.11,1 10,1H4M4,3H10V7H4V3M14,13C12.89,13 12,13.89 12,15V19C12,20.11 12.89,21 14,21H11V23H23V21H20C21.11,21 22,20.11 22,19V15C22,13.89 21.11,13 20,13H14M14,15H20V19H14V15Z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Integration Complexity</h3>
+            <p class="text-gray-600 dark:text-gray-300">
+              Connecting multiple systems, existing infrastructure, and automation requirements impact project scope.
+            </p>
+          </div>
+
+          <!-- Factor 5 -->
+          <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 hover:shadow-lg transition-shadow">
+            <div class="w-12 h-12 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12,20A8,8 0 0,1 4,12A8,8 0 0,1 12,4A8,8 0 0,1 20,12A8,8 0 0,1 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2M12.5,7V12.25L17,14.92L16.25,16.15L11,13V7H12.5Z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Timeline & Urgency</h3>
+            <p class="text-gray-600 dark:text-gray-300">
+              Standard installation schedules vs. expedited service, and project timeline flexibility affect pricing.
+            </p>
+          </div>
+
+          <!-- Factor 6 -->
+          <div class="bg-gray-50 dark:bg-gray-800 rounded-xl p-6 hover:shadow-lg transition-shadow">
+            <div class="w-12 h-12 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Location & Accessibility</h3>
+            <p class="text-gray-600 dark:text-gray-300">
+              Your location, site accessibility, and any special installation challenges are factored into the quote.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Service Categories -->
+    <section class="section-padding bg-gray-50 dark:bg-gray-800">
+      <div class="container max-w-6xl">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
+            Our Service Categories
+          </h2>
+          <p class="text-lg text-gray-600 dark:text-gray-300">
+            We provide custom quotes for all smart home services
+          </p>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-6">
+          <!-- Security Systems -->
+          <div class="bg-white dark:bg-gray-900 rounded-xl p-8 border-2 border-gray-200 dark:border-gray-700 hover:border-teal dark:hover:border-teal transition-colors">
+            <div class="flex items-start mb-4">
+              <div class="w-12 h-12 bg-teal/10 rounded-lg flex items-center justify-center mr-4 flex-shrink-0">
+                <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1M12,7C13.4,7 14.8,8.6 14.8,10V11.5C15.4,11.5 16,12.4 16,13V16C16,16.6 15.6,17 15,17H9C8.4,17 8,16.6 8,16V13C8,12.4 8.4,11.5 9,11.5V10C9,8.6 10.6,7 12,7M12,8.2C11.2,8.2 10.2,8.7 10.2,10V11.5H13.8V10C13.8,8.7 12.8,8.2 12,8.2Z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Security Systems</h3>
+                <p class="text-gray-600 dark:text-gray-300 mb-3">
+                  CCTV cameras, smart locks, motion sensors, alarm systems, and 24/7 monitoring solutions.
+                </p>
+                <span class="text-teal font-medium">Custom Quote Required</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Smart Lighting -->
+          <div class="bg-white dark:bg-gray-900 rounded-xl p-8 border-2 border-gray-200 dark:border-gray-700 hover:border-teal dark:hover:border-teal transition-colors">
+            <div class="flex items-start mb-4">
+              <div class="w-12 h-12 bg-teal/10 rounded-lg flex items-center justify-center mr-4 flex-shrink-0">
+                <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12,2A2,2 0 0,1 14,4V8A2,2 0 0,1 12,10A2,2 0 0,1 10,8V4A2,2 0 0,1 12,2M21,11H20A8,8 0 0,1 12,19A8,8 0 0,1 4,11H3A1,1 0 0,1 2,10A1,1 0 0,1 3,9H4A8,8 0 0,1 12,1A8,8 0 0,1 20,9H21A1,1 0 0,1 22,10A1,1 0 0,1 21,11M7,11A5,5 0 0,0 12,16A5,5 0 0,0 17,11H16A4,4 0 0,1 12,15A4,4 0 0,1 8,11H7Z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Smart Lighting</h3>
+                <p class="text-gray-600 dark:text-gray-300 mb-3">
+                  Automated lighting, voice control, scheduling, color-changing bulbs, and energy-efficient LED systems.
+                </p>
+                <span class="text-teal font-medium">Custom Quote Required</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Climate Control -->
+          <div class="bg-white dark:bg-gray-900 rounded-xl p-8 border-2 border-gray-200 dark:border-gray-700 hover:border-teal dark:hover:border-teal transition-colors">
+            <div class="flex items-start mb-4">
+              <div class="w-12 h-12 bg-teal/10 rounded-lg flex items-center justify-center mr-4 flex-shrink-0">
+                <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,13A1,1 0 0,1 11,12V8A1,1 0 0,1 13,8V12A1,1 0 0,1 12,13M12,17A1,1 0 0,1 11,16V15A1,1 0 0,1 13,15V16A1,1 0 0,1 12,17Z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Climate Control</h3>
+                <p class="text-gray-600 dark:text-gray-300 mb-3">
+                  Smart thermostats, HVAC integration, zone control, energy monitoring, and automated temperature management.
+                </p>
+                <span class="text-teal font-medium">Custom Quote Required</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Entertainment Systems -->
+          <div class="bg-white dark:bg-gray-900 rounded-xl p-8 border-2 border-gray-200 dark:border-gray-700 hover:border-teal dark:hover:border-teal transition-colors">
+            <div class="flex items-start mb-4">
+              <div class="w-12 h-12 bg-teal/10 rounded-lg flex items-center justify-center mr-4 flex-shrink-0">
+                <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M21,3H3A2,2 0 0,0 1,5V19A2,2 0 0,0 3,21H21A2,2 0 0,0 23,19V5A2,2 0 0,0 21,3M21,19H3V5H21V19Z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Entertainment Systems</h3>
+                <p class="text-gray-600 dark:text-gray-300 mb-3">
+                  Home theater, multi-room audio, smart TVs, streaming integration, and voice-controlled entertainment.
+                </p>
+                <span class="text-teal font-medium">Custom Quote Required</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Home Networking -->
+          <div class="bg-white dark:bg-gray-900 rounded-xl p-8 border-2 border-gray-200 dark:border-gray-700 hover:border-teal dark:hover:border-teal transition-colors">
+            <div class="flex items-start mb-4">
+              <div class="w-12 h-12 bg-teal/10 rounded-lg flex items-center justify-center mr-4 flex-shrink-0">
+                <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M4,1C2.89,1 2,1.89 2,3V7C2,8.11 2.89,9 4,9H1V11H13V9H10C11.11,9 12,8.11 12,7V3C12,1.89 11.11,1 10,1H4M4,3H10V7H4V3M14,13C12.89,13 12,13.89 12,15V19C12,20.11 12.89,21 14,21H11V23H23V21H20C21.11,21 22,20.11 22,19V15C22,13.89 21.11,13 20,13H14M14,15H20V19H14V15Z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Home Networking</h3>
+                <p class="text-gray-600 dark:text-gray-300 mb-3">
+                  WiFi 6 networks, mesh systems, smart hubs, network security, and IoT device connectivity.
+                </p>
+                <span class="text-teal font-medium">Custom Quote Required</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Custom Solutions -->
+          <div class="bg-white dark:bg-gray-900 rounded-xl p-8 border-2 border-gray-200 dark:border-gray-700 hover:border-teal dark:hover:border-teal transition-colors">
+            <div class="flex items-start mb-4">
+              <div class="w-12 h-12 bg-teal/10 rounded-lg flex items-center justify-center mr-4 flex-shrink-0">
+                <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M22.7,19L13.6,9.9C14.5,7.6 14,4.9 12.1,3C10.1,1 7.1,0.6 4.7,1.7L9,6L6,9L1.6,4.7C0.4,7.1 0.9,10.1 2.9,12.1C4.8,14 7.5,14.5 9.8,13.6L18.9,22.7C19.3,23.1 19.9,23.1 20.3,22.7L22.6,20.4C23.1,20 23.1,19.3 22.7,19Z" />
+                </svg>
+              </div>
+              <div>
+                <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Custom Solutions</h3>
+                <p class="text-gray-600 dark:text-gray-300 mb-3">
+                  Unique requirements, system upgrades, integration projects, and specialized smart home needs.
+                </p>
+                <span class="text-teal font-medium">Custom Quote Required</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- How to Get a Quote -->
+    <section class="section-padding bg-white dark:bg-gray-900">
+      <div class="container max-w-4xl">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
+            How to Get Your Custom Quote
+          </h2>
+          <p class="text-lg text-gray-600 dark:text-gray-300">
+            Our simple 4-step process ensures you get an accurate, personalized quote
+          </p>
+        </div>
+
+        <div class="space-y-6">
+          <!-- Step 1 -->
+          <div class="flex items-start bg-gray-50 dark:bg-gray-800 rounded-xl p-6">
+            <div class="w-12 h-12 bg-teal rounded-full flex items-center justify-center text-white font-bold text-xl mr-4 flex-shrink-0">
+              1
+            </div>
+            <div>
+              <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Submit Your Request</h3>
+              <p class="text-gray-600 dark:text-gray-300">
+                Fill out our online quote form or contact us directly. Tell us about your property, needs, and preferences.
+              </p>
+            </div>
+          </div>
+
+          <!-- Step 2 -->
+          <div class="flex items-start bg-gray-50 dark:bg-gray-800 rounded-xl p-6">
+            <div class="w-12 h-12 bg-teal rounded-full flex items-center justify-center text-white font-bold text-xl mr-4 flex-shrink-0">
+              2
+            </div>
+            <div>
+              <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Free Consultation</h3>
+              <p class="text-gray-600 dark:text-gray-300">
+                Our experts will schedule a consultation (virtual or in-person) to understand your requirements in detail.
+              </p>
+            </div>
+          </div>
+
+          <!-- Step 3 -->
+          <div class="flex items-start bg-gray-50 dark:bg-gray-800 rounded-xl p-6">
+            <div class="w-12 h-12 bg-teal rounded-full flex items-center justify-center text-white font-bold text-xl mr-4 flex-shrink-0">
+              3
+            </div>
+            <div>
+              <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Receive Your Quote</h3>
+              <p class="text-gray-600 dark:text-gray-300">
+                Within 24-48 hours, you'll receive a detailed, itemized quote tailored to your specific needs and budget.
+              </p>
+            </div>
+          </div>
+
+          <!-- Step 4 -->
+          <div class="flex items-start bg-gray-50 dark:bg-gray-800 rounded-xl p-6">
+            <div class="w-12 h-12 bg-teal rounded-full flex items-center justify-center text-white font-bold text-xl mr-4 flex-shrink-0">
+              4
+            </div>
+            <div>
+              <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">Review & Approve</h3>
+              <p class="text-gray-600 dark:text-gray-300">
+                Review your quote, ask questions, request modifications, and approve when you're ready to proceed.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- What's Included -->
+    <section class="section-padding bg-gray-50 dark:bg-gray-800">
+      <div class="container max-w-6xl">
+        <div class="text-center mb-12">
+          <h2 class="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
+            What's Included in Every Quote
+          </h2>
+        </div>
+
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div class="bg-white dark:bg-gray-900 rounded-lg p-6">
+            <div class="w-10 h-10 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            <h3 class="font-semibold text-gray-900 dark:text-white mb-2">Professional Installation</h3>
+            <p class="text-gray-600 dark:text-gray-300 text-sm">Certified technicians handle complete setup</p>
+          </div>
+
+          <div class="bg-white dark:bg-gray-900 rounded-lg p-6">
+            <div class="w-10 h-10 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            <h3 class="font-semibold text-gray-900 dark:text-white mb-2">Quality Equipment</h3>
+            <p class="text-gray-600 dark:text-gray-300 text-sm">Premium devices from trusted brands</p>
+          </div>
+
+          <div class="bg-white dark:bg-gray-900 rounded-lg p-6">
+            <div class="w-10 h-10 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            <h3 class="font-semibold text-gray-900 dark:text-white mb-2">User Training</h3>
+            <p class="text-gray-600 dark:text-gray-300 text-sm">Complete walkthrough of your new system</p>
+          </div>
+
+          <div class="bg-white dark:bg-gray-900 rounded-lg p-6">
+            <div class="w-10 h-10 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            <h3 class="font-semibold text-gray-900 dark:text-white mb-2">Warranty Coverage</h3>
+            <p class="text-gray-600 dark:text-gray-300 text-sm">Manufacturer and installation warranties</p>
+          </div>
+
+          <div class="bg-white dark:bg-gray-900 rounded-lg p-6">
+            <div class="w-10 h-10 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            <h3 class="font-semibold text-gray-900 dark:text-white mb-2">24/7 Support</h3>
+            <p class="text-gray-600 dark:text-gray-300 text-sm">Ongoing technical assistance and troubleshooting</p>
+          </div>
+
+          <div class="bg-white dark:bg-gray-900 rounded-lg p-6">
+            <div class="w-10 h-10 bg-teal/10 rounded-lg flex items-center justify-center mb-4">
+              <svg class="w-6 h-6 text-teal" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            <h3 class="font-semibold text-gray-900 dark:text-white mb-2">Future Upgrades</h3>
+            <p class="text-gray-600 dark:text-gray-300 text-sm">Scalable solutions that grow with your needs</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="section-padding bg-gradient-to-br from-teal to-blue-600 text-white">
+      <div class="container max-w-4xl text-center">
+        <h2 class="text-3xl md:text-4xl font-bold mb-4">
+          Ready to Get Your Custom Quote?
+        </h2>
+        <p class="text-xl mb-8 opacity-90">
+          Tell us about your smart home vision, and we'll create a personalized solution that fits your needs and budget.
+        </p>
+        <div class="flex flex-col sm:flex-row gap-4 justify-center">
+          <a href="/contact" data-hide-when="authed" class="bg-white text-teal hover:bg-gray-100 px-8 py-4 rounded-xl font-semibold transition-all duration-200 transform hover:scale-[1.02] inline-flex items-center justify-center">
+            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"></path>
+              <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"></path>
+            </svg>
+            Request Free Quote
+          </a>
+          <a href="tel:+15551234567" class="border-2 border-white text-white hover:bg-white hover:text-teal px-8 py-4 rounded-xl font-semibold transition-all duration-200 inline-flex items-center justify-center">
+            <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"></path>
+            </svg>
+            Call (555) 123-4567
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+  
+  <Footer />
+</Layout>
+
+<script>
+  // @ts-nocheck
+  // Hide elements marked data-hide-when="authed" for authenticated users
+  (function(){
+    const toggleAuthedHides = (isAuthed) => {
+      const nodes = document.querySelectorAll('[data-hide-when="authed"]');
+      nodes.forEach((el) => {
+        if (isAuthed) {
+          el.classList.add('hidden');
+          el.setAttribute('aria-hidden', 'true');
+          el.style.display = 'none';
+        } else {
+          el.classList.remove('hidden');
+          el.removeAttribute('aria-hidden');
+          el.style.display = '';
+        }
+      });
+    };
+    function run(){
+      let authed = false;
+      try { authed = !!localStorage.getItem('userEmail'); } catch {}
+      toggleAuthedHides(authed);
+    }
+    document.addEventListener('DOMContentLoaded', run);
+    document.addEventListener('astro:page-load', run);
+  })();
+</script>
