@@ -147,7 +147,9 @@ service cloud.firestore {
         request.resource.data.ownerUid == request.auth.uid || isAdmin()
       );
       allow read: if isSignedIn() && (
-        resource.data.ownerUid == request.auth.uid || isAdmin()
+        (exists(/databases/$(database)/documents/chat_sessions/$(sessionId)) &&
+         get(/databases/$(database)/documents/chat_sessions/$(sessionId)).data.ownerUid == request.auth.uid) ||
+        isAdmin()
       );
       allow update: if isSignedIn() && (
         (resource.data.ownerUid == request.auth.uid) ||
@@ -158,12 +160,13 @@ service cloud.firestore {
 
       match /messages/{msgId} {
         allow read, create: if isSignedIn() &&
-          (get(/databases/$(database)/documents/chat_sessions/$(sessionId)).data.ownerUid == request.auth.uid || isAdmin());
+          (exists(/databases/$(database)/documents/chat_sessions/$(sessionId)) &&
+           get(/databases/$(database)/documents/chat_sessions/$(sessionId)).data.ownerUid == request.auth.uid) ||
+          isAdmin();
         allow update: if isSignedIn() &&
-          ((get(/databases/$(database)/documents/chat_sessions/$(sessionId)).data.ownerUid == request.auth.uid) ||
-          (!get(/databases/$(database)/documents/chat_sessions/$(sessionId)).data.ownerUid && request.resource.data.ownerUid == request.auth.uid) ||
-          isAdmin()) &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resolved']);
+          (exists(/databases/$(database)/documents/chat_sessions/$(sessionId)) &&
+           get(/databases/$(database)/documents/chat_sessions/$(sessionId)).data.ownerUid == request.auth.uid) ||
+          isAdmin();
         allow delete: if false;
       }
     }
@@ -217,12 +220,12 @@ service cloud.firestore {
 
     match /support_claims/{uid} {
       allow read: if isCurrentUser(uid) || isAdmin();
-      allow write: if isAdmin();
+      allow write: if isCurrentUser(uid) || isAdmin();
     }
 
     match /support_requests/{uid} {
       allow read: if isCurrentUser(uid) || isAdmin();
-      allow create, update: if isCurrentUser(uid);
+      allow create, update: if isCurrentUser(uid) || isAdmin();
       allow delete: if isAdmin();
     }
 

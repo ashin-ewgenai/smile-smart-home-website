@@ -342,6 +342,72 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
       }
     }
 
+    // 3) Warranty status lookup (e.g., "is my CCTV under warranty")
+    if (!quickReply && /(warranty|under warranty|warranty status|warranty check)/.test(lastUserText)) {
+      const normalize = (s: any) => String(s || "").toLowerCase();
+      const wanted = (() => {
+        const m = lastUserText.match(/(?:warranty|warranty status|warranty check)\s+(?:of|for|on)\s+([a-z0-9 \-&]+)/i);
+        return m?.[1]?.trim()?.toLowerCase() || "";
+      })();
+
+      const candidates = (finalDeviceList as any[]).filter((d: any) => {
+        const hay = `${normalize(d.deviceName)} ${normalize(d.name)} ${normalize(d.deviceType)} ${normalize(d.type)}`;
+        if (wanted) return hay.includes(wanted);
+        if (lastUserText.includes("cctv") || lastUserText.includes("camera")) return /cctv|camera|cam/.test(hay);
+        return false;
+      });
+
+      const pick: any | null = candidates[0] || ((finalDeviceList as any[]).length === 1 ? (finalDeviceList as any[])[0] : null);
+
+      if (pick) {
+        // Check if this device has serials with warranty info
+        const serialsWithWarranty = Array.isArray(pick.serials) ? pick.serials.filter((s: any) =>
+          s?.warrantyEnd || s?.warrantyExpiry || s?.warrantyExpires
+        ) : [];
+
+        if (serialsWithWarranty.length > 0) {
+          const warrantyInfo = serialsWithWarranty[0]; // Use first serial with warranty info
+          const warrantyEnd = warrantyInfo.warrantyEnd || warrantyInfo.warrantyExpiry || warrantyInfo.warrantyExpires;
+
+          try {
+            const expiryDate = new Date(warrantyEnd);
+            const now = new Date();
+            const timeDiff = expiryDate.getTime() - now.getTime();
+            const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+            if (daysRemaining > 0) {
+              quickReply = `Yes, your ${pick.deviceName || pick.name || "device"} is under warranty! It expires on ${expiryDate.toLocaleDateString()} (${daysRemaining} days remaining).`;
+            } else {
+              quickReply = `Your ${pick.deviceName || pick.name || "device"} warranty expired on ${expiryDate.toLocaleDateString()} (${Math.abs(daysRemaining)} days ago).`;
+            }
+          } catch (error) {
+            quickReply = `I found warranty information for your ${pick.deviceName || pick.name || "device"}, but couldn't determine the exact expiry date.`;
+          }
+        } else {
+          quickReply = `I couldn't find warranty information for your ${pick.deviceName || pick.name || "device"}. Please check your purchase receipt or contact support.`;
+        }
+      }
+    }
+
+    // 4) Solved/resolved detection - update ticket status
+    const solvedRegex = /(?:^|\s)(solved|fixed|resolved|working|good|thank you|thanks)(?:\s|$)/i;
+    if (solvedRegex.test(lastUserText)) {
+      // Update active ticket status to resolved if exists
+      if (activeTicket) {
+        try {
+          await db.collection(CONFIG.COLLECTIONS.TICKETS).doc(activeTicket.ticketId).set({
+            status: 'resolved',
+            resolvedAt: Date.now(),
+            updatedAt: Date.now()
+          }, { merge: true });
+          console.log("Ticket marked as resolved:", activeTicket.ticketId);
+          quickReply = "Great! I've marked your ticket as resolved. If you need help with anything else, feel free to ask!";
+        } catch (error) {
+          console.warn("Failed to update ticket status:", error);
+        }
+      }
+    }
+
     if (quickReply) {
       let ticketDetails: any = null;
       if (activeTicket) {
@@ -371,16 +437,16 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
 
 IMPORTANT RULES:
 1. ONLY answer questions related to smart home devices, automation, IoT, home security, lighting, climate control, entertainment systems, and Smile Smart Homes products/services.
-2. When handling device verification, compare user-typed model numbers with registered devices and state clearly if they match or not.
+2. When handling device verification, compare user-typed serial numbers with registered devices and state clearly if they match or not.
 3. Analyze each user message to determine if it's a COMPLAINT or GENERAL QUERY.
 4. If the message is unclear, ask ONE concise clarifying question (<=20 words).
 5. If no prior assistant message exists, begin with a brief greeting.
 
-MODEL NUMBER VERIFICATION (TEXT ONLY):
-- Ask the user to TYPE the model number
-- Compare the provided model number with their registered devices
-- If model numbers match: ✅ Confirm verification and proceed with troubleshooting
-- If model numbers don't match: ⚠️ Mention politely and suggest rechecking the label; still provide basic troubleshooting
+SERIAL VERIFICATION WORKFLOW (TEXT ONLY):
+- Ask the user to TYPE the serial number
+- Compare the provided serial with their registered devices
+- If serials match: ✅ Confirm verification and proceed with troubleshooting
+- If serials don't match: ⚠️ Mention politely and suggest rechecking the label; still provide basic troubleshooting
 - Keep verification responses short, clear, and professional
 - Don't exceed what's needed to move the support process forward
 
@@ -392,15 +458,15 @@ WORKFLOW RULES:
 - If active ticket context is provided, ALWAYS acknowledge the existing ticket first
 - Consider troubleshooting history to avoid repeating failed solutions
 - If troubleshooting attempts are at 3/3, suggest escalation to human support
-- When device needs model verification: Ask the user to type the model number in the chat
+- When device needs serial verification: Ask the user to type the serial number in the chat
 
 RESPONSE FORMAT:
 - Provide natural, conversational responses without technical prefixes
 - For complaints needing ticket: Explain that they should create a support ticket for better assistance
 - For ticket verification: Acknowledge their existing ticket and confirm you can help
 - For device selection: Ask them to specify which device needs help
-- For model verification: Ask user to enter their device model number as text
-- When providing model verification results, be clear about match status
+- For serial verification: Ask user to enter their device serial number as text
+- When providing serial verification results, be clear about match status
 - Keep responses concise and professional (under 150 words)
 - NEVER start responses with technical codes like "REQUIRES_TICKET:" or "DEVICE_SELECTION:"
 
@@ -571,6 +637,11 @@ export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) =
   // Attempt to locate the serial within the user's registered devices
   let matchedDeviceDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
   let matchedDeviceData: Record<string, any> | null = null;
+  let matchedSerialEntry: Record<string, any> | null = null;
+
+  console.log("=== SERIAL VERIFICATION START ===");
+  console.log("Looking for serial number:", serial);
+  console.log("User UID:", authCtx.uid);
 
   try {
     const userDevicesSnap = await db
@@ -578,16 +649,54 @@ export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) =
       .where("uid", "==", authCtx.uid)
       .get();
 
+    console.log("Found", userDevicesSnap.size, "user device documents");
+
     for (const doc of userDevicesSnap.docs) {
       const data = doc.data() as Record<string, any>;
       const serials: Array<Record<string, any>> = Array.isArray(data.serials) ? data.serials : [];
-      const found = serials.find((entry) => typeof entry?.serialNumber === "string" && entry.serialNumber.trim() === serial);
-      if (found) {
-        matchedDeviceDoc = doc;
-        matchedDeviceData = data;
-        break;
+
+      console.log("=== Checking device:", doc.id, "===");
+      console.log("Device data keys:", Object.keys(data));
+      console.log("Serials array length:", serials.length);
+      console.log("Serials array contents:", JSON.stringify(serials, null, 2));
+
+      // Check if document has serials field and it's not empty
+      if (serials.length > 0) {
+        console.log("Device has serials, checking each entry...");
+
+        // Check each serial entry for exact match
+        for (let i = 0; i < serials.length; i++) {
+          const entry = serials[i];
+          console.log(`  Serial entry ${i}:`, entry);
+
+          if (typeof entry?.serialNumber === "string") {
+            console.log(`  Comparing "${entry.serialNumber.trim().toLowerCase()}" with "${serial.trim().toLowerCase()}"`);
+
+            if (entry.serialNumber.trim().toLowerCase() === serial.trim().toLowerCase()) {
+              matchedDeviceDoc = doc;
+              matchedDeviceData = data;
+              matchedSerialEntry = entry;
+              console.log("✅ SERIAL MATCH FOUND!");
+              console.log("Matched entry:", entry);
+              break;
+            } else {
+              console.log("❌ No match for this entry");
+            }
+          } else {
+            console.log("❌ Serial entry doesn't have valid serialNumber field");
+          }
+        }
+      } else {
+        console.log("❌ Device", doc.id, "has no serials array or it's empty");
       }
+
+      if (matchedDeviceDoc) break; // Exit loop once we find a match
     }
+
+    if (!matchedDeviceDoc) {
+      console.log("❌ No serial match found in any device");
+    }
+
   } catch (error) {
     console.warn("Failed to search user devices for serial:", error);
   }
@@ -616,7 +725,53 @@ export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) =
     deviceUID = dev.deviceUID || serial;
   }
 
-  await tRef.set({ deviceSerial: serial, deviceType, deviceModel, updatedAt: Date.now() }, { merge: true });
+  // Check warranty status from the matched serial entry
+  let warrantyStatus: { isValid: boolean; daysRemaining?: number; expiryDate?: string } = { isValid: false };
+
+  console.log("=== WARRANTY STATUS CHECK ===");
+  if (matchedSerialEntry) {
+    console.log("Found matched serial entry:", matchedSerialEntry);
+    const warrantyEnd = matchedSerialEntry.warrantyEnd || matchedSerialEntry.warrantyExpiry || matchedSerialEntry.warrantyExpires;
+
+    if (warrantyEnd) {
+      console.log("Warranty end date found:", warrantyEnd);
+      try {
+        const expiryDate = new Date(warrantyEnd);
+        const now = new Date();
+        const timeDiff = expiryDate.getTime() - now.getTime();
+        const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+        console.log("Current date:", now.toISOString());
+        console.log("Expiry date:", expiryDate.toISOString());
+        console.log("Days remaining:", daysRemaining);
+
+        warrantyStatus = {
+          isValid: daysRemaining > 0,
+          daysRemaining: daysRemaining > 0 ? daysRemaining : 0,
+          expiryDate: expiryDate.toISOString().split('T')[0]
+        };
+
+        console.log("Calculated warranty status:", warrantyStatus);
+      } catch (error) {
+        console.warn("Error parsing warranty date:", warrantyEnd, error);
+        warrantyStatus = { isValid: false };
+      }
+    } else {
+      console.log("No warranty date found in serial entry");
+    }
+  } else {
+    console.log("No matched serial entry found for warranty check");
+  }
+
+  console.log("Final warranty status:", warrantyStatus);
+
+  await tRef.set({
+    deviceSerial: serial,
+    deviceType,
+    deviceModel,
+    warrantyStatus,
+    updatedAt: Date.now()
+  }, { merge: true });
 
   // Fetch device-specific support documents using the proper path structure
   let supportDocs: any[] = [];
@@ -642,11 +797,20 @@ export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) =
     console.warn("Failed to fetch support documents:", error);
   }
 
+  console.log("=== VERIFICATION RESULT ===");
+  console.log("Serial verification valid:", matchedDeviceDoc ? "YES" : "NO");
+  console.log("Device type:", deviceType);
+  console.log("Device model:", deviceModel);
+  console.log("Device UID:", deviceUID);
+  console.log("Warranty status:", warrantyStatus);
+  console.log("Support docs count:", supportDocs.length);
+
   return {
     valid: true,
     deviceType,
     deviceModel,
     deviceUID,
+    warrantyStatus,
     supportDocs,
     // Legacy compatibility
     links: supportDocs.map((doc) => doc.url || doc.link).filter(Boolean),

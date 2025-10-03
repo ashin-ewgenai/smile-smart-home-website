@@ -35,6 +35,13 @@ const AdminSupportApp: React.FC = () => {
         clearedAt: Date.now(),
         clearedBy: uid,
       }, { merge: true });
+    } else {
+      // When claiming OFF, also clear any pending requests
+      await setDoc(doc(db, 'support_requests', selectedOwner), {
+        requested: false,
+        clearedAt: Date.now(),
+        clearedBy: uid,
+      }, { merge: true });
     }
   };
 
@@ -214,6 +221,34 @@ const AdminSupportApp: React.FC = () => {
             {selectedOwner && claims[selectedOwner] ? 'Human On' : 'Human Off'}
           </button>
           
+          {/* Admin Clear Requested Button */}
+          {selectedOwner && requests[selectedOwner] && (
+            <button
+              className="px-3 py-1.5 text-sm rounded-full border border-orange-300 text-orange-700 bg-orange-50 dark:border-orange-700 dark:text-orange-300 dark:bg-orange-900/20 transition-colors focus:outline-none focus:ring-0 active:outline-none active:ring-0 select-none"
+              style={{ WebkitTapHighlightColor: 'transparent' }}
+              onClick={async () => {
+                if (!window.confirm('Are you sure you want to clear the requested status for this user?')) return;
+                if (!auth.currentUser) {
+                  alert('You must be signed in to perform this action.');
+                  return;
+                }
+                try {
+                  await setDoc(doc(db, 'support_requests', selectedOwner), {
+                    requested: false,
+                    clearedAt: Date.now(),
+                    clearedBy: auth.currentUser.uid,
+                  }, { merge: true });
+                  alert('Requested status cleared for this user.');
+                } catch (e: any) {
+                  console.error('Clear requested status error:', e);
+                  alert('Failed to clear requested status: ' + (e?.message || e?.code || e));
+                }
+              }}
+            >
+              Clear Requested
+            </button>
+          )}
+
           {/* Admin Clear Chat Button */}
           {selectedOwner && (
             <button
@@ -264,7 +299,7 @@ const AdminSupportApp: React.FC = () => {
                       <>
                         <div className="flex items-center justify-between">
                           <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{primary}</div>
-                          {requests[c.ownerUid] && (
+                          {requests[c.ownerUid] && !claims[c.ownerUid] && (
                             <span className="ml-2 inline-flex items-center justify-center text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 ring-1 ring-amber-300/60 dark:bg-amber-900/30 dark:text-amber-300 dark:ring-amber-700/60">Requested</span>
                           )}
                         </div>

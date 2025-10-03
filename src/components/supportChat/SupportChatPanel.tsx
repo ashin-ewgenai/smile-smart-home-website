@@ -138,17 +138,40 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     return () => unsub();
   }, []);
 
+  // Check if user has any support request or active support
+  const [hasSupportDocument, setHasSupportDocument] = useState(false);
+  const [hasSupportRequest, setHasSupportRequest] = useState(false);
+
   // Read per-user claim. If claimed, AI must be disabled and messages go to Firestore live chat
   useEffect(() => {
     if (!uid) {
       setClaimed(false);
+      setHasSupportDocument(false);
+      setHasSupportRequest(false);
       return;
     }
-    const unsub = onSnapshot(doc(db, 'support_claims', uid), (snap) => {
+
+    // Listen to support_claims for active support status
+    const claimsUnsub = onSnapshot(doc(db, 'support_claims', uid), (snap) => {
+      const exists = snap.exists();
+      setHasSupportDocument(exists);
       // Only set claimed if the document exists AND online is true
-      setClaimed(snap.exists() && Boolean(snap.data()?.online));
+      setClaimed(exists && Boolean(snap.data()?.online));
     });
-    return () => unsub();
+
+    // Listen to support_requests for pending request status
+    const requestsUnsub = onSnapshot(doc(db, 'support_requests', uid), (snap) => {
+      const exists = snap.exists();
+      const data = snap.data();
+      const requested = exists && Boolean(data?.requested);
+      console.log('Support requests update:', { exists, requested, data });
+      setHasSupportRequest(requested);
+    });
+
+    return () => {
+      claimsUnsub();
+      requestsUnsub();
+    };
   }, [uid]);
 
   // Fetch ticket data if ticketId is provided OR a session-bound ticket exists
@@ -531,6 +554,16 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     };
   }, [uid, sessionId, claimed, isAuthenticated]);
 
+  // Update session status when human support is claimed/cancelled
+  useEffect(() => {
+    if (uid && sessionId && isAuthenticated) {
+      setDoc(doc(db, 'chat_sessions', sessionId), {
+        status: claimed ? 'human' : 'ai',
+        updatedAt: Date.now(),
+      }, { merge: true }).catch(console.warn);
+    }
+  }, [claimed, uid, sessionId, isAuthenticated]);
+
   // Check if we need to show initial solution or prompt for device image after ticket analysis
   useEffect(() => {
     if (hasInitialized.current) return;
@@ -788,14 +821,144 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     }
   };
 
+  // Track if requestHuman is currently executing to prevent race conditions
+  const isRequestingHuman = useRef(false);
+
   const requestHuman = async () => {
     if (!uid) return;
+
+    // Prevent multiple simultaneous calls
+    if (isRequestingHuman.current) {
+      console.log('Request human already in progress, ignoring duplicate call');
+      return;
+    }
+    isRequestingHuman.current = true;
+
     try {
-      await setDoc(doc(db, 'support_requests', uid), {
-        requested: true,
-        at: Date.now(),
-      }, { merge: true });
-    } catch {}
+      const claimsRef = doc(db, 'support_claims', uid);
+      const claimsSnap = await getDoc(claimsRef);
+      const currentRequestState = hasSupportRequest;
+
+      console.log('=== REQUEST HUMAN START ===');
+      console.log('Current state:', { hasSupportRequest: currentRequestState, claimed });
+      console.log('Claims document exists:', claimsSnap.exists());
+      if (claimsSnap.exists()) {
+        console.log('Claims data:', claimsSnap.data());
+      }
+
+      if (claimsSnap.exists()) {
+        // User has a support document - check if it's active, pending, or cancelled
+        const isOnline = claimsSnap.data()?.online;
+        const cancelledAt = claimsSnap.data()?.cancelledAt;
+        const claimedAt = claimsSnap.data()?.claimedAt;
+
+        console.log('Document analysis:', {
+          isOnline,
+          cancelledAt,
+          claimedAt,
+          timeSinceCancelled: cancelledAt ? Date.now() - cancelledAt : null,
+          timeSinceClaimed: claimedAt ? Date.now() - claimedAt : null
+        });
+
+        if (isOnline) {
+          // User has active human support - cancel it
+          console.log('Cancelling ACTIVE support');
+          await setDoc(claimsRef, {
+            online: false,
+            updatedAt: Date.now(),
+          }, { merge: true });
+          await setDoc(doc(db, 'support_requests', uid), {
+            requested: false,
+            cancelledAt: Date.now(),
+          }, { merge: true });
+          console.log('✅ Cancelled active human support');
+        } else if (cancelledAt && (Date.now() - cancelledAt) < 60000) { // Cancelled within last minute
+          // Document was recently cancelled - treat as new request
+          console.log('Creating NEW support request (recently cancelled)');
+          await setDoc(claimsRef, {
+            online: false,
+            requestedAt: Date.now(),
+            updatedAt: Date.now(),
+            // Clear old cancellation data
+            cancelledAt: deleteField(),
+            claimedAt: deleteField(),
+            claimedBy: deleteField(),
+          }, { merge: true });
+
+          await setDoc(doc(db, 'support_requests', uid), {
+            requested: true,
+            requestedAt: Date.now(),
+            at: Date.now(),
+            status: 'requested',
+            // Clear old cancellation data
+            cancelledAt: deleteField(),
+          }, { merge: true });
+          console.log('✅ Created new support request from cancelled state');
+        } else {
+          // Document exists but not active and not recently cancelled - cancel it
+          console.log('Cancelling EXISTING pending request');
+          await setDoc(claimsRef, {
+            online: false,
+            cancelledAt: Date.now(),
+            updatedAt: Date.now(),
+          }, { merge: true });
+          await setDoc(doc(db, 'support_requests', uid), {
+            requested: false,
+            cancelledAt: Date.now(),
+          }, { merge: true });
+          console.log('✅ Cancelled existing pending support request');
+        }
+      } else {
+        // No support document exists - create new request
+        console.log('Creating NEW support request - no existing document');
+        await setDoc(claimsRef, {
+          online: false,
+          requestedAt: Date.now(),
+          updatedAt: Date.now(),
+        }, { merge: true });
+
+        // Update support_requests for new request
+        await setDoc(doc(db, 'support_requests', uid), {
+          requested: true,
+          requestedAt: Date.now(),
+          at: Date.now(),
+          status: 'requested'
+        }, { merge: true });
+        console.log('✅ Created new support request');
+      }
+
+      // Force immediate state verification and update
+      setTimeout(async () => {
+        try {
+          const verifySnap = await getDoc(doc(db, 'support_requests', uid));
+          const verifyData = verifySnap.data();
+          const expectedState = verifySnap.exists() && Boolean(verifyData?.requested);
+
+          console.log('🔍 State verification after timeout:', {
+            exists: verifySnap.exists(),
+            requested: verifyData?.requested,
+            expectedState,
+            currentState: hasSupportRequest
+          });
+
+          // Force state update if needed
+          if (hasSupportRequest !== expectedState) {
+            console.log('🔄 Forcing state update after timeout:', {
+              from: hasSupportRequest,
+              to: expectedState
+            });
+            setHasSupportRequest(expectedState);
+          }
+        } catch (error) {
+          console.error('❌ State verification failed:', error);
+        }
+      }, 100);
+
+    } catch (error) {
+      console.error('❌ Failed to toggle human support:', error);
+    } finally {
+      isRequestingHuman.current = false;
+    }
   };
 
   // Mark unresolved prompt as resolved in Firestore so it won't reappear
@@ -950,13 +1113,18 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Smart Assistant</h2>
               <div className="flex items-center gap-2 mt-1">
-                <div className={`h-2 w-2 rounded-full ${claimed ? 'bg-emerald-500' : 'bg-gray-400'}`} />
+                <div className={`h-2 w-2 rounded-full ${claimed ? 'bg-emerald-500' : hasSupportRequest ? 'bg-amber-500' : 'bg-gray-400'}`} />
                 <span className="text-xs text-gray-600 dark:text-gray-400">
-                  {claimed ? 'Human support connected' : 'AI Assistant active'}
+                  {claimed ? 'Human support connected' : hasSupportRequest ? 'Human support requested' : 'AI Assistant active'}
                 </span>
-                {!claimed && (
+                {!hasSupportRequest && (
                   <button onClick={requestHuman} className="text-xs px-2 py-1 rounded-full bg-teal-50 text-teal-700 hover:bg-teal-100 dark:bg-teal-900/20 dark:text-teal-300 dark:hover:bg-teal-900/40 transition-colors">
                     Request human
+                  </button>
+                )}
+                {hasSupportRequest && (
+                  <button onClick={requestHuman} className="text-xs px-2 py-1 rounded-full bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-900/20 dark:text-rose-300 dark:hover:bg-rose-900/40 transition-colors">
+                    Cancel request
                   </button>
                 )}
               </div>
@@ -1051,6 +1219,12 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                 <div>
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Connected to Support</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">You're now connected to our support team. Send your message to start the conversation.</p>
+                </div>
+              ) : hasSupportRequest ? (
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Human Support Requested</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Your request for human support is pending. An agent will connect with you shortly.</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">You can continue chatting with me in the meantime, or cancel your request using the button above.</p>
                 </div>
               ) : (
                 <div>
@@ -1272,9 +1446,9 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           className="flex items-center gap-3 mt-4"
           onSubmit={(e) => { e.preventDefault(); send(); }}
         >
-          {/* Image upload for human support only (no OCR/AI processing) */}
-          {claimed && (
-            <>
+          {/* Image upload for human support - available when request is made or claimed */}
+          {(claimed || hasSupportRequest) && (
+            <div className="flex items-center gap-2" title={`Debug: claimed=${claimed}, hasSupportRequest=${hasSupportRequest}, uid=${uid}, sessionId=${sessionId}`}>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1283,7 +1457,10 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (fileInputRef.current) fileInputRef.current.value = '';
-                  if (!file || !uid || !sessionId) return;
+                  if (!file || !uid || !sessionId) {
+                    console.error('Upload blocked:', { file: !!file, uid, sessionId });
+                    return;
+                  }
                   const tempId = Math.random().toString(36).slice(2);
                   setMessages(prev => [...prev, { id: tempId, role: 'user', uploading: true, ts: Date.now() }]);
                   try {
@@ -1291,6 +1468,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                     const ref = storageRef(storage, path);
                     const task = uploadBytesResumable(ref, file, { contentType: file.type });
                     task.on('state_changed', undefined, (error) => {
+                      console.error('Upload error:', error);
                       setMessages((prev) => prev.map((m) => m.id === tempId ? ({ id: tempId, role: 'agent', content: `Upload failed: ${error?.message || 'unknown error'}`, ts: Date.now() }) : m));
                     }, async () => {
                       const url = await getDownloadURL(task.snapshot.ref);
@@ -1298,17 +1476,23 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                       try {
                         const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
                         await addDoc(msgsCol, { role: 'user', imageUrl: url, ts: Date.now() });
-                      } catch {}
+                      } catch (err) {
+                        console.error('Failed to save image URL:', err);
+                      }
                     });
                   } catch (err) {
+                    console.error('Upload setup error:', err);
                     setMessages(prev => [...prev, { role: 'agent', content: 'Image upload failed. Please try again.', ts: Date.now() }]);
                   }
                 }}
               />
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors shadow-sm"
+                onClick={() => {
+                  console.log('Camera button clicked, claimed:', claimed, 'uid:', uid, 'sessionId:', sessionId);
+                  fileInputRef.current?.click();
+                }}
+                className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all duration-200 shadow-sm border border-blue-200 dark:border-blue-700"
                 title="Upload image for human support"
                 disabled={!isAuthenticated}
               >
@@ -1316,7 +1500,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
               </button>
-            </>
+            </div>
           )}
           <div className="flex-1 relative">
             <input
