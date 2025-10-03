@@ -9,6 +9,7 @@ import { httpsCallable } from 'firebase/functions';
 import AdminUserDetail from './AdminUserDetail';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
+import { Eye, EyeOff } from 'lucide-react';
 
 interface User { name: string; email: string }
 
@@ -43,6 +44,7 @@ const AdminUsers: React.FC = () => {
   const [addName, setAddName] = useState('');
   const [addEmail, setAddEmail] = useState('');
   const [addPassword, setAddPassword] = useState('');
+  const [showAddPassword, setShowAddPassword] = useState(false);
   const [addPhone, setAddPhone] = useState('');
   const [addAddress, setAddAddress] = useState('');
   const [addRole, setAddRole] = useState<Account['Role']>('user');
@@ -785,18 +787,29 @@ const AdminUsers: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                <input 
-                  type="password" 
-                  required 
-                  value={addPassword} 
-                  onChange={e => setAddPassword(e.target.value)} 
-                  placeholder="Enter a strong password"
-                  name="new-password"
-                  autoComplete="new-password"
-                  readOnly
-                  onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
-                  className="w-full px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" 
-                />
+                <div className="relative">
+                  <input 
+                    type={showAddPassword ? 'text' : 'password'} 
+                    required 
+                    value={addPassword} 
+                    onChange={e => setAddPassword(e.target.value)} 
+                    placeholder="Enter a strong password"
+                    name="new-password"
+                    autoComplete="new-password"
+                    readOnly
+                    onFocus={(e) => e.currentTarget.removeAttribute('readonly')}
+                    className="w-full pr-10 px-3 py-2 rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500" 
+                  />
+                  <button
+                    type="button"
+                    aria-label={showAddPassword ? 'Hide password' : 'Show password'}
+                    title={showAddPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowAddPassword(v => !v)}
+                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                  >
+                    {showAddPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Use at least 8 characters with a mix of letters and numbers.</p>
               </div>
               <div className="phone-input-container">

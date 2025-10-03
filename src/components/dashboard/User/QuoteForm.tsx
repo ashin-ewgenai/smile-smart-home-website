@@ -2,10 +2,10 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import LocationSelector from '../../common/LocationSelector';
 import { auth, db } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs, getDoc, limit, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy, getDocs, getDoc, limit, deleteDoc, doc, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
 
 import type { DocumentData } from 'firebase/firestore';
-import { estimationQuoteDoc, estimationQuotesCollection, type EstimationQuote } from '@/models/Collections';
+import { estimationQuoteDoc, estimationQuotesCollection, type EstimationQuote, adminNotificationsCollection } from '@/models/Collections';
 
 // ... (existing imports)
 
@@ -725,6 +725,29 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       };
 
       const docRef = await addDoc(collection(db, 'quotes'), quoteData);
+
+      // Create an admin notification for a new quote request (global for all admins)
+      try {
+        const adminNotifId = `admin_notification_${Date.now()}_${docRef.id}`;
+        const notif = {
+          title: 'New Quote Request Received',
+          message: `A new ${formData.quoteType || 'quote'} request has been submitted by ${userEmail || 'a user'}. Please review and provide an estimation.`,
+          type: 'quote_request' as const,
+          status: 'unread' as const,
+          createdAt: Timestamp.now(),
+          adminUid: null as any,
+          read: false,
+          relatedEntityId: docRef.id,
+          relatedEntityType: 'quote',
+          customerEmail: userEmail ?? null,
+          customerUid: uid,
+          priority: 'medium' as const,
+        };
+        await setDoc(doc(adminNotificationsCollection(db), adminNotifId), notif as any);
+      } catch (e) {
+        // Non-blocking: do not fail the quote submit if notification creation fails
+        console.warn('[QuoteForm] Failed to create admin notification for quote', e);
+      }
       
       setSubmitSuccess('Quote submitted successfully.');
       showToast('Quote submitted successfully.');

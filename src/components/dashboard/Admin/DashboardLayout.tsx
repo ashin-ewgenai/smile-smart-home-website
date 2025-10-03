@@ -21,7 +21,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
           </aside>
           {/* Main content - extended to match sidebar */}
           <div className="flex-1 md:ml-60 min-h-[calc(100vh-4rem)] flex flex-col w-full">
-            <main className="min-h-0 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8">
+            <main className="min-h-0 w-full mx-auto px-4 sm:px-6 py-6 lg:py-8 md:mx-0 md:max-w-none md:px-6 lg:max-w-7xl lg:mx-auto lg:px-8">
               {children}
             </main>
             {/* Removed bottom border */}

@@ -7,7 +7,10 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { 
   adminNotificationsCollection,
   adminNotificationDoc,
-  type AdminNotification
+  type AdminNotification,
+  supportTicketsCollection,
+  supportTicketDoc,
+  type SupportTicket
 } from '../../../../models/Collections';
 import { accountDoc, contactRequestsCollection, contactRequestDoc } from '../../../../models/Collections';
 import { showToast } from '../../../../lib/toast';
@@ -120,23 +123,23 @@ const Notifications: React.FC = () => {
     const priorityColor = item.priority === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' :
                          item.priority === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' :
                          'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
-    
+
     return (
-      <>
-        <span className="text-gray-900 dark:text-white font-medium">{item.title || 'Admin Notification'}</span>
+      <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 min-w-0 flex-1">
+        <span className="text-gray-900 dark:text-white font-medium break-words truncate">{item.title || 'Admin Notification'}</span>
         {item.customerEmail && (
-          <>
-            <span className="mx-2 text-gray-600 dark:text-gray-400">from</span>
+          <div className="flex items-center gap-1 sm:gap-2 text-sm">
+            <span className="text-gray-600 dark:text-gray-400 lg:whitespace-nowrap">from</span>
             <button
               type="button"
               onClick={onView}
-              className="text-teal-600 dark:text-teal-300 font-mono text-sm underline-offset-2 hover:underline"
+              className="text-teal-600 dark:text-teal-300 font-mono text-sm underline-offset-2 hover:underline truncate max-w-[150px] sm:max-w-[200px] md:max-w-[240px]"
             >
               {item.customerEmail}
             </button>
-          </>
+          </div>
         )}
-      </>
+      </div>
     );
   };
 
@@ -148,8 +151,16 @@ const Notifications: React.FC = () => {
       setUpdating(key);
       if (!item.id) return;
       
-      // Update admin notification status to 'read'
-      await updateDoc(adminNotificationDoc(db, item.id), { status: 'read' });
+      // Support ticket notifications are derived from Support_Tickets and not stored in Admin_Notifications
+      // So don't attempt to update Admin_Notifications for them
+      const isSupportTicket = String(item.type || '').toLowerCase() === 'support_ticket' || String(item.relatedEntityType || '').toLowerCase() === 'support_ticket';
+      if (isSupportTicket) {
+        // Persist read state for tickets as acknowledged
+        try { await updateDoc(supportTicketDoc(db, item.id), { status: 'ack' } as any); } catch {}
+      } else {
+        // Update admin notification status to 'read'
+        await updateDoc(adminNotificationDoc(db, item.id), { status: 'read' });
+      }
       
       // Update local state
       setItems(prev => prev.map(i => 
@@ -168,14 +179,20 @@ const Notifications: React.FC = () => {
     
     try {
       setUpdating(`delete:${item.id}`);
-      
-      // Delete admin notification
-      await deleteDoc(adminNotificationDoc(db, item.id));
-      
-      // Update local state by filtering out the deleted notification
-      setItems(prev => prev.filter(i => i.id !== item.id));
-      
-      showToast('Notification deleted', 'success');
+      const isSupportTicket = String(item.type || '').toLowerCase() === 'support_ticket' || String(item.relatedEntityType || '').toLowerCase() === 'support_ticket';
+      if (isSupportTicket) {
+        // Close the support ticket instead of deleting a notification doc
+        await updateDoc(supportTicketDoc(db, item.id), { status: 'closed' });
+        // Remove from local UI immediately
+        setItems(prev => prev.filter(i => i.id !== item.id));
+        showToast('Support ticket closed', 'success');
+      } else {
+        // Delete admin notification
+        await deleteDoc(adminNotificationDoc(db, item.id));
+        // Update local state by filtering out the deleted notification
+        setItems(prev => prev.filter(i => i.id !== item.id));
+        showToast('Notification deleted', 'success');
+      }
     } catch (error) {
       console.error('Error deleting notification:', error);
       showToast('Failed to delete notification', 'error');
@@ -199,6 +216,13 @@ const Notifications: React.FC = () => {
       return;
     }
 
+    // Support ticket notifications should go to Admin Reports regardless of id presence
+    if (typeStr === 'support_ticket' || String(item.relatedEntityType || '').toLowerCase() === 'support_ticket') {
+      // Use relative path because AdminApp uses BrowserRouter basename="/dashboard/admin"
+      navigate('/reports');
+      return;
+    }
+
     // Navigate based on related entity type and ID
     if (item.relatedEntityType && item.relatedEntityId) {
       switch (item.relatedEntityType) {
@@ -209,7 +233,8 @@ const Notifications: React.FC = () => {
           navigate(`/estimates?quoteId=${item.relatedEntityId}`);
           break;
         case 'support_ticket':
-          navigate(`/support/tickets?id=${item.relatedEntityId}`);
+          // Redirect support ticket notifications to the Admin Reports page (relative to basename)
+          navigate('/reports');
           break;
         default:
           // Default navigation or no navigation
@@ -224,6 +249,9 @@ const Notifications: React.FC = () => {
 
   useEffect(() => {
     let unsubs: Array<() => void> = [];
+    // Keep latest lists from each source to merge consistently across listeners
+    let latestAdmin: UnifiedNotification[] = [];
+    let latestTickets: UnifiedNotification[] = [];
 
     // Listen for auth state; only fetch after Firebase restores the session
     const stopAuth = onAuthStateChanged(auth, async (user) => {
@@ -260,7 +288,7 @@ const Notifications: React.FC = () => {
           // Intentionally suppress non-error logs to keep console clean
         }
 
-        // Initial fetch
+        // Initial fetch: Admin Notifications
         const snap = await getDocs(query(adminNotificationsCollection(db), orderBy('createdAt', 'desc')));
         const adminNotifications = snap.docs.map(d => {
           const data = d.data() as AdminNotification;
@@ -279,16 +307,62 @@ const Notifications: React.FC = () => {
             timestamp: data.createdAt?.toMillis?.() || 0,
           } as UnifiedNotification;
         });
+        latestAdmin = adminNotifications;
 
-        setItems(adminNotifications);
+        // Initial fetch: Support Tickets
+        let ticketNotifications: UnifiedNotification[] = [];
+        try {
+          const ticketSnap = await getDocs(query(supportTicketsCollection(db), orderBy('createdAt', 'desc')));
+          const docs = ticketSnap.docs;
+          // Resolve missing emails via Accounts/{uid}
+          const resolved = await Promise.all(docs.map(async (doc) => {
+            const data = doc.data() as SupportTicket;
+            const rawStatus = String(data.status || '').toLowerCase();
+            // Exclude closed/resolved/archived tickets from UI
+            if (rawStatus === 'resolved' || rawStatus === 'closed' || rawStatus === 'archived') {
+              return null as unknown as UnifiedNotification;
+            }
+            const adminReadFlag = (data as any)?.adminRead === true;
+            const notifStatus: 'read' | 'unread' = (rawStatus === 'ack' || adminReadFlag) ? 'read' : 'unread';
+            let email = (data as any)?.email || (data as any)?.userEmail || '';
+            const uid = (data as any)?.uid;
+            if (!email && uid) {
+              try {
+                const acc = await getDoc(accountDoc(db, uid));
+                email = ((acc.exists() ? (acc.data() as any)?.Email : null) || '') as string;
+              } catch {}
+            }
+            const fallbackId = uid || doc.id;
+            const title = email ? `Report from '${email}'` : `Report from '${fallbackId}'`;
+            return {
+              id: doc.id,
+              type: 'support_ticket',
+              title,
+              message: data.description,
+              createdAt: data.createdAt || null,
+              status: notifStatus,
+              customerEmail: email || undefined,
+              customerUid: uid,
+              relatedEntityId: doc.id,
+              relatedEntityType: 'support_ticket',
+              priority: 'medium',
+              timestamp: (data as any)?.createdAt?.toMillis?.() || 0,
+            } as UnifiedNotification;
+          }));
+          ticketNotifications = resolved.filter(Boolean) as UnifiedNotification[];
+        } catch {}
+        latestTickets = ticketNotifications;
+
+        // Merge and set
+        setItems([...(latestAdmin || []), ...(latestTickets || [])]);
         setAuthError(null);
         setLoaded(true);
 
-        // Real-time listener
+        // Real-time listener: Admin Notifications
         const unsubscribeAdminNotifications = onSnapshot(
           query(adminNotificationsCollection(db), orderBy('createdAt', 'desc')),
           (snapshot) => {
-            const updatedNotifications = snapshot.docs.map(doc => {
+            latestAdmin = snapshot.docs.map(doc => {
               const data = doc.data() as AdminNotification;
               return {
                 id: doc.id,
@@ -305,7 +379,7 @@ const Notifications: React.FC = () => {
                 timestamp: data.createdAt?.toMillis?.() || 0,
               } as UnifiedNotification;
             });
-            setItems(updatedNotifications);
+            setItems([...(latestAdmin || []), ...(latestTickets || [])]);
           },
           (error) => {
             console.error('Error in admin notifications listener:', error);
@@ -315,6 +389,58 @@ const Notifications: React.FC = () => {
           }
         );
         unsubs.push(unsubscribeAdminNotifications);
+
+        // Real-time listener: Support Tickets
+        try {
+          const unsubscribeTickets = onSnapshot(
+            query(supportTicketsCollection(db), orderBy('createdAt', 'desc')),
+            (snapshot) => {
+              (async () => {
+                const docs = snapshot.docs;
+                const mapped = await Promise.all(docs.map(async (doc) => {
+                  const data = doc.data() as SupportTicket;
+                  const rawStatus = String(data.status || '').toLowerCase();
+                  // Exclude closed/resolved/archived tickets from UI
+                  if (rawStatus === 'resolved' || rawStatus === 'closed' || rawStatus === 'archived') {
+                    return null as unknown as UnifiedNotification;
+                  }
+                  const adminReadFlag = (data as any)?.adminRead === true;
+                  const notifStatus: 'read' | 'unread' = (rawStatus === 'ack' || adminReadFlag) ? 'read' : 'unread';
+                  let email = (data as any)?.email || (data as any)?.userEmail || '';
+                  const uid = (data as any)?.uid;
+                  if (!email && uid) {
+                    try {
+                      const acc = await getDoc(accountDoc(db, uid));
+                      email = ((acc.exists() ? (acc.data() as any)?.Email : null) || '') as string;
+                    } catch {}
+                  }
+                  const fallbackId = uid || doc.id;
+                  const title = email ? `Report from '${email}'` : `Report from '${fallbackId}'`;
+                  return {
+                    id: doc.id,
+                    type: 'support_ticket',
+                    title,
+                    message: data.description,
+                    createdAt: data.createdAt || null,
+                    status: notifStatus,
+                    customerEmail: email || undefined,
+                    customerUid: uid,
+                    relatedEntityId: doc.id,
+                    relatedEntityType: 'support_ticket',
+                    priority: 'medium',
+                    timestamp: (data as any)?.createdAt?.toMillis?.() || 0,
+                  } as UnifiedNotification;
+                }));
+                latestTickets = (mapped.filter(Boolean) as UnifiedNotification[]);
+                setItems([...(latestAdmin || []), ...(latestTickets || [])]);
+              })();
+            },
+            (error) => {
+              console.error('Error in support tickets listener:', error);
+            }
+          );
+          unsubs.push(unsubscribeTickets);
+        } catch {}
       } catch (error: any) {
         console.error('Error fetching admin notifications:', error);
         if (error.code === 'permission-denied') {
@@ -415,36 +541,30 @@ const Notifications: React.FC = () => {
                 className={`rounded-xl border p-6 transition-colors ${unread ? 'border-indigo-700/50 bg-indigo-900/20 hover:bg-indigo-900/30 dark:border-indigo-700/50 dark:bg-indigo-900/20 dark:hover:bg-indigo-900/30' : 'border-gray-300 bg-white/80 hover:bg-gray-100 dark:border-gray-800 dark:bg-gray-900/30 dark:hover:bg-gray-900/50'} cursor-pointer`}
                 onClick={() => navigateToItem(item)}
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
+                <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between">
+                  <div className="flex-1 min-w-0">
                     <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      <span className="inline-flex w-full items-center justify-between gap-3">
-                        <span
-                          className="min-w-0 cursor-pointer"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigateToItem(item);
-                          }}
-                        >
+                      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 lg:gap-3">
+                        <div className="min-w-0 flex-1">
                           {getNotificationTitle(item, (e) => {
                             e.stopPropagation();
                             if (unread) { markAsRead(item); }
                             navigateToItem(item);
                           })}
-                        </span>
+                        </div>
                         {createdAt && (
-                          <span className="text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap ml-3">
+                          <span className="text-xs text-gray-600 dark:text-gray-400 lg:whitespace-nowrap lg:ml-3">
                             {fmt(createdAt)}
                           </span>
                         )}
-                      </span>
+                      </div>
                     </h3>
                     {/* Description removed as requested */}
                   </div>
-                  <div className="flex items-center space-x-2 ml-4">
+                  <div className="flex flex-wrap items-center gap-2 flex-shrink-0 mt-3 lg:mt-0 lg:ml-4">
                     {unread && (
                       <>
-                        <span className="ml-2 px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
+                        <span className="px-2 py-1 text-xs rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-300">
                           New
                         </span>
                         <button

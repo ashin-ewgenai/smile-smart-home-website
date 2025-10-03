@@ -3,7 +3,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 
@@ -26,7 +26,11 @@ export const auth = getAuth(firebaseApp);
 try {
   setPersistence(auth, browserLocalPersistence).catch(() => {});
 } catch {}
-export const db = getFirestore(firebaseApp);
+// Use initializeFirestore with long-polling to avoid QUIC/HTTP3 transport issues on constrained networks
+export const db = initializeFirestore(firebaseApp, {
+  experimentalAutoDetectLongPolling: true,
+  useFetchStreams: false,
+});
 export const storage = getStorage(firebaseApp);
 // Explicit region to match deployed Cloud Functions
 export const functions = getFunctions(firebaseApp, 'us-central1');

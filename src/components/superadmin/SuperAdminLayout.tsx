@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { handleLogout as adminLogout } from '../dashboard/Admin/LogoutHandler';
-import { UserCircle, Sun, Moon, Shield } from 'lucide-react';
+import { UserCircle, Sun, Moon, Shield, Menu, X } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
 import { getDoc } from 'firebase/firestore';
@@ -14,6 +14,7 @@ export default function SuperAdminLayout({ children }: Props) {
   const location = useLocation();
   const [viewRole, setViewRole] = useState<string | null>(null);
   const [viewRoleLoading, setViewRoleLoading] = useState<boolean>(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     try {
       const saved = localStorage.getItem('theme');
@@ -154,9 +155,16 @@ export default function SuperAdminLayout({ children }: Props) {
         <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between relative">
           {/* Centered dynamic title removed to avoid duplication with page headers */}
           <div className="flex items-center gap-2">
+            <img
+              src="/logo-primary.png"
+              alt="Smile Smart Homes logo"
+              className="h-7 w-auto object-contain select-none"
+              draggable={false}
+            />
             <Link to={`${SUPER_ADMIN_BASE_PATH}/dashboard`} className="font-semibold">Smile Smart Homes</Link>
           </div>
-          <nav className="flex items-center gap-2 sm:gap-4 text-sm relative">
+          {/* Desktop nav */}
+          <nav className="hidden md:flex items-center gap-2 sm:gap-4 text-sm relative">
             <a
               href="/dashboard/admin"
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-teal-300 text-teal-700 hover:bg-teal-50 dark:border-teal-500 dark:text-teal-300 dark:hover:bg-teal-900/20 transition-colors"
@@ -253,9 +261,68 @@ export default function SuperAdminLayout({ children }: Props) {
                     </div>
                   </div>
                 )}
-              </div>
+            </div>
           </nav>
+          {/* Mobile hamburger */}
+          <div className="md:hidden flex items-center">
+            <button
+              type="button"
+              aria-label="Open menu"
+              title="Open menu"
+              onClick={() => setIsMobileMenuOpen(v => !v)}
+              className="inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+          </div>
         </div>
+        {/* Mobile menu panel */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <div className="max-w-full mx-auto px-4 py-3 space-y-2">
+              <a
+                href="/dashboard/admin"
+                className="flex items-center gap-3 px-2 py-2 rounded-md border border-teal-300 text-teal-700 hover:bg-teal-50 dark:border-teal-500 dark:text-teal-300 dark:hover:bg-teal-900/20"
+                title="Switch to Admin Dashboard"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <Shield className="h-4 w-4" />
+                <span className="text-base">Switch to Admin</span>
+              </a>
+              <button
+                type="button"
+                onClick={() => { toggleTheme(); setIsMobileMenuOpen(false); }}
+                className="flex items-center gap-3 px-2 py-2 rounded-md text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+                aria-label="Toggle theme"
+              >
+                {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                <span className="text-base">{theme === 'dark' ? 'Light theme' : 'Dark theme'}</span>
+              </button>
+              {auth?.currentUser?.uid ? (
+                <Link
+                  to={`${SUPER_ADMIN_BASE_PATH}/user/${encodeURIComponent(auth.currentUser.uid)}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-2 py-2 rounded-md text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                  title="My Profile"
+                  aria-label="My Profile"
+                >
+                  <UserCircle className="h-5 w-5" />
+                  <span className="text-base">My Profile</span>
+                </Link>
+              ) : (
+                <span
+                  className="flex items-center gap-3 px-2 py-2 rounded-md text-gray-400 dark:text-gray-500 cursor-not-allowed"
+                  title="My Profile"
+                  aria-label="My Profile"
+                >
+                  <UserCircle className="h-5 w-5" />
+                  <span className="text-base">My Profile</span>
+                </span>
+              )}
+            </div>
+          </div>
+        )}
       </header>
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-6 overflow-y-auto">
         {children}

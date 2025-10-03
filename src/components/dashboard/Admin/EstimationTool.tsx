@@ -531,6 +531,8 @@ const EstimationTool: React.FC = () => {
         type: 'estimation_quote' as const,
         status: 'unread' as const,
         createdAt: Timestamp.now(),
+        adminUid: null as any,
+        read: false,
         relatedEntityId: quoteId,
         relatedEntityType: 'estimation_quote',
         customerEmail: customerEmail,

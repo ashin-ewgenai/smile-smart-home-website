@@ -44,19 +44,74 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
     } catch {}
   }, []);
 
-  // Listen for unread admin notifications and toggle red dot
+  // Listen for unread notifications and toggle red dot
   useEffect(() => {
     if (userType === 'admin') {
+      // For admins, respect rules that may scope reads by adminUid
+      let unsubAuth: any;
+      let unsubTargeted: any;
+      let unsubGlobal: any;
       try {
-        const q = query(adminNotificationsCollection(db), where('status', '==', 'unread'), limit(1));
-        const unsub = onSnapshot(q, (snap) => {
-          setHasUnread(!snap.empty);
-        }, () => {
-          // On permission errors or any failure, don't break navbar; just hide dot
-          setHasUnread(false);
+        unsubAuth = auth.onAuthStateChanged((user) => {
+          // Cleanup previous listeners when auth changes
+          try { if (unsubTargeted) unsubTargeted(); } catch {}
+          try { if (unsubGlobal) unsubGlobal(); } catch {}
+          if (!user?.uid) {
+            setHasUnread(false);
+            return;
+          }
+          try {
+            // Admin-specific notifications
+            const q1 = query(
+              adminNotificationsCollection(db),
+              where('adminUid', '==', user.uid),
+              orderBy('createdAt', 'desc'),
+              limit(25)
+            );
+            // Global admin notifications (broadened: no adminUid filter; rules must gate access)
+            const q2 = query(
+              adminNotificationsCollection(db),
+              orderBy('createdAt', 'desc'),
+              limit(25)
+            );
+            let latestTargetedUnread = false;
+            let latestGlobalUnread = false;
+            const compute = () => setHasUnread(latestTargetedUnread || latestGlobalUnread);
+            unsubTargeted = onSnapshot(q1, (snap) => {
+              latestTargetedUnread = snap.docs.some((d) => {
+                const data: any = d.data();
+                const status = String((data?.status ?? data?.Status ?? '') as string).toLowerCase();
+                const readFlag = (data?.read ?? data?.isRead) as boolean | undefined;
+                return status === 'unread' || readFlag === false;
+              });
+              compute();
+            }, (err) => {
+              try { console.warn('Admin targeted notifications error:', err?.message || err); } catch {}
+              latestTargetedUnread = false;
+              compute();
+            });
+            unsubGlobal = onSnapshot(q2, (snap) => {
+              latestGlobalUnread = snap.docs.some((d) => {
+                const data: any = d.data();
+                const status = String((data?.status ?? data?.Status ?? '') as string).toLowerCase();
+                const readFlag = (data?.read ?? data?.isRead) as boolean | undefined;
+                return status === 'unread' || readFlag === false;
+              });
+              compute();
+            }, (err) => {
+              try { console.warn('Admin global notifications error:', err?.message || err); } catch {}
+              latestGlobalUnread = false;
+              compute();
+            });
+          } catch (err) {
+            try { console.warn('Admin notifications setup error:', (err as any)?.message || err); } catch {}
+            setHasUnread(false);
+          }
         });
         return () => {
-          try { unsub(); } catch {}
+          try { if (unsubTargeted) unsubTargeted(); } catch {}
+          try { if (unsubGlobal) unsubGlobal(); } catch {}
+          try { if (unsubAuth) unsubAuth(); } catch {}
         };
       } catch {
         setHasUnread(false);
@@ -77,12 +132,21 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
             const uq = query(
               userNotificationsCollection(db),
               where('uid', '==', user.uid),
+              orderBy('createdAt', 'desc'),
               limit(25)
             );
             unsubNotif = onSnapshot(uq, (snap) => {
-              const anyUnread = snap.docs.some(d => String((d.data() as any).status || '').toLowerCase() === 'unread');
+              const anyUnread = snap.docs.some(d => {
+                const data: any = d.data();
+                const status = String((data?.status ?? data?.Status ?? '') as string).toLowerCase();
+                const readFlag = (data?.read ?? data?.isRead) as boolean | undefined;
+                return status === 'unread' || readFlag === false;
+              });
               setHasUnread(anyUnread);
-            }, () => setHasUnread(false));
+            }, (err) => {
+              try { console.warn('User notifications listener error:', err?.message || err); } catch {}
+              setHasUnread(false);
+            });
           } catch {
             setHasUnread(false);
           }
@@ -264,23 +328,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
         )}
       </div>
 
-      {/* Mobile profile dropdown: full-width, inline to push content (no overlap) */}
-      {isProfileDropdownOpen && (
-        <div className="md:hidden border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 w-full">
-          <div className="max-w-full mx-auto px-4 py-3 space-y-1">
-            <div className="px-1 pb-2 text-sm text-gray-700 dark:text-gray-200">
-              <p className="font-medium">{actualUserName}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{userType}</p>
-            </div>
-            <button 
-              onClick={handleLogout}
-              className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              Sign out
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Mobile profile dropdown removed: account section is provided inside the mobile menu */}
 
       {isMobileMenuOpen && (
         <div className="md:hidden">
@@ -353,19 +401,40 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
 
               {/* Notifications */}
               {userType === 'admin' ? (
-                <a
-                  href="/dashboard/admin/notifications"
+                <Link
+                  to="/notifications"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="flex items-center gap-3 px-2 py-2 rounded-md text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
+                  className="flex items-center gap-3 px-2 py-2 rounded-md text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 relative"
                 >
-                  <Bell className="h-5 w-5" />
+                  <div className="relative">
+                    <Bell className="h-5 w-5" />
+                    {hasUnread && (
+                      <span
+                        aria-hidden
+                        className="absolute -top-0.5 -right-0.5 inline-block h-2.5 w-2.5 rounded-full bg-red-500"
+                      />
+                    )}
+                  </div>
                   <span className="text-base">Notifications</span>
-                </a>
+                </Link>
               ) : (
                 <div className="flex items-center gap-3 px-2 py-2 rounded-md text-gray-500 dark:text-gray-400">
                   <Bell className="h-5 w-5 opacity-50" />
                   <span className="text-base">Notifications</span>
                 </div>
+              )}
+
+              {/* Super Admin switch (mobile) */}
+              {isSuperAdmin && (
+                <a
+                  href={`${SUPER_ADMIN_BASE_PATH}/dashboard`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="flex items-center gap-3 px-2 py-2 rounded-md border border-yellow-300 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 dark:border-yellow-600 dark:text-yellow-200 dark:bg-yellow-900/20"
+                  title="Switch to Super Admin Dashboard"
+                >
+                  <Crown className="h-4 w-4" />
+                  <span className="text-base">Super Admin</span>
+                </a>
               )}
 
               {/* Account */}

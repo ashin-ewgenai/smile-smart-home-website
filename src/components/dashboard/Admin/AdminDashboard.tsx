@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText, ChevronDown, TrendingUp, TrendingDown, Activity } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
+import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText, ChevronDown, TrendingUp, TrendingDown, Activity, Eye, EyeOff } from 'lucide-react';
+import { collection, getDocs, query, where } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
-import { COLLECTION_ACCOUNTS, registerUserWithProfile, type Account } from '../../../models/Collections';
+import { COLLECTION_ACCOUNTS, accountsCollection, registerUserWithProfile, type Account } from '../../../models/Collections';
 
 interface User {
   id: string;
@@ -95,6 +95,7 @@ const AdminDashboard: React.FC = () => {
   const [addName, setAddName] = useState('');
   const [addEmail, setAddEmail] = useState('');
   const [addPassword, setAddPassword] = useState('');
+  const [showAddPassword, setShowAddPassword] = useState(false);
   const [addRole, setAddRole] = useState<Account['Role']>('user');
   const [adding, setAdding] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
@@ -134,8 +135,12 @@ const AdminDashboard: React.FC = () => {
     const fetchAndProcessUsers = async () => {
       try {
         setIsLoading(true);
-        const usersRef = collection(db, COLLECTION_ACCOUNTS);
-        const querySnapshot = await getDocs(usersRef);
+        const usersRef = accountsCollection(db);
+        // Restrict to end-user accounts to comply with stricter Firestore rules
+        const querySnapshot = await getDocs(
+          // fetch only Accounts where Role == 'user'
+          query(usersRef, where('Role', '==', 'user'))
+        );
         
         // Process all users with proper typing
         const allUsers = querySnapshot.docs.map(doc => {
@@ -149,8 +154,7 @@ const AdminDashboard: React.FC = () => {
             CreatedAt: data.CreatedAt || null
           } as User;
         });
-        
-        // Filter for users with role 'user' and sort by CreatedAt
+        // Already constrained by query; still defensively filter and then sort
         const userAccounts = allUsers
           .filter(user => user.Role === 'user')
           .sort((a, b) => {
@@ -194,6 +198,9 @@ const AdminDashboard: React.FC = () => {
         
       } catch (error) {
         console.error('Error processing users:', error);
+        // Permission-denied or other failures: show empty state gracefully
+        setRecentUsers([]);
+        setUserStats({ totalUsers: 0, activeUsers: 0, newUsers: 0 });
       } finally {
         setIsLoading(false);
       }
@@ -433,7 +440,24 @@ const AdminDashboard: React.FC = () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                <input type="password" required value={addPassword} onChange={e => setAddPassword(e.target.value)} className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+                <div className="relative">
+                  <input
+                    type={showAddPassword ? 'text' : 'password'}
+                    required
+                    value={addPassword}
+                    onChange={e => setAddPassword(e.target.value)}
+                    className="w-full pr-10 px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+                  />
+                  <button
+                    type="button"
+                    aria-label={showAddPassword ? 'Hide password' : 'Show password'}
+                    title={showAddPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowAddPassword(v => !v)}
+                    className="absolute inset-y-0 right-0 px-3 flex items-center text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 outline-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0"
+                  >
+                    {showAddPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Role</label>
