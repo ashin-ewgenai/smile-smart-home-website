@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
-import { auth, db } from '../../lib/firebase';
+import { auth, db, storage } from '../../lib/firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { accountDoc } from '../../models/Collections';
+import { getDownloadURL, listAll, ref as storageRef } from 'firebase/storage';
 
 function setText(el: Element | null, text: string) {
   if (el) (el as HTMLElement).textContent = text && text.trim() ? text : 'Dashboard';
@@ -77,6 +78,38 @@ export default function AuthNavClient() {
       return undefined;
     }
 
+    async function resolveAvatarUrl(user: any): Promise<string | undefined> {
+      try {
+        if (!user?.uid) return user?.photoURL || undefined;
+        // 1) Try Firestore Accounts/{uid}.profilePic (set by UserProfile.tsx after upload)
+        try {
+          const snap = await getDoc(accountDoc(db, user.uid));
+          const url = (snap.exists() ? (snap.data() as any)?.profilePic : undefined) as string | undefined;
+          if (url && typeof url === 'string' && url.startsWith('http')) {
+            return url;
+          }
+        } catch {}
+        // 2) Try Firebase Storage under profile/{uid}/ (latest uploaded file)
+        try {
+          const folderRef = storageRef(storage, `profile/${user.uid}`);
+          const listing = await listAll(folderRef);
+          const items = listing.items || [];
+          if (items.length > 0) {
+            // If filenames include timestamps (UserProfile uses Date.now()), pick lexicographically last
+            const sorted = items.slice().sort((a, b) => a.name.localeCompare(b.name));
+            const latest = sorted[sorted.length - 1];
+            const url = await getDownloadURL(latest);
+            return url;
+          }
+        } catch {}
+        // 3) Fallback to Auth photoURL if available
+        if (user?.photoURL) {
+          return user.photoURL as string;
+        }
+      } catch {}
+      return undefined;
+    }
+
     async function updateUI(user: any) {
       const isAuthed = !!user;
 
@@ -91,6 +124,25 @@ export default function AuthNavClient() {
       show(els.userText, isAuthed);
       show(els.userMenu, isAuthed);
       if (isAuthed) setText(els.userText, usernameFrom(user));
+
+      // Update avatar in the user menu trigger
+      try {
+        const trigger = els.userMenuTrigger as HTMLElement | null;
+        if (trigger) {
+          let url: string | undefined = undefined;
+          if (isAuthed) url = await resolveAvatarUrl(user);
+          if (url) {
+            trigger.innerHTML = `<img src="${url}" alt="Profile" class="h-8 w-8 rounded-full object-cover" />`;
+          } else {
+            trigger.innerHTML = `
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5">
+                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                <circle cx="12" cy="7" r="4"/>
+              </svg>
+            `;
+          }
+        }
+      } catch {}
 
       // Mobile (use authentication state)
       show(els.mSignIn, !isAuthed);

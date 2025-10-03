@@ -67,8 +67,6 @@ const Notifications: React.FC = () => {
   };
 
   const filteredItems = useMemo(() => {
-    console.log('Filtering items. Total items:', items.length, 'Items:', items);
-    console.log('Current filter:', filter, 'Unread only:', unreadOnly);
     const filtered = items.filter(item => {
       let matchesFilter = false;
       if (filter === 'all') {
@@ -253,14 +251,13 @@ const Notifications: React.FC = () => {
         try {
           const accSnap = await getDoc(accountDoc(db, uid));
           const role = accSnap.exists() ? (accSnap.data() as any).Role : null;
-          console.log('[AdminNotifications] Authenticated user context', { uid, email, role, projectId });
           if (role !== 'admin' && role !== 'Super Admin') {
             setAuthError(`Signed in as ${email || uid}, but role is '${role ?? 'unknown'}'. Admin access required.`);
             setLoaded(true);
             return;
           }
         } catch (roleErr) {
-          console.warn('[AdminNotifications] Failed to read Accounts doc for role verification', roleErr);
+          // Intentionally suppress non-error logs to keep console clean
         }
 
         // Initial fetch

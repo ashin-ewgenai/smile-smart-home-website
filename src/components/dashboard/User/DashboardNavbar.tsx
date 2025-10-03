@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, User, LogOut, Settings, ArrowLeft, Moon, Sun, Bell } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { onSnapshot, query, where, limit } from 'firebase/firestore';
-import { auth, db } from '../../../lib/firebase';
+import { onSnapshot, query, where, limit, doc, getDoc } from 'firebase/firestore';
+import { auth, db, storage } from '../../../lib/firebase';
 import { userNotificationsCollection } from '../../../models/Collections';
 import { handleLogout } from './LogoutHandler';
+import { getDownloadURL, listAll, ref as storageRef } from 'firebase/storage';
 
 interface DashboardNavbarProps {
   userType: 'admin' | 'user';
@@ -22,6 +23,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
       return false;
     }
   });
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   // Safely use location only in browser environment
   const location = typeof window !== 'undefined' ? useLocation() : { pathname: '' };
   const navigate = useNavigate();
@@ -45,6 +47,53 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
       // Capitalize first letter
       setActualUserName(name.charAt(0).toUpperCase() + name.slice(1));
     }
+  }, []);
+
+  // Resolve and watch avatar URL (Firestore -> Storage -> Auth photoURL)
+  useEffect(() => {
+    let unsub: any;
+    try {
+      unsub = auth.onAuthStateChanged(async (user) => {
+        try {
+          if (!user?.uid) { setAvatarUrl(null); return; }
+          // 1) Firestore Accounts/{uid}.profilePic
+          try {
+            const snap = await getDoc(doc(db, 'Accounts', user.uid));
+            const url = (snap.exists() ? (snap.data() as any)?.profilePic : undefined) as string | undefined;
+            if (url && typeof url === 'string' && url.startsWith('http')) {
+              try { console.debug('[DashboardNavbar] Avatar from Firestore:', url); } catch {}
+              setAvatarUrl(url);
+              return;
+            }
+          } catch {}
+          // 2) Storage profile/{uid}/ latest
+          try {
+            const folderRef = storageRef(storage, `profile/${user.uid}`);
+            const listing = await listAll(folderRef);
+            const items = listing.items || [];
+            if (items.length > 0) {
+              const sorted = items.slice().sort((a, b) => a.name.localeCompare(b.name));
+              const latest = sorted[sorted.length - 1];
+              const url = await getDownloadURL(latest);
+              try { console.debug('[DashboardNavbar] Avatar from Storage:', { path: latest.fullPath, url }); } catch {}
+              setAvatarUrl(url);
+              return;
+            }
+          } catch {}
+          // 3) Auth photoURL
+          if (user.photoURL) {
+            try { console.debug('[DashboardNavbar] Avatar from Auth photoURL:', user.photoURL); } catch {}
+            setAvatarUrl(user.photoURL);
+            return;
+          }
+          // Fallback
+          setAvatarUrl(null);
+        } catch {
+          setAvatarUrl(null);
+        }
+      });
+    } catch {}
+    return () => { try { if (unsub) unsub(); } catch {} };
   }, []);
 
   // Initialize dark mode from storage or media preference
@@ -191,8 +240,12 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                   onClick={toggleProfileDropdown}
                 >
                   <span className="sr-only">Open user menu</span>
-                  <div className="h-8 w-8 rounded-full flex items-center justify-center bg-black dark:bg-teal-500 text-white ring-1 ring-gray-300/60 dark:ring-teal-300/40 shadow-sm">
-                    <User className="h-5 w-5" />
+                  <div className="h-8 w-8 rounded-full flex items-center justify-center bg-black dark:bg-teal-500 text-white ring-1 ring-gray-300/60 dark:ring-teal-300/40 shadow-sm overflow-hidden">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="Profile" className="h-8 w-8 rounded-full object-cover" />
+                    ) : (
+                      <User className="h-5 w-5" />
+                    )}
                   </div>
                 </button>
               </div>

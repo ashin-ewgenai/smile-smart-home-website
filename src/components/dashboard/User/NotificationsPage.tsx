@@ -48,10 +48,7 @@ const NotificationsPage: React.FC = () => {
       });
       setNotifications(notifs as any);
       setLoading(false);
-    }, (error) => {
-      console.error('Error fetching notifications:', error);
-      setLoading(false);
-    });
+    }, () => { setLoading(false); });
 
     return () => unsub();
   }, [userUid]);
@@ -85,9 +82,19 @@ const NotificationsPage: React.FC = () => {
         ) => {
           const ref = userNotificationDoc(db, notifId);
           // Only create if missing; do NOT overwrite existing doc (preserve read status)
-          const snap = await getDoc(ref);
-          if (snap.exists()) return;
-          await setDoc(ref, payload);
+          let exists = false;
+          try {
+            const snap = await getDoc(ref);
+            exists = snap.exists();
+          } catch {}
+          if (exists) {
+            return;
+          }
+          try {
+            await setDoc(ref, payload);
+          } catch (err) {
+            throw err;
+          }
         };
 
         for (const d of snap.docs) {
@@ -95,17 +102,17 @@ const NotificationsPage: React.FC = () => {
           const deviceId = d.id;
           const deviceName = data.deviceName || data.name || 'Device';
           const serials: any[] = Array.isArray(data.serials) ? data.serials : [];
+          
 
           for (let idx = 0; idx < serials.length; idx++) {
             const s = serials[idx] || {};
-            const expiry: string | undefined = s.warrantyExpiry;
-            if (!expiry) continue;
+            const expiry = getExpiryFromSerial(s, data);
+            if (!expiry) { continue; }
 
             const expired = isPast(expiry);
-            const days = daysUntil(expiry) ?? 9999;
-            const expiringSoon = !expired && days <= 30;
-            const typeKey = expired ? 'warranty_expired' : expiringSoon ? 'warranty_expiring' : null;
-            if (!typeKey) continue;
+            const days = daysUntil(expiry);
+            // Always create a notification if an expiry exists, regardless of days remaining
+            const typeKey = expired ? 'warranty_expired' : 'warranty_expiring';
 
             const serialKey = String(s.serialNumber || s.serial || idx);
             const baseKey = `${userUid}:${deviceId}:${serialKey}`;
@@ -114,9 +121,12 @@ const NotificationsPage: React.FC = () => {
             const title = expired
               ? `Warranty expired for ${deviceName}`
               : `Warranty expiring soon for ${deviceName}`;
+            const daysText = days != null ? ` (${days} days left).` : '.';
             const message = expired
               ? `The warranty for serial ${serialKey} expired on ${expiry}.`
-              : `The warranty for serial ${serialKey} expires on ${expiry} (${days} days left).`;
+              : `The warranty for serial ${serialKey} expires on ${expiry}${daysText}`;
+
+            
 
             await createNotifIfMissing(notifId, {
               uid: userUid,
@@ -130,17 +140,14 @@ const NotificationsPage: React.FC = () => {
               warrantyExpiry: expiry,
               key: baseKey,
             });
+            
           }
         }
       } catch (e: any) {
         const msg = e?.message || '';
         const code = e?.code || '';
         // Gracefully ignore permission issues for User_Devices reads
-        if (code === 'permission-denied' || msg.includes('Missing or insufficient permissions')) {
-          try { console.debug('[NotificationsPage] Warranty scan skipped due to permissions'); } catch {}
-          return;
-        }
-        console.warn('Warranty scan failed', e);
+        if (code === 'permission-denied' || msg.includes('Missing or insufficient permissions')) { return; }
       }
     };
 
@@ -159,7 +166,6 @@ const NotificationsPage: React.FC = () => {
         readAt: serverTimestamp()
       });
     } catch (error) {
-      console.error('Error marking notification as read:', error);
       // Revert optimistic update on failure
       setNotifications(prev => prev.map(n => n.id === notificationId ? { ...n, status: 'unread' } : n));
     } finally {
@@ -176,7 +182,6 @@ const NotificationsPage: React.FC = () => {
     try {
       await deleteDoc(userNotificationDoc(db, notificationId));
     } catch (error) {
-      console.error('Error deleting notification:', error);
       // Revert on failure
       setNotifications(prevState);
     }
@@ -244,6 +249,11 @@ const NotificationsPage: React.FC = () => {
     [notifications]
   );
 
+  const readNotifications = useMemo(() => 
+    notifications.filter(n => n.status !== 'unread'), 
+    [notifications]
+  );
+
   // Determine if a notification is a quote-related notification
   const isQuoteNotification = (n: any): boolean => {
     const title = (n?.title || '').toString().toLowerCase();
@@ -257,30 +267,82 @@ const NotificationsPage: React.FC = () => {
     return (n?.type === 'device') && title.includes('warranty');
   };
 
-  // Warranty utility functions
-  const parseYMD = (dateStr: string): Date | null => {
-    if (!dateStr) return null;
-    const [y, m, d] = dateStr.split('-').map(Number);
-    if (!y || !m || !d) return null;
-    // Create date in local TZ at midnight
-    return new Date(y, m - 1, d);
+  // Warranty date parsing (supports YYYY-MM-DD, DD/MM/YYYY, ISO strings, Date, Firestore Timestamp)
+  const toLocalMidnight = (d: Date): Date => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  const parseDateFlexible = (value: any): Date | null => {
+    try {
+      if (!value) return null;
+      // Firestore Timestamp
+      if (value?.toDate && typeof value.toDate === 'function') {
+        return toLocalMidnight(value.toDate());
+      }
+      // Already a Date
+      if (value instanceof Date) {
+        return toLocalMidnight(value);
+      }
+      if (typeof value === 'string') {
+        const s = value.trim();
+        // YYYY-MM-DD
+        const mYMD = s.match(/^\d{4}-\d{2}-\d{2}$/);
+        if (mYMD) {
+          const [y, m, d] = s.split('-').map(Number);
+          if (y && m && d) return new Date(y, m - 1, d);
+        }
+        // DD/MM/YYYY
+        const mDMY = s.match(/^\d{2}\/\d{2}\/\d{4}$/);
+        if (mDMY) {
+          const [dd, mm, yyyy] = s.split('/').map(Number);
+          if (yyyy && mm && dd) return new Date(yyyy, mm - 1, dd);
+        }
+        // Try ISO or Date-parsable string
+        const parsed = new Date(s);
+        if (!isNaN(parsed.getTime())) return toLocalMidnight(parsed);
+      }
+    } catch {}
+    
+    return null;
   };
 
-  const isPast = (dateStr: string): boolean => {
-    const d = parseYMD(dateStr);
+  const isPast = (dateVal: any): boolean => {
+    const d = parseDateFlexible(dateVal);
     if (!d) return false;
-    const today = new Date();
-    // Normalize both to midnight for fair comparison
-    const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const todayMid = toLocalMidnight(new Date());
     return d < todayMid;
   };
 
-  const daysUntil = (dateStr: string): number | null => {
-    const d = parseYMD(dateStr);
+  const daysUntil = (dateVal: any): number | null => {
+    const d = parseDateFlexible(dateVal);
     if (!d) return null;
-    const today = new Date();
-    const diffMs = d.getTime() - new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    const todayMid = toLocalMidnight(new Date());
+    const diffMs = d.getTime() - todayMid.getTime();
     return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  };
+
+  // Attempt to extract warranty expiry from various common keys
+  const getExpiryFromSerial = (serial: any, device: any): any => {
+    const candidates = [
+      serial?.warrantyExpiry,
+      serial?.warranty_expiry,
+      serial?.warrantyExpiryDate,
+      serial?.warranty_end,
+      serial?.warrantyEnd,
+      serial?.expiry,
+      serial?.expirationDate,
+      serial?.expiresOn,
+      // sometimes set at device level
+      device?.warrantyExpiry,
+      device?.warranty_expiry,
+      device?.warrantyExpiryDate,
+      device?.warranty_end,
+      device?.warrantyEnd,
+      device?.expiry,
+      device?.expirationDate,
+    ];
+    for (const v of candidates) {
+      if (v !== undefined && v !== null && String(v).toString().trim() !== '') return v;
+    }
+    return undefined;
   };
 
   // Manual test function
@@ -291,10 +353,6 @@ const NotificationsPage: React.FC = () => {
     }
     
     try {
-      console.log('Manual test: Creating notification for user:', userUid);
-      console.log('Auth state:', auth.currentUser);
-      console.log('Auth UID:', auth.currentUser?.uid);
-      
       const testNotifId = `manual_test_${userUid}_${Date.now()}`;
       const ref = userNotificationDoc(db, testNotifId);
       
@@ -306,12 +364,8 @@ const NotificationsPage: React.FC = () => {
         status: 'unread',
         createdAt: Timestamp.now(),
       });
-      
-      console.log('Manual test notification created successfully');
       alert('Test notification created! Check the list below.');
     } catch (error) {
-      console.error('Manual test notification failed:', error);
-      console.error('Error details:', error);
       alert('Test failed: ' + (error as any).message);
     }
   };
@@ -351,103 +405,193 @@ const NotificationsPage: React.FC = () => {
               <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-teal-600"></div>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">Loading notifications...</p>
             </div>
-          ) : unreadCount === 0 ? (
-            <div className="rounded-xl border border-white/50 dark:border-white/10 bg-white/60 dark:bg-gray-900/30 p-6 text-center">
-              <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-200">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
-                </svg>
-              </div>
-              <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">You're all caught up</h3>
-              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">No notifications at the moment. Check back later.</p>
-            </div>
           ) : (
-            <ul className="divide-y divide-white/50 dark:divide-white/10">
-              {unreadNotifications.map((notification) => (
-                <li key={notification.id} className="py-4">
-                  <div className="flex items-start gap-4">
-                    <div className={`flex-shrink-0 p-2 rounded-full ${
-                      notification.type === 'system' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
-                      notification.type === 'device' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
-                      notification.type === 'billing' ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' :
-                      notification.type === 'support' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
-                      'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
-                    }`}>
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
-                            {isQuoteNotification(notification) ? (
-                              <a
-                                href="/dashboard/user/quote-portal"
-                                className="hover:underline cursor-pointer"
-                                onClick={async (e) => { e.preventDefault(); e.stopPropagation(); await markAsRead(notification.id); try { window.location.href = '/dashboard/user/quote-portal'; } catch {} }}
-                                title="Go to Quote Portal"
-                              >
-                                {notification.title}
-                              </a>
-                            ) : isWarrantyNotification(notification) ? (
-                              <a
-                                href="/dashboard/user/about-device"
-                                className="hover:underline cursor-pointer"
-                                onClick={async (e) => { e.preventDefault(); e.stopPropagation(); await markAsRead(notification.id); try { window.location.href = '/dashboard/user/about-device'; } catch {} }}
-                                title="Go to About Device"
-                              >
-                                {notification.title}
-                              </a>
-                            ) : (
-                              <span>{notification.title}</span>
-                            )}
-                            {notification.status === 'unread' && (
-                              <span className="inline-flex h-2 w-2 rounded-full bg-teal-500" />
-                            )}
-                          </p>
-                          <div className="mt-2 flex items-center gap-4">
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {formatDate(notification.createdAt)}
-                            </span>
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                              notification.type === 'system' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' :
-                              notification.type === 'device' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200' :
-                              notification.type === 'billing' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200' :
-                              notification.type === 'support' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200' :
-                              'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-200'
+            <div className="space-y-8">
+              {/* Unread Section */}
+              <div>
+                {unreadNotifications.length > 0 && (
+                  <>
+                    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Unread</h3>
+                    <ul className="divide-y divide-white/50 dark:divide-white/10">
+                      {unreadNotifications.map((notification) => (
+                        <li key={notification.id} className="py-4">
+                          <div className="flex items-start gap-4">
+                            <div className={`flex-shrink-0 p-2 rounded-full ${
+                              notification.type === 'system' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
+                              notification.type === 'device' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
+                              notification.type === 'billing' ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                              notification.type === 'support' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
+                              'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
                             }`}>
-                              {notification.type}
-                            </span>
+                              {getNotificationIcon(notification.type)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                                    {isQuoteNotification(notification) ? (
+                                      <a
+                                        href="/dashboard/user/quote-portal"
+                                        className="hover:underline cursor-pointer"
+                                        onClick={async (e) => { e.preventDefault(); e.stopPropagation(); await markAsRead(notification.id); try { window.location.href = '/dashboard/user/quote-portal'; } catch {} }}
+                                        title="Go to Quote Portal"
+                                      >
+                                        {notification.title}
+                                      </a>
+                                    ) : isWarrantyNotification(notification) ? (
+                                      <a
+                                        href="/dashboard/user/about-device"
+                                        className="hover:underline cursor-pointer"
+                                        onClick={async (e) => { e.preventDefault(); e.stopPropagation(); await markAsRead(notification.id); try { window.location.href = '/dashboard/user/about-device'; } catch {} }}
+                                        title="Go to About Device"
+                                      >
+                                        {notification.title}
+                                      </a>
+                                    ) : (
+                                      <span>{notification.title}</span>
+                                    )}
+                                    {notification.status === 'unread' && (
+                                      <span className="inline-flex h-2 w-2 rounded-full bg-teal-500" />
+                                    )}
+                                  </p>
+                                  <div className="mt-2 flex items-center gap-4">
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      {formatDate(notification.createdAt)}
+                                    </span>
+                                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                      notification.type === 'system' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' :
+                                      notification.type === 'device' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200' :
+                                      notification.type === 'billing' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200' :
+                                      notification.type === 'support' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200' :
+                                      'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-200'
+                                    }`}>
+                                      {notification.type}
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 ml-4">
+                                  {notification.status === 'unread' && (
+                                    <button
+                                      onClick={(e) => { e.stopPropagation(); if (processing[notification.id]) return; void markAsRead(notification.id); }}
+                                      disabled={!!processing[notification.id]}
+                                      className={`text-xs font-medium ${processing[notification.id] ? 'opacity-50 cursor-not-allowed' : 'text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300'}`}
+                                      aria-busy={processing[notification.id] ? true : undefined}
+                                    >
+                                      {processing[notification.id] ? 'Marking…' : 'Mark as read'}
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      if (window.confirm('Delete this notification?')) deleteNotification(notification.id);
+                                    }}
+                                    className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                                    aria-label="Delete notification"
+                                    title="Delete notification"
+                                  >
+                                    <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {unreadNotifications.length === 0 && notifications.length === 0 && (
+                  <div className="rounded-xl border border-white/50 dark:border-white/10 bg-white/60 dark:bg-gray-900/30 p-6 text-center">
+                    <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-200">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+                        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                      </svg>
+                    </div>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">You're all caught up</h3>
+                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">No notifications at the moment. Check back later.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Read Section */}
+              {readNotifications.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Recent</h3>
+                  <ul className="divide-y divide-white/50 dark:divide-white/10">
+                    {readNotifications.map((notification) => (
+                      <li key={notification.id} className="py-4">
+                        <div className="flex items-start gap-4">
+                          <div className={`flex-shrink-0 p-2 rounded-full ${
+                            notification.type === 'system' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
+                            notification.type === 'device' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
+                            notification.type === 'billing' ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' :
+                            notification.type === 'support' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
+                            'bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400'
+                          }`}>
+                            {getNotificationIcon(notification.type)}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                                  {isQuoteNotification(notification) ? (
+                                    <a
+                                      href="/dashboard/user/quote-portal"
+                                      className="hover:underline cursor-pointer"
+                                      onClick={async (e) => { e.preventDefault(); e.stopPropagation(); try { window.location.href = '/dashboard/user/quote-portal'; } catch {} }}
+                                      title="Go to Quote Portal"
+                                    >
+                                      {notification.title}
+                                    </a>
+                                  ) : isWarrantyNotification(notification) ? (
+                                    <a
+                                      href="/dashboard/user/about-device"
+                                      className="hover:underline cursor-pointer"
+                                      onClick={async (e) => { e.preventDefault(); e.stopPropagation(); try { window.location.href = '/dashboard/user/about-device'; } catch {} }}
+                                      title="Go to About Device"
+                                    >
+                                      {notification.title}
+                                    </a>
+                                  ) : (
+                                    <span>{notification.title}</span>
+                                  )}
+                                </p>
+                                <div className="mt-2 flex items-center gap-4">
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    {formatDate(notification.createdAt)}
+                                  </span>
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                                    notification.type === 'system' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' :
+                                    notification.type === 'device' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200' :
+                                    notification.type === 'billing' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200' :
+                                    notification.type === 'support' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200' :
+                                    'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-200'
+                                  }`}>
+                                    {notification.type}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 ml-4">
+                                <button
+                                  onClick={() => {
+                                    if (window.confirm('Delete this notification?')) deleteNotification(notification.id);
+                                  }}
+                                  className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
+                                  aria-label="Delete notification"
+                                  title="Delete notification"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          {notification.status === 'unread' && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); if (processing[notification.id]) return; void markAsRead(notification.id); }}
-                              disabled={!!processing[notification.id]}
-                              className={`text-xs font-medium ${processing[notification.id] ? 'opacity-50 cursor-not-allowed' : 'text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300'}`}
-                              aria-busy={processing[notification.id] ? true : undefined}
-                            >
-                              {processing[notification.id] ? 'Marking…' : 'Mark as read'}
-                            </button>
-                          )}
-                          <button
-                            onClick={() => {
-                              if (window.confirm('Delete this notification?')) deleteNotification(notification.id);
-                            }}
-                            className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20"
-                            aria-label="Delete notification"
-                            title="Delete notification"
-                          >
-                            <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </GlassCard>
