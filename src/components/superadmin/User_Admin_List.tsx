@@ -15,6 +15,8 @@ interface UserDoc {
   role?: string;
   createdAt?: any;
   lastLoginAt?: any;
+  // Optional frequency counter used for classifying regular users
+  loginCountLast30Days?: number;
 }
 
 export default function User_Admin_List() {
@@ -67,6 +69,8 @@ export default function User_Admin_List() {
             role: data?.Role,
             createdAt: data?.CreatedAt,
             lastLoginAt: data?.LastLoginAt,
+            // If present, used to strengthen regular-user classification
+            loginCountLast30Days: typeof data?.LoginCountLast30Days === 'number' ? data.LoginCountLast30Days : undefined,
           };
         });
         setUsers(list);
@@ -218,6 +222,25 @@ export default function User_Admin_List() {
           let admins = normalized.filter((u) => (u.role || '').toLowerCase() === 'admin' && byQuery(u));
           let regularUsers = normalized.filter((u) => (u.role || '').toLowerCase() !== 'admin' && byQuery(u));
 
+          // When viewing Users segment, apply Regular Users KPI logic
+          // 1) Active in last 30 days based on lastLoginAt
+          // 2) If loginCountLast30Days exists, require >= 2
+          if (usersOnly) {
+            const nowMs = Date.now();
+            const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+            const isActiveLast30 = (u: UserDoc) => {
+              try {
+                const dt: Date | null = (u.lastLoginAt as any)?.toDate ? (u.lastLoginAt as any).toDate() : null;
+                return !!dt && (nowMs - dt.getTime()) <= thirtyDaysMs && (nowMs - dt.getTime()) >= 0;
+              } catch { return false; }
+            };
+            const meetsFreq = (u: UserDoc) => {
+              if (typeof u.loginCountLast30Days === 'number') return u.loginCountLast30Days >= 2;
+              return true; // fallback when counter not present
+            };
+            regularUsers = regularUsers.filter((u) => isActiveLast30(u) && meetsFreq(u));
+          }
+
           // If peak segment is requested, reduce to only the peak signup week across all accounts
           if (peakSeg) {
             const toDate = (v: any): Date | null => {
@@ -259,38 +282,20 @@ export default function User_Admin_List() {
             }
           }
 
-          // If lastweek segment is requested, keep only those created in the previous ISO week (Mon-Sun)
+          // If lastweek segment is requested, keep only those created in the last 7 days (rolling window)
           if (lastWeekSeg) {
             const toDate = (v: any): Date | null => {
               if (!v) return null;
               try { return typeof v.toDate === 'function' ? v.toDate() : new Date(v); } catch { return null; }
             };
-            const startOfISOWeek = (d: Date) => {
-              const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-              const day = date.getUTCDay();
-              const diff = (day === 0 ? -6 : 1) - day; // to Monday
-              const monday = new Date(date);
-              monday.setUTCDate(date.getUTCDate() + diff);
-              monday.setUTCHours(0, 0, 0, 0);
-              return monday;
-            };
-            const endOfISOWeek = (monday: Date) => {
-              const sunday = new Date(monday);
-              sunday.setUTCDate(monday.getUTCDate() + 6);
-              sunday.setUTCHours(23, 59, 59, 999);
-              return sunday;
-            };
-            const now = new Date();
-            const thisWeekStart = startOfISOWeek(now);
-            const lastWeekStart = new Date(thisWeekStart);
-            lastWeekStart.setUTCDate(thisWeekStart.getUTCDate() - 7);
-            const lastWeekEnd = endOfISOWeek(lastWeekStart);
-            const inLastWeek = (u: UserDoc) => {
+            const nowMs = Date.now();
+            const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+            const inLast7Days = (u: UserDoc) => {
               const dt = toDate(u.createdAt);
-              return !!dt && dt >= lastWeekStart && dt <= lastWeekEnd;
+              return !!dt && (nowMs - dt.getTime()) <= sevenDaysMs && (nowMs - dt.getTime()) >= 0;
             };
-            admins = admins.filter(inLastWeek);
-            regularUsers = regularUsers.filter(inLastWeek);
+            admins = admins.filter(inLast7Days);
+            regularUsers = regularUsers.filter(inLast7Days);
           }
 
           // If admins24h segment is requested, filter admins to last 24 hours (rolling window)

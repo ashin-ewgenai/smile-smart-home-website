@@ -164,6 +164,10 @@ export default function SuperAdminDashboard() {
             role: data?.Role,
             createdAt: data?.CreatedAt,
             lastLoginAt: data?.LastLoginAt,
+            // Optional: if present, used to strengthen regular-user classification
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            // @ts-ignore
+            loginCountLast30Days: data?.LoginCountLast30Days,
           };
         });
         setAllUsers(all);
@@ -177,7 +181,28 @@ export default function SuperAdminDashboard() {
         // Total Users should include only accounts with role exactly 'user'
         setUserCount(usersOnly.length);
         setAdminCount(admins.length);
-        setRegularCount(regulars.length);
+
+        // Regular users logic:
+        // 1) Based on Last Active Date: active within last 30 days
+        // 2) Based on Login Frequency: if "LoginCountLast30Days" exists, require >= 2 (fallback to last active only)
+        const nowMs = Date.now();
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        const isActiveLast30Days = (u: any) => {
+          try {
+            const dt: Date | null = u?.lastLoginAt?.toDate ? u.lastLoginAt.toDate() : null;
+            return !!dt && (nowMs - dt.getTime()) <= thirtyDaysMs && (nowMs - dt.getTime()) >= 0;
+          } catch { return false; }
+        };
+        const meetsFrequency = (u: any) => {
+          try {
+            const c = u?.loginCountLast30Days;
+            if (typeof c === 'number') return c >= 2;
+          } catch {}
+          // If no counter available, don't block on frequency
+          return true;
+        };
+        const regularActive = regulars.filter((u: any) => isActiveLast30Days(u) && meetsFrequency(u));
+        setRegularCount(regularActive.length);
 
         // Compute admins created within the last 24 hours
         try {
@@ -230,39 +255,21 @@ export default function SuperAdminDashboard() {
           setUsersLoggedLast24h(recentUserLogins);
         } catch {}
 
-        // Compute last week signups (ISO week: Monday-Sunday). Exclude Super Admins.
+        // Compute signups in the last 7 days (rolling). Exclude Super Admins.
         try {
           const toDate = (v: any): Date | null => {
             if (!v) return null;
             try { return typeof v.toDate === 'function' ? v.toDate() : new Date(v); } catch { return null; }
           };
-          const startOfISOWeek = (d: Date) => {
-            const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-            const day = date.getUTCDay();
-            const diff = (day === 0 ? -6 : 1) - day; // to Monday
-            const monday = new Date(date);
-            monday.setUTCDate(date.getUTCDate() + diff);
-            monday.setUTCHours(0, 0, 0, 0);
-            return monday;
-          };
-          const endOfISOWeek = (monday: Date) => {
-            const sunday = new Date(monday);
-            sunday.setUTCDate(monday.getUTCDate() + 6);
-            sunday.setUTCHours(23, 59, 59, 999);
-            return sunday;
-          };
-          const now = new Date();
-          const thisWeekStart = startOfISOWeek(now);
-          const lastWeekStart = new Date(thisWeekStart);
-          lastWeekStart.setUTCDate(thisWeekStart.getUTCDate() - 7);
-          const lastWeekEnd = endOfISOWeek(lastWeekStart);
+          const nowMs = Date.now();
+          const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
           const norm = (r?: string) => (r || '').toString().toLowerCase().replace(/[_-]+/g, ' ').trim();
           const count = all
             .filter(u => {
               const r = norm(u.role);
               if (r === 'super admin') return false;
               const dt = toDate(u.createdAt);
-              return !!dt && dt >= lastWeekStart && dt <= lastWeekEnd;
+              return !!dt && (nowMs - dt.getTime()) <= sevenDaysMs && (nowMs - dt.getTime()) >= 0;
             })
             .length;
           setLastWeekSignups(count);

@@ -7,7 +7,7 @@ import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc,
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload, accountsCollection, userNotificationsCollection, adminNotificationsCollection } from '../../../models/Collections';
+import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload, accountsCollection, userNotificationsCollection } from '../../../models/Collections';
 import QuoteDetails from './QuoteDetails';
 
 interface QuoteItem {
@@ -437,9 +437,6 @@ const EstimationTool: React.FC = () => {
         if (resolvedUserUid) {
           await createUserNotification(resolvedUserUid, customerEmail, estimationId);
         }
-
-        // Create notification for admins when quote is sent to customer
-        await createAdminNotification(customerEmail, estimationId, resolvedUserUid);
       } else {
         // For Draft/Pending, just add reference without changing status
         await updateDoc(doc(db, 'quotes', selectedQuote.id), {
@@ -523,33 +520,6 @@ const EstimationTool: React.FC = () => {
     }
   };
 
-  // Create notification for admins when estimation quote is sent
-  const createAdminNotification = async (customerEmail: string, quoteId: string, customerUid?: string) => {
-    try {
-      const adminNotificationData = {
-        title: 'Estimation Quote Sent to Customer',
-        type: 'estimation_quote' as const,
-        status: 'unread' as const,
-        createdAt: Timestamp.now(),
-        adminUid: null as any,
-        read: false,
-        relatedEntityId: quoteId,
-        relatedEntityType: 'estimation_quote',
-        customerEmail: customerEmail,
-        customerUid: customerUid,
-        priority: 'medium' as const
-      };
-
-      // Generate a unique notification ID for admin
-      const adminNotificationId = `admin_notification_${Date.now()}_${quoteId}`;
-      
-      await setDoc(doc(adminNotificationsCollection(db), adminNotificationId), adminNotificationData);
-      console.log('Admin notification created successfully for quote:', quoteId);
-    } catch (error) {
-      console.error('Error creating admin notification:', error);
-      // Don't throw error to avoid breaking the main flow
-    }
-  };
 
   // Reusable loader for Pending quotes
   const fetchPendingQuotes = useCallback(async () => {
