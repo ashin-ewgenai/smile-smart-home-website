@@ -29,7 +29,6 @@ try {
 // Use initializeFirestore with long-polling to avoid QUIC/HTTP3 transport issues on constrained networks
 export const db = initializeFirestore(firebaseApp, {
   experimentalAutoDetectLongPolling: true,
-  useFetchStreams: false,
 });
 export const storage = getStorage(firebaseApp);
 // Explicit region to match deployed Cloud Functions

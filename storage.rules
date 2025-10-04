@@ -45,6 +45,12 @@ rules_version = '2';
        allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
      }
 
+     // ============ Support chat uploads ============
+     // Path: support_chat/{uid}/...
+     match /support_chat/{uid}/{allPaths=**} {
+       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+     }
+
      // ============ Admin-only storage ============
      match /admin/{allPaths=**} {
        allow read, write: if isAdmin();

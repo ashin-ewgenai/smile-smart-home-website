@@ -333,59 +333,59 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
       {isMobileMenuOpen && (
         <div className="md:hidden">
           <div className="px-2 pt-2 pb-3 space-y-2 sm:px-3">
-            <a 
-              href={userType === 'admin' ? '/dashboard/admin' : '/dashboard/user'} 
+            <Link 
+              to={userType === 'admin' ? '/' : '/dashboard/user'} 
               onClick={() => setIsMobileMenuOpen(false)}
               className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               Dashboard
-            </a>
+            </Link>
             {userType === 'admin' ? (
               <>
-                <a 
-                  href="/dashboard/admin/users" 
+                <Link 
+                  to="/users" 
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Manage Users
-                </a>
-                <a 
-                  href="/dashboard/admin/devices/add" 
+                </Link>
+                <Link 
+                  to="/devices/add" 
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Add Device
-                </a>
-                <a 
-                  href="/dashboard/admin/reports" 
+                </Link>
+                <Link 
+                  to="/reports" 
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Reports
-                </a>
-                <a 
-                  href="/dashboard/admin/plan-leads" 
+                </Link>
+                <Link 
+                  to="/plan-leads" 
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Plan Leads
-                </a>
-                <a 
-                  href="/dashboard/admin/estimates" 
+                </Link>
+                <Link 
+                  to="/estimates" 
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   Quotes
-                </a>
+                </Link>
               </>
             ) : (
-              <a 
-                href="/dashboard/user/settings" 
+              <Link 
+                to="/dashboard/user/settings" 
                 onClick={() => setIsMobileMenuOpen(false)}
                 className="block px-3 py-2 rounded-md text-base font-medium text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 Settings
-              </a>
+              </Link>
             )}
 
             {/* Divider */}
