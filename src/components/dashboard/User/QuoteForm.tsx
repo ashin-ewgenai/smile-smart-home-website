@@ -825,7 +825,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     switch (currentStep) {
       case 1:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4 max-[500px]:w-[95%] max-[500px]:mx-auto">
             <h3 className="text-lg font-semibold text-charcoal dark:text-white">Select Quote Type</h3>
             <div className="space-y-2">
               {QUOTE_TYPES.map((type) => (
@@ -847,7 +847,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         );
       case 2:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4 max-[500px]:w-[95%] max-[500px]:mx-auto">
             <h3 className="text-lg font-medium">Scope of Work</h3>
             {formData.quoteType === 'New Installation' && (
               <>
@@ -881,7 +881,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                 <div>
                   <label className="block text-sm font-medium mb-1">Devices Required</label>
                   <div
-                    className="space-y-2 max-h-48 overflow-y-auto overscroll-contain touch-pan-y rounded-lg border border-gray-200 dark:border-gray-700 p-3 pb-8 pr-4 md:pr-5 bg-white dark:bg-gray-800"
+                    className="space-y-2 max-h-48 overflow-y-auto overscroll-contain touch-pan-y rounded-lg border border-gray-200 dark:border-gray-700 p-3 pb-8 pr-4 md:pr-5 bg-white dark:bg-gray-800 max-[375px]:w-[90%] max-[375px]:mx-auto max-[375px]:px-2 max-[375px]:pr-2"
                     onWheel={(e) => { e.stopPropagation(); }}
                     onTouchMove={(e) => { e.stopPropagation(); }}
                     tabIndex={0}
@@ -911,16 +911,16 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                 <div>
                   <label className="block text-sm font-medium mb-1">Devices Already Installed</label>
                   <div
-                    className="space-y-2 max-h-48 overflow-y-auto overscroll-contain touch-pan-y rounded-lg border border-gray-200 dark:border-gray-700 p-3 pb-10 pr-4 md:pr-6 bg-white dark:bg-gray-800"
+                    className="space-y-2 max-h-48 overflow-y-auto overscroll-contain touch-pan-y rounded-lg border border-gray-200 dark:border-gray-700 p-3 pb-10 pr-4 md:pr-6 bg-white dark:bg-gray-800 max-[448px]:w-[92%] max-[448px]:mx-auto max-[448px]:px-3 max-[375px]:w-[90%] max-[375px]:mx-auto max-[375px]:px-2 max-[375px]:pr-2 max-[375px]:text-xs max-[360px]:w-[88%] max-[375px]:space-y-1"
                     onWheel={(e) => { e.stopPropagation(); }}
                     onTouchMove={(e) => { e.stopPropagation(); }}
                     tabIndex={0}
                   >
                     {userDevices.length > 0 ? (
                       userDevices.map((name, idx) => (
-                        <label key={`${name}-${idx}`} className="flex items-center space-x-2 py-1 last:mb-2 opacity-80">
+                        <label key={`${name}-${idx}`} className="flex items-center space-x-2 py-1 last:mb-2 opacity-80 max-[375px]:space-x-1 max-[375px]:py-0.5">
                           <input type="checkbox" checked readOnly disabled className="form-checkbox text-teal disabled:opacity-70" />
-                          <span className="text-sm leading-6 pb-0.5 text-gray-900 dark:text-gray-100">{name}</span>
+                          <span className="text-sm leading-6 pb-0.5 text-gray-900 dark:text-gray-100 max-[375px]:text-xs">{name}</span>
                         </label>
                       ))
                     ) : (
@@ -933,13 +933,13 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                 <div>
                   <label className="block text-sm font-medium mb-1">New Devices to Automate</label>
                   <div
-                    className="space-y-2 max-h-48 overflow-y-auto overscroll-contain touch-pan-y rounded-lg border border-gray-200 dark:border-gray-700 p-3 pb-10 pr-4 md:pr-6 bg-white dark:bg-gray-800"
+                    className="space-y-2 max-h-48 overflow-y-auto overscroll-contain touch-pan-y rounded-lg border border-gray-200 dark:border-gray-700 p-3 pb-10 pr-4 md:pr-6 bg-white dark:bg-gray-800 max-[375px]:w-[90%] max-[375px]:mx-auto max-[375px]:px-2 max-[375px]:pr-2 max-[375px]:text-xs max-[360px]:w-[88%] max-[375px]:space-y-1"
                     onWheel={(e) => { e.stopPropagation(); }}
                     onTouchMove={(e) => { e.stopPropagation(); }}
                     tabIndex={0}
                   >
                     {availableDevices.map(dev => (
-                      <label key={dev.value} className="flex items-center space-x-2 py-1 last:mb-2">
+                      <label key={dev.value} className="flex items-center space-x-2 py-1 last:mb-2 max-[375px]:space-x-1 max-[375px]:py-0.5">
                         <input
                           type="checkbox"
                           name="newRoomsToAutomate"
@@ -948,7 +948,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                           onChange={handleCheckboxChange}
                           className="form-checkbox text-teal"
                         />
-                        <span className="leading-6 pb-0.5">{dev.label}</span>
+                        <span className="leading-6 pb-0.5 max-[375px]:text-xs">{dev.label}</span>
                       </label>
                     ))}
                     <div aria-hidden className="h-4" />
@@ -961,7 +961,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                     name="brandPreference"
                     value={formData.brandPreference || ''}
                     onChange={handleChange}
-                    className={`${inputBase} border-gray-300 dark:border-gray-600`}
+                    className={`${inputBase} border-gray-300 dark:border-gray-600 max-[375px]:w-[95%] max-[375px]:mx-auto`}
                   />
                 </div>
               </>
@@ -1017,7 +1017,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         );
       case 3:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4 max-[500px]:w-[95%] max-[500px]:mx-auto">
             <h3 className="text-lg font-semibold text-charcoal dark:text-white">Additional Information</h3>
             {/* Location (India) */}
             <div>
@@ -1072,7 +1072,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         );
       case 4:
         return (
-          <div className="space-y-4">
+          <div className="space-y-4 max-[500px]:w-[95%] max-[500px]:mx-auto">
             <h3 className="text-lg font-semibold text-charcoal dark:text-white">Review and Submit</h3>
             <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-xl border border-gray-200 dark:border-gray-700">
               <h4 className="font-medium">Quote Type: {formData.quoteType}</h4>
@@ -1112,8 +1112,8 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
   };
 
   return (
-    <div className={`${className} max-w-4xl mx-auto`}>
-      <div className="mb-6">
+    <div className={`${className} max-w-4xl mx-auto px-3 sm:px-0 overflow-x-hidden max-[448px]:px-2`}>
+      <div className="mb-6 max-[500px]:hidden">
         <div className="h-2 w-full bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-teal to-cyan-500 transition-all"
@@ -1130,7 +1130,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
 
       <form 
         onSubmit={handleSubmit} 
-        className={`bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-sm relative`}
+        className={`w-full max-w-full max-[448px]:w-[95%] max-[448px]:mx-auto max-[448px]:text-[13px] max-[375px]:w-[95%] max-[375px]:mx-auto overflow-x-hidden break-words bg-white dark:bg-gray-900/40 border border-gray-200 dark:border-gray-700 rounded-2xl p-3 sm:p-5 shadow-sm relative`}
       >
         {renderStep()}
 
@@ -1142,29 +1142,29 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
 
         {submitError && <p className="mt-6 text-sm text-red-600">{submitError}</p>}
 
-        <div className="mt-8 flex justify-between">
+        <div className="mt-8 flex flex-wrap items-center gap-3">
           {currentStep > 1 && (
             <button
               type="button"
               onClick={handlePrev}
-              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 max-[375px]:w-[90%] max-[375px]:mx-auto sm:w-auto"
             >
               Previous
             </button>
           )}
-          <div className="flex-grow" />
+          <div className="flex-1 hidden sm:block" />
           {currentStep < 4 ? (
             <button
               type="button"
               onClick={handleNext}
-              className="px-5 py-2 rounded-lg bg-teal text-white hover:bg-teal/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60"
+              className="px-5 py-2 rounded-lg bg-teal text-white hover:bg-teal/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 max-[375px]:w-[90%] max-[375px]:mx-auto sm:w-auto sm:ml-auto"
             >
               Next
             </button>
           ) : (
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60"
+              className="px-5 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 max-[375px]:w-[90%] max-[375px]:mx-auto sm:w-auto sm:ml-auto"
               disabled={submitting || activeQuotesCount >= MAX_QUOTES}
               title={`submitting: ${submitting}, activeQuotesCount: ${activeQuotesCount}, MAX_QUOTES: ${MAX_QUOTES}`}
             >
@@ -1178,7 +1178,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         <button
           type="button"
           onClick={() => setShowOldQuotes(v => !v)}
-          className="w-full flex items-center justify-between px-5 py-3.5 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-all duration-200 hover:border-teal-300 dark:hover:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-400/30 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
+          className="w-full max-[448px]:w-[95%] max-[448px]:mx-auto max-[375px]:w-[95%] max-[375px]:mx-auto flex items-center justify-between px-4 sm:px-5 py-3.5 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 hover:bg-gray-50 dark:hover:bg-gray-800/80 transition-all duration-200 hover:border-teal-300 dark:hover:border-teal-600 focus:outline-none focus:ring-2 focus:ring-teal-400/30 focus:ring-offset-2 dark:focus:ring-offset-gray-900"
         >
           <span className="font-semibold text-gray-800 dark:text-gray-200 flex items-center gap-2">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-teal-500" viewBox="0 0 20 20" fill="currentColor">
@@ -1219,9 +1219,9 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                   className="cursor-pointer rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900/40 p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
                 >
                   <div className="flex flex-wrap items-center gap-3 justify-between">
-                    <div className="space-y-0.5">
-                      <div className="font-semibold">{q.quoteType || 'Quote'}</div>
-                      <div className="text-sm text-gray-500">
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="font-semibold truncate" title={String(q.quoteType || 'Quote')}>{q.quoteType || 'Quote'}</div>
+                      <div className="text-sm text-gray-500 truncate" title={`${created ? created.toLocaleString() : '—'} · Status: ${String(q.status || 'Pending')}`}>
                         {created ? created.toLocaleString() : '—'} · Status: {' '}
                         <span className={
                           String(q.status).toLowerCase() === 'cancelled' ? 'text-red-500' :
@@ -1232,8 +1232,8 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                         </span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-sm text-gray-600 dark:text-gray-300">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="text-sm text-gray-600 dark:text-gray-300 truncate" title={`Budget: ${q.budgetCurrency || 'INR'} ${q.budget || ''}`}>
                         Budget: {q.budgetCurrency || 'INR'} {q.budget || ''}
                       </div>
                       {String(q.status || 'Pending').toLowerCase() === 'pending' && (
@@ -1441,11 +1441,11 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       )}
 
       {/* Toasts (top-right) */}
-      <div className="fixed top-4 right-4 z-50 space-y-2">
+      <div className="fixed top-4 right-4 z-50 space-y-2 max-w-full">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`max-w-sm rounded-lg shadow-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-900/90 text-emerald-800 dark:text-emerald-200 px-4 py-3 transition-all duration-300 ${
+            className={`w-[calc(100vw-2rem)] sm:max-w-sm break-words rounded-lg shadow-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-900/90 text-emerald-800 dark:text-emerald-200 px-4 py-3 transition-all duration-300 ${
               t.entering ? 'opacity-0 translate-x-4' : 'opacity-100 translate-x-0'
             }`}
           >

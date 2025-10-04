@@ -15,19 +15,19 @@ import NotificationsPage from './NotificationsPage';
 
 // Simple wrapper to show the Quote Portal within standard padding
 const QuotePortalPage: React.FC = () => (
-  <section className="p-6">
+  <section className="px-4 py-4 sm:p-6">
     <QuoteForm />
   </section>
 );
 
 const SupportTicketsPage: React.FC = () => (
-  <section className="p-6">
+  <section className="px-4 py-4 sm:p-6">
     <TicketCenter />
   </section>
 );
 
 const NotificationsRoutePage: React.FC = () => (
-  <section className="p-6">
+  <section className="px-4 py-4 sm:p-6">
     <NotificationsPage />
   </section>
 );
