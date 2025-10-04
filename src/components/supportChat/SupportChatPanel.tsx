@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { auth, db, functions, storage } from '../../lib/firebase';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit, updateDoc, deleteField, where } from 'firebase/firestore';
@@ -483,76 +483,154 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       }
     };
 
-    // Only run if authenticated and no messages yet
-    if (messages.length === 0) {
+    // Only run if authenticated and no messages yet (or if we need to restore context)
+    if (messages.length === 0 && !hasInitialized.current) {
       fetchAndAnalyzeTicket();
     }
-  }, [providedTicketId, sessionActiveTicketId, uid, isAuthenticated, messages.length]);
+  }, [providedTicketId, sessionActiveTicketId, uid, isAuthenticated, messages.length, noTicketMode]);
+
+  // Restore chat context from loaded messages
+  const restoreChatContext = useCallback(async (messages: ChatMsg[]) => {
+    if (hasInitialized.current || messages.length === 0) return;
+
+    // Find the most recent assistant message to determine workflow state
+    const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant' || m.role === 'agent');
+
+    if (lastAssistantMsg) {
+      // Check if we need to restore ticket data
+      if (sessionActiveTicketId || providedTicketId) {
+        const ticketId = providedTicketId || sessionActiveTicketId;
+        if (ticketId) {
+          try {
+            const ticketDoc = await getDoc(doc(db, 'Support_Tickets', ticketId));
+            if (ticketDoc.exists()) {
+              const ticketData = ticketDoc.data();
+              setTicketData({
+                ticketId: ticketId,
+                subject: ticketData.subject,
+                description: ticketData.description,
+                category: ticketData.category,
+                status: ticketData.status,
+                needsSerial: ticketData.needsSerial,
+                initialSolution: ticketData.initialSolution
+              });
+
+              // Set workflow step based on conversation flow
+              if (messages.some(m => m.showDeviceSelection)) {
+                setWorkflowStep('device_selection');
+              } else if (messages.some(m => m.showTicketVerification)) {
+                setWorkflowStep('ticket_verification');
+              } else if (ticketData.needsSerial && messages.some(m => m.content?.includes('serial number'))) {
+                setSerialRequestActive(true);
+                setWorkflowStep('troubleshooting');
+              } else {
+                setWorkflowStep('troubleshooting');
+              }
+            }
+          } catch (error) {
+            console.warn('Failed to restore ticket context:', error);
+          }
+        }
+      }
+
+      // Check for serial request state
+      if (lastAssistantMsg.content?.includes('serial number') && lastAssistantMsg.content?.includes('Verify')) {
+        setSerialRequestActive(true);
+      }
+
+      // Check for device selection state
+      if (lastAssistantMsg.showDeviceSelection) {
+        setWorkflowStep('device_selection');
+      }
+
+      // Check for ticket verification state
+      if (lastAssistantMsg.showTicketVerification) {
+        setWorkflowStep('ticket_verification');
+      }
+    }
+
+    hasInitialized.current = true;
+  }, [sessionActiveTicketId, providedTicketId]);
 
   // Online (human) vs Offline (bot) mode handling
-  useEffect(() => {
-    // Ensure any previous listener is removed
+  const setupOnlineChat = useCallback(async () => {
     if (msgsUnsubRef.current) {
       try { msgsUnsubRef.current(); } catch {}
       msgsUnsubRef.current = null;
     }
-    async function setupOnline() {
-      if (!uid || !sessionId) return;
-      const sessionRef = doc(db, 'chat_sessions', sessionId);
-      const snap = await getDoc(sessionRef);
-      if (!snap.exists()) {
-        await setDoc(sessionRef, {
-          ownerUid: uid,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-          status: 'ai',
-          type: 'ai',
-        }, { merge: true });
-      }
-      // Load any previously bound active ticket
-      try {
-        const sdata = (await getDoc(sessionRef)).data();
-        setSessionActiveTicketId((sdata?.activeTicketId as string) || null);
-        if (!sdata?.activeTicketId) setNoTicketMode(false);
-      } catch {}
-      const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
-      msgsUnsubRef.current = onSnapshot(query(msgsCol, orderBy('ts', 'asc')), (qSnap) => {
-        let list: ChatMsg[] = qSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        // Filter out resolved prompts and deduplicate unresolved prompts (keep first per ticketId)
-        const seenUnresolved: Record<string, boolean> = {};
-        list = list.filter((m) => {
-          if ((m as any).resolved === true) return false;
-          if (!m.showUnresolvedPrompt) return true;
-          const tid = (m as any).unresolvedTicketId || m.unresolvedTicket?.id || 'unknown';
-          if (seenUnresolved[tid]) return false;
-          seenUnresolved[tid] = true;
-          return true;
-        });
-        setMessages(list);
-        setTimeout(() => {
-          if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-        }, 0);
-        setLoading(false);
-      });
+
+    if (!uid || !sessionId) return;
+    const sessionRef = doc(db, 'chat_sessions', sessionId);
+    const snap = await getDoc(sessionRef);
+    if (!snap.exists()) {
+      await setDoc(sessionRef, {
+        ownerUid: uid,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        status: 'ai',
+        type: 'ai',
+      }, { merge: true });
     }
-    // Offline mode removed; unauthenticated users will see sign-in prompt
-    // Tear down previous already handled above
+    // Load any previously bound active ticket
+    try {
+      const sdata = (await getDoc(sessionRef)).data();
+      setSessionActiveTicketId((sdata?.activeTicketId as string) || null);
+      if (!sdata?.activeTicketId) setNoTicketMode(false);
+    } catch {}
+    const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+    msgsUnsubRef.current = onSnapshot(query(msgsCol, orderBy('ts', 'asc')), (qSnap) => {
+      let list: ChatMsg[] = qSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      // Filter out resolved prompts and deduplicate unresolved prompts (keep first per ticketId)
+      const seenUnresolved: Record<string, boolean> = {};
+      list = list.filter((m) => {
+        if ((m as any).resolved === true) return false;
+        if (!m.showUnresolvedPrompt) return true;
+        const tid = (m as any).unresolvedTicketId || m.unresolvedTicket?.id || 'unknown';
+        if (seenUnresolved[tid]) return false;
+        seenUnresolved[tid] = true;
+        return true;
+      });
+      setMessages(list);
+
+      // Restore chat context based on loaded messages
+      if (list.length > 0 && !hasInitialized.current) {
+        restoreChatContext(list);
+      }
+
+      setTimeout(() => {
+        if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }, 0);
+      setLoading(false);
+    });
+  }, [uid, sessionId, restoreChatContext]);
+
+  useEffect(() => {
+    // Set loading state before checking authentication
     setLoading(true);
+
     if (!isAuthenticated) {
       // Not authenticated; do not load messages. UI renders sign-in prompt.
       setMessages([]);
       setLoading(false);
-      return () => {};
+      return () => {
+        if (msgsUnsubRef.current) {
+          try { msgsUnsubRef.current(); } catch {}
+          msgsUnsubRef.current = null;
+        }
+      };
     }
-    // Always call once when authenticated; guard against redundant remounts by cleaning up above
-    if (uid && sessionId) setupOnline();
+
+    // Always call setupOnlineChat when authenticated, regardless of whether dependencies changed
+    // This ensures messages are loaded when navigating back to the component
+    setupOnlineChat();
+
     return () => {
       if (msgsUnsubRef.current) {
         try { msgsUnsubRef.current(); } catch {}
         msgsUnsubRef.current = null;
       }
     };
-  }, [uid, sessionId, claimed, isAuthenticated]);
+  }, [uid, sessionId, claimed, isAuthenticated, setupOnlineChat, restoreChatContext]);
 
   // Update session status when human support is claimed/cancelled
   useEffect(() => {
