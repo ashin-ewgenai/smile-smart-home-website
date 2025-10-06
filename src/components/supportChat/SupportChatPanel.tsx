@@ -56,6 +56,17 @@ type ChatMsg = {
   };
   ticketDetails?: TicketData;
   devices?: Device[];
+  deviceInfo?: {
+    serialNumber?: string;
+    warrantyExpiry?: string;
+    documentation?: string;
+    modelNumber?: string;
+    brand?: string;
+    description?: string;
+    isOnline?: boolean;
+    type?: string;
+    deviceName?: string;
+  };
   ts: number;
   uploading?: boolean;
 };
@@ -1440,6 +1451,48 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                             >
                               ✏️ Update ticket details
                             </button>
+                          </div>
+                        </div>
+                      )}
+                      {m.deviceInfo && (
+                        <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                          <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center gap-2">
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Device Information
+                          </h4>
+                          <div className="space-y-2 text-sm text-blue-800 dark:text-blue-200">
+                            {m.deviceInfo.deviceName && (
+                              <p><strong className="text-blue-900 dark:text-blue-100">Device:</strong> {m.deviceInfo.deviceName}</p>
+                            )}
+                            {m.deviceInfo.modelNumber && (
+                              <p><strong className="text-blue-900 dark:text-blue-100">Model:</strong> {m.deviceInfo.modelNumber}</p>
+                            )}
+                            {m.deviceInfo.serialNumber && (
+                              <p><strong className="text-blue-900 dark:text-blue-100">Serial Number:</strong> <code className="bg-blue-100 dark:bg-blue-800 px-1 rounded text-xs">{m.deviceInfo.serialNumber}</code></p>
+                            )}
+                            {m.deviceInfo.warrantyExpiry && (
+                              <p><strong className="text-blue-900 dark:text-blue-100">Warranty:</strong> Expires {new Date(m.deviceInfo.warrantyExpiry).toLocaleDateString()}</p>
+                            )}
+                            {m.deviceInfo.documentation && (
+                              <p><strong className="text-blue-900 dark:text-blue-100">Documentation:</strong>
+                                <a href={m.deviceInfo.documentation} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-300 hover:underline ml-1">
+                                  View Manual
+                                </a>
+                              </p>
+                            )}
+                            {m.deviceInfo.brand && (
+                              <p><strong className="text-blue-900 dark:text-blue-100">Brand:</strong> {m.deviceInfo.brand}</p>
+                            )}
+                            {m.deviceInfo.description && (
+                              <p><strong className="text-blue-900 dark:text-blue-100">Description:</strong> {m.deviceInfo.description}</p>
+                            )}
+                            <p><strong className="text-blue-900 dark:text-blue-100">Status:</strong>
+                              <span className={`ml-1 px-2 py-0.5 rounded-full text-xs ${m.deviceInfo.isOnline ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300'}`}>
+                                {m.deviceInfo.isOnline ? 'Online' : 'Offline'}
+                              </span>
+                            </p>
                           </div>
                         </div>
                       )}

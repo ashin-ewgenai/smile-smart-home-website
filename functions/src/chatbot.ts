@@ -308,8 +308,23 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
     // 1) List device names
     const listDevicesRegex = /(names?|list)\s+(of\s+)?(my\s+)?devices|what\s+devices\s+do\s+i\s+have|list\s+my\s+devices/;
     if (listDevicesRegex.test(lastUserText)) {
-      const lines = (finalDeviceList as any[]).map((d: any, i: number) => `${i + 1}. ${d.deviceName || d.name || d.deviceType || d.type || d.id}`).join("\n");
-      if (lines) quickReply = `You have the following devices installed:\n\n${lines}`;
+      if (finalDeviceList.length > 0) {
+        const deviceLines = (finalDeviceList as any[]).map((d: any, i: number) => {
+          const name = d.deviceName || d.name || d.deviceType || d.type || "Unknown Device";
+          const model = d.deviceModel || d.model || d.modelNumber || "";
+          const serialInfo = Array.isArray(d.serials) && d.serials.length > 0 ? d.serials[0] : null;
+          const serialNumber = serialInfo?.serialNumber || "";
+
+          let deviceInfo = `${i + 1}. ${name}`;
+          if (model) deviceInfo += ` (${model})`;
+          if (serialNumber) deviceInfo += ` - Serial: ${serialNumber}`;
+
+          return deviceInfo;
+        }).join("\n");
+        quickReply = `You have the following devices installed:\n\n${deviceLines}`;
+      } else {
+        quickReply = "I don't see any devices registered to your account yet.";
+      }
     }
 
     // 2) Model number lookup (e.g., "model number of CCTV")
@@ -337,8 +352,46 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
           : undefined;
         const model = pick.deviceModel || pick.model || pick.modelNumber || modelFromSerials;
         const name = pick.deviceName || pick.name || pick.deviceType || pick.type || "your device";
-        if (model) quickReply = `The model number of ${name} is ${model}.`;
-        else quickReply = `I couldn't find a saved model number for ${name}. Please check the device label.`;
+
+        // Get serial and warranty information
+        const serialInfo = Array.isArray(pick.serials) && pick.serials.length > 0
+          ? pick.serials[0]
+          : null;
+        const serialNumber = serialInfo?.serialNumber;
+        const warrantyExpiry = serialInfo?.warrantyExpiry || serialInfo?.warrantyEnd;
+        const documentation = pick.documentation || "";
+
+        // Format warranty status
+        let warrantyStatus = "";
+        if (warrantyExpiry) {
+          try {
+            const expiryDate = new Date(warrantyExpiry);
+            const now = new Date();
+            const timeDiff = expiryDate.getTime() - now.getTime();
+            const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+            if (daysRemaining > 0) {
+              warrantyStatus = ` (Warranty expires: ${expiryDate.toLocaleDateString()}, ${daysRemaining} days remaining)`;
+            } else {
+              warrantyStatus = ` (Warranty expired: ${expiryDate.toLocaleDateString()})`;
+            }
+          } catch (error) {
+            warrantyStatus = ` (Warranty info available)`;
+          }
+        }
+
+        if (model) {
+          let deviceInfo = `The model number of ${name} is ${model}${warrantyStatus}.`;
+          if (serialNumber) {
+            deviceInfo += `\nSerial Number: ${serialNumber}`;
+          }
+          if (documentation) {
+            deviceInfo += `\nDocumentation: ${documentation}`;
+          }
+          quickReply = deviceInfo;
+        } else {
+          quickReply = `I couldn't find a saved model number for ${name}. Please check the device label.`;
+        }
       }
     }
 
@@ -368,6 +421,8 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
         if (serialsWithWarranty.length > 0) {
           const warrantyInfo = serialsWithWarranty[0]; // Use first serial with warranty info
           const warrantyEnd = warrantyInfo.warrantyEnd || warrantyInfo.warrantyExpiry || warrantyInfo.warrantyExpires;
+          const serialNumber = warrantyInfo.serialNumber;
+          const documentation = pick.documentation || "";
 
           try {
             const expiryDate = new Date(warrantyEnd);
@@ -375,21 +430,105 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
             const timeDiff = expiryDate.getTime() - now.getTime();
             const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
 
+            let warrantyResponse = "";
             if (daysRemaining > 0) {
-              quickReply = `Yes, your ${pick.deviceName || pick.name || "device"} is under warranty! It expires on ${expiryDate.toLocaleDateString()} (${daysRemaining} days remaining).`;
+              warrantyResponse = `Yes, your ${pick.deviceName || pick.name || "device"} is under warranty! It expires on ${expiryDate.toLocaleDateString()} (${daysRemaining} days remaining).`;
             } else {
-              quickReply = `Your ${pick.deviceName || pick.name || "device"} warranty expired on ${expiryDate.toLocaleDateString()} (${Math.abs(daysRemaining)} days ago).`;
+              warrantyResponse = `Your ${pick.deviceName || pick.name || "device"} warranty expired on ${expiryDate.toLocaleDateString()} (${Math.abs(daysRemaining)} days ago).`;
             }
+
+            if (serialNumber) {
+              warrantyResponse += `\nSerial Number: ${serialNumber}`;
+            }
+            if (documentation) {
+              warrantyResponse += `\nDocumentation: ${documentation}`;
+            }
+
+            quickReply = warrantyResponse;
           } catch (error) {
-            quickReply = `I found warranty information for your ${pick.deviceName || pick.name || "device"}, but couldn't determine the exact expiry date.`;
+            let warrantyResponse = `I found warranty information for your ${pick.deviceName || pick.name || "device"}, but couldn't determine the exact expiry date.`;
+            if (serialNumber) {
+              warrantyResponse += `\nSerial Number: ${serialNumber}`;
+            }
+            if (documentation) {
+              warrantyResponse += `\nDocumentation: ${documentation}`;
+            }
+            quickReply = warrantyResponse;
           }
         } else {
-          quickReply = `I couldn't find warranty information for your ${pick.deviceName || pick.name || "device"}. Please check your purchase receipt or contact support.`;
+          let noWarrantyResponse = `I couldn't find warranty information for your ${pick.deviceName || pick.name || "device"}. Please check your purchase receipt or contact support.`;
+          const serialInfo = Array.isArray(pick.serials) && pick.serials.length > 0 ? pick.serials[0] : null;
+          const serialNumber = serialInfo?.serialNumber;
+          const documentation = pick.documentation || "";
+
+          if (serialNumber) {
+            noWarrantyResponse += `\nSerial Number: ${serialNumber}`;
+          }
+          if (documentation) {
+            noWarrantyResponse += `\nDocumentation: ${documentation}`;
+          }
+
+          quickReply = noWarrantyResponse;
         }
       }
     }
 
-    // 4) Solved/resolved detection - update ticket status
+    // 4) Serial number lookup (e.g., "serial number of my device")
+    if (!quickReply && /(serial(\s*number)?|serialno|serial no)/.test(lastUserText)) {
+      const normalize = (s: any) => String(s || "").toLowerCase();
+      const wanted = (() => {
+        const m = lastUserText.match(/(?:serial(?:\s*number)?)\s*(?:of|for|on)\s+([a-z0-9 \-&]+)/i);
+        return m?.[1]?.trim()?.toLowerCase() || "";
+      })();
+
+      const candidates = (finalDeviceList as any[]).filter((d: any) => {
+        const hay = `${normalize(d.deviceName)} ${normalize(d.name)} ${normalize(d.deviceType)} ${normalize(d.type)}`;
+        if (wanted) return hay.includes(wanted);
+        if (lastUserText.includes("cctv") || lastUserText.includes("camera")) return /cctv|camera|cam/.test(hay);
+        return false;
+      });
+
+      const pick: any | null = candidates[0] || ((finalDeviceList as any[]).length === 1 ? (finalDeviceList as any[])[0] : null);
+
+      if (pick) {
+        const serialInfo = Array.isArray(pick.serials) && pick.serials.length > 0 ? pick.serials[0] : null;
+        const serialNumber = serialInfo?.serialNumber;
+        const name = pick.deviceName || pick.name || pick.deviceType || pick.type || "your device";
+        const model = pick.deviceModel || pick.model || pick.modelNumber || "";
+        const documentation = pick.documentation || "";
+
+        if (serialNumber) {
+          let serialResponse = `The serial number for ${name} is ${serialNumber}.`;
+          if (model) serialResponse += `\nModel: ${model}`;
+          if (documentation) serialResponse += `\nDocumentation: ${documentation}`;
+
+          // Check warranty if available
+          const warrantyExpiry = serialInfo?.warrantyExpiry || serialInfo?.warrantyEnd;
+          if (warrantyExpiry) {
+            try {
+              const expiryDate = new Date(warrantyExpiry);
+              const now = new Date();
+              const timeDiff = expiryDate.getTime() - now.getTime();
+              const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
+
+              if (daysRemaining > 0) {
+                serialResponse += `\nWarranty expires: ${expiryDate.toLocaleDateString()} (${daysRemaining} days remaining)`;
+              } else {
+                serialResponse += `\nWarranty expired: ${expiryDate.toLocaleDateString()}`;
+              }
+            } catch (error) {
+              serialResponse += `\nWarranty information available`;
+            }
+          }
+
+          quickReply = serialResponse;
+        } else {
+          quickReply = `I couldn't find the serial number for ${name}. Please check the device label or contact support.`;
+        }
+      }
+    }
+
+    // 5) Solved/resolved detection - update ticket status
     const solvedRegex = /(?:^|\s)(solved|fixed|resolved|working|good|thank you|thanks)(?:\s|$)/i;
     if (solvedRegex.test(lastUserText)) {
       // Update active ticket status to resolved if exists
