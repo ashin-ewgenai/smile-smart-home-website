@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onQuoteCreated = exports.onSecureDataWrite = exports.onContactRequestCreated = void 0;
+exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
@@ -67,6 +67,11 @@ exports.onContactRequestCreated = functions.firestore
         relatedEntityId: docId,
         relatedEntityType: "contact_request",
     });
+    /**
+     * Gen 1 Firestore trigger: When a new service request is created by a user,
+     * create an admin notification so admins are alerted in real-time.
+     * Path: Request_service/{requestId}
+     */
     // Cleanup: backfill any prior contact notifications with incorrect type
     try {
         const snap = await db
@@ -81,6 +86,54 @@ exports.onContactRequestCreated = functions.firestore
             await batch.commit();
     }
     catch { }
+});
+/**
+ * Gen 1 Firestore trigger: When a new service request is created by a user,
+ * create an admin notification so admins are alerted in real-time.
+ * Path: Request_service/{requestId}
+ */
+exports.onRequestServiceCreated = functions.firestore
+    .document("Request_service/{requestId}")
+    .onCreate(async (snap, context) => {
+    try {
+        const req = (snap.data() || {});
+        const requestId = snap.id;
+        const uid = (req.uid || "").toString();
+        const service = (req.service || "").toString();
+        const devices = Array.isArray(req.devices) ? req.devices : [];
+        const date = (req.date || "").toString();
+        const time = (req.time || "").toString();
+        const priorityRaw = (req.priority || "normal").toString().toLowerCase();
+        const priority = priorityRaw === "high" ? "high" : priorityRaw === "low" ? "low" : "medium";
+        // Attempt to resolve customer email from Accounts/{uid}
+        let email = null;
+        if (uid) {
+            try {
+                const acc = await db.collection("Accounts").doc(uid).get();
+                email = (acc.data()?.Email || null) ? String(acc.data().Email) : null;
+            }
+            catch { }
+        }
+        const title = "New Service Request";
+        const message = `${email || "A user"} submitted a ${service || "service"} request (${devices.length} device${devices.length === 1 ? "" : "s"})${date || time ? ` for ${[date, time].filter(Boolean).join(" ")}` : ""}.`.trim();
+        await db.collection("Admin_Notifications").add({
+            title,
+            message,
+            type: "service_request",
+            status: "unread",
+            createdAt: firestore_1.FieldValue.serverTimestamp(),
+            relatedEntityId: requestId,
+            relatedEntityType: "service_request",
+            customerEmail: email,
+            customerUid: uid || null,
+            priority,
+        });
+    }
+    catch (e) {
+        // Best-effort notify; swallow to avoid retry storms
+        return null;
+    }
+    return null;
 });
 /**
  * Gen 1 Firestore onWrite trigger with role-based access guard.

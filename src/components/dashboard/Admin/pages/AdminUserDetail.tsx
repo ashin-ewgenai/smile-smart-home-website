@@ -1123,14 +1123,6 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               </button>
               ))}
             </div>
-            {activeTab === 'devices' && (
-              <button
-                onClick={() => setShowAddDeviceModal(true)}
-                className="px-3 py-1.5 text-sm rounded-md bg-teal-600 hover:bg-teal-700 text-white"
-              >
-                Add/Remove Devices
-              </button>
-            )}
           </div>
 
           <div className="bg-white border border-gray-200 rounded-b-md rounded-tr-md p-2 md:p-4 dark:bg-gray-800/60 dark:border-gray-700">
@@ -1245,6 +1237,16 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     })}
                   </tbody>
                 </table>
+              </div>
+            )}
+            {activeTab === 'devices' && (
+              <div className="mt-3 flex justify-end">
+                <button
+                  onClick={() => setShowAddDeviceModal(true)}
+                  className="px-3 py-1.5 text-sm rounded-md bg-teal-600 hover:bg-teal-700 text-white"
+                >
+                  Add/Remove Devices
+                </button>
               </div>
             )}
           </div>

@@ -185,8 +185,13 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
             </button>
             <div className="min-w-0">
               <Link to="/" className="flex items-center min-w-0">
+                <img
+                  src="/logo-primary.png"
+                  alt="Smile Smart Homes logo"
+                  className="h-8 sm:h-10 w-auto mr-2"
+                />
                 <span className="text-base sm:text-xl font-bold text-teal-600 dark:text-teal-400 truncate whitespace-nowrap max-w-[50vw] sm:max-w-none">
-                  Smile Smart Home
+                  Smile Smart Homes
                 </span>
               </Link>
             </div>

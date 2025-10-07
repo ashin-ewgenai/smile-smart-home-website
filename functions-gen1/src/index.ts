@@ -42,6 +42,12 @@ export const onContactRequestCreated = functions.firestore
       relatedEntityType: "contact_request",
     });
 
+/**
+ * Gen 1 Firestore trigger: When a new service request is created by a user,
+ * create an admin notification so admins are alerted in real-time.
+ * Path: Request_service/{requestId}
+ */
+
     // Cleanup: backfill any prior contact notifications with incorrect type
     try {
       const snap = await db
@@ -54,6 +60,60 @@ export const onContactRequestCreated = functions.firestore
       snap.forEach((d) => batch.update(d.ref, { type: "contact_request" }));
       if (!snap.empty) await batch.commit();
     } catch {}
+  });
+
+/**
+ * Gen 1 Firestore trigger: When a new service request is created by a user,
+ * create an admin notification so admins are alerted in real-time.
+ * Path: Request_service/{requestId}
+ */
+export const onRequestServiceCreated = functions.firestore
+  .document("Request_service/{requestId}")
+  .onCreate(async (snap, context) => {
+    try {
+      const req = (snap.data() || {}) as Record<string, any>;
+      const requestId = snap.id;
+
+      const uid = (req.uid || "").toString();
+      const service = (req.service || "").toString();
+      const devices: any[] = Array.isArray(req.devices) ? req.devices : [];
+      const date = (req.date || "").toString();
+      const time = (req.time || "").toString();
+      const priorityRaw = (req.priority || "normal").toString().toLowerCase();
+      const priority: "high" | "medium" | "low" =
+        priorityRaw === "high" ? "high" : priorityRaw === "low" ? "low" : "medium";
+
+      // Attempt to resolve customer email from Accounts/{uid}
+      let email: string | null = null;
+      if (uid) {
+        try {
+          const acc = await db.collection("Accounts").doc(uid).get();
+          email = ((acc.data() as any)?.Email || null) ? String((acc.data() as any).Email) : null;
+        } catch {}
+      }
+
+      const title = "New Service Request";
+      const message = `${email || "A user"} submitted a ${service || "service"} request (${devices.length} device${devices.length === 1 ? "" : "s"})${
+        date || time ? ` for ${[date, time].filter(Boolean).join(" ")}` : ""
+      }.`.trim();
+
+      await db.collection("Admin_Notifications").add({
+        title,
+        message,
+        type: "service_request",
+        status: "unread",
+        createdAt: FieldValue.serverTimestamp(),
+        relatedEntityId: requestId,
+        relatedEntityType: "service_request",
+        customerEmail: email,
+        customerUid: uid || null,
+        priority,
+      });
+    } catch (e) {
+      // Best-effort notify; swallow to avoid retry storms
+      return null;
+    }
+    return null;
   });
 
 /**

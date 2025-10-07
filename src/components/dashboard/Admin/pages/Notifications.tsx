@@ -216,6 +216,13 @@ const Notifications: React.FC = () => {
       return;
     }
 
+    // Service request notifications should go to Admin Users page
+    // Use relative path because AdminApp uses BrowserRouter basename="/dashboard/admin"
+    if (typeStr === 'service_request' || String(item.relatedEntityType || '').toLowerCase() === 'service_request') {
+      navigate('/users');
+      return;
+    }
+
     // Support ticket notifications should go to Admin Reports regardless of id presence
     if (typeStr === 'support_ticket' || String(item.relatedEntityType || '').toLowerCase() === 'support_ticket') {
       // Use relative path because AdminApp uses BrowserRouter basename="/dashboard/admin"
@@ -499,7 +506,7 @@ const Notifications: React.FC = () => {
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {(['all', 'quote_request', 'support_ticket', 'contact_request'] as const).map((filterType) => (
+        {(['all', 'service_request', 'quote_request', 'support_ticket', 'contact_request'] as const).map((filterType) => (
           <button
             key={filterType}
             onClick={() => setFilter(filterType)}
@@ -510,6 +517,7 @@ const Notifications: React.FC = () => {
             }`}
           >
             {filterType === 'all' ? 'All' :
+             filterType === 'service_request' ? 'Service Request' :
              filterType === 'quote_request' ? 'Quote Requests' :
              filterType === 'support_ticket' ? 'Support Tickets' :
              filterType === 'contact_request' ? 'Contact Request' : String(filterType)}

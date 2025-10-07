@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { X } from 'lucide-react';
 import { db, auth } from '../../../lib/firebase';
-import { addDoc, serverTimestamp, setDoc, getDocs, query, where, onSnapshot } from 'firebase/firestore';
-import { requestServicesCollection } from '../../../models/Collections';
+import { addDoc, serverTimestamp, setDoc, getDocs, query, where, onSnapshot, Timestamp } from 'firebase/firestore';
+import { requestServicesCollection, adminNotificationsCollection } from '../../../models/Collections';
 
 interface Props {
   open: boolean;
@@ -158,22 +158,6 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
       role="dialog"
       aria-modal="true"
       aria-label="Request Service"
-      onWheel={(e) => {
-        // If wheel happens on overlay and not inside scrollable content, block it
-        const target = e.target as HTMLElement;
-        const isScrollable = target.closest('.modal-scroll-content');
-        if (!isScrollable && e.cancelable) {
-          e.preventDefault();
-        }
-      }}
-      onTouchMove={(e) => {
-        e.stopPropagation();
-        const target = e.target as HTMLElement;
-        const isScrollable = target.closest('.modal-scroll-content');
-        if (!isScrollable) {
-          e.preventDefault();
-        }
-      }}
     >
       <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden">
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl border border-gray-200 dark:border-gray-700 flex flex-col max-h-[90vh]">
@@ -280,7 +264,7 @@ const RequestServiceModal = ({ open, onClose, deviceOptions }: Props) => {
                 };
                 try {
                   // Create a single service request with multiple devices
-                  await addDoc(requestServicesCollection(db), request);
+                  const created = await addDoc(requestServicesCollection(db), request);
                   // Optimistically bump count; onSnapshot will reconcile
                   setOpenRequestsCount((c) => c + 1);
                   
