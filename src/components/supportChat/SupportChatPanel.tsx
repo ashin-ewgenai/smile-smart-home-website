@@ -175,7 +175,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       const exists = snap.exists();
       const data = snap.data();
       const requested = exists && Boolean(data?.requested);
-      console.log('Support requests update:', { exists, requested, data });
       setHasSupportRequest(requested);
     });
 
@@ -238,11 +237,9 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           return;
         }
         if (effectiveTicketId) {
-          console.log(`Analyzing specific ticket: ${effectiveTicketId}`);
           const ticketDoc = await getDoc(doc(db, 'Support_Tickets', effectiveTicketId));
           
           if (!ticketDoc.exists()) {
-            console.error('Ticket not found:', effectiveTicketId);
             setTicketData(null);
             const errorMsg: ChatMsg = {
               role: 'agent',
@@ -257,7 +254,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           
           const ticketData = ticketDoc.data();
           if (ticketData?.uid !== uid) {
-            console.error('Ticket does not belong to user');
             setTicketData(null);
             const errorMsg: ChatMsg = {
               role: 'agent',
@@ -355,7 +351,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
               }
               hasInitialized.current = true;
             } catch (e) {
-              console.error('Failed to analyze ticket by id:', e);
               const errorMsg: ChatMsg = {
                 role: 'assistant',
                 content: 'I could not analyze your ticket right now. You can still describe your issue and I will assist.',
@@ -425,16 +420,12 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                       });
                     }
                   }
-                } catch (e) {
-                  console.warn('Failed to persist unresolved prompt:', e);
-                }
+                } catch (e) {}
                 hasInitialized.current = true;
                 return;
               }
             }
-          } catch (e) {
-            console.warn('Failed to check unresolved tickets:', e);
-          }
+          } catch (e) {}
 
           // No unresolved tickets: show welcome
           const combined: ChatMsg = {
@@ -461,9 +452,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
               if (existsSnap.empty) {
                 await addDoc(msgsCol, { role: 'assistant', content: combined.content, ts: Date.now(), source: 'system', showTicketCTA: true });
               }
-            } catch (e) {
-              console.warn('Failed to persist welcome messages:', e);
-            }
+            } catch (e) {}
           } else {
             // Fallback for non-auth edge (should be rare): local render only
             setMessages([combined]);
@@ -472,7 +461,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           hasInitialized.current = true; // Set after messages are added
         }
       } catch (error) {
-        console.error('Error analyzing ticket:', error);
         setTicketData(null);
         
         // Show welcome message even if there's an error
@@ -538,9 +526,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                 setWorkflowStep('troubleshooting');
               }
             }
-          } catch (error) {
-            console.warn('Failed to restore ticket context:', error);
-          }
+          } catch (error) {}
         }
       }
 
@@ -649,7 +635,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setDoc(doc(db, 'chat_sessions', sessionId), {
         status: claimed ? 'human' : 'ai',
         updatedAt: Date.now(),
-      }, { merge: true }).catch(console.warn);
+      }, { merge: true }).catch(() => {});
     }
   }, [claimed, uid, sessionId, isAuthenticated]);
 
@@ -721,9 +707,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             await addDoc(msgsCol, { role: 'user', content, ts: Date.now() });
             await addDoc(msgsCol, { role: 'assistant', content: confirmMsg.content, ts: Date.now() + 1, source: 'system' });
             await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human_requested' }, { merge: true });
-          } catch (e) {
-            console.warn('Failed to persist escalation confirmation:', e);
-          }
+          } catch (e) {}
         }
         setIsSending(false);
         return;
@@ -761,6 +745,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           sessionId: sessionId, // Use consistent session ID for admin dashboard
           ...(ticketForPayload && { ticketId: ticketForPayload }), // Include ticket ID if available
           ...(noTicketMode ? { noTicket: true, skipTicketId: lastUnboundTicketIdRef.current || undefined } : {}),
+          // Enable server-side debug info in response (temporary; remove for prod)
+          debug: true,
         };
         const call = httpsCallable(functions, 'chatWithOpenAI');
         const res = await call(payload);
@@ -768,20 +754,31 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
         // Handle enhanced workflow responses
         const resData = res?.data as any;
-        console.log("Chatbot response data:", resData);
+        if (resData?.debugInfo) {
+          const d = resData.debugInfo;
+          try {
+            (d.deviceDocs || []).map((x: any) => ({
+              id: x.id,
+              storedUid: x.uid,
+              deviceSerial: x.deviceSerial,
+              serial: x.serial,
+              serialNumber: x.serialNumber,
+              serials: Array.isArray(x.serials) ? x.serials.map((s: any) => s.serialNumber).join(', ') : ''
+            }));
+          } catch (e) {
+            // ignore debug errors
+          }
+        }
 
         // Do not write messages on the client in AI mode; backend persists both
         if (resData?.ticketDetails) {
-          console.log("Ticket details found:", resData.ticketDetails);
           setWorkflowStep('ticket_verification');
         } else if (resData?.deviceSelection) {
-          console.log("Device selection found:", resData.deviceSelection);
           setWorkflowStep('device_selection');
         } else {
-          console.log("No workflow data in response");
+          // no-op
         }
       } catch (error) {
-        console.error('Chat error:', error);
         // Let backend handle error messaging or show a lightweight local notice if needed
       } finally {
         setIsSending(false);
@@ -823,7 +820,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         setMessages(prev => [...prev, errMsg]);
       }
     } catch (error: any) {
-      console.error('Serial verification error:', error);
       const msg = '❌ Failed to verify the serial number. Please try again later.';
       const errMsg: ChatMsg = { role: 'agent', content: msg, ts: Date.now() };
       setMessages(prev => [...prev, errMsg]);
@@ -864,9 +860,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           };
           setMessages(prev => [...prev, deviceMsg]);
         }
-      } catch (error) {
-        console.error('Failed to get device selection:', error);
-      }
+      } catch (error) {}
     } else {
       // User wants to update ticket
       const updateMsg: ChatMsg = {
@@ -918,7 +912,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
     // Prevent multiple simultaneous calls
     if (isRequestingHuman.current) {
-      console.log('Request human already in progress, ignoring duplicate call');
       return;
     }
     isRequestingHuman.current = true;
@@ -928,12 +921,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       const claimsSnap = await getDoc(claimsRef);
       const currentRequestState = hasSupportRequest;
 
-      console.log('=== REQUEST HUMAN START ===');
-      console.log('Current state:', { hasSupportRequest: currentRequestState, claimed });
-      console.log('Claims document exists:', claimsSnap.exists());
-      if (claimsSnap.exists()) {
-        console.log('Claims data:', claimsSnap.data());
-      }
+      // start request human
 
       if (claimsSnap.exists()) {
         // User has a support document - check if it's active, pending, or cancelled
@@ -941,17 +929,10 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         const cancelledAt = claimsSnap.data()?.cancelledAt;
         const claimedAt = claimsSnap.data()?.claimedAt;
 
-        console.log('Document analysis:', {
-          isOnline,
-          cancelledAt,
-          claimedAt,
-          timeSinceCancelled: cancelledAt ? Date.now() - cancelledAt : null,
-          timeSinceClaimed: claimedAt ? Date.now() - claimedAt : null
-        });
+        // document analysis
 
         if (isOnline) {
           // User has active human support - cancel it
-          console.log('Cancelling ACTIVE support');
           await setDoc(claimsRef, {
             online: false,
             updatedAt: Date.now(),
@@ -960,10 +941,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             requested: false,
             cancelledAt: Date.now(),
           }, { merge: true });
-          console.log('✅ Cancelled active human support');
         } else if (cancelledAt && (Date.now() - cancelledAt) < 60000) { // Cancelled within last minute
           // Document was recently cancelled - treat as new request
-          console.log('Creating NEW support request (recently cancelled)');
           await setDoc(claimsRef, {
             online: false,
             requestedAt: Date.now(),
@@ -982,10 +961,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             // Clear old cancellation data
             cancelledAt: deleteField(),
           }, { merge: true });
-          console.log('✅ Created new support request from cancelled state');
         } else {
           // Document exists but not active and not recently cancelled - cancel it
-          console.log('Cancelling EXISTING pending request');
           await setDoc(claimsRef, {
             online: false,
             cancelledAt: Date.now(),
@@ -995,11 +972,9 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             requested: false,
             cancelledAt: Date.now(),
           }, { merge: true });
-          console.log('✅ Cancelled existing pending support request');
         }
       } else {
         // No support document exists - create new request
-        console.log('Creating NEW support request - no existing document');
         await setDoc(claimsRef, {
           online: false,
           requestedAt: Date.now(),
@@ -1013,7 +988,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           at: Date.now(),
           status: 'requested'
         }, { merge: true });
-        console.log('✅ Created new support request');
       }
 
       // Force immediate state verification and update
@@ -1023,29 +997,15 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           const verifyData = verifySnap.data();
           const expectedState = verifySnap.exists() && Boolean(verifyData?.requested);
 
-          console.log('🔍 State verification after timeout:', {
-            exists: verifySnap.exists(),
-            requested: verifyData?.requested,
-            expectedState,
-            currentState: hasSupportRequest
-          });
-
+          
           // Force state update if needed
           if (hasSupportRequest !== expectedState) {
-            console.log('🔄 Forcing state update after timeout:', {
-              from: hasSupportRequest,
-              to: expectedState
-            });
             setHasSupportRequest(expectedState);
           }
-        } catch (error) {
-          console.error('❌ State verification failed:', error);
-        }
+        } catch (error) {}
       }, 100);
 
-    } catch (error) {
-      console.error('❌ Failed to toggle human support:', error);
-    } finally {
+    } catch (error) {} finally {
       isRequestingHuman.current = false;
     }
   };
@@ -1067,9 +1027,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         batch.push(updateDoc(doc(db, 'chat_sessions', sessionId, 'messages', d.id), { resolved: true }));
       });
       await Promise.all(batch);
-    } catch (e) {
-      console.warn('Failed to mark unresolved prompt resolved:', e);
-    }
+    } catch (e) {}
   };
 
   // Continue with unresolved ticket: bind to session and analyze
@@ -1096,12 +1054,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             setMessages((prev) => [...prev, { role: 'assistant', content: 'Please type the serial number of your device in the serial input below and press Verify.', ts: Date.now() + 1 }]);
           }
         }
-      } catch (e) {
-        console.warn('Failed to analyze continued ticket:', e);
-      }
-    } catch (e) {
-      console.warn('Failed to bind unresolved ticket to session:', e);
-    }
+      } catch (e) {}
+    } catch (e) {}
   };
 
   // Start new chat by cancelling the provided unresolved ticket, then unbind.
@@ -1112,9 +1066,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         try {
           const tRef = doc(db, 'Support_Tickets', ticketIdToCancel);
           await updateDoc(tRef, { status: 'Resolved', updatedAt: serverTimestamp(), manuallyUnbound: true });
-        } catch (e) {
-          console.warn('Failed to cancel unresolved ticket:', e);
-        }
+        } catch (e) {}
       }
       await updateDoc(doc(db, 'chat_sessions', sessionId), { activeTicketId: deleteField(), updatedAt: serverTimestamp() });
       setSessionActiveTicketId(null);
@@ -1589,7 +1541,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                   const file = e.target.files?.[0];
                   if (fileInputRef.current) fileInputRef.current.value = '';
                   if (!file || !uid || !sessionId) {
-                    console.error('Upload blocked:', { file: !!file, uid, sessionId });
                     return;
                   }
                   const tempId = Math.random().toString(36).slice(2);
@@ -1599,7 +1550,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                     const ref = storageRef(storage, path);
                     const task = uploadBytesResumable(ref, file, { contentType: file.type });
                     task.on('state_changed', undefined, (error) => {
-                      console.error('Upload error:', error);
                       setMessages((prev) => prev.map((m) => m.id === tempId ? ({ id: tempId, role: 'agent', content: `Upload failed: ${error?.message || 'unknown error'}`, ts: Date.now() }) : m));
                     }, async () => {
                       const url = await getDownloadURL(task.snapshot.ref);
@@ -1607,22 +1557,16 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                       try {
                         const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
                         await addDoc(msgsCol, { role: 'user', imageUrl: url, ts: Date.now() });
-                      } catch (err) {
-                        console.error('Failed to save image URL:', err);
-                      }
+                      } catch (err) {}
                     });
                   } catch (err) {
-                    console.error('Upload setup error:', err);
                     setMessages(prev => [...prev, { role: 'agent', content: 'Image upload failed. Please try again.', ts: Date.now() }]);
                   }
                 }}
               />
               <button
                 type="button"
-                onClick={() => {
-                  console.log('Camera button clicked, claimed:', claimed, 'uid:', uid, 'sessionId:', sessionId);
-                  fileInputRef.current?.click();
-                }}
+                onClick={() => { fileInputRef.current?.click(); }}
                 className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-all duration-200 shadow-sm border border-blue-200 dark:border-blue-700"
                 title="Upload image for human support"
                 disabled={!isAuthenticated}

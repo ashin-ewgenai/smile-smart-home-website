@@ -93,6 +93,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
   const providedTicketId = (request.data?.ticketId as string | undefined)?.trim();
   const noTicket: boolean = Boolean(request.data?.noTicket);
   const skipTicketId = (request.data?.skipTicketId as string | undefined)?.trim();
+  const debug: boolean = Boolean(request.data?.debug);
   let sessionId: string = (request.data?.sessionId as string | undefined)?.trim() || "";
 
   if (!sessionId && authCtx?.uid) {
@@ -162,85 +163,55 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
   } catch {}
 
   // Device context for better answers
-  console.log("=== DEVICE FETCHING START ===");
-  console.log("Fetching User_Devices for UID:", uid);
   const devicesQuery = await db.collection(CONFIG.COLLECTIONS.DEVICES).where("uid", "==", uid).get();
-  console.log("User_Devices query returned:", devicesQuery.size, "documents");
-  
-  const userDevices = devicesQuery.docs.map((doc) => {
-    const data = doc.data();
-    console.log("User device document:", doc.id, "data:", data);
-    return { id: doc.id, ...data };
-  }) as Array<{ id: string; deviceName?: string; name?: string; deviceType?: string; type?: string; deviceModel?: string; model?: string; sourceDeviceId?: string }>;
-  
-  console.log("Parsed user devices:", userDevices);
-  
-  // Fetch actual device details from Devices collection using sourceDeviceId
-  const deviceDetailsPromises = userDevices
-    .filter(ud => {
-      console.log("Checking user device:", ud.id, "has sourceDeviceId:", ud.sourceDeviceId);
-      return ud.sourceDeviceId;
-    })
-    .map(async (ud) => {
-      try {
-        console.log("Fetching device details for sourceDeviceId:", ud.sourceDeviceId);
-        const deviceDoc = await db.collection(CONFIG.COLLECTIONS.MAIN_DEVICES).doc(ud.sourceDeviceId!).get();
-        console.log("Device document exists:", deviceDoc.exists, "for ID:", ud.sourceDeviceId);
-        if (deviceDoc.exists) {
-          const deviceData = deviceDoc.data();
-          console.log("Device data:", deviceData);
-          return { ...deviceData, id: deviceDoc.id, userDeviceId: ud.id };
-        }
-      } catch (error) {
-        console.error(`Failed to fetch device details for ${ud.sourceDeviceId}:`, error);
-      }
-      return null;
-    });
-  
-  const deviceDetails = (await Promise.all(deviceDetailsPromises)).filter(Boolean) as Array<any>;
-  console.log("=== FINAL DEVICE DETAILS ===");
-  console.log("Total device details fetched:", deviceDetails.length);
-  console.log("Device details:", JSON.stringify(deviceDetails, null, 2));
-  
-  // If no device details were fetched via sourceDeviceId, use the user devices directly
-  const finalDeviceList = deviceDetails.length > 0 ? deviceDetails : userDevices;
-  console.log("Using device list:", finalDeviceList.length > 0 ? "device details" : "user devices");
-  
-  const deviceContext = finalDeviceList.length > 0 
-    ? `User has the following devices installed: ${finalDeviceList.map((d) => `${d.deviceName || d.name || "Unknown Device"} (Type: ${d.deviceType || d.type || "Unknown"}, Model: ${d.deviceModel || d.model || d.modelNumber || "Unknown"})`).join(", ")}.` 
-    : "";
-  console.log("Device context for AI:", deviceContext);
-  let finalDeviceContext = deviceContext;
-
-  // Fallback: If no devices found, try fetching specific known document (e.g., for debugging)
-  if (deviceDetails.length === 0 && userDevices.length === 0) {
-    try {
-      const fallbackDoc = await db.collection(CONFIG.COLLECTIONS.DEVICES).doc("0AE3Q2mJnr5JOw4fytKY").get();
-      if (fallbackDoc.exists) {
-        const fallbackUserDevice = { id: fallbackDoc.id, ...fallbackDoc.data() } as any;
-        console.log("Fallback user device fetched:", fallbackUserDevice);
-        
-        // Try to fetch device details using sourceDeviceId from fallback
-        if (fallbackUserDevice.sourceDeviceId) {
-          try {
-            const deviceDoc = await db.collection(CONFIG.COLLECTIONS.MAIN_DEVICES).doc(fallbackUserDevice.sourceDeviceId).get();
-            if (deviceDoc.exists) {
-              const deviceData = { ...deviceDoc.data(), id: deviceDoc.id } as any;
-              finalDeviceContext = `User has the following devices installed: ${deviceData.deviceName || deviceData.name || "Unknown Device"} (Type: ${deviceData.deviceType || deviceData.type || "Unknown"}, Model: ${deviceData.deviceModel || deviceData.model || "Unknown"}).`;
-              console.log("Fallback device details fetched:", deviceData);
-            }
-          } catch (error) {
-            console.warn("Failed to fetch fallback device details:", error);
-          }
-        }
-      }
-    } catch (error) {
-      console.warn("Fallback device fetch failed:", error);
+  try {
+    console.log("DEBUG User_Devices read for uid:", uid, "docs:", devicesQuery.size);
+    for (const d of devicesQuery.docs) {
+      const data = d.data() as any;
+      console.log("User_Devices doc:", d.id, "stored uid:", data?.uid);
     }
+  } catch (e) {
+    console.warn("Failed to log User_Devices uid checks:", e);
+  }
+  const userDevices = devicesQuery.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) })) as Array<{ id: string; deviceName?: string; name?: string }>;
+  // Build lightweight debug info for client-side verification
+  const debugInfo = debug
+    ? {
+        queriedCollection: CONFIG.COLLECTIONS.DEVICES,
+        authUid: uid,
+        deviceDocs: (userDevices as any[]).map((d) => ({
+          id: d.id,
+          uid: d.uid,
+          serials: Array.isArray(d.serials)
+            ? d.serials.map((e: any) => ({ serialNumber: e?.serialNumber, warrantyExpiry: e?.warrantyExpiry || e?.warrantyEnd }))
+            : [],
+          deviceSerial: d.deviceSerial || null,
+          serial: d.serial || null,
+          serialNumber: d.serialNumber || null,
+        })),
+      }
+    : undefined;
+  const deviceContext = userDevices.length > 0 ? `User has the following devices installed: ${userDevices.map((d) => d.deviceName || d.name || "Unknown Device").join(", ")}.` : "";
+
+  // DEBUG: Dump user device serial-related fields to logs to verify availability
+  try {
+    console.log("=== DEBUG USER DEVICES & SERIALS ===");
+    console.log("Devices collection:", CONFIG.COLLECTIONS.DEVICES);
+    console.log("User devices count:", userDevices.length);
+    for (const d of userDevices as any[]) {
+      console.log("USER_DEVICE DOC:", d.id, d.deviceName || d.name || d.deviceType || d.type);
+      const serialArr = Array.isArray(d.serials) ? d.serials : [];
+      // Only log safe summary of serial entries
+      const serialSummary = serialArr.map((e: any) => ({ serialNumber: e?.serialNumber, warrantyExpiry: e?.warrantyExpiry || e?.warrantyEnd }));
+      console.log("USER_DEVICE serials[]:", JSON.stringify(serialSummary, null, 2));
+      console.log("USER_DEVICE deviceSerial:", d.deviceSerial, "serial:", d.serial);
+    }
+    console.log("=== END DEBUG USER DEVICES & SERIALS ===");
+  } catch (e) {
+    console.warn("Failed to log user devices serials:", e);
   }
 
   // Enhanced active tickets context with all required fields
-  console.log("Fetching tickets for UID:", uid);
   let ticketContext = "";
   let activeTicket = null;
 
@@ -289,286 +260,198 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
         `- Description: "${description}"\n` +
         `- Created: ${new Date(ticketData.createdAt?.toDate?.() || ticketData.createdAt || Date.now()).toLocaleString()}\n` +
         `\n\nIMPORTANT: Always acknowledge this ticket context in your response.`;
-      console.log("Active ticket found:", ticketId, ticketContext);
-    } else {
-      console.log("No active ticket found for UID:", uid);
     }
   } catch (error) {
     console.warn("Failed to fetch ticket context:", error);
   }
 
-  // Quick deterministic answers for device info queries (before calling OpenAI)
-  // Uses device data we already fetched (finalDeviceList) to answer directly when possible.
+
+  // In-chat serial verification (Option A): parse a serial from the user's last message and verify against saved devices
   try {
     const lastUserMsgRaw = [...clean].reverse().find((m) => m.role === "user")?.content ?? "";
-    const lastUserText = (typeof lastUserMsgRaw === "string" ? lastUserMsgRaw : JSON.stringify(lastUserMsgRaw)).toLowerCase();
+    const lastUserText = (typeof lastUserMsgRaw === "string" ? lastUserMsgRaw : JSON.stringify(lastUserMsgRaw));
 
-    let quickReply: string | null = null;
+    // Heuristic: capture a likely serial token ONLY when user mentions 'serial' or 'sn'
+    // Examples: "my serial is ABC-123-XYZ", "serial: ABC123XYZ", "SN ABC123"
+    const serialPattern = /(?:\bserial\b|\bsn\b|s\/n)\s*(?:number)?\s*(?:is|:)?\s*([A-Za-z0-9\-]{4,})/i;
+    const sm = lastUserText.match(serialPattern);
 
-    // 1) List device names
-    const listDevicesRegex = /(names?|list)\s+(of\s+)?(my\s+)?devices|what\s+devices\s+do\s+i\s+have|list\s+my\s+devices/;
-    if (listDevicesRegex.test(lastUserText)) {
-      if (finalDeviceList.length > 0) {
-        const deviceLines = (finalDeviceList as any[]).map((d: any, i: number) => {
-          const name = d.deviceName || d.name || d.deviceType || d.type || "Unknown Device";
-          const model = d.deviceModel || d.model || d.modelNumber || "";
-          const serialInfo = Array.isArray(d.serials) && d.serials.length > 0 ? d.serials[0] : null;
-          const serialNumber = serialInfo?.serialNumber || "";
+    console.log("=== IN-CHAT SERIAL PARSE ===");
+    console.log("LAST USER RAW:", lastUserMsgRaw);
+    console.log("MATCH RESULT:", sm);
 
-          let deviceInfo = `${i + 1}. ${name}`;
-          if (model) deviceInfo += ` (${model})`;
-          if (serialNumber) deviceInfo += ` - Serial: ${serialNumber}`;
+    if (sm) {
+      const rawSerial = (sm[1] || "").trim();
+      if (rawSerial) {
+        const norm = (s: string) => s.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
+        const target = norm(rawSerial);
+        console.log("EXTRACTED SERIAL RAW:", rawSerial);
+        console.log("NORMALIZED TARGET:", target);
 
-          return deviceInfo;
-        }).join("\n");
-        quickReply = `You have the following devices installed:\n\n${deviceLines}`;
-      } else {
-        quickReply = "I don't see any devices registered to your account yet.";
-      }
-    }
+        let matched: null | { device: any; entry?: any; serialValue?: string } = null;
 
-    // 2) Model number lookup (e.g., "model number of CCTV")
-    if (!quickReply && /(model(\s*number)?|modelno|model no)/.test(lastUserText)) {
-      const normalize = (s: any) => String(s || "").toLowerCase();
-      const wanted = (() => {
-        // Try variants: "model number of X", "model of X", or "model X"
-        const m1 = lastUserText.match(/model(?:\s*number)?\s*(?:of|for)\s+([a-z0-9 \-&]+)/i);
-        const m2 = lastUserText.match(/model(?:\s*number)?\s+([a-z0-9 \-&]+)/i);
-        return (m1?.[1] || m2?.[1] || "").trim().toLowerCase();
-      })();
-
-      const candidates = (finalDeviceList as any[]).filter((d: any) => {
-        const hay = `${normalize(d.deviceName)} ${normalize(d.name)} ${normalize(d.deviceType)} ${normalize(d.type)}`;
-        if (wanted) return hay.includes(wanted);
-        if (lastUserText.includes("cctv") || lastUserText.includes("camera")) return /cctv|camera|cam/.test(hay);
-        return false;
-      });
-
-      const pick: any | null = candidates[0] || ((finalDeviceList as any[]).length === 1 ? (finalDeviceList as any[])[0] : null);
-
-      if (pick) {
-        const modelFromSerials = Array.isArray(pick.serials)
-          ? (pick.serials.find((s: any) => s?.modelNumber)?.modelNumber || pick.serials[0]?.modelNumber)
-          : undefined;
-        const model = pick.deviceModel || pick.model || pick.modelNumber || modelFromSerials;
-        const name = pick.deviceName || pick.name || pick.deviceType || pick.type || "your device";
-
-        // Get serial and warranty information
-        const serialInfo = Array.isArray(pick.serials) && pick.serials.length > 0
-          ? pick.serials[0]
-          : null;
-        const serialNumber = serialInfo?.serialNumber;
-        const warrantyExpiry = serialInfo?.warrantyExpiry || serialInfo?.warrantyEnd;
-        const documentation = pick.documentation || "";
-
-        // Format warranty status
-        let warrantyStatus = "";
-        if (warrantyExpiry) {
-          try {
-            const expiryDate = new Date(warrantyExpiry);
-            const now = new Date();
-            const timeDiff = expiryDate.getTime() - now.getTime();
-            const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
-
-            if (daysRemaining > 0) {
-              warrantyStatus = ` (Warranty expires: ${expiryDate.toLocaleDateString()}, ${daysRemaining} days remaining)`;
-            } else {
-              warrantyStatus = ` (Warranty expired: ${expiryDate.toLocaleDateString()})`;
-            }
-          } catch (error) {
-            warrantyStatus = ` (Warranty info available)`;
-          }
-        }
-
-        if (model) {
-          let deviceInfo = `The model number of ${name} is ${model}${warrantyStatus}.`;
-          if (serialNumber) {
-            deviceInfo += `\nSerial Number: ${serialNumber}`;
-          }
-          if (documentation) {
-            deviceInfo += `\nDocumentation: ${documentation}`;
-          }
-          quickReply = deviceInfo;
-        } else {
-          quickReply = `I couldn't find a saved model number for ${name}. Please check the device label.`;
-        }
-      }
-    }
-
-    // 3) Warranty status lookup (e.g., "is my CCTV under warranty")
-    if (!quickReply && /(warranty|under warranty|warranty status|warranty check)/.test(lastUserText)) {
-      const normalize = (s: any) => String(s || "").toLowerCase();
-      const wanted = (() => {
-        const m = lastUserText.match(/(?:warranty|warranty status|warranty check)\s+(?:of|for|on)\s+([a-z0-9 \-&]+)/i);
-        return m?.[1]?.trim()?.toLowerCase() || "";
-      })();
-
-      const candidates = (finalDeviceList as any[]).filter((d: any) => {
-        const hay = `${normalize(d.deviceName)} ${normalize(d.name)} ${normalize(d.deviceType)} ${normalize(d.type)}`;
-        if (wanted) return hay.includes(wanted);
-        if (lastUserText.includes("cctv") || lastUserText.includes("camera")) return /cctv|camera|cam/.test(hay);
-        return false;
-      });
-
-      const pick: any | null = candidates[0] || ((finalDeviceList as any[]).length === 1 ? (finalDeviceList as any[])[0] : null);
-
-      if (pick) {
-        // Check if this device has serials with warranty info
-        const serialsWithWarranty = Array.isArray(pick.serials) ? pick.serials.filter((s: any) =>
-          s?.warrantyEnd || s?.warrantyExpiry || s?.warrantyExpires
-        ) : [];
-
-        if (serialsWithWarranty.length > 0) {
-          const warrantyInfo = serialsWithWarranty[0]; // Use first serial with warranty info
-          const warrantyEnd = warrantyInfo.warrantyEnd || warrantyInfo.warrantyExpiry || warrantyInfo.warrantyExpires;
-          const serialNumber = warrantyInfo.serialNumber;
-          const documentation = pick.documentation || "";
-
-          try {
-            const expiryDate = new Date(warrantyEnd);
-            const now = new Date();
-            const timeDiff = expiryDate.getTime() - now.getTime();
-            const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
-
-            let warrantyResponse = "";
-            if (daysRemaining > 0) {
-              warrantyResponse = `Yes, your ${pick.deviceName || pick.name || "device"} is under warranty! It expires on ${expiryDate.toLocaleDateString()} (${daysRemaining} days remaining).`;
-            } else {
-              warrantyResponse = `Your ${pick.deviceName || pick.name || "device"} warranty expired on ${expiryDate.toLocaleDateString()} (${Math.abs(daysRemaining)} days ago).`;
-            }
-
-            if (serialNumber) {
-              warrantyResponse += `\nSerial Number: ${serialNumber}`;
-            }
-            if (documentation) {
-              warrantyResponse += `\nDocumentation: ${documentation}`;
-            }
-
-            quickReply = warrantyResponse;
-          } catch (error) {
-            let warrantyResponse = `I found warranty information for your ${pick.deviceName || pick.name || "device"}, but couldn't determine the exact expiry date.`;
-            if (serialNumber) {
-              warrantyResponse += `\nSerial Number: ${serialNumber}`;
-            }
-            if (documentation) {
-              warrantyResponse += `\nDocumentation: ${documentation}`;
-            }
-            quickReply = warrantyResponse;
-          }
-        } else {
-          let noWarrantyResponse = `I couldn't find warranty information for your ${pick.deviceName || pick.name || "device"}. Please check your purchase receipt or contact support.`;
-          const serialInfo = Array.isArray(pick.serials) && pick.serials.length > 0 ? pick.serials[0] : null;
-          const serialNumber = serialInfo?.serialNumber;
-          const documentation = pick.documentation || "";
-
-          if (serialNumber) {
-            noWarrantyResponse += `\nSerial Number: ${serialNumber}`;
-          }
-          if (documentation) {
-            noWarrantyResponse += `\nDocumentation: ${documentation}`;
-          }
-
-          quickReply = noWarrantyResponse;
-        }
-      }
-    }
-
-    // 4) Serial number lookup (e.g., "serial number of my device")
-    if (!quickReply && /(serial(\s*number)?|serialno|serial no)/.test(lastUserText)) {
-      const normalize = (s: any) => String(s || "").toLowerCase();
-      const wanted = (() => {
-        const m = lastUserText.match(/(?:serial(?:\s*number)?)\s*(?:of|for|on)\s+([a-z0-9 \-&]+)/i);
-        return m?.[1]?.trim()?.toLowerCase() || "";
-      })();
-
-      const candidates = (finalDeviceList as any[]).filter((d: any) => {
-        const hay = `${normalize(d.deviceName)} ${normalize(d.name)} ${normalize(d.deviceType)} ${normalize(d.type)}`;
-        if (wanted) return hay.includes(wanted);
-        if (lastUserText.includes("cctv") || lastUserText.includes("camera")) return /cctv|camera|cam/.test(hay);
-        return false;
-      });
-
-      const pick: any | null = candidates[0] || ((finalDeviceList as any[]).length === 1 ? (finalDeviceList as any[])[0] : null);
-
-      if (pick) {
-        const serialInfo = Array.isArray(pick.serials) && pick.serials.length > 0 ? pick.serials[0] : null;
-        const serialNumber = serialInfo?.serialNumber;
-        const name = pick.deviceName || pick.name || pick.deviceType || pick.type || "your device";
-        const model = pick.deviceModel || pick.model || pick.modelNumber || "";
-        const documentation = pick.documentation || "";
-
-        if (serialNumber) {
-          let serialResponse = `The serial number for ${name} is ${serialNumber}.`;
-          if (model) serialResponse += `\nModel: ${model}`;
-          if (documentation) serialResponse += `\nDocumentation: ${documentation}`;
-
-          // Check warranty if available
-          const warrantyExpiry = serialInfo?.warrantyExpiry || serialInfo?.warrantyEnd;
-          if (warrantyExpiry) {
-            try {
-              const expiryDate = new Date(warrantyExpiry);
-              const now = new Date();
-              const timeDiff = expiryDate.getTime() - now.getTime();
-              const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
-
-              if (daysRemaining > 0) {
-                serialResponse += `\nWarranty expires: ${expiryDate.toLocaleDateString()} (${daysRemaining} days remaining)`;
-              } else {
-                serialResponse += `\nWarranty expired: ${expiryDate.toLocaleDateString()}`;
+        for (const d of userDevices as any[]) {
+          console.log("CHECKING DEVICE:", d.id, d.deviceName || d.name || d.deviceType || d.type);
+          const serialArr: any[] = Array.isArray(d.serials) ? d.serials : [];
+          console.log("serials[] length:", serialArr.length);
+          if (serialArr.length) {
+            for (const entry of serialArr) {
+              const sv = String(entry?.serialNumber || "");
+              console.log(" - serials[].serialNumber:", sv);
+              console.log("   COMPARING:", sv ? norm(sv) : "", "vs target:", target);
+              if (sv && norm(sv) === target) {
+                matched = { device: d, entry, serialValue: sv };
+                break;
               }
-            } catch (error) {
-              serialResponse += `\nWarranty information available`;
             }
           }
+          if (matched) break;
 
-          quickReply = serialResponse;
+          // Fallback single-field serials
+          const singleSerial = String((d as any).deviceSerial || (d as any).serial || "");
+          console.log("fallback deviceSerial/serial:", singleSerial);
+          if (singleSerial && norm(singleSerial) === target) {
+            matched = { device: d, serialValue: singleSerial };
+            break;
+          }
+        }
+
+        if (matched) {
+          let quickReply: string;
+          const name = matched.device.deviceName || matched.device.name || matched.device.deviceType || matched.device.type || "your device";
+          const model = matched.device.deviceModel || matched.device.model || matched.device.modelNumber || matched.entry?.modelNumber || "";
+          quickReply = `Serial verified successfully for ${name}.`;
+          if (matched.serialValue) quickReply += `\nSerial: ${matched.serialValue}`;
+          if (model) quickReply += `\nModel: ${model}`;
+
+          const wEnd = matched.entry?.warrantyEnd || matched.entry?.warrantyExpiry || matched.entry?.warrantyExpires;
+          if (wEnd) {
+            try {
+              const expiryDate = new Date(String(wEnd));
+              const now = new Date();
+              const days = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
+              if (!Number.isNaN(days)) {
+                if (days > 0) quickReply += `\nWarranty expires: ${expiryDate.toLocaleDateString()} (${days} days remaining)`;
+                else quickReply += `\nWarranty expired: ${expiryDate.toLocaleDateString()}`;
+              }
+            } catch {}
+          }
+          // Include ticket details if an active ticket is present
+          let ticketDetails: any = null;
+          if (activeTicket) {
+            const ticketNumber = activeTicket.data.ticketNumber || `#${activeTicket.ticketId.slice(-6).toUpperCase()}`;
+            ticketDetails = {
+              ticketId: activeTicket.ticketId,
+              ticketNumber,
+              subject: activeTicket.data.subject,
+              description: activeTicket.data.description,
+              category: activeTicket.data.category,
+              status: activeTicket.data.status,
+              createdAt: activeTicket.data.createdAt?.toDate?.()?.toLocaleDateString(),
+            };
+          }
+
+          console.log("MATCH FOUND:", true);
+          return {
+            reply: quickReply,
+            sessionId,
+            ...(ticketDetails && { ticketDetails }),
+            ...(debugInfo && { debugInfo }),
+          };
         } else {
-          quickReply = `I couldn't find the serial number for ${name}. Please check the device label or contact support.`;
+          console.log("MATCH FOUND:", false);
+          console.log("NO MATCH — continuing to OpenAI path");
         }
       }
     }
+    // Fallback: even if the user didn't say "serial"/"SN", try to detect any known serial present in the message
+    else {
+      const norm = (s: string) => s.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
+      const msgNorm = norm(lastUserText);
+      console.log("=== FALLBACK SERIAL SCAN ===");
+      console.log("NORMALIZED MESSAGE:", msgNorm);
 
-    // 5) Solved/resolved detection - update ticket status
-    const solvedRegex = /(?:^|\s)(solved|fixed|resolved|working|good|thank you|thanks)(?:\s|$)/i;
-    if (solvedRegex.test(lastUserText)) {
-      // Update active ticket status to resolved if exists
-      if (activeTicket) {
-        try {
-          await db.collection(CONFIG.COLLECTIONS.TICKETS).doc(activeTicket.ticketId).set({
-            status: 'resolved',
-            resolvedAt: Date.now(),
-            updatedAt: Date.now()
-          }, { merge: true });
-          console.log("Ticket marked as resolved:", activeTicket.ticketId);
-          quickReply = "Great! I've marked your ticket as resolved. If you need help with anything else, feel free to ask!";
-        } catch (error) {
-          console.warn("Failed to update ticket status:", error);
+      type Candidate = { value: string; device: any; entry?: any };
+      const candidates: Candidate[] = [];
+
+      for (const d of userDevices as any[]) {
+        const serialArr: any[] = Array.isArray(d.serials) ? d.serials : [];
+        if (serialArr.length) {
+          for (const entry of serialArr) {
+            const sv = String(entry?.serialNumber || "").trim();
+            if (sv) candidates.push({ value: sv, device: d, entry });
+          }
+        }
+        const singleSerials = [
+          String((d as any).deviceSerial || "").trim(),
+          String((d as any).serial || "").trim(),
+          String((d as any).serialNumber || "").trim(),
+        ].filter(Boolean) as string[];
+        for (const sv of singleSerials) {
+          candidates.push({ value: sv, device: d });
         }
       }
-    }
 
-    if (quickReply) {
-      let ticketDetails: any = null;
-      if (activeTicket) {
-        const ticketNumber = activeTicket.data.ticketNumber || `#${activeTicket.ticketId.slice(-6).toUpperCase()}`;
-        ticketDetails = {
-          ticketId: activeTicket.ticketId,
-          ticketNumber,
-          subject: activeTicket.data.subject,
-          description: activeTicket.data.description,
-          category: activeTicket.data.category,
-          status: activeTicket.data.status,
-          createdAt: activeTicket.data.createdAt?.toDate?.()?.toLocaleDateString(),
+      console.log("CANDIDATE SERIAL COUNT:", candidates.length);
+      let matched: null | { device: any; entry?: any; serialValue?: string } = null;
+
+      for (const c of candidates) {
+        const cNorm = norm(c.value);
+        if (!cNorm || cNorm.length < 4) continue; // avoid tiny/ambiguous strings
+        // Accept either exact equality (when user typed cleanly) or substring (user inserted separators/spaces)
+        if (msgNorm === cNorm || msgNorm.includes(cNorm)) {
+          matched = { device: c.device, entry: c.entry, serialValue: c.value };
+          break;
+        }
+      }
+
+      if (matched) {
+        let quickReply: string;
+        const name = matched.device.deviceName || matched.device.name || matched.device.deviceType || matched.device.type || "your device";
+        const model = matched.device.deviceModel || matched.device.model || matched.device.modelNumber || matched.entry?.modelNumber || "";
+        quickReply = `Serial verified successfully for ${name}.`;
+        if (matched.serialValue) quickReply += `\nSerial: ${matched.serialValue}`;
+        if (model) quickReply += `\nModel: ${model}`;
+
+        const wEnd = matched.entry?.warrantyEnd || matched.entry?.warrantyExpiry || matched.entry?.warrantyExpires;
+        if (wEnd) {
+          try {
+            const expiryDate = new Date(String(wEnd));
+            const now = new Date();
+            const days = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
+            if (!Number.isNaN(days)) {
+              if (days > 0) quickReply += `\nWarranty expires: ${expiryDate.toLocaleDateString()} (${days} days remaining)`;
+              else quickReply += `\nWarranty expired: ${expiryDate.toLocaleDateString()}`;
+            }
+          } catch {}
+        }
+        let ticketDetails: any = null;
+        if (activeTicket) {
+          const ticketNumber = activeTicket.data.ticketNumber || `#${activeTicket.ticketId.slice(-6).toUpperCase()}`;
+          ticketDetails = {
+            ticketId: activeTicket.ticketId,
+            ticketNumber,
+            subject: activeTicket.data.subject,
+            description: activeTicket.data.description,
+            category: activeTicket.data.category,
+            status: activeTicket.data.status,
+            createdAt: activeTicket.data.createdAt?.toDate?.()?.toLocaleDateString(),
+          };
+        }
+        console.log("MATCH FOUND (FALLBACK):", true);
+        return {
+          reply: quickReply,
+          sessionId,
+          ...(ticketDetails && { ticketDetails }),
+          ...(debugInfo && { debugInfo }),
         };
+      } else {
+        console.log("MATCH FOUND (FALLBACK):", false);
       }
-
-      return {
-        reply: quickReply,
-        sessionId,
-        ...(ticketDetails && { ticketDetails }),
-      };
     }
-  } catch {}
+  } catch (err) {
+    console.warn("In-chat serial verification failed:", err);
+  }
 
   const systemPrompt = {
     role: "system",
@@ -610,7 +493,7 @@ RESPONSE FORMAT:
 - NEVER start responses with technical codes like "REQUIRES_TICKET:" or "DEVICE_SELECTION:"
 
 USER CONTEXT:
-${finalDeviceContext}${ticketContext}`,
+${deviceContext}${ticketContext}`,
   };
   console.log("System prompt content:", systemPrompt.content);
 
@@ -740,7 +623,8 @@ ${finalDeviceContext}${ticketContext}`,
       sessionId,
       ...(requiresTicket && { requiresTicket: true }),
       ...(ticketDetails && { ticketDetails }),
-      ...(deviceSelection && { deviceSelection })
+      ...(deviceSelection && { deviceSelection }),
+      ...(debugInfo && { debugInfo })
     };
   } catch (e) {
     const err = e as { message?: string };
@@ -776,66 +660,50 @@ export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) =
   // Attempt to locate the serial within the user's registered devices
   let matchedDeviceDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
   let matchedDeviceData: Record<string, any> | null = null;
-  let matchedSerialEntry: Record<string, any> | null = null;
-
-  console.log("=== SERIAL VERIFICATION START ===");
-  console.log("Looking for serial number:", serial);
-  console.log("User UID:", authCtx.uid);
 
   try {
     const userDevicesSnap = await db
       .collection(CONFIG.COLLECTIONS.DEVICES)
       .where("uid", "==", authCtx.uid)
       .get();
+    try {
+      console.log("DEBUG verifySerialAndFetchDocs User_Devices read for uid:", authCtx.uid, "docs:", userDevicesSnap.size);
+      for (const d of userDevicesSnap.docs) {
+        const data = d.data() as any;
+        console.log("User_Devices doc:", d.id, "stored uid:", data?.uid);
+      }
+    } catch (e) {
+      console.warn("Failed to log uid checks in verifySerialAndFetchDocs:", e);
+    }
 
-    console.log("Found", userDevicesSnap.size, "user device documents");
-
+    const norm = (s: string) => String(s || "").replace(/[^A-Za-z0-9]/g, "").toLowerCase();
+    const target = norm(serial);
+    let checkedDocs = 0;
     for (const doc of userDevicesSnap.docs) {
+      checkedDocs++;
       const data = doc.data() as Record<string, any>;
       const serials: Array<Record<string, any>> = Array.isArray(data.serials) ? data.serials : [];
 
-      console.log("=== Checking device:", doc.id, "===");
-      console.log("Device data keys:", Object.keys(data));
-      console.log("Serials array length:", serials.length);
-      console.log("Serials array contents:", JSON.stringify(serials, null, 2));
-
-      // Check if document has serials field and it's not empty
-      if (serials.length > 0) {
-        console.log("Device has serials, checking each entry...");
-
-        // Check each serial entry for exact match
-        for (let i = 0; i < serials.length; i++) {
-          const entry = serials[i];
-          console.log(`  Serial entry ${i}:`, entry);
-
-          if (typeof entry?.serialNumber === "string") {
-            console.log(`  Comparing "${entry.serialNumber.trim().toLowerCase()}" with "${serial.trim().toLowerCase()}"`);
-
-            if (entry.serialNumber.trim().toLowerCase() === serial.trim().toLowerCase()) {
-              matchedDeviceDoc = doc;
-              matchedDeviceData = data;
-              matchedSerialEntry = entry;
-              console.log("✅ SERIAL MATCH FOUND!");
-              console.log("Matched entry:", entry);
-              break;
-            } else {
-              console.log("❌ No match for this entry");
-            }
-          } else {
-            console.log("❌ Serial entry doesn't have valid serialNumber field");
-          }
-        }
-      } else {
-        console.log("❌ Device", doc.id, "has no serials array or it's empty");
+      // Check array entries with normalization
+      const foundArray = serials.find((entry) => typeof entry?.serialNumber === "string" && norm(entry.serialNumber) === target);
+      if (foundArray) {
+        matchedDeviceDoc = doc;
+        matchedDeviceData = data;
+        break;
       }
 
-      if (matchedDeviceDoc) break; // Exit loop once we find a match
+      // Check single-value serial fields on the doc
+      const singleCandidates = [data.deviceSerial, data.serial, data.serialNumber].filter(Boolean);
+      const foundSingle = singleCandidates.some((sv: any) => norm(String(sv)) === target);
+      if (foundSingle) {
+        matchedDeviceDoc = doc;
+        matchedDeviceData = data;
+        break;
+      }
     }
-
     if (!matchedDeviceDoc) {
-      console.log("❌ No serial match found in any device");
+      console.log("verifySerialAndFetchDocs: No match found in User_Devices. Checked docs:", checkedDocs, "target:", target);
     }
-
   } catch (error) {
     console.warn("Failed to search user devices for serial:", error);
   }
@@ -864,53 +732,7 @@ export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) =
     deviceUID = dev.deviceUID || serial;
   }
 
-  // Check warranty status from the matched serial entry
-  let warrantyStatus: { isValid: boolean; daysRemaining?: number; expiryDate?: string } = { isValid: false };
-
-  console.log("=== WARRANTY STATUS CHECK ===");
-  if (matchedSerialEntry) {
-    console.log("Found matched serial entry:", matchedSerialEntry);
-    const warrantyEnd = matchedSerialEntry.warrantyEnd || matchedSerialEntry.warrantyExpiry || matchedSerialEntry.warrantyExpires;
-
-    if (warrantyEnd) {
-      console.log("Warranty end date found:", warrantyEnd);
-      try {
-        const expiryDate = new Date(warrantyEnd);
-        const now = new Date();
-        const timeDiff = expiryDate.getTime() - now.getTime();
-        const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
-
-        console.log("Current date:", now.toISOString());
-        console.log("Expiry date:", expiryDate.toISOString());
-        console.log("Days remaining:", daysRemaining);
-
-        warrantyStatus = {
-          isValid: daysRemaining > 0,
-          daysRemaining: daysRemaining > 0 ? daysRemaining : 0,
-          expiryDate: expiryDate.toISOString().split('T')[0]
-        };
-
-        console.log("Calculated warranty status:", warrantyStatus);
-      } catch (error) {
-        console.warn("Error parsing warranty date:", warrantyEnd, error);
-        warrantyStatus = { isValid: false };
-      }
-    } else {
-      console.log("No warranty date found in serial entry");
-    }
-  } else {
-    console.log("No matched serial entry found for warranty check");
-  }
-
-  console.log("Final warranty status:", warrantyStatus);
-
-  await tRef.set({
-    deviceSerial: serial,
-    deviceType,
-    deviceModel,
-    warrantyStatus,
-    updatedAt: Date.now()
-  }, { merge: true });
+  await tRef.set({ deviceSerial: serial, deviceType, deviceModel, updatedAt: Date.now() }, { merge: true });
 
   // Fetch device-specific support documents using the proper path structure
   let supportDocs: any[] = [];
@@ -936,20 +758,11 @@ export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) =
     console.warn("Failed to fetch support documents:", error);
   }
 
-  console.log("=== VERIFICATION RESULT ===");
-  console.log("Serial verification valid:", matchedDeviceDoc ? "YES" : "NO");
-  console.log("Device type:", deviceType);
-  console.log("Device model:", deviceModel);
-  console.log("Device UID:", deviceUID);
-  console.log("Warranty status:", warrantyStatus);
-  console.log("Support docs count:", supportDocs.length);
-
   return {
     valid: true,
     deviceType,
     deviceModel,
     deviceUID,
-    warrantyStatus,
     supportDocs,
     // Legacy compatibility
     links: supportDocs.map((doc) => doc.url || doc.link).filter(Boolean),
