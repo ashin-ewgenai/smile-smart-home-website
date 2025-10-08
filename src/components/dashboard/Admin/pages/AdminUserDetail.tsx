@@ -88,6 +88,31 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   type TabKey = 'quotes' | 'services' | 'tickets' | 'devices';
   const [activeTab, setActiveTab] = useState<TabKey>('quotes');
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // Handle wheel event for table scrolling
+  const handleTableWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    const container = e.currentTarget;
+    const isScrollingDown = e.deltaY > 0;
+    const isScrollingUp = e.deltaY < 0;
+    
+    // Check if we've reached the top and trying to scroll up
+    if (container.scrollTop === 0 && isScrollingUp) {
+      e.stopPropagation();
+      return;
+    }
+    
+    // Check if we've reached the bottom and trying to scroll down
+    if (container.scrollHeight - container.scrollTop === container.clientHeight && isScrollingDown) {
+      e.stopPropagation();
+      return;
+    }
+    
+    // Prevent the default only if we need to handle the scroll
+    if ((isScrollingDown && container.scrollTop < container.scrollHeight - container.clientHeight) ||
+        (isScrollingUp && container.scrollTop > 0)) {
+      e.stopPropagation();
+    }
+  };
   const [selected, setSelected] = useState<
     | { type: TabKey; id: string; data: any }
     | null
@@ -717,32 +742,32 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   };
 
   return (
-    <section className="p-6">
+    <section className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-gray-900 p-4 md:p-6">
       {/* Header */}
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between px-2 md:px-0">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Submissions</h2>
+        <div className="flex items-center justify-between px-2 md:px-0 mb-4">
+          <h2 className="text-xl md:text-lg font-semibold text-white">User Details</h2>
           {onBack ? (
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-teal-600/30 text-teal-700 hover:bg-teal-50 hover:border-teal-600/50 transition-colors dark:text-teal-300 dark:border-teal-500/30 dark:hover:bg-teal-900/30"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-teal-500/30 text-teal-300 hover:bg-teal-500/10 hover:border-teal-400/50 transition-all duration-300 backdrop-blur-sm bg-gray-800/50 shadow-lg hover:shadow-teal-500/20"
               aria-label="Back to Users"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fillRule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4A1 1 0 018.707 6.707L6.414 9H17a1 1 0 110 2H6.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" />
               </svg>
-              <span>Back to Users</span>
+              <span className="hidden sm:inline">Back to Users</span>
             </button>
           ) : (
             <a
               href="/dashboard/admin/users"
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-teal-600/30 text-teal-700 hover:bg-teal-50 hover:border-teal-600/50 transition-colors dark:text-teal-300 dark:border-teal-500/30 dark:hover:bg-teal-900/30"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-teal-500/30 text-teal-300 hover:bg-teal-500/10 hover:border-teal-400/50 transition-all duration-300 backdrop-blur-sm bg-gray-800/50 shadow-lg hover:shadow-teal-500/20"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fillRule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4A1 1 0 018.707 6.707L6.414 9H17a1 1 0 110 2H6.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" />
               </svg>
-              <span>Back to Users</span>
+              <span className="hidden sm:inline">Back to Users</span>
             </a>
           )}
         </div>
@@ -892,26 +917,26 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               {!loading && !error && account && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Left: Name & Email with inline name edit */}
-                  <div>
+                  <div className="text-center md:text-left">
                     {!editingName ? (
-                      <div className="flex items-center gap-2">
-                        <div className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-white">{account.FullName || '—'}</div>
+                      <div className="flex flex-col md:flex-row md:items-center gap-2 justify-center md:justify-start">
+                        <div className="text-2xl md:text-3xl font-bold text-white">{account.FullName || '—'}</div>
                         <button
                           type="button"
                           onClick={() => { setTempName(account.FullName || ''); setEditingName(true); }}
-                          className="text-teal-600 hover:text-teal-500 text-sm"
+                          className="text-teal-400 hover:text-teal-300 text-sm px-3 py-1 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 transition-colors"
                           title="Edit name"
                         >
                           Edit
                         </button>
                       </div>
                     ) : (
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <div className="flex flex-col items-center md:flex-row md:items-center gap-2">
                         <input
                           type="text"
                           value={tempName}
                           onChange={(e) => setTempName(e.target.value)}
-                          className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+                          className="px-4 py-2 rounded-xl border border-gray-600 bg-gray-800/60 text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-center md:text-left"
                           placeholder="Full name"
                         />
                         <div className="flex items-center gap-2">
@@ -919,52 +944,39 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             type="button"
                             onClick={saveDisplayName}
                             disabled={savingName}
-                            className="px-3 py-1.5 rounded bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60"
+                            className="px-4 ■py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60 transition-colors"
                           >
                             {savingName ? 'Saving...' : 'Save'}
                           </button>
                           <button
                             type="button"
                             onClick={() => { setEditingName(false); setTempName(account.FullName || ''); }}
-                            className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                            className="px-4 py-2 rounded-xl border border-gray-600 text-gray-300 hover:bg-gray-700/50 transition-colors"
                           >
                             Cancel
                           </button>
                         </div>
                       </div>
                     )}
-                    <div className="text-sm md:text-base text-gray-600 dark:text-gray-300">{account.Email || '—'}</div>
+                    <div className="text-lg text-gray-300 mt-2 text-center md:text-left">{account.Email || '—'}</div>
                   </div>
                   {/* Right: UID / Role / Status */}
-                  <div className="grid grid-cols-[auto,1fr] gap-x-2 gap-y-1 text-sm md:text-base items-center">
-                    <div className="text-gray-500 dark:text-gray-400">UID</div>
-                    <div className="text-gray-800 dark:text-gray-100 truncate" title={account.Uid}>
-                      <div className="group/uid inline-flex items-center gap-1 max-w-full min-w-0">
-                        <span className="truncate font-mono text-[12px] md:text-[13px] tracking-wider px-1 py-0.5 rounded bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 max-w-[220px] md:max-w-[300px] lg:max-w-[420px] whitespace-nowrap">
+                  <div className="grid grid-cols-1 gap-4 text-center md:text-left md:grid-cols-[auto,1fr] md:gap-x-4 md:gap-y-2">
+                    <div className="text-gray-400">UID</div>
+                    <div className="text-gray-200 truncate" title={account.Uid}>
+                      <div className="group/uid inline-flex items-center gap-2 max-w-full min-w-0">
+                        <span className="truncate font-mono text-sm tracking-wider px-3 py-1 rounded-lg bg-gray-800/60 border border-gray-600 text-gray-200">
                           {showUid ? (account.Uid || '—') : maskUid(account.Uid)}
                         </span>
-                        {/* Actions */}
-                        <div className="inline-flex items-center gap-1 opacity-0 group-hover/uid:opacity-100 transition-opacity flex-shrink-0">
-                          {/* Toggle visibility */}
+                        <div className="inline-flex items-center gap-1 opacity-0 group-hover/uid:opacity-100 transition-opacity">
                           <button
                             type="button"
                             onClick={() => setShowUid((v) => !v)}
-                            className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            className="p-1 text-gray-400 hover:text-gray-300 rounded"
                             aria-label={showUid ? 'Hide UID' : 'Show UID'}
-                            title={showUid ? 'Hide UID' : 'Show UID'}
                           >
-                            {showUid ? (
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                                <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C7 20 2.73 16.11 1 12c.53-1.19 1.27-2.27 2.18-3.2M22.94 12.94C22.36 14.13 21.59 15.23 20.66 16.2M10.58 10.58A2 2 0 1 0 13.42 13.42M1 1l22 22" />
-                              </svg>
-                            ) : (
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z" />
-                                <circle cx="12" cy="12" r="3" />
-                              </svg>
-                            )}
+                            {showUid ? '👁️‍🗨️' : '👁️'}
                           </button>
-                          {/* Copy UID */}
                           <button
                             type="button"
                             onClick={async () => {
@@ -974,62 +986,63 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                 setTimeout(() => setCopiedUid(false), 1200);
                               } catch {}
                             }}
-                            className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                            className="p-1 text-gray-400 hover:text-gray-300 rounded"
                             aria-label="Copy UID"
-                            title={copiedUid ? 'Copied!' : 'Copy UID'}
                           >
-                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                            </svg>
+                            📋
                           </button>
                           {copiedUid && (
-                            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">Copied</span>
+                            <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300">Copied</span>
                           )}
                         </div>
                       </div>
                     </div>
-                    <div className="text-gray-500 dark:text-gray-400">Role</div>
-                    <div className="text-gray-800 dark:text-gray-100">{account.Role}</div>
+                    <div className="text-gray-400">Role</div>
+                    <div className="text-gray-200">{account.Role}</div>
                   </div>
 
                   {/* Contact Info */}
-                  <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4 md:col-span-2">
+                  <div className="mt-6 border-t border-gray-700/50 pt-6">
                     {!editingContact ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Phone */}
-                        <div className="flex items-start gap-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mt-1 text-gray-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.09 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.3 1.77.57 2.61a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.47-1.14a2 2 0 0 1 2.11-.45c.84.27 1.71.45 2.61.57A2 2 0 0 1 22 16.92z" />
-                          </svg>
-                          <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">Phone</div>
-                            <div className="text-sm text-gray-700 dark:text-gray-100">{(account as any)?.phoneNumber || '—'}</div>
+                      <div className="space-y-4">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                          {/* Phone */}
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center flex-shrink-0">
+                              📱
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm text-gray-400">Phone</div>
+                              <div className="text-white font-medium">{(account as any)?.phoneNumber || '—'}</div>
+                            </div>
                           </div>
-                        </div>
-                        {/* Address */}
-                        <div className="flex items-start gap-2">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mt-1 text-gray-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M21 10c0 7-9 12-9 12S3 17 3 10a9 9 0 1 1 18 0Z" />
-                            <circle cx="12" cy="10" r="3" />
-                          </svg>
-                          <div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">Address</div>
-                            <div className="text-sm text-gray-700 dark:text-gray-100 whitespace-pre-wrap break-words">{(account as any)?.address || '—'}</div>
+                          {/* Address */}
+                          <div className="flex items-center gap-3 flex-1">
+                            <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center flex-shrink-0">
+                              📍
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm text-gray-400">Address</div>
+                              <div className="text-white font-medium break-words">{(account as any)?.address || '—'}</div>
+                            </div>
                           </div>
                         </div>
                         {/* Edit button */}
-                        <div className="md:col-span-2 flex justify-end mt-2">
-                          <button type="button" onClick={() => setEditingContact(true)} className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
-                            Edit Contact Info
+                        <div className="flex justify-center md:justify-end">
+                          <button
+                            type="button"
+                            onClick={() => setEditingContact(true)}
+                            className="px-6 py-3 rounded-xl border-2 border-teal-500/30 text-teal-300 hover:bg-teal-500/10 hover:border-teal-400/50 transition-all duration-300 backdrop-blur-sm bg-gray-800/50 shadow-lg hover:shadow-teal-500/20 font-medium"
+                          >
+                            ✏️ Edit Contact Info
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <div className="space-y-3">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 gap-4">
                           <div>
-                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Phone Number</label>
+                            <label className="block text-sm text-gray-300 mb-2">Phone Number</label>
                             {mounted && (
                               <PhoneInput
                                 country="in"
@@ -1042,16 +1055,16 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                   name: 'phone',
                                   required: false,
                                   className:
-                                    'w-full !pl-14 !py-2 !border !border-gray-300 dark:!border-gray-600 !rounded-md focus:!ring-2 focus:!ring-teal-500 focus:!border-transparent dark:!bg-gray-800 dark:!text-white',
+                                    'w-full !pl-16 !py-3 !border-2 !border-gray-600 !rounded-xl focus:!ring-2 focus:!ring-teal-500 focus:!border-teal-500 !bg-gray-800/60 !text-white',
                                 }}
                                 containerClass="w-full"
-                                buttonClass="!bg-gray-100 dark:!bg-gray-700 !border-r !border-gray-300 dark:!border-gray-600 !rounded-l-md !p-0 !w-12 !h-full !flex !items-center !justify-center hover:!bg-gray-200 dark:hover:!bg-gray-600 focus:!ring-2 focus:!ring-teal-500 focus:!outline-none transition-colors duration-200 ease-in-out hover:shadow-inner"
-                                dropdownClass="!border !border-gray-200 dark:!border-gray-700 !rounded-lg !shadow-lg !bg-white dark:!bg-gray-800 !left-1/2 !-translate-x-1/2 !fixed !z-50 !w-80 [&_.highlight]:!bg-teal-500/10 dark:[&_.highlight]:!bg-teal-400/20 [&_.highlight]:!text-gray-900 dark:[&_.highlight]:!text-white [&_.country:hover]:!bg-gray-100 dark:[&_.country:hover]:!bg-gray-700 [&_.country:hover_.country-name]:!text-gray-900 dark:[&_.country:hover_.country-name]:!text-white"
+                                buttonClass="!bg-gray-700 !border-r-2 !border-gray-600 !rounded-l-xl !p-0 !w-14 !h-full !flex !items-center !justify-center hover:!bg-gray-600 focus:!ring-2 focus:!ring-teal-500"
+                                dropdownClass="!border-2 !border-gray-600 !rounded-xl !shadow-2xl !bg-gray-800 !left-1/2 !-translate-x-1/2 !fixed !z-50 !w-80 [&_.highlight]:!bg-teal-500/20 dark:[&_.highlight]:!bg-teal-400/30 [&_.highlight]:!text-white [&_.country:hover]:!bg-gray-700 [&_.country:hover_.country-name]:!text-white"
                                 containerStyle={{ width: '100%' }}
                                 inputStyle={{
                                   width: '100%',
                                   height: 'auto',
-                                  paddingLeft: '3.5rem',
+                                  paddingLeft: '4rem',
                                   backgroundColor: 'transparent',
                                 }}
                                 buttonStyle={{
@@ -1059,15 +1072,15 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                   border: 'none',
                                 }}
                                 dropdownStyle={{
-                                  borderRadius: '0.5rem',
-                                  marginTop: '0.25rem',
+                                  borderRadius: '0.75rem',
+                                  marginTop: '0.5rem',
                                   boxShadow:
-                                    '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                                    '0 10px 25px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.1)',
                                   maxHeight: '300px',
                                   overflowY: 'auto',
                                 }}
                                 searchPlaceholder="Search country..."
-                                searchClass="!w-[calc(100%-1rem)] !mx-2 !my-1 !px-3 !py-2 !text-sm !rounded-lg !border !border-gray-300 dark:!border-gray-600 focus:!ring-2 focus:!ring-teal-500 focus:!border-transparent dark:!bg-gray-800 dark:!text-white"
+                                searchClass="!w-[calc(100%-1rem)] !mx-2 !my-2 !px-4 !py-2 !text-sm !rounded-lg !border-2 !border-gray-600 focus:!ring-2 focus:!ring-teal-500 !bg-gray-800 !text-white"
                                 searchNotFound="No country found"
                                 enableSearch
                                 countryCodeEditable={false}
@@ -1076,17 +1089,32 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                               />
                             )}
                           </div>
-                          <div className="md:col-span-2">
-                            <label className="block text-sm text-gray-600 dark:text-gray-400 mb-1">Address</label>
-                            <textarea value={tempAddress} onChange={(e) => setTempAddress(e.target.value)} rows={3} placeholder="Enter full address" className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100" />
+                          <div>
+                            <label className="block text-sm text-gray-300 mb-2">Address</label>
+                            <textarea
+                              value={tempAddress}
+                              onChange={(e) => setTempAddress(e.target.value)}
+                              rows={4}
+                              placeholder="Enter full address"
+                              className="w-full px-4 py-3 rounded-xl border-2 border-gray-600 bg-gray-800/60 text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                            />
                           </div>
                         </div>
-                        <div className="flex justify-end gap-2">
-                          <button type="button" onClick={() => { setEditingContact(false); setTempPhone((account as any)?.phoneNumber || ''); setTempAddress((account as any)?.address || ''); }} className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <div className="flex justify-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => { setEditingContact(false); setTempPhone((account as any)?.phoneNumber || ''); setTempAddress((account as any)?.address || ''); }}
+                            className="px-6 py-3 rounded-xl border-2 border-gray-600 text-gray-300 hover:bg-gray-700/50 transition-colors font-medium"
+                          >
                             Cancel
                           </button>
-                          <button type="button" disabled={savingContact} onClick={saveContactInfo} className="px-3 py-2 rounded-md bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60">
-                            {savingContact ? 'Saving...' : 'Save'}
+                          <button
+                            type="button"
+                            disabled={savingContact}
+                            onClick={saveContactInfo}
+                            className="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60 transition-colors font-medium shadow-lg hover:shadow-teal-500/25"
+                          >
+                            {savingContact ? 'Saving...' : '💾 Save'}
                           </button>
                         </div>
                       </div>
@@ -1101,27 +1129,54 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
 
       {/* Tabs */}
       {account?.id && (
-        <div className="max-w-6xl mx-auto mt-6">
-          <div className="flex justify-between items-center border-b border-gray-200 bg-white rounded-t-xl px-2 sm:px-3 py-2 dark:bg-transparent dark:border-gray-700">
-            <div className="flex gap-2">
+        <div className="max-w-6xl mx-auto mt-6 px-2 sm:px-4">
+          {/* Mobile/Tablet View - 2x2 Grid */}
+          <div className="md:hidden">
+            <div className="grid grid-cols-2 gap-2">
               {([
                 { key: 'quotes', label: `Quotes (${quotes?.length ?? 0})` },
-                { key: 'services', label: `Service Requests (${services?.length ?? 0})` },
-                { key: 'tickets', label: `Support Tickets (${tickets?.length ?? 0})` },
+                { key: 'services', label: `Services (${services?.length ?? 0})` },
+                { key: 'tickets', label: `Support (${tickets?.length ?? 0})` },
                 { key: 'devices', label: `Devices (${devices?.length ?? 0})` },
               ] as { key: TabKey; label: string }[]).map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
-                className={`px-4 py-2 text-sm rounded-t-md border border-b-0 ${
-                  activeTab === t.key
-                    ? 'bg-white text-gray-900 border-gray-200 dark:bg-gray-800 dark:border-gray-700 dark:text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-50 border-transparent dark:bg-gray-800/40 dark:text-gray-300 dark:hover:bg-gray-700/50'
-                }`}
-              >
-                {t.label}
-              </button>
+                <button
+                  key={t.key}
+                  onClick={() => setActiveTab(t.key)}
+                  className={`px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+                    activeTab === t.key
+                      ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40 shadow-lg shadow-teal-500/20'
+                      : 'bg-gray-800/40 text-gray-300 hover:bg-gray-700/50 border border-gray-700/50'
+                  }`}
+                >
+                  {t.label}
+                </button>
               ))}
+            </div>
+          </div>
+          
+          {/* Desktop View - Single Row */}
+          <div className="hidden md:block">
+            <div className="flex justify-between items-center border-b border-gray-200 bg-white rounded-t-xl px-2 sm:px-3 py-2 dark:bg-transparent dark:border-gray-700">
+              <div className="flex gap-2">
+                {([
+                  { key: 'quotes', label: `Quotes (${quotes?.length ?? 0})` },
+                  { key: 'services', label: `Service Requests (${services?.length ?? 0})` },
+                  { key: 'tickets', label: `Support Tickets (${tickets?.length ?? 0})` },
+                  { key: 'devices', label: `Devices (${devices?.length ?? 0})` },
+                ] as { key: TabKey; label: string }[]).map((t) => (
+                  <button
+                    key={t.key}
+                    onClick={() => setActiveTab(t.key)}
+                    className={`px-4 py-2 text-sm rounded-t-md border border-b-0 ${
+                      activeTab === t.key
+                        ? 'bg-white text-gray-900 border-gray-200 dark:bg-gray-800 dark:border-gray-700 dark:text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-50 border-transparent dark:bg-gray-800/40 dark:text-gray-300 dark:hover:bg-gray-700/50'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -1132,7 +1187,10 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
             )}
 
             {!loadingRelated && lists[activeTab].length > 0 && (
-              <div className="overflow-x-auto overflow-y-auto max-h-[220px] rounded-b-md rounded-tr-md custom-scroll">
+              <div 
+                className="overflow-x-auto overflow-y-auto max-h-[220px] rounded-b-md rounded-tr-md custom-scroll"
+                onWheel={handleTableWheel}
+              >
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-white dark:bg-gray-800 z-10">
                     <tr className="text-left text-xs uppercase text-gray-600 dark:text-gray-400">
@@ -1526,14 +1584,35 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         userId={account?.id || ''}
         onDeviceAdded={() => { /* no-op: realtime listener above will refresh with enriched details */ }}
       />
-    {/* Local styles for thicker scrollbars in this component */}
+    {/* Enhanced custom styles for mobile-optimized design */}
     <style>
       {`
-        .custom-scroll { scrollbar-width: auto; }
-        .custom-scroll::-webkit-scrollbar { width: 14px; height: 14px; }
-        .custom-scroll::-webkit-scrollbar-track { background: rgba(0,0,0,0.1); border-radius: 8px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(20, 184, 166, 0.6); border-radius: 8px; }
-        .custom-scroll::-webkit-scrollbar-thumb:hover { background: rgba(20, 184, 166, 0.8); }
+        .custom-scroll {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(20, 184, 166, 0.6) rgba(0,0,0,0.1);
+        }
+        .custom-scroll::-webkit-scrollbar {
+          width: 8px;
+          height: 8px;
+        }
+        .custom-scroll::-webkit-scrollbar-track {
+          background: rgba(0,0,0,0.1);
+          border-radius: 8px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb {
+          background: rgba(20, 184, 166, 0.6);
+          border-radius: 8px;
+        }
+        .custom-scroll::-webkit-scrollbar-thumb:hover {
+          background: rgba(20, 184, 166, 0.8);
+        }
+
+        /* Smooth transitions for all interactive elements */
+        * {
+          transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter;
+          transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+          transition-duration: 300ms;
+        }
       `}
     </style>
     </section>
