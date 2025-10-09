@@ -16,11 +16,11 @@
   },
   "main": "lib/index.js",
   "dependencies": {
-    "@example/basics": "file:..",
     "firebase-admin": "^12.6.0",
     "firebase-functions": "^6.0.1"
   },
   "devDependencies": {
+    "@types/node": "^24.7.0",
     "@typescript-eslint/eslint-plugin": "^5.12.0",
     "@typescript-eslint/parser": "^5.12.0",
     "eslint": "^8.9.0",
