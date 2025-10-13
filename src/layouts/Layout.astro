@@ -1,5 +1,7 @@
 ---
 import { ViewTransitions } from 'astro:transitions';
+import ForgotPasswordModal from '../components/auth/ForgotPasswordModal.astro';
+import ResetPasswordModal from '../components/auth/ResetPasswordModal.astro';
 
 export interface Props {
   title: string;
@@ -106,23 +108,25 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       document.addEventListener('DOMContentLoaded', () => {
         // Initialize scroll progress
         scrollProgress();
-        
         // Initialize reveal animations
         const revealElements = document.querySelectorAll('.reveal-on-scroll');
         if (revealElements.length > 0) {
           inViewReveal(revealElements);
         }
-        
         // Initialize magnetic buttons
         const magneticButtons = document.querySelectorAll('.btn-magnetic');
         magneticButtons.forEach(button => magneticButton(button));
-        
+
         // Respect reduced motion preference
         const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         if (prefersReducedMotion) {
-          // lenis.destroy(); // Removed this line as lenis is not defined here
+          // Optional: reduced-motion adjustments
         }
       });
     </script>
+
+    <!-- Mount global auth modals so window events can open them anywhere -->
+    <ForgotPasswordModal />
+    <ResetPasswordModal />
   </body>
 </html>

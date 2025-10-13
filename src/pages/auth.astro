@@ -1,0 +1,25 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Smile Smart Homes">
+  <main class="min-h-[70vh] flex items-center justify-center bg-gradient-to-b from-white to-gray-50 dark:from-gray-950 dark:to-gray-900">
+    <section class="text-center space-y-3 py-16">
+      <h1 class="text-3xl font-bold text-charcoal dark:text-white">Account</h1>
+      <p class="text-gray-600 dark:text-gray-300">If you followed a link from an email, a dialog may open shortly.</p>
+    </section>
+  </main>
+</Layout>
+
+<script type="module">
+  // If the URL contains Firebase action params, our ResetPasswordModal will auto-open.
+  // As a fallback, explicitly open it when mode=resetPassword & oobCode are present.
+  try {
+    const url = new URL(window.location.href);
+    const mode = url.searchParams.get('mode');
+    const oob = url.searchParams.get('oobCode');
+    if (mode === 'resetPassword' && oob) {
+      window.dispatchEvent(new CustomEvent('open-reset-password'));
+    }
+  } catch {}
+</script>

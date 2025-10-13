@@ -199,7 +199,18 @@ export default function AuthModal() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
-                    <a href="/forgot-password" className="text-xs text-teal hover:underline">Forgot password?</a>
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        try {
+                          window.dispatchEvent(new CustomEvent('open-forgot-password'));
+                        } catch {}
+                      }}
+                      className="text-xs text-teal hover:underline"
+                    >
+                      Forgot password?
+                    </a>
                   </div>
                   <div className="relative">
                     <input

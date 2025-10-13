@@ -1,4 +1,5 @@
 {
+  "$schema": "vscode://schemas/settings/folder",
   "json.schemas": [
     {
       "fileMatch": ["/package.json"],
