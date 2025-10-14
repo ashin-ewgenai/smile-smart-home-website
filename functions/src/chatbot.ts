@@ -267,6 +267,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
 
 
   // In-chat serial verification (Option A): parse a serial from the user's last message and verify against saved devices
+  let deviceInfo: any = null;
   try {
     const lastUserMsgRaw = [...clean].reverse().find((m) => m.role === "user")?.content ?? "";
     const lastUserText = (typeof lastUserMsgRaw === "string" ? lastUserMsgRaw : JSON.stringify(lastUserMsgRaw));
@@ -320,6 +321,11 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
           let quickReply: string;
           const name = matched.device.deviceName || matched.device.name || matched.device.deviceType || matched.device.type || "your device";
           const model = matched.device.deviceModel || matched.device.model || matched.device.modelNumber || matched.entry?.modelNumber || "";
+          const type = matched.device.deviceType || matched.device.type || "";
+          const brand = matched.device.brand || "";
+          const description = matched.device.description || "";
+          const isOnline = matched.device.isOnline || false;
+
           quickReply = `Serial verified successfully for ${name}.`;
           if (matched.serialValue) quickReply += `\nSerial: ${matched.serialValue}`;
           if (model) quickReply += `\nModel: ${model}`;
@@ -336,6 +342,23 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
               }
             } catch {}
           }
+
+          // Get documentation links
+          const documentation = matched.device.documentation || matched.device.manualUrl || matched.entry?.documentation || "";
+
+          // Create deviceInfo object for frontend
+          const deviceInfo = {
+            deviceName: name,
+            modelNumber: model,
+            serialNumber: matched.serialValue,
+            type: type,
+            brand: brand,
+            description: description,
+            isOnline: isOnline,
+            warrantyExpiry: wEnd ? new Date(String(wEnd)).toISOString() : undefined,
+            documentation: documentation,
+          };
+
           // Include ticket details if an active ticket is present
           let ticketDetails: any = null;
           if (activeTicket) {
@@ -355,6 +378,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
           return {
             reply: quickReply,
             sessionId,
+            deviceInfo,
             ...(ticketDetails && { ticketDetails }),
             ...(debugInfo && { debugInfo }),
           };
@@ -409,6 +433,11 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
         let quickReply: string;
         const name = matched.device.deviceName || matched.device.name || matched.device.deviceType || matched.device.type || "your device";
         const model = matched.device.deviceModel || matched.device.model || matched.device.modelNumber || matched.entry?.modelNumber || "";
+        const type = matched.device.deviceType || matched.device.type || "";
+        const brand = matched.device.brand || "";
+        const description = matched.device.description || "";
+        const isOnline = matched.device.isOnline || false;
+
         quickReply = `Serial verified successfully for ${name}.`;
         if (matched.serialValue) quickReply += `\nSerial: ${matched.serialValue}`;
         if (model) quickReply += `\nModel: ${model}`;
@@ -425,6 +454,23 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
             }
           } catch {}
         }
+
+        // Get documentation links
+        const documentation = matched.device.documentation || matched.device.manualUrl || matched.entry?.documentation || "";
+
+        // Create deviceInfo object for frontend
+        deviceInfo = {
+          deviceName: name,
+          modelNumber: model,
+          serialNumber: matched.serialValue,
+          type: type,
+          brand: brand,
+          description: description,
+          isOnline: isOnline,
+          warrantyExpiry: wEnd ? new Date(String(wEnd)).toISOString() : undefined,
+          documentation: documentation,
+        };
+
         let ticketDetails: any = null;
         if (activeTicket) {
           const ticketNumber = activeTicket.data.ticketNumber || `#${activeTicket.ticketId.slice(-6).toUpperCase()}`;
@@ -442,6 +488,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
         return {
           reply: quickReply,
           sessionId,
+          deviceInfo,
           ...(ticketDetails && { ticketDetails }),
           ...(debugInfo && { debugInfo }),
         };
@@ -535,7 +582,12 @@ ${deviceContext}${ticketContext}`,
     } catch {}
 
     try {
-      await sessionsCol.doc(sessionId).collection("messages").add({ role: "assistant", content: cleanedContent, ts: Date.now() });
+      await sessionsCol.doc(sessionId).collection("messages").add({
+        role: "assistant",
+        content: cleanedContent,
+        ts: Date.now(),
+        ...(deviceInfo && { deviceInfo })
+      });
       await sessionsCol.doc(sessionId).set({ updatedAt: Date.now(), status: "active" }, { merge: true });
     } catch {}
 

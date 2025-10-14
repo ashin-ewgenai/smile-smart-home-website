@@ -770,6 +770,18 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           }
         }
 
+        // Handle device info from backend response
+        if (resData?.deviceInfo) {
+          const deviceMsg: ChatMsg = {
+            role: 'assistant',
+            content: reply || '',
+            deviceInfo: resData.deviceInfo,
+            ts: Date.now(),
+          };
+          // Backend already persisted the message, but we need to add it locally for immediate display
+          // Since backend handles persistence, we'll add it locally for immediate UI update
+        }
+
         // Do not write messages on the client in AI mode; backend persists both
         if (resData?.ticketDetails) {
           setWorkflowStep('ticket_verification');
