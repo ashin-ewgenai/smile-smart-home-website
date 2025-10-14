@@ -68,7 +68,7 @@ const UserProfile: React.FC = () => {
       const querySnapshot = await getDocs(q);
       setDeviceCount(querySnapshot.size);
     } catch (error) {
-      console.error('Error fetching device count:', error);
+      setSaveStatus('Error fetching device count');
     }
   }, []);
 
@@ -80,10 +80,8 @@ const UserProfile: React.FC = () => {
       const userId = auth.currentUser?.uid || localStorage.getItem('userId');
       
       if (!userId || !userEmail) {
-        console.error('User authentication data missing');
         setSaveStatus('Please sign in to view your profile');
         setLoading(false);
-        // Don't navigate here, just show the error message
         return;
       }
 
@@ -93,7 +91,6 @@ const UserProfile: React.FC = () => {
       
       if (userDoc.exists()) {
         const data = userDoc.data() as UserData;
-        console.log('User data from Firestore:', data);
         
         // Convert Firestore Timestamps to Date objects if needed
         const userDataUpdate: UserData = {
@@ -112,7 +109,6 @@ const UserProfile: React.FC = () => {
         if (data.phoneNumber) localStorage.setItem('userPhone', data.phoneNumber as string);
         if (data.address) localStorage.setItem('userAddress', data.address as string);
       } else {
-        console.log('No user document found, creating new one');
         // If user document doesn't exist, create it with default values
         const defaultData: UserData = {
           Email: userEmail,
@@ -132,7 +128,6 @@ const UserProfile: React.FC = () => {
         localStorage.setItem('userAddress', defaultData.address);
       }
     } catch (error) {
-      console.error('Error in fetchUserData:', error);
       setSaveStatus('Error loading profile data');
     } finally {
       setLoading(false);
@@ -155,7 +150,7 @@ const UserProfile: React.FC = () => {
       const file = e.target.files?.[0];
       if (!file) return;
       setPicStatus('Uploading photo...');
-
+      
       // Immediate local preview so the user sees the selected image instantly
       try {
         if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
@@ -182,7 +177,6 @@ const UserProfile: React.FC = () => {
       // Store under profile/{uid}/... so Storage rules can authorize owner-or-admin without Firestore reads
       const path = `profile/${uid}/${Date.now()}.${ext}`;
       const ref = storageRef(storage, path);
-      console.debug('[UserProfile] Starting upload', { uid, path, bucket: firebaseApp.options?.storageBucket });
       const task = uploadBytesResumable(ref, file, { contentType: file.type });
 
       // Watchdog: if no progress > 0 within 15s, cancel and hint likely causes
@@ -217,7 +211,6 @@ const UserProfile: React.FC = () => {
       setPicStatus('Profile photo updated successfully.');
       setTimeout(() => setPicStatus(''), 2500);
     } catch (error: any) {
-      console.error('Failed to upload profile photo:', error);
       const msg = error?.message || 'Failed to upload profile photo.';
       setPicStatus(`Error: ${msg}`);
     } finally {
@@ -239,8 +232,6 @@ const UserProfile: React.FC = () => {
         throw new Error('User not authenticated');
       }
       
-      console.log('Updating profile for user:', userId);
-      
       // Create update data object with only changed fields
       const updateData: Record<string, any> = {
         Email: userEmail,
@@ -256,15 +247,9 @@ const UserProfile: React.FC = () => {
         updateData.CreatedAt = new Date();
       }
       
-      console.log('Update data:', updateData);
-      
       // Update Firestore document using UID with merge option
       const userDocRef = doc(db, 'Accounts', userId);
-      console.log('Updating document at path:', userDocRef.path);
-      
       await setDoc(userDocRef, updateData, { merge: true });
-      
-      console.log('Document updated successfully');
       
       // Update local storage for quick access
       localStorage.setItem('userPhone', updateData.phoneNumber);
@@ -284,16 +269,9 @@ const UserProfile: React.FC = () => {
       const timer = setTimeout(() => {
         setSaveStatus('');
       }, 3000);
-      
       return () => clearTimeout(timer);
     } catch (error: any) {
-      console.error('Error updating profile:', error);
       const errorMessage = error?.message || 'Failed to update profile. Please try again.';
-      console.error('Error details:', {
-        code: error?.code,
-        message: errorMessage,
-        stack: error?.stack
-      });
       setSaveStatus(`Error: ${errorMessage}`);
     } finally {
       setLoading(false);

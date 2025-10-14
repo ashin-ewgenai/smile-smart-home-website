@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getAuth as getClientAuth, createUserWithEmailAndPassword, updateProfile, signOut } from 'firebase/auth';
+import { getAuth as getClientAuth, createUserWithEmailAndPassword, updateProfile, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { TicketNotificationButton } from '@/components/common/TicketNotificationButton';
 import { auth, db, functions, firebaseApp } from '../../../../lib/firebase';
 import { accountsCollection, quotesCollection, supportTicketsCollection, quotesParentDoc, createAccountProfileWithLookup, type Account } from '../../../../models/Collections';
@@ -216,6 +216,17 @@ const AdminUsers: React.FC = () => {
         phoneNumber: addPhone,
         address: addAddress,
       });
+
+      // Send only password reset email (no secrets)
+      try {
+        const actionCodeSettings = {
+          url: `${window.location.origin}/auth`,
+          handleCodeInApp: true,
+        } as const;
+        await sendPasswordResetEmail(tempAuth, addEmail, actionCodeSettings);
+      } catch (mailErr) {
+        // Non-blocking: log to console is avoided in codebase; optionally set non-fatal UI state
+      }
       // Sign out secondary auth to clean up
       try { await signOut(tempAuth); } catch {}
       
