@@ -599,15 +599,16 @@ const AdminUsers: React.FC = () => {
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">Name</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">Email</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider md:hidden">User</th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {filteredUsers.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan={2} className="px-6 py-4 text-center text-gray-500 dark:text-gray-400">
                   {users.length === 0 ? 'No users found' : 'No users match the current filters'}
                 </td>
               </tr>
@@ -621,20 +622,63 @@ const AdminUsers: React.FC = () => {
                     className="group cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
                     title="View user details"
                   >
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    {/* Mobile View - Stacked */}
+                    <td className="px-6 py-4 whitespace-nowrap md:hidden">
+                      <div className="flex flex-col">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
+                      </div>
+                    </td>
+                    
+                    {/* Desktop View - Side by Side */}
+                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
                       <div className="text-sm font-medium text-gray-900 dark:text-white">{user.name}</div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap hidden md:table-cell">
                       <div className="text-sm text-gray-500 dark:text-gray-400">{user.email}</div>
                     </td>
+                    
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-1">
+                      <div className="flex flex-col items-end space-y-2 sm:space-y-0 sm:flex-row sm:items-center sm:justify-end sm:space-x-1">
+                        {/* Alerts Button (Bell) - Above Delete on Mobile */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openAlertModal(user.email);
+                            }}
+                            className={`p-1.5 focus:outline-none ${alerts.total > 0 ? 'text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white'}`}
+                            aria-label={`View alerts for ${user.name}`}
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill={alerts.total > 0 ? 'currentColor' : 'none'}
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-5 w-5"
+                            >
+                              <path d="M10.268 21a2 2 0 0 0 3.464 0" />
+                              <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />
+                            </svg>
+                            {alerts.total > 0 && (
+                              <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 w-4 rounded-full bg-red-500 text-white text-[10px] font-medium">
+                                {alerts.total > 9 ? '9+' : alerts.total}
+                              </span>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Delete Button - Below Bell on Mobile */}
                         <div
-                          className="flex items-center space-x-1"
+                          className="flex items-center"
                           onClick={(e) => { e.stopPropagation(); }}
                           onMouseDown={(e) => { e.stopPropagation(); }}
                         >
-                          <button 
+                          <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
@@ -649,20 +693,20 @@ const AdminUsers: React.FC = () => {
                               }
                             }}
                             disabled={deletingEmail === user.email}
-                            className={`p-1.5 focus:outline-none ${ deletingEmail === user.email ? 'text-gray-400 cursor-not-allowed' : 'text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400'}`}
+                            className={`p-1.5 focus:outline-none ${deletingEmail === user.email ? 'text-gray-400 cursor-not-allowed' : 'text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400'}`}
                             aria-label="Delete user"
                             title="Delete user"
                           >
-                            <svg 
-                              xmlns="http://www.w3.org/2000/svg" 
-                              width="20" 
-                              height="20" 
-                              viewBox="0 0 24 24" 
-                              fill="none" 
-                              stroke="currentColor" 
-                              strokeWidth="2" 
-                              strokeLinecap="round" 
-                              strokeLinejoin="round" 
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              width="20"
+                              height="20"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
                               className="lucide lucide-trash-2"
                             >
                               <path d="M3 6h18" />
@@ -673,38 +717,7 @@ const AdminUsers: React.FC = () => {
                             </svg>
                           </button>
                         </div>
-                        <div className="relative">
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openAlertModal(user.email);
-                          }}
-                          className={`p-1.5 focus:outline-none ${alerts.total > 0 ? 'text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white'}`}
-                          aria-label="View alerts"
-                        >
-                          <svg 
-                            xmlns="http://www.w3.org/2000/svg" 
-                            width="24" 
-                            height="24" 
-                            viewBox="0 0 24 24" 
-                            fill={alerts.total > 0 ? 'currentColor' : 'none'}
-                            stroke="currentColor" 
-                            strokeWidth="2" 
-                            strokeLinecap="round" 
-                            strokeLinejoin="round" 
-                            className="lucide lucide-bell h-5 w-5"
-                          >
-                            <path d="M10.268 21a2 2 0 0 0 3.464 0" />
-                            <path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326" />
-                          </svg>
-                          {alerts.total > 0 && (
-                            <span className="absolute -top-1 -right-1 inline-flex items-center justify-center h-4 w-4 rounded-full bg-red-500 text-white text-[10px] font-medium">
-                              {alerts.total > 9 ? '9+' : alerts.total}
-                            </span>
-                          )}
-                        </button>
                       </div>
-                    </div>
                     </td>
                   </tr>
                 );

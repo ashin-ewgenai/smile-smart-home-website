@@ -1196,8 +1196,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     <tr className="text-left text-xs uppercase text-gray-600 dark:text-gray-400">
                       {activeTab === 'devices' ? (
                         <>
-                          <th className="py-2 pr-4">Device Name</th>
-                          <th className="py-2 pr-4">Type</th>
+                          <th className="py-2 pr-4 hidden md:table-cell">Device Name</th>
+                          <th className="py-2 pr-4 hidden md:table-cell">Type</th>
+                          <th className="py-2 px-4 md:hidden">Device Details</th>
                         </>
                       ) : activeTab === 'tickets' ? (
                         <>
@@ -1238,10 +1239,55 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             onClick={() => openDetails('devices', row.id, row)}
                             className="cursor-pointer border-b border-gray-200 hover:bg-gray-50 dark:border-gray-700/70 dark:hover:bg-gray-700/40"
                           >
-                            <td className="py-2 pr-4 text-gray-900 dark:text-gray-100">
-                              {row.deviceName || 'Unnamed Device'}
+                            {/* Mobile View - Stacked */}
+                            <td className="py-3 px-4 md:hidden">
+                              <div className="flex flex-col">
+                                <div className="flex items-center justify-between w-full">
+                                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                    {row.deviceName || 'Unnamed Device'}
+                                  </span>
+                                  <button 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openDetails('devices', row.id, row);
+                                    }}
+                                    className="text-gray-400 hover:text-teal-500 dark:text-gray-500 dark:hover:text-teal-400"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  </button>
+                                </div>
+                                <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                  {row.type || 'Unknown'}
+                                </span>
+                              </div>
                             </td>
-                            <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{row.type || 'Unknown'}</td>
+                            
+                            {/* Desktop View - Side by Side */}
+                            <td className="py-3 px-4 hidden md:table-cell">
+                              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                                {row.deviceName || 'Unnamed Device'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 hidden md:table-cell">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-gray-700 dark:text-gray-300">
+                                  {row.type || 'Unknown'}
+                                </span>
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    openDetails('devices', row.id, row);
+                                  }}
+                                  className="ml-2 text-gray-400 hover:text-teal-500 dark:text-gray-500 dark:hover:text-teal-400"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
                           </tr>
                         );
                       }
