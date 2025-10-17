@@ -177,7 +177,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   // Render Smart Home plan text with sections and bullet lists (matches User PlanLeads view)
   const renderPlanText = (text?: string) => {
     const raw = (text || '').trim();
-    if (!raw) return <div className="text-gray-400">-</div>;
+    if (!raw) return <div className="text-gray-900 dark:text-gray-400">-</div>;
     const lines = raw.split(/\r?\n/);
     const elements: React.ReactNode[] = [];
     let bufferList: string[] = [];
@@ -187,7 +187,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         elements.push(
           <ul className="list-disc pl-6 space-y-1" key={`ul-${elements.length}`}>
             {bufferList.map((li, idx) => (
-              <li key={idx} className="text-gray-200">{li}</li>
+              <li key={idx} className="text-gray-900 dark:text-gray-200">{li}</li>
             ))}
           </ul>
         );
@@ -211,7 +211,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         flushList();
         const [, label, rest] = labelMatch as RegExpMatchArray;
         elements.push(
-          <div key={`lbl-${i}`} className="text-gray-200">
+          <div key={`lbl-${i}`} className="text-gray-900 dark:text-gray-200">
             <span className="font-semibold text-white">{label} </span>
             {rest}
           </div>
@@ -220,7 +220,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       }
       flushList();
       elements.push(
-        <div key={`p-${i}`} className="text-gray-200">{l}</div>
+        <div key={`p-${i}`} className="text-gray-900 dark:text-gray-200">{l}</div>
       );
     });
     flushList();
@@ -742,16 +742,16 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   };
 
   return (
-    <section className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-gray-900 p-4 md:p-6">
+    <section className="min-h-screen bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 dark:from-gray-900 dark:via-slate-900 dark:to-gray-900 p-4 md:p-6">
       {/* Header */}
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between px-2 md:px-0 mb-4">
-          <h2 className="text-xl md:text-lg font-semibold text-white">User Details</h2>
+          <h2 className="text-xl md:text-lg font-semibold text-gray-900 dark:text-white">User Details</h2>
           {onBack ? (
             <button
               type="button"
               onClick={onBack}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-teal-500/30 text-teal-300 hover:bg-teal-500/10 hover:border-teal-400/50 transition-all duration-300 backdrop-blur-sm bg-gray-800/50 shadow-lg hover:shadow-teal-500/20"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-teal-500/30 text-teal-600 dark:text-teal-300 hover:bg-teal-500/10 hover:border-teal-400/50 transition-all duration-300 backdrop-blur-sm bg-white/50 dark:bg-gray-800/50 shadow-lg hover:shadow-teal-500/20"
               aria-label="Back to Users"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -762,7 +762,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
           ) : (
             <a
               href="/dashboard/admin/users"
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-teal-500/30 text-teal-300 hover:bg-teal-500/10 hover:border-teal-400/50 transition-all duration-300 backdrop-blur-sm bg-gray-800/50 shadow-lg hover:shadow-teal-500/20"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-teal-500/30 text-teal-600 dark:text-teal-300 hover:bg-teal-500/10 hover:border-teal-400/50 transition-all duration-300 backdrop-blur-sm bg-white/50 dark:bg-gray-800/50 shadow-lg hover:shadow-teal-500/20"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fillRule="evenodd" d="M7.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4A1 1 0 018.707 6.707L6.414 9H17a1 1 0 110 2H6.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" />
@@ -778,9 +778,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6 dark:bg-gray-900 dark:border-gray-700">
           {!email ? (
             <div className="space-y-4">
-              {loadingContactRequests && <div className="text-gray-300">Loading...</div>}
+              {loadingContactRequests && <div className="text-gray-600 dark:text-gray-300">Loading...</div>}
               {!loadingContactRequests && contactRequests.length === 0 && (
-                <div className="text-gray-300">No contact requests.</div>
+                <div className="text-gray-600 dark:text-gray-300">No contact requests.</div>
               )}
               {!loadingContactRequests && contactRequests.length > 0 && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -796,7 +796,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                       const isOpen = !!openIds[id];
                       const createdAt = r.createdAt ? (r.createdAt.toDate ? r.createdAt.toDate() : new Date(r.createdAt.seconds * 1000)) : null;
                       return (
-                        <div key={id} className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all hover:border-teal-500/50 hover:bg-gray-50 dark:bg-gray-800/50 dark:border-gray-700">
+                        <div key={id} className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all hover:border-teal-500/50 hover:bg-gray-50 dark:bg-white/50 dark:bg-gray-800/50 dark:border-gray-700">
                           <button
                             type="button"
                             className="w-full text-left p-4 flex justify-between items-center hover:bg-gray-50 transition-colors dark:hover:bg-gray-700/50"
@@ -805,7 +805,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             onClick={() => toggleOpen(id)}
                           >
                             <div className="flex-1 min-w-0">
-                              <h3 className="font-medium truncate text-gray-900 dark:text-gray-200">{r.email || 'No Email'}</h3>
+                              <h3 className="font-medium truncate text-gray-900 dark:text-gray-900 dark:text-gray-200">{r.email || 'No Email'}</h3>
                               {createdAt && (
                                 <p className="text-xs text-gray-500 mt-1">
                                   {createdAt.toLocaleDateString()} • {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -819,7 +819,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             </span>
                           </button>
                           {isOpen && (
-                            <div id={`contact-panel-${id}`} className="text-sm text-gray-700 p-4 bg-gray-50 dark:text-gray-300 dark:bg-gray-800/30">
+                            <div id={`contact-panel-${id}`} className="text-sm text-gray-700 p-4 bg-gray-50 dark:text-gray-600 dark:text-gray-300 dark:bg-gray-800/30">
                               <div className="space-y-3">
                                 <div>
                                   <div className="text-gray-500">Full Name</div>
@@ -850,7 +850,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                               <div className="mt-4 border-t border-gray-800 pt-3">
                                 <button
                                   type="button"
-                                  className="inline-flex items-center gap-2 text-left text-sm text-gray-200 hover:text-white focus:outline-none"
+                                  className="inline-flex items-center gap-2 text-left text-sm text-gray-900 dark:text-gray-200 hover:text-white focus:outline-none"
                                   aria-expanded={!!openPlanIds[id]}
                                   aria-controls={`planleads-panel-${id}`}
                                   onClick={async () => {
@@ -870,9 +870,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                 {openPlanIds[id] && (
                                   <div id={`planleads-panel-${id}`} className="mt-3 pl-0 sm:pl-2">
                                     {plannerLeadsLoading[r.email || ''] ? (
-                                      <div className="text-gray-400">Loading...</div>
+                                      <div className="text-gray-900 dark:text-gray-400">Loading...</div>
                                     ) : (plannerLeadsByEmail[r.email || ''] || []).length === 0 ? (
-                                      <div className="text-gray-400">No planner leads found for this email.</div>
+                                      <div className="text-gray-900 dark:text-gray-400">No planner leads found for this email.</div>
                                     ) : (
                                       <div className="space-y-3">
                                         {(plannerLeadsByEmail[r.email || ''] || []).map((lead) => (
@@ -880,7 +880,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                                               {Object.entries(lead).filter(([k]) => k !== 'id' && k !== 'formData' && k !== 'updatedAt' && k !== 'email' && k !== 'recommendedAreas' && k !== 'complexity').map(([k, v]) => (
                                                 <div key={k} className="break-words">
-                                                  <div className="text-gray-300">{k === 'planText' ? 'Recommeded setup' : k}</div>
+                                                  <div className="text-gray-600 dark:text-gray-300">{k === 'planText' ? 'Recommeded setup' : k}</div>
                                                   <div className="text-gray-100">
                                                     {k.toLowerCase().includes('created') || k.toLowerCase().includes('updated') ? fmt(dateFrom(v as any)) : k === 'planText' ? renderPlanText(v as any) : String(v)}
                                                   </div>
@@ -895,7 +895,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                 )}
                               </div>
                               <div className="mt-3 pt-3 border-t border-gray-700">
-                                <button onClick={() => (window.location.href = `mailto:${r.email}`)} className="text-teal-400 hover:text-teal-300 text-sm flex items-center gap-1">
+                                <button onClick={() => (window.location.href = `mailto:${r.email}`)} className="text-teal-400 hover:text-teal-600 dark:text-teal-300 text-sm flex items-center gap-1">
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                                   </svg>
@@ -912,7 +912,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
             </div>
           ) : (
             <>
-              {email && loading && <div className="text-gray-300">Loading...</div>}
+              {email && loading && <div className="text-gray-600 dark:text-gray-300">Loading...</div>}
               {error && <div className="text-red-400">{error}</div>}
               {!loading && !error && account && (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -924,7 +924,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                         <button
                           type="button"
                           onClick={() => { setTempName(account.FullName || ''); setEditingName(true); }}
-                          className="text-teal-400 hover:text-teal-300 text-sm px-3 py-1 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 transition-colors"
+                          className="text-teal-400 hover:text-teal-600 dark:text-teal-300 text-sm px-3 py-1 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 transition-colors"
                           title="Edit name"
                         >
                           Edit
@@ -951,28 +951,28 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                           <button
                             type="button"
                             onClick={() => { setEditingName(false); setTempName(account.FullName || ''); }}
-                            className="px-4 py-2 rounded-xl border border-gray-600 text-gray-300 hover:bg-gray-700/50 transition-colors"
+                            className="px-4 py-2 rounded-xl border border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-700/50 transition-colors"
                           >
                             Cancel
                           </button>
                         </div>
                       </div>
                     )}
-                    <div className="text-lg text-gray-300 mt-2 text-center md:text-left">{account.Email || '—'}</div>
+                    <div className="text-lg text-gray-600 dark:text-gray-300 mt-2 text-center md:text-left">{account.Email || '—'}</div>
                   </div>
                   {/* Right: UID / Role / Status */}
                   <div className="grid grid-cols-1 gap-4 text-center md:text-left md:grid-cols-[auto,1fr] md:gap-x-4 md:gap-y-2">
-                    <div className="text-gray-400">UID</div>
-                    <div className="text-gray-200 truncate" title={account.Uid}>
+                    <div className="text-gray-900 dark:text-gray-400">UID</div>
+                    <div className="text-gray-900 dark:text-gray-200 truncate" title={account.Uid}>
                       <div className="group/uid inline-flex items-center gap-2 max-w-full min-w-0">
-                        <span className="truncate font-mono text-sm tracking-wider px-3 py-1 rounded-lg bg-gray-800/60 border border-gray-600 text-gray-200">
+                        <span className="truncate font-mono text-sm tracking-wider px-3 py-1 rounded-lg bg-gray-800/60 border border-gray-600 text-gray-900 dark:text-gray-200">
                           {showUid ? (account.Uid || '—') : maskUid(account.Uid)}
                         </span>
                         <div className="inline-flex items-center gap-1 opacity-0 group-hover/uid:opacity-100 transition-opacity">
                           <button
                             type="button"
                             onClick={() => setShowUid((v) => !v)}
-                            className="p-1 text-gray-400 hover:text-gray-300 rounded"
+                            className="p-1 text-gray-900 dark:text-gray-400 hover:text-gray-600 dark:text-gray-300 rounded"
                             aria-label={showUid ? 'Hide UID' : 'Show UID'}
                           >
                             {showUid ? '👁️‍🗨️' : '👁️'}
@@ -986,7 +986,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                 setTimeout(() => setCopiedUid(false), 1200);
                               } catch {}
                             }}
-                            className="p-1 text-gray-400 hover:text-gray-300 rounded"
+                            className="p-1 text-gray-900 dark:text-gray-400 hover:text-gray-600 dark:text-gray-300 rounded"
                             aria-label="Copy UID"
                           >
                             📋
@@ -997,8 +997,8 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                         </div>
                       </div>
                     </div>
-                    <div className="text-gray-400">Role</div>
-                    <div className="text-gray-200">{account.Role}</div>
+                    <div className="text-gray-900 dark:text-gray-400">Role</div>
+                    <div className="text-gray-900 dark:text-gray-200">{account.Role}</div>
                   </div>
 
                   {/* Contact Info */}
@@ -1012,7 +1012,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                               📱
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm text-gray-400">Phone</div>
+                              <div className="text-sm text-gray-900 dark:text-gray-400">Phone</div>
                               <div className="text-white font-medium">{(account as any)?.phoneNumber || '—'}</div>
                             </div>
                           </div>
@@ -1022,7 +1022,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                               📍
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="text-sm text-gray-400">Address</div>
+                              <div className="text-sm text-gray-900 dark:text-gray-400">Address</div>
                               <div className="text-white font-medium break-words">{(account as any)?.address || '—'}</div>
                             </div>
                           </div>
@@ -1032,7 +1032,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                           <button
                             type="button"
                             onClick={() => setEditingContact(true)}
-                            className="px-6 py-3 rounded-xl border-2 border-teal-500/30 text-teal-300 hover:bg-teal-500/10 hover:border-teal-400/50 transition-all duration-300 backdrop-blur-sm bg-gray-800/50 shadow-lg hover:shadow-teal-500/20 font-medium"
+                            className="px-6 py-3 rounded-xl border-2 border-teal-500/30 text-teal-600 dark:text-teal-300 hover:bg-teal-500/10 hover:border-teal-400/50 transition-all duration-300 backdrop-blur-sm bg-white/50 dark:bg-gray-800/50 shadow-lg hover:shadow-teal-500/20 font-medium"
                           >
                             ✏️ Edit Contact Info
                           </button>
@@ -1042,7 +1042,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                       <div className="space-y-4">
                         <div className="grid grid-cols-1 gap-4">
                           <div>
-                            <label className="block text-sm text-gray-300 mb-2">Phone Number</label>
+                            <label className="block text-sm text-gray-600 dark:text-gray-300 mb-2">Phone Number</label>
                             {mounted && (
                               <PhoneInput
                                 country="in"
@@ -1090,7 +1090,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             )}
                           </div>
                           <div>
-                            <label className="block text-sm text-gray-300 mb-2">Address</label>
+                            <label className="block text-sm text-gray-600 dark:text-gray-300 mb-2">Address</label>
                             <textarea
                               value={tempAddress}
                               onChange={(e) => setTempAddress(e.target.value)}
@@ -1104,7 +1104,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                           <button
                             type="button"
                             onClick={() => { setEditingContact(false); setTempPhone((account as any)?.phoneNumber || ''); setTempAddress((account as any)?.address || ''); }}
-                            className="px-6 py-3 rounded-xl border-2 border-gray-600 text-gray-300 hover:bg-gray-700/50 transition-colors font-medium"
+                            className="px-6 py-3 rounded-xl border-2 border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-700/50 transition-colors font-medium"
                           >
                             Cancel
                           </button>
@@ -1144,8 +1144,8 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                   onClick={() => setActiveTab(t.key)}
                   className={`px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
                     activeTab === t.key
-                      ? 'bg-teal-500/20 text-teal-300 border border-teal-500/40 shadow-lg shadow-teal-500/20'
-                      : 'bg-gray-800/40 text-gray-300 hover:bg-gray-700/50 border border-gray-700/50'
+                      ? 'bg-teal-500/20 text-teal-600 dark:text-teal-300 border border-teal-500/40 shadow-lg shadow-teal-500/20'
+                      : 'bg-gray-800/40 text-gray-600 dark:text-gray-300 hover:bg-gray-700/50 border border-gray-700/50'
                   }`}
                 >
                   {t.label}
@@ -1170,7 +1170,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     className={`px-4 py-2 text-sm rounded-t-md border border-b-0 ${
                       activeTab === t.key
                         ? 'bg-white text-gray-900 border-gray-200 dark:bg-gray-800 dark:border-gray-700 dark:text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-50 border-transparent dark:bg-gray-800/40 dark:text-gray-300 dark:hover:bg-gray-700/50'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-50 border-transparent dark:bg-gray-800/40 dark:text-gray-600 dark:text-gray-300 dark:hover:bg-gray-700/50'
                     }`}
                   >
                     {t.label}
@@ -1181,9 +1181,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
           </div>
 
           <div className="bg-white border border-gray-200 rounded-b-md rounded-tr-md p-2 md:p-4 dark:bg-gray-800/60 dark:border-gray-700">
-            {loadingRelated && <div className="text-gray-300">Loading...</div>}
+            {loadingRelated && <div className="text-gray-600 dark:text-gray-300">Loading...</div>}
             {!loadingRelated && lists[activeTab].length === 0 && (
-              <div className="text-gray-300">No items.</div>
+              <div className="text-gray-600 dark:text-gray-300">No items.</div>
             )}
 
             {!loadingRelated && lists[activeTab].length > 0 && (
@@ -1193,7 +1193,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               >
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-white dark:bg-gray-800 z-10">
-                    <tr className="text-left text-xs uppercase text-gray-600 dark:text-gray-400">
+                    <tr className="text-left text-xs uppercase text-gray-600 dark:text-gray-900 dark:text-gray-400">
                       {activeTab === 'devices' ? (
                         <>
                           <th className="py-2 pr-4 hidden md:table-cell">Device Name</th>
@@ -1251,14 +1251,14 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                       e.stopPropagation();
                                       openDetails('devices', row.id, row);
                                     }}
-                                    className="text-gray-400 hover:text-teal-500 dark:text-gray-500 dark:hover:text-teal-400"
+                                    className="text-gray-900 dark:text-gray-400 hover:text-teal-500 dark:text-gray-500 dark:hover:text-teal-400"
                                   >
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                       <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                                     </svg>
                                   </button>
                                 </div>
-                                <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                <span className="text-xs text-gray-500 dark:text-gray-900 dark:text-gray-400 mt-1">
                                   {row.type || 'Unknown'}
                                 </span>
                               </div>
@@ -1272,7 +1272,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             </td>
                             <td className="py-3 px-4 hidden md:table-cell">
                               <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-700 dark:text-gray-300">
+                                <span className="text-sm text-gray-700 dark:text-gray-600 dark:text-gray-300">
                                   {row.type || 'Unknown'}
                                 </span>
                                 <button 
@@ -1280,7 +1280,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                     e.stopPropagation();
                                     openDetails('devices', row.id, row);
                                   }}
-                                  className="ml-2 text-gray-400 hover:text-teal-500 dark:text-gray-500 dark:hover:text-teal-400"
+                                  className="ml-2 text-gray-900 dark:text-gray-400 hover:text-teal-500 dark:text-gray-500 dark:hover:text-teal-400"
                                 >
                                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
@@ -1303,7 +1303,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                               {row.subject || row.title || 'No Subject'}
                             </td>
                             <td className="py-2 pr-4">{statusBadge(status)}</td>
-                            <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{fmt(dateFrom(created))}</td>
+                            <td className="py-2 pr-4 text-gray-700 dark:text-gray-600 dark:text-gray-300">{fmt(dateFrom(created))}</td>
                           </tr>
                         );
                       }
@@ -1319,7 +1319,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                               {row.service || row.category || 'Uncategorized Service'}
                             </td>
                             <td className="py-2 pr-4">{statusBadge(status)}</td>
-                            <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{fmt(dateFrom(created))}</td>
+                            <td className="py-2 pr-4 text-gray-700 dark:text-gray-600 dark:text-gray-300">{fmt(dateFrom(created))}</td>
                           </tr>
                         );
                       }
@@ -1335,7 +1335,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             {row.quoteType || row.type || '—'}
                           </td>
                           <td className="py-2 pr-4">{statusBadge(status)}</td>
-                          <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{fmt(dateFrom(created))}</td>
+                          <td className="py-2 pr-4 text-gray-700 dark:text-gray-600 dark:text-gray-300">{fmt(dateFrom(created))}</td>
                         </tr>
                       );
                     })}
@@ -1401,19 +1401,19 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-white">{selected.type === 'quotes' ? 'Quote' : selected.type === 'services' ? 'Service Request' : 'Support Ticket'} Details</h3>
-                <button onClick={closeDetails} className="text-gray-300 hover:text-white">✕</button>
+                <button onClick={closeDetails} className="text-gray-600 dark:text-gray-300 hover:text-white">✕</button>
               </div>
               <div className="space-y-2 text-sm">
                 {/* Subheader meta under title */}
-                <div className="text-gray-400 flex items-center gap-2 mb-2">
+                <div className="text-gray-900 dark:text-gray-400 flex items-center gap-2 mb-2">
                   <span>📅</span>
                   <span className="font-medium">Created</span>
-                  <span className="text-gray-200">{fmtPretty(dateFrom(selected.data?.createdAt ?? selected.data?.created_at ?? selected.data?.ts))}</span>
+                  <span className="text-gray-900 dark:text-gray-200">{fmtPretty(dateFrom(selected.data?.createdAt ?? selected.data?.created_at ?? selected.data?.ts))}</span>
                 </div>
 
                 {/* Top info grid */}
                 <div className="grid grid-cols-3 gap-2">
-                  <div className="text-gray-400 flex items-center gap-1">🆔 <span>Request ID</span></div>
+                  <div className="text-gray-900 dark:text-gray-400 flex items-center gap-1">🆔 <span>Request ID</span></div>
                   <div className="col-span-2 text-gray-100 break-all">{selected.id}</div>
                   {/* Created & Status moved out of this grid */}
                 </div>
@@ -1423,7 +1423,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                   {detailData.rows.map((r, i) => (
                     <div key={i} className={r.wide ? 'sm:col-span-2' : ''}>
-                      <div className="text-gray-400">{r.label}</div>
+                      <div className="text-gray-900 dark:text-gray-400">{r.label}</div>
                       <div className={`text-gray-100 ${r.isLongText ? 'whitespace-pre-wrap' : ''}`}>
                         {React.isValidElement(r.value) ? r.value : (r.value ?? '—')}
                       </div>
@@ -1432,7 +1432,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 </div>
                 {detailData.attachment && (
                   <div className="mt-3">
-                    <div className="text-gray-400 mb-1">Attachments</div>
+                    <div className="text-gray-900 dark:text-gray-400 mb-1">Attachments</div>
                     <a href={`${detailData.attachment}`} target="_blank" rel="noreferrer">
                       <img src={`${detailData.attachment}`} alt="attachment" className="h-24 w-24 object-cover rounded border border-gray-700 hover:opacity-90" />
                     </a>
@@ -1442,7 +1442,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
 
               {/* Bottom status control */}
               <div className="mt-6 border-t border-gray-700 pt-4">
-                <div className="text-gray-400 flex items-center gap-2 mb-2">
+                <div className="text-gray-900 dark:text-gray-400 flex items-center gap-2 mb-2">
                   <span>🏷️</span>
                   <span className="font-medium">Status</span>
                 </div>
@@ -1463,73 +1463,73 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
 
               {selected.type === 'quotes' && estimation && (
                 <div className="mt-6 border-t border-gray-700 pt-4">
-                  <div className="text-gray-200 font-medium mb-2">Estimate</div>
+                  <div className="text-gray-900 dark:text-gray-200 font-medium mb-2">Estimate</div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     <div>
-                      <div className="text-gray-400">Quote ID</div>
+                      <div className="text-gray-900 dark:text-gray-400">Quote ID</div>
                       <div className="text-gray-100">{estimation.quoteId || estimation.id}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Status</div>
+                      <div className="text-gray-900 dark:text-gray-400">Status</div>
                       <div className="text-gray-100">{estimation.status || '—'}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Created At</div>
+                      <div className="text-gray-900 dark:text-gray-400">Created At</div>
                       <div className="text-gray-100">{fmtPretty(dateFrom(estimation.createdAt))}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Updated At</div>
+                      <div className="text-gray-900 dark:text-gray-400">Updated At</div>
                       <div className="text-gray-100">{fmtPretty(dateFrom(estimation.updatedAt))}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Issue Date</div>
+                      <div className="text-gray-900 dark:text-gray-400">Issue Date</div>
                       <div className="text-gray-100">{fmtPretty(dateFrom(estimation.issueDate))}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Delivery Timeline</div>
+                      <div className="text-gray-900 dark:text-gray-400">Delivery Timeline</div>
                       <div className="text-gray-100">{estimation.deliveryTimeline || '—'}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Customer Email</div>
+                      <div className="text-gray-900 dark:text-gray-400">Customer Email</div>
                       <div className="text-gray-100">{estimation.customerEmail || '—'}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Created By</div>
+                      <div className="text-gray-900 dark:text-gray-400">Created By</div>
                       <div className="text-gray-100">{estimation.createdByEmail || estimation.createdByUid || '—'}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Subtotal</div>
+                      <div className="text-gray-900 dark:text-gray-400">Subtotal</div>
                       <div className="text-gray-100">{estimation.subtotal ?? '—'}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Taxes</div>
+                      <div className="text-gray-900 dark:text-gray-400">Taxes</div>
                       <div className="text-gray-100">{estimation.taxes ?? '—'}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Shipping</div>
+                      <div className="text-gray-900 dark:text-gray-400">Shipping</div>
                       <div className="text-gray-100">{estimation.shippingCharges ?? '—'}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Installation</div>
+                      <div className="text-gray-900 dark:text-gray-400">Installation</div>
                       <div className="text-gray-100">{estimation.installationCharges ?? '—'}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Overall Discount</div>
+                      <div className="text-gray-900 dark:text-gray-400">Overall Discount</div>
                       <div className="text-gray-100">{estimation.overallDiscount ?? '—'}</div>
                     </div>
                     <div>
-                      <div className="text-gray-400">Grand Total</div>
+                      <div className="text-gray-900 dark:text-gray-400">Grand Total</div>
                       <div className="text-gray-100 font-medium">{estimation.grandTotal ?? '—'}</div>
                     </div>
                     {estimation.paymentTerms && (
                       <div className="sm:col-span-2">
-                        <div className="text-gray-400">Payment Terms</div>
+                        <div className="text-gray-900 dark:text-gray-400">Payment Terms</div>
                         <div className="text-gray-100">{estimation.paymentTerms}</div>
                       </div>
                     )}
                     {estimation.notes && (
                       <div className="sm:col-span-2">
-                        <div className="text-gray-400">Notes</div>
+                        <div className="text-gray-900 dark:text-gray-400">Notes</div>
                         <div className="text-gray-100 whitespace-pre-wrap">{estimation.notes}</div>
                       </div>
                     )}
@@ -1537,11 +1537,11 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
 
                   {Array.isArray(estimation.items) && estimation.items.length > 0 && (
                     <div className="mt-4">
-                      <div className="text-gray-200 font-medium mb-2">Items</div>
+                      <div className="text-gray-900 dark:text-gray-200 font-medium mb-2">Items</div>
                       <div className="overflow-x-auto rounded-md border border-gray-700/70">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="text-left text-gray-400 border-b border-gray-700">
+                            <tr className="text-left text-gray-900 dark:text-gray-400 border-b border-gray-700">
                               <th className="py-2 pr-4">Name</th>
                               <th className="py-2 pr-4">Qty</th>
                               <th className="py-2 pr-4">Unit Price</th>
@@ -1553,10 +1553,10 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             {estimation.items.map((it: any) => (
                               <tr key={it.id} className="border-b border-gray-700/50">
                                 <td className="py-2 pr-4 text-gray-100">{it.name || '-'}</td>
-                                <td className="py-2 pr-4 text-gray-300">{it.quantity ?? '-'}</td>
-                                <td className="py-2 pr-4 text-gray-300">{it.unitPrice ?? '-'}</td>
-                                <td className="py-2 pr-4 text-gray-300">{it.discount ?? '-'}</td>
-                                <td className="py-2 pr-4 text-gray-300">{it.taxPercent ?? '-'}</td>
+                                <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{it.quantity ?? '-'}</td>
+                                <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{it.unitPrice ?? '-'}</td>
+                                <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{it.discount ?? '-'}</td>
+                                <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{it.taxPercent ?? '-'}</td>
                               </tr>
                             ))}
                           </tbody>
