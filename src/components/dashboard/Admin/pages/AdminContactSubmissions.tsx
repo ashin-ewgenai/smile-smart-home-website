@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import DashboardLayout from '../DashboardLayout';
 import { BrowserRouter, useInRouterContext } from 'react-router-dom';
 import { db } from '../../../../lib/firebase';
-import { collection, onSnapshot, getDocs, query, where, limit } from 'firebase/firestore';
+import { collection, onSnapshot, getDocs, query, where, limit, deleteDoc, doc } from 'firebase/firestore';
 
 const AdminContactSubmissions: React.FC = () => {
   // Read from localStorage only on client
@@ -24,6 +24,9 @@ const AdminContactSubmissions: React.FC = () => {
   const [planOpen, setPlanOpen] = useState<Record<string, boolean>>({});
   // 3-column distribution to mirror PlanLeads grid structure
   const [columnRequests, setColumnRequests] = useState<[any[], any[], any[]]>([[], [], []]);
+  // Confirmation modal state
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -79,6 +82,31 @@ const AdminContactSubmissions: React.FC = () => {
     }
   };
 
+  const handleDelete = (id: string) => {
+    setDeleteTargetId(id);
+    setIsDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (deleteTargetId) {
+      try {
+        await deleteDoc(doc(db, 'contactRequests', deleteTargetId));
+        setIsDeleteModalOpen(false);
+        setDeleteTargetId(null);
+      } catch (error) {
+        console.error('Error deleting contact submission:', error);
+        alert('Failed to delete the submission. Please try again.');
+        setIsDeleteModalOpen(false);
+        setDeleteTargetId(null);
+      }
+    }
+  };
+
+  const cancelDelete = () => {
+    setIsDeleteModalOpen(false);
+    setDeleteTargetId(null);
+  };
+
   const formatCreatedAt = (v: any) => {
     try {
       const d = v?.toDate?.() || (v?.seconds ? new Date(v.seconds * 1000) : null);
@@ -95,7 +123,6 @@ const AdminContactSubmissions: React.FC = () => {
 
   const Content = (
     <section className="p-6">
-      {/* Header */}
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center px-2 md:px-0">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Submissions</h2>
@@ -141,7 +168,7 @@ const AdminContactSubmissions: React.FC = () => {
                         aria-expanded={isOpen}
                         aria-controls={`contact-panel-${id}`}
                       >
-                        <div className="flex flex-col gap-2 mb-3 min-w-0">
+                        <div className="relative flex flex-col gap-2 mb-3 min-w-0">
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -152,6 +179,18 @@ const AdminContactSubmissions: React.FC = () => {
                               {createdStr}
                             </span>
                           </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(id);
+                            }}
+                            className="absolute top-0 right-0 text-gray-400 hover:text-red-500 dark:text-gray-500 dark:hover:text-red-400 transition-colors"
+                            aria-label="Delete contact submission"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
                         </div>
                         <div className="space-y-3">
                           <div className="flex items-center justify-between">
@@ -253,6 +292,34 @@ const AdminContactSubmissions: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Confirm Deletion
+            </h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300 mb-6">
+              Are you sure you want to delete this contact submission? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={cancelDelete}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 
