@@ -965,7 +965,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     <div className="text-gray-900 dark:text-gray-400">UID</div>
                     <div className="text-gray-900 dark:text-gray-200 truncate" title={account.Uid}>
                       <div className="group/uid inline-flex items-center gap-2 max-w-full min-w-0">
-                        <span className="truncate font-mono text-sm tracking-wider px-3 py-1 rounded-lg bg-gray-800/60 border border-gray-600 text-gray-900 dark:text-gray-200">
+                        <span className="truncate font-mono text-sm tracking-wider px-3 py-1 rounded-lg bg-gray-100 dark:bg-gray-800/60 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200">
                           {showUid ? (account.Uid || '—') : maskUid(account.Uid)}
                         </span>
                         <div className="inline-flex items-center gap-1 opacity-0 group-hover/uid:opacity-100 transition-opacity">
@@ -1008,22 +1008,22 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                           {/* Phone */}
                           <div className="flex items-center gap-3 flex-1">
-                            <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center flex-shrink-0">
+                            <div className="w-10 h-10 rounded-full bg-teal-500/20 dark:bg-teal-500/20 flex items-center justify-center flex-shrink-0">
                               📱
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm text-gray-900 dark:text-gray-400">Phone</div>
-                              <div className="text-white font-medium">{(account as any)?.phoneNumber || '—'}</div>
+                              <div className="text-gray-900 dark:text-white font-medium">{(account as any)?.phoneNumber || '—'}</div>
                             </div>
                           </div>
                           {/* Address */}
                           <div className="flex items-center gap-3 flex-1">
-                            <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center flex-shrink-0">
+                            <div className="w-10 h-10 rounded-full bg-teal-500/20 dark:bg-teal-500/20 flex items-center justify-center flex-shrink-0">
                               📍
                             </div>
                             <div className="flex-1 min-w-0">
                               <div className="text-sm text-gray-900 dark:text-gray-400">Address</div>
-                              <div className="text-white font-medium break-words">{(account as any)?.address || '—'}</div>
+                              <div className="text-gray-900 dark:text-white font-medium break-words">{(account as any)?.address || '—'}</div>
                             </div>
                           </div>
                         </div>
@@ -1055,11 +1055,11 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                   name: 'phone',
                                   required: false,
                                   className:
-                                    'w-full !pl-16 !py-3 !border-2 !border-gray-600 !rounded-xl focus:!ring-2 focus:!ring-teal-500 focus:!border-teal-500 !bg-gray-800/60 !text-white',
+'w-full !pl-16 !py-3 !border-2 !border-gray-300 dark:!border-gray-600 !rounded-xl focus:!ring-2 focus:!ring-teal-500 focus:!border-teal-500 !bg-white/80 dark:!bg-gray-800/60 !text-gray-900 dark:!text-white',
                                 }}
                                 containerClass="w-full"
-                                buttonClass="!bg-gray-700 !border-r-2 !border-gray-600 !rounded-l-xl !p-0 !w-14 !h-full !flex !items-center !justify-center hover:!bg-gray-600 focus:!ring-2 focus:!ring-teal-500"
-                                dropdownClass="!border-2 !border-gray-600 !rounded-xl !shadow-2xl !bg-gray-800 !left-1/2 !-translate-x-1/2 !fixed !z-50 !w-80 [&_.highlight]:!bg-teal-500/20 dark:[&_.highlight]:!bg-teal-400/30 [&_.highlight]:!text-white [&_.country:hover]:!bg-gray-700 [&_.country:hover_.country-name]:!text-white"
+                                buttonClass="!bg-gray-200 dark:!bg-gray-700 !border-r-2 !border-gray-300 dark:!border-gray-600 !rounded-l-xl !p-0 !w-14 !h-full !flex !items-center !justify-center hover:!bg-gray-300 dark:hover:!bg-gray-600 focus:!ring-2 focus:!ring-teal-500 text-gray-900 dark:text-gray-100"
+                                dropdownClass="!border-2 !border-gray-300 dark:!border-gray-600 !rounded-xl !shadow-2xl !bg-white dark:!bg-gray-800 !left-1/2 !-translate-x-1/2 !fixed !z-50 !w-80 [&_.highlight]:!bg-teal-100 dark:[&_.highlight]:!bg-teal-400/30 [&_.highlight]:!text-gray-900 dark:[&_.highlight]:!text-white [&_.country]:!text-gray-900 dark:[&_.country]:!text-gray-100 [&_.country:hover]:!bg-gray-100 dark:[&_.country:hover]:!bg-gray-700 [&_.country:hover_.country-name]:!text-gray-900 dark:[&_.country:hover_.country-name]:!text-white"
                                 containerStyle={{ width: '100%' }}
                                 inputStyle={{
                                   width: '100%',
@@ -1080,7 +1080,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                   overflowY: 'auto',
                                 }}
                                 searchPlaceholder="Search country..."
-                                searchClass="!w-[calc(100%-1rem)] !mx-2 !my-2 !px-4 !py-2 !text-sm !rounded-lg !border-2 !border-gray-600 focus:!ring-2 focus:!ring-teal-500 !bg-gray-800 !text-white"
+                                searchClass="!w-[calc(100%-1rem)] !mx-2 !my-2 !px-4 !py-2 !text-sm !rounded-lg !border-2 !border-gray-300 dark:!border-gray-600 focus:!ring-2 focus:!ring-teal-500 !bg-white dark:!bg-gray-800 !text-gray-900 dark:!text-gray-100"
                                 searchNotFound="No country found"
                                 enableSearch
                                 countryCodeEditable={false}
@@ -1096,7 +1096,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                               onChange={(e) => setTempAddress(e.target.value)}
                               rows={4}
                               placeholder="Enter full address"
-                              className="w-full px-4 py-3 rounded-xl border-2 border-gray-600 bg-gray-800/60 text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                              className="w-full px-4 py-3 rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/60 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
                             />
                           </div>
                         </div>
@@ -1170,7 +1170,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     className={`px-4 py-2 text-sm rounded-t-md border border-b-0 ${
                       activeTab === t.key
                         ? 'bg-white text-gray-900 border-gray-200 dark:bg-gray-800 dark:border-gray-700 dark:text-white'
-                        : 'bg-gray-100 text-gray-700 hover:bg-gray-50 border-transparent dark:bg-gray-800/40 dark:text-gray-600 dark:text-gray-300 dark:hover:bg-gray-700/50'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-50 border-transparent dark:bg-gray-800/40 dark:text-gray-300 dark:hover:bg-gray-700/50'
                     }`}
                   >
                     {t.label}
@@ -1193,7 +1193,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               >
                 <table className="w-full text-sm">
                   <thead className="sticky top-0 bg-white dark:bg-gray-800 z-10">
-                    <tr className="text-left text-xs uppercase text-gray-600 dark:text-gray-900 dark:text-gray-400">
+                    <tr className="text-left text-xs uppercase text-gray-700 dark:text-gray-300">
                       {activeTab === 'devices' ? (
                         <>
                           <th className="py-2 pr-4 hidden md:table-cell">Device Name</th>
@@ -1258,7 +1258,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                     </svg>
                                   </button>
                                 </div>
-                                <span className="text-xs text-gray-500 dark:text-gray-900 dark:text-gray-400 mt-1">
+                                <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                   {row.type || 'Unknown'}
                                 </span>
                               </div>
@@ -1272,7 +1272,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             </td>
                             <td className="py-3 px-4 hidden md:table-cell">
                               <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-700 dark:text-gray-600 dark:text-gray-300">
+                                <span className="text-sm text-gray-700 dark:text-gray-300">
                                   {row.type || 'Unknown'}
                                 </span>
                                 <button 
@@ -1303,7 +1303,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                               {row.subject || row.title || 'No Subject'}
                             </td>
                             <td className="py-2 pr-4">{statusBadge(status)}</td>
-                            <td className="py-2 pr-4 text-gray-700 dark:text-gray-600 dark:text-gray-300">{fmt(dateFrom(created))}</td>
+                            <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{fmt(dateFrom(created))}</td>
                           </tr>
                         );
                       }
@@ -1319,7 +1319,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                               {row.service || row.category || 'Uncategorized Service'}
                             </td>
                             <td className="py-2 pr-4">{statusBadge(status)}</td>
-                            <td className="py-2 pr-4 text-gray-700 dark:text-gray-600 dark:text-gray-300">{fmt(dateFrom(created))}</td>
+                            <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{fmt(dateFrom(created))}</td>
                           </tr>
                         );
                       }
@@ -1335,7 +1335,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             {row.quoteType || row.type || '—'}
                           </td>
                           <td className="py-2 pr-4">{statusBadge(status)}</td>
-                          <td className="py-2 pr-4 text-gray-700 dark:text-gray-600 dark:text-gray-300">{fmt(dateFrom(created))}</td>
+                          <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{fmt(dateFrom(created))}</td>
                         </tr>
                       );
                     })}
@@ -1379,7 +1379,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
             }}
           >
             <div
-              className="modal-scroll-content w-full max-w-2xl bg-gray-900 border border-gray-700 rounded-xl shadow-2xl p-5 overflow-y-auto max-h-[90vh]"
+              className="modal-scroll-content w-full max-w-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl p-5 overflow-y-auto max-h-[90vh] text-gray-900 dark:text-white"
               style={{
                 overscrollBehavior: 'contain',
                 WebkitOverflowScrolling: 'touch',
@@ -1400,8 +1400,8 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               }}
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white">{selected.type === 'quotes' ? 'Quote' : selected.type === 'services' ? 'Service Request' : 'Support Ticket'} Details</h3>
-                <button onClick={closeDetails} className="text-gray-600 dark:text-gray-300 hover:text-white">✕</button>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{selected.type === 'quotes' ? 'Quote' : selected.type === 'services' ? 'Service Request' : 'Support Ticket'} Details</h3>
+                <button onClick={closeDetails} className="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white">✕</button>
               </div>
               <div className="space-y-2 text-sm">
                 {/* Subheader meta under title */}
@@ -1414,7 +1414,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 {/* Top info grid */}
                 <div className="grid grid-cols-3 gap-2">
                   <div className="text-gray-900 dark:text-gray-400 flex items-center gap-1">🆔 <span>Request ID</span></div>
-                  <div className="col-span-2 text-gray-100 break-all">{selected.id}</div>
+                  <div className="col-span-2 text-gray-900 dark:text-gray-100 break-all">{selected.id}</div>
                   {/* Created & Status moved out of this grid */}
                 </div>
 
@@ -1424,7 +1424,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                   {detailData.rows.map((r, i) => (
                     <div key={i} className={r.wide ? 'sm:col-span-2' : ''}>
                       <div className="text-gray-900 dark:text-gray-400">{r.label}</div>
-                      <div className={`text-gray-100 ${r.isLongText ? 'whitespace-pre-wrap' : ''}`}>
+                      <div className={`text-gray-900 dark:text-gray-100 ${r.isLongText ? 'whitespace-pre-wrap' : ''}`}>
                         {React.isValidElement(r.value) ? r.value : (r.value ?? '—')}
                       </div>
                     </div>
@@ -1467,70 +1467,70 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Quote ID</div>
-                      <div className="text-gray-100">{estimation.quoteId || estimation.id}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{estimation.quoteId || estimation.id}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Status</div>
-                      <div className="text-gray-100">{estimation.status || '—'}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{estimation.status || '—'}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Created At</div>
-                      <div className="text-gray-100">{fmtPretty(dateFrom(estimation.createdAt))}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{fmtPretty(dateFrom(estimation.createdAt))}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Updated At</div>
-                      <div className="text-gray-100">{fmtPretty(dateFrom(estimation.updatedAt))}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{fmtPretty(dateFrom(estimation.updatedAt))}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Issue Date</div>
-                      <div className="text-gray-100">{fmtPretty(dateFrom(estimation.issueDate))}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{fmtPretty(dateFrom(estimation.issueDate))}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Delivery Timeline</div>
-                      <div className="text-gray-100">{estimation.deliveryTimeline || '—'}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{estimation.deliveryTimeline || '—'}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Customer Email</div>
-                      <div className="text-gray-100">{estimation.customerEmail || '—'}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{estimation.customerEmail || '—'}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Created By</div>
-                      <div className="text-gray-100">{estimation.createdByEmail || estimation.createdByUid || '—'}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{estimation.createdByEmail || estimation.createdByUid || '—'}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Subtotal</div>
-                      <div className="text-gray-100">{estimation.subtotal ?? '—'}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{estimation.subtotal ?? '—'}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Taxes</div>
-                      <div className="text-gray-100">{estimation.taxes ?? '—'}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{estimation.taxes ?? '—'}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Shipping</div>
-                      <div className="text-gray-100">{estimation.shippingCharges ?? '—'}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{estimation.shippingCharges ?? '—'}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Installation</div>
-                      <div className="text-gray-100">{estimation.installationCharges ?? '—'}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{estimation.installationCharges ?? '—'}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Overall Discount</div>
-                      <div className="text-gray-100">{estimation.overallDiscount ?? '—'}</div>
+                      <div className="text-gray-900 dark:text-gray-300">{estimation.overallDiscount ?? '—'}</div>
                     </div>
                     <div>
                       <div className="text-gray-900 dark:text-gray-400">Grand Total</div>
-                      <div className="text-gray-100 font-medium">{estimation.grandTotal ?? '—'}</div>
+                      <div className="text-gray-900 dark:text-gray-300 font-medium">{estimation.grandTotal ?? '—'}</div>
                     </div>
                     {estimation.paymentTerms && (
                       <div className="sm:col-span-2">
                         <div className="text-gray-900 dark:text-gray-400">Payment Terms</div>
-                        <div className="text-gray-100">{estimation.paymentTerms}</div>
+                        <div className="text-gray-900 dark:text-gray-300">{estimation.paymentTerms}</div>
                       </div>
                     )}
                     {estimation.notes && (
                       <div className="sm:col-span-2">
                         <div className="text-gray-900 dark:text-gray-400">Notes</div>
-                        <div className="text-gray-100 whitespace-pre-wrap">{estimation.notes}</div>
+                        <div className="text-gray-900 dark:text-gray-300 whitespace-pre-wrap">{estimation.notes}</div>
                       </div>
                     )}
                   </div>
@@ -1541,7 +1541,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                       <div className="overflow-x-auto rounded-md border border-gray-700/70">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="text-left text-gray-900 dark:text-gray-400 border-b border-gray-700">
+                            <tr className="text-left text-gray-900 dark:text-gray-300 border-b border-gray-700">
                               <th className="py-2 pr-4">Name</th>
                               <th className="py-2 pr-4">Qty</th>
                               <th className="py-2 pr-4">Unit Price</th>
@@ -1552,11 +1552,11 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                           <tbody>
                             {estimation.items.map((it: any) => (
                               <tr key={it.id} className="border-b border-gray-700/50">
-                                <td className="py-2 pr-4 text-gray-100">{it.name || '-'}</td>
-                                <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{it.quantity ?? '-'}</td>
-                                <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{it.unitPrice ?? '-'}</td>
-                                <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{it.discount ?? '-'}</td>
-                                <td className="py-2 pr-4 text-gray-600 dark:text-gray-300">{it.taxPercent ?? '-'}</td>
+                                <td className="py-2 pr-4 text-gray-900 dark:text-gray-300">{it.name || '-'}</td>
+                                <td className="py-2 pr-4 text-gray-900 dark:text-gray-200">{it.quantity ?? '-'}</td>
+                                <td className="py-2 pr-4 text-gray-900 dark:text-gray-200">{it.unitPrice ?? '-'}</td>
+                                <td className="py-2 pr-4 text-gray-900 dark:text-gray-200">{it.discount ?? '-'}</td>
+                                <td className="py-2 pr-4 text-gray-900 dark:text-gray-200">{it.taxPercent ?? '-'}</td>
                               </tr>
                             ))}
                           </tbody>
