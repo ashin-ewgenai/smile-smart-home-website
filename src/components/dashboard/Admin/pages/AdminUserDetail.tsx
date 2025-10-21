@@ -212,7 +212,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         const [, label, rest] = labelMatch as RegExpMatchArray;
         elements.push(
           <div key={`lbl-${i}`} className="text-gray-900 dark:text-gray-200">
-            <span className="font-semibold text-white">{label} </span>
+            <span className="font-semibold text-gray-900 dark:text-white">{label} </span>
             {rest}
           </div>
         );
@@ -649,7 +649,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   const statusBadge = (status: string | undefined) => {
     const s = (status || '').toString();
     const lower = s.toLowerCase();
-    let cls = 'bg-gray-700 text-gray-100 border border-gray-600';
+    let cls = 'bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:border-gray-600';
     if (['new', 'pending', 'submitted'].includes(lower)) cls = 'bg-amber-500/20 text-amber-300 border border-amber-500/40';
     if (['open', 'in progress', 'in process', 'approved', 'ack'].includes(lower)) cls = 'bg-blue-500/20 text-blue-300 border border-blue-500/40';
     if (['resolved', 'done', 'closed'].includes(lower)) cls = 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
@@ -850,7 +850,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                               <div className="mt-4 border-t border-gray-800 pt-3">
                                 <button
                                   type="button"
-                                  className="inline-flex items-center gap-2 text-left text-sm text-gray-900 dark:text-gray-200 hover:text-white focus:outline-none"
+                                  className="inline-flex items-center gap-2 text-left text-sm text-gray-900 dark:text-gray-200 hover:text-gray-700 dark:hover:text-gray-100 focus:outline-none"
                                   aria-expanded={!!openPlanIds[id]}
                                   aria-controls={`planleads-panel-${id}`}
                                   onClick={async () => {
@@ -920,7 +920,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                   <div className="text-center md:text-left">
                     {!editingName ? (
                       <div className="flex flex-col md:flex-row md:items-center gap-2 justify-center md:justify-start">
-                        <div className="text-2xl md:text-3xl font-bold text-white">{account.FullName || '—'}</div>
+                        <div className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{account.FullName || '—'}</div>
                         <button
                           type="button"
                           onClick={() => { setTempName(account.FullName || ''); setEditingName(true); }}
@@ -936,7 +936,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                           type="text"
                           value={tempName}
                           onChange={(e) => setTempName(e.target.value)}
-                          className="px-4 py-2 rounded-xl border border-gray-600 bg-gray-800/60 text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent text-center md:text-left"
+                          className="px-4 py-2 rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/60 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-center md:text-left"
                           placeholder="Full name"
                         />
                         <div className="flex items-center gap-2">
@@ -1401,7 +1401,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{selected.type === 'quotes' ? 'Quote' : selected.type === 'services' ? 'Service Request' : 'Support Ticket'} Details</h3>
-                <button onClick={closeDetails} className="text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white">✕</button>
+                <button onClick={closeDetails} className="px-3 py-2 rounded-lg bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors">
+                  Close
+                </button>
               </div>
               <div className="space-y-2 text-sm">
                 {/* Subheader meta under title */}

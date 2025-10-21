@@ -381,14 +381,14 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
   if (!selected || selected.type !== 'quotes') return null;
 
   return (
-    <div className="mt-4 border-t border-gray-700 pt-4">
-      <div className="text-gray-200 font-medium mb-2">
+    <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4">
+      <div className="text-gray-900 dark:text-gray-200 font-medium mb-2">
         {draft ? 'Edit Estimation' : 'Create Estimation'}
       </div>
 
       {!draft ? (
-        <div className="flex items-center justify-between gap-3 bg-gray-800/60 border border-gray-700 rounded p-3">
-          <div className="text-gray-300">No estimation found for this quote.</div>
+        <div className="flex items-center justify-between gap-3 bg-white dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded p-3">
+          <div className="text-gray-700 dark:text-gray-300">No estimation found for this quote.</div>
           <button
             onClick={initNew}
             className="px-4 py-2 rounded-full bg-teal-600 hover:bg-teal-700 text-white"
@@ -400,8 +400,8 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
         <div className="space-y-4">
           {/* Quote Context (read-only snapshot of original request) */}
           {selected?.data && (
-            <div className="bg-gray-800/60 rounded-md p-3 border border-gray-700">
-              <div className="text-gray-200 font-medium mb-2">Quote Context</div>
+            <div className="bg-white dark:bg-gray-800/60 rounded-md p-3 border border-gray-200 dark:border-gray-700">
+              <div className="text-gray-900 dark:text-gray-200 font-medium mb-2">Quote Context</div>
               {(() => {
                 const q: any = selected.data || {};
                 const t = (q.quoteType || q.type || '').toString().toLowerCase();
@@ -411,20 +411,20 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
                     {Loc.country && (
                       <div>
-                        <div className="text-gray-400">Country</div>
-                        <div className="text-gray-100">{Loc.country}</div>
+                        <div className="text-gray-600 dark:text-gray-400">Country</div>
+                        <div className="text-gray-900 dark:text-gray-100">{Loc.country}</div>
                       </div>
                     )}
                     {Loc.state && (
                       <div>
-                        <div className="text-gray-400">State</div>
-                        <div className="text-gray-100">{Loc.state}</div>
+                        <div className="text-gray-600 dark:text-gray-400">State</div>
+                        <div className="text-gray-900 dark:text-gray-100">{Loc.state}</div>
                       </div>
                     )}
                     {Loc.district && (
                       <div>
-                        <div className="text-gray-400">District</div>
-                        <div className="text-gray-100">{Loc.district}</div>
+                        <div className="text-gray-600 dark:text-gray-400">District</div>
+                        <div className="text-gray-900 dark:text-gray-100">{Loc.district}</div>
                       </div>
                     )}
                   </div>
@@ -435,22 +435,22 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {budgetText && (
                           <div>
-                            <div className="text-gray-400">Budget</div>
-                            <div className="text-gray-100">{budgetText}</div>
+                            <div className="text-gray-600 dark:text-gray-400">Budget</div>
+                            <div className="text-gray-900 dark:text-gray-100">{budgetText}</div>
                           </div>
                         )}
                         {q.timeline && (
                           <div>
-                            <div className="text-gray-400">Timeline</div>
-                            <div className="text-gray-100">{q.timeline}</div>
+                            <div className="text-gray-600 dark:text-gray-400">Timeline</div>
+                            <div className="text-gray-900 dark:text-gray-100">{q.timeline}</div>
                           </div>
                         )}
                       </div>
                       {LocationBlock}
                       {q.customDetails && (
                         <div>
-                          <div className="text-gray-400">Custom Details</div>
-                          <div className="text-gray-100 whitespace-pre-wrap">{q.customDetails}</div>
+                          <div className="text-gray-600 dark:text-gray-400">Custom Details</div>
+                          <div className="text-gray-900 dark:text-gray-100 whitespace-pre-wrap">{q.customDetails}</div>
                         </div>
                       )}
                     </div>
@@ -462,7 +462,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                     <div className="space-y-2 text-sm">
                       {rooms.length > 0 && (
                         <div>
-                          <div className="text-gray-400">New Rooms to Automate</div>
+                          <div className="text-gray-600 dark:text-gray-400">New Rooms to Automate</div>
                           <div className="mt-1 flex flex-wrap gap-2">
                             {rooms.map((r: string, idx: number) => (
                               <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-900/30 text-teal-200">{r}</span>
@@ -472,8 +472,8 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                       )}
                       {q.timeline && (
                         <div>
-                          <div className="text-gray-400">Timeline</div>
-                          <div className="text-gray-100">{q.timeline}</div>
+                          <div className="text-gray-600 dark:text-gray-400">Timeline</div>
+                          <div className="text-gray-900 dark:text-gray-100">{q.timeline}</div>
                         </div>
                       )}
                       {LocationBlock}
@@ -486,7 +486,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                   <div className="space-y-2 text-sm">
                     {devices.length > 0 && (
                       <div>
-                        <div className="text-gray-400">Devices Required</div>
+                        <div className="text-gray-600 dark:text-gray-400">Devices Required</div>
                         <div className="mt-1 flex flex-wrap gap-2">
                           {devices.map((d: string, idx: number) => (
                             <span key={idx} className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-900/30 text-teal-200">{d}</span>
@@ -497,20 +497,20 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {q.propertyType && (
                         <div>
-                          <div className="text-gray-400">Property Type</div>
-                          <div className="text-gray-100">{q.propertyType}</div>
+                          <div className="text-gray-600 dark:text-gray-400">Property Type</div>
+                          <div className="text-gray-900 dark:text-gray-100">{q.propertyType}</div>
                         </div>
                       )}
                       {q.numberOfRooms && (
                         <div>
-                          <div className="text-gray-400">Number of Rooms</div>
-                          <div className="text-gray-100">{String(q.numberOfRooms)}</div>
+                          <div className="text-gray-600 dark:text-gray-400">Number of Rooms</div>
+                          <div className="text-gray-900 dark:text-gray-100">{String(q.numberOfRooms)}</div>
                         </div>
                       )}
                       {q.timeline && (
                         <div>
-                          <div className="text-gray-400">Timeline</div>
-                          <div className="text-gray-100">{q.timeline}</div>
+                          <div className="text-gray-600 dark:text-gray-400">Timeline</div>
+                          <div className="text-gray-900 dark:text-gray-100">{q.timeline}</div>
                         </div>
                       )}
                     </div>
@@ -526,7 +526,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
               <div className="text-gray-400 text-sm mb-1">Issue Date</div>
               <input
                 type="date"
-                className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                 value={toDateInput(draft.issueDate)}
                 onChange={(e) => setDraft((p: any) => ({ ...p, issueDate: e.target.value }))}
               />
@@ -535,7 +535,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
               <div className="text-gray-400 text-sm mb-1">Expiry Date</div>
               <input
                 type="date"
-                className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                 value={toDateInput(draft.expiryDate)}
                 onChange={(e) => setDraft((p: any) => ({ ...p, expiryDate: e.target.value }))}
               />
@@ -544,7 +544,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
               <div className="text-gray-400 text-sm mb-1">Payment Terms</div>
               <input
                 type="text"
-                className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                 value={draft.paymentTerms || ''}
                 onChange={(e) => setDraft((p: any) => ({ ...p, paymentTerms: e.target.value }))}
               />
@@ -553,7 +553,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
               <div className="text-gray-400 text-sm mb-1">Warranty</div>
               <input
                 type="text"
-                className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                 value={draft.warranty || ''}
                 onChange={(e) => setDraft((p: any) => ({ ...p, warranty: e.target.value }))}
               />
@@ -562,7 +562,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
               <div className="text-gray-400 text-sm mb-1">Delivery Timeline</div>
               <input
                 type="text"
-                className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                 value={draft.deliveryTimeline || ''}
                 onChange={(e) => setDraft((p: any) => ({ ...p, deliveryTimeline: e.target.value }))}
               />
@@ -571,7 +571,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
               <div className="text-gray-400 text-sm mb-1">Overall Discount</div>
               <input
                 type="number"
-                className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                 value={Number(draft.overallDiscount || 0)}
                 onChange={(e) => setDraft((p: any) => ({ ...p, overallDiscount: Number(e.target.value) }))}
               />
@@ -580,7 +580,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
               <div className="text-gray-400 text-sm mb-1">Shipping Charges</div>
               <input
                 type="number"
-                className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                 value={Number(draft.shippingCharges || 0)}
                 onChange={(e) => setDraft((p: any) => ({ ...p, shippingCharges: Number(e.target.value) }))}
               />
@@ -589,7 +589,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
               <div className="text-gray-400 text-sm mb-1">Installation Charges</div>
               <input
                 type="number"
-                className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                 value={Number(draft.installationCharges || 0)}
                 onChange={(e) => setDraft((p: any) => ({ ...p, installationCharges: Number(e.target.value) }))}
               />
@@ -598,12 +598,12 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
 
           {/* Pricing Summary */}
           <div>
-            <div className="text-gray-200 font-medium mb-2">Pricing Summary</div>
+            <div className="text-gray-900 dark:text-gray-200 font-medium mb-2">Pricing Summary</div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Subtotal</span>
-                  <span className="text-gray-100 font-medium">{computeTotals(draft.items || []).subtotal.toFixed(2)}</span>
+                  <span className="text-gray-600 dark:text-gray-400">Subtotal</span>
+                  <span className="text-gray-900 dark:text-gray-100 font-medium">{computeTotals(draft.items || []).subtotal.toFixed(2)}</span>
                 </div>
                 <div>
                   <div className="text-gray-400 text-sm mb-1">Overall Discount</div>
@@ -611,14 +611,14 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                     type="number"
                     min={0}
                     step="0.01"
-                    className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                    className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                     value={Number(draft.overallDiscount || 0)}
                     onChange={(e) => setDraft((p: any) => ({ ...p, overallDiscount: Number(e.target.value) }))}
                   />
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-400">Taxes</span>
-                  <span className="text-gray-100 font-medium">{computeTotals(draft.items || []).taxes.toFixed(2)}</span>
+                  <span className="text-gray-600 dark:text-gray-400">Taxes</span>
+                  <span className="text-gray-900 dark:text-gray-100 font-medium">{computeTotals(draft.items || []).taxes.toFixed(2)}</span>
                 </div>
                 <div>
                   <div className="text-gray-400 text-sm mb-1">Shipping/Delivery Charges</div>
@@ -626,7 +626,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                     type="number"
                     min={0}
                     step="0.01"
-                    className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                    className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                     value={Number(draft.shippingCharges || 0)}
                     onChange={(e) => setDraft((p: any) => ({ ...p, shippingCharges: Number(e.target.value) }))}
                   />
@@ -637,14 +637,14 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                     type="number"
                     min={0}
                     step="0.01"
-                    className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                    className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                     value={Number(draft.installationCharges || 0)}
                     onChange={(e) => setDraft((p: any) => ({ ...p, installationCharges: Number(e.target.value) }))}
                   />
                 </div>
               </div>
-              <div className="bg-gray-800/60 rounded-md p-4 border border-gray-700 flex items-center justify-between">
-                <span className="text-base font-medium text-gray-100">Grand Total</span>
+              <div className="bg-white dark:bg-gray-800/60 rounded-md p-4 border border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                <span className="text-base font-medium text-gray-900 dark:text-gray-100">Grand Total</span>
                 <span className="text-xl font-semibold text-teal-400">
                   {(() => {
                     const { subtotal, taxes } = computeTotals(draft.items || []);
@@ -659,12 +659,12 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
 
           {/* Terms & Conditions */}
           <div>
-            <div className="text-gray-200 font-medium mb-2">Terms & Conditions</div>
+            <div className="text-gray-900 dark:text-gray-200 font-medium mb-2">Terms & Conditions</div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <div className="text-gray-400 text-sm mb-1">Payment Terms</div>
+                <div className="text-gray-600 dark:text-gray-400 text-sm mb-1">Payment Terms</div>
                 <select
-                  className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                  className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                   value={draft.paymentTerms || ''}
                   onChange={(e) => setDraft((p: any) => ({ ...p, paymentTerms: e.target.value }))}
                 >
@@ -676,30 +676,30 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                 </select>
               </div>
               <div>
-                <div className="text-gray-400 text-sm mb-1">Warranty / Support</div>
+                <div className="text-gray-600 dark:text-gray-400 text-sm mb-1">Warranty / Support</div>
                 <input
                   type="text"
-                  className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                  className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                   value={draft.warranty || ''}
                   onChange={(e) => setDraft((p: any) => ({ ...p, warranty: e.target.value }))}
                   placeholder="e.g., 1 year standard warranty"
                 />
               </div>
               <div>
-                <div className="text-gray-400 text-sm mb-1">Delivery Timeline</div>
+                <div className="text-gray-600 dark:text-gray-400 text-sm mb-1">Delivery Timeline</div>
                 <input
                   type="text"
-                  className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                  className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                   value={draft.deliveryTimeline || ''}
                   onChange={(e) => setDraft((p: any) => ({ ...p, deliveryTimeline: e.target.value }))}
                   placeholder="e.g., 2-3 weeks from order"
                 />
               </div>
               <div className="sm:col-span-2">
-                <div className="text-gray-400 text-sm mb-1">Notes</div>
+                <div className="text-gray-600 dark:text-gray-400 text-sm mb-1">Notes</div>
                 <textarea
                   rows={3}
-                  className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-3 py-2"
+                  className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                   value={draft.notes || ''}
                   onChange={(e) => setDraft((p: any) => ({ ...p, notes: e.target.value }))}
                 />
@@ -709,19 +709,19 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
 
           {/* Attachments */}
           <div>
-            <div className="text-gray-200 font-medium mb-2">Attachments</div>
+            <div className="text-gray-900 dark:text-gray-200 font-medium mb-2">Attachments</div>
             <div className="flex items-center gap-3">
               <input
                 type="file"
                 multiple
                 onChange={(e) => onFilesSelected(e.target.files)}
                 disabled={uploading}
-                className="text-gray-200"
+                className="text-gray-900 dark:text-gray-200"
               />
-              {uploading && <span className="text-sm text-gray-400">Uploading...</span>}
+              {uploading && <span className="text-sm text-gray-600 dark:text-gray-400">Uploading...</span>}
             </div>
             {Array.isArray(draft.attachments) && draft.attachments.length > 0 && (
-              <ul className="mt-2 list-disc list-inside text-sm text-gray-300 space-y-1">
+              <ul className="mt-2 list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
                 {draft.attachments.map((url: string, idx: number) => (
                   <li key={idx}>
                     <a href={url} target="_blank" rel="noreferrer" className="text-teal-400 hover:underline">Attachment {idx + 1}</a>
@@ -732,11 +732,11 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
           </div>
 
           <div>
-            <div className="text-gray-200 font-medium mb-2">Items</div>
-            <div className="overflow-x-auto rounded-md border border-gray-700/70">
+            <div className="text-gray-900 dark:text-gray-200 font-medium mb-2">Items</div>
+            <div className="overflow-x-auto rounded-md border border-gray-200 dark:border-gray-700/70">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-gray-400 border-b border-gray-700">
+                  <tr className="text-left text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
                     <th className="py-2 pr-4">Name</th>
                     <th className="py-2 pr-4 hidden sm:table-cell">Description</th>
                     <th className="py-2 pr-4">Qty</th>
@@ -751,34 +751,34 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                   {(draft.items || []).map((it: any) => {
                     const c = calcLine(it);
                     return (
-                      <tr key={it.id} className="border-b border-gray-700/50">
+                      <tr key={it.id} className="border-b border-gray-200 dark:border-gray-700/50">
                         <td className="py-2 pr-2">
                           <input
-                            className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-2 py-1"
+                            className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-2 py-1"
                             value={it.name || ''}
                             onChange={(e) => patchItem(it.id, { name: e.target.value })}
                           />
                         </td>
                         <td className="py-2 pr-2 hidden sm:table-cell">
                           <input
-                            className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-2 py-1"
+                            className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-2 py-1"
                             value={it.description || ''}
                             onChange={(e) => patchItem(it.id, { description: e.target.value })}
                           />
                         </td>
                         <td className="py-2 pr-2">
-                          <input type="number" className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-2 py-1" value={Number(it.quantity || 0)} onChange={(e) => patchItem(it.id, { quantity: Number(e.target.value) })} />
+                          <input type="number" className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-2 py-1" value={Number(it.quantity || 0)} onChange={(e) => patchItem(it.id, { quantity: Number(e.target.value) })} />
                         </td>
                         <td className="py-2 pr-2">
-                          <input type="number" className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-2 py-1" value={Number(it.unitPrice || 0)} onChange={(e) => patchItem(it.id, { unitPrice: Number(e.target.value) })} />
+                          <input type="number" className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-2 py-1" value={Number(it.unitPrice || 0)} onChange={(e) => patchItem(it.id, { unitPrice: Number(e.target.value) })} />
                         </td>
                         <td className="py-2 pr-2">
-                          <input type="number" className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-2 py-1" value={Number(it.discount || 0)} onChange={(e) => patchItem(it.id, { discount: Number(e.target.value) })} />
+                          <input type="number" className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-2 py-1" value={Number(it.discount || 0)} onChange={(e) => patchItem(it.id, { discount: Number(e.target.value) })} />
                         </td>
                         <td className="py-2 pr-2">
-                          <input type="number" className="w-full bg-gray-800 text-gray-100 border border-gray-700 rounded px-2 py-1" value={Number(it.taxPercent || 0)} onChange={(e) => patchItem(it.id, { taxPercent: Number(e.target.value) })} />
+                          <input type="number" className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-2 py-1" value={Number(it.taxPercent || 0)} onChange={(e) => patchItem(it.id, { taxPercent: Number(e.target.value) })} />
                         </td>
-                        <td className="py-2 pr-2 text-gray-100">{c.total.toFixed(2)}</td>
+                        <td className="py-2 pr-2 text-gray-900 dark:text-gray-100">{c.total.toFixed(2)}</td>
                         <td className="py-2 pr-2 text-right">
                           <button className="text-red-400 hover:text-red-300" onClick={() => removeItem(it.id)}>Remove</button>
                         </td>
@@ -789,15 +789,15 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
               </table>
             </div>
             <div className="mt-2">
-              <button className="px-3 py-1.5 rounded border border-gray-600 text-gray-200 hover:bg-gray-700" onClick={addItem}>Add Item</button>
+              <button className="px-3 py-1.5 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={addItem}>Add Item</button>
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-700">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setDraft(null)}
-                className="px-4 py-2 rounded border border-gray-600 text-gray-200 hover:bg-gray-700"
+                className="px-4 py-2 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
               >
                 Cancel
               </button>
