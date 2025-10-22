@@ -86,9 +86,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const [ticketLoading, setTicketLoading] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [workflowStep, setWorkflowStep] = useState<'initial' | 'ticket_verification' | 'device_selection' | 'troubleshooting'>('initial');
-  // Manual serial capture state (replaces OCR flow)
-  const [serialRequestActive, setSerialRequestActive] = useState(false);
-  const [serialInput, setSerialInput] = useState('');
+  // Removed manual serial capture state and UI flow
   // Session-bound active ticket id for consistent context across openings
   const [sessionActiveTicketId, setSessionActiveTicketId] = useState<string | null>(null);
   // No-ticket mode ensures backend receives noTicket and avoids any ticket fallback
@@ -161,6 +159,32 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setHasSupportRequest(false);
       return;
     }
+
+    // Log device data for debugging
+    const logDeviceData = async () => {
+      try {
+        const devicesSnapshot = await getDocs(
+          query(collection(db, 'User_Devices'), where('uid', '==', uid))
+        );
+        console.group('=== DEVICE DATA DEBUG ===');
+        console.log('Total devices:', devicesSnapshot.size);
+        devicesSnapshot.forEach((doc) => {
+          const data = doc.data();
+          console.group(`Device: ${doc.id}`);
+          console.log('Raw Data:', data);
+          console.log('Model Number:', data.modelNumber || 'Not set');
+          console.log('Device Name:', data.deviceName || data.name || 'Unnamed Device');
+          console.log('Type:', data.deviceType || data.type || 'Unknown Type');
+          console.log('Serials:', Array.isArray(data.serials) ? data.serials : 'No serials array');
+          console.groupEnd();
+        });
+        console.groupEnd();
+      } catch (error) {
+        console.error('Error fetching device data:', error);
+      }
+    };
+
+    logDeviceData();
 
     // Listen to support_claims for active support status
     const claimsUnsub = onSnapshot(doc(db, 'support_claims', uid), (snap) => {
@@ -293,16 +317,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             };
             setMessages([analysisMsg]);
             hasInitialized.current = true; // Set after messages are added
-            
-            if (ticketData.needsSerial) {
-              setSerialRequestActive(true);
-              const serialMsg: ChatMsg = {
-                role: 'assistant',
-                content: 'To continue, please type the serial number of your device in the serial input below and press Verify.',
-                ts: Date.now() + 1,
-              };
-              setMessages(prev => [...prev, serialMsg]);
-            }
+            // Removed serial prompt
           } else {
             // No analysis yet: fetch from DB and analyze via backend callable
             try {
@@ -319,15 +334,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                   ts: Date.now(),
                 };
                 setMessages([analysisMsg]);
-                if (needsSerial) {
-                  setSerialRequestActive(true);
-                  const serialMsg: ChatMsg = {
-                    role: 'assistant',
-                    content: 'Please type the serial number of your device in the serial input below and press Verify.',
-                    ts: Date.now() + 1,
-                  };
-                  setMessages(prev => [...prev, serialMsg]);
-                }
+                // Removed serial prompt
               } else {
                 const fallbackMsg: ChatMsg = {
                   role: 'assistant',
@@ -520,7 +527,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
               } else if (messages.some(m => m.showTicketVerification)) {
                 setWorkflowStep('ticket_verification');
               } else if (ticketData.needsSerial && messages.some(m => m.content?.includes('serial number'))) {
-                setSerialRequestActive(true);
+                // Removed serial prompt restoration; proceed to troubleshooting
                 setWorkflowStep('troubleshooting');
               } else {
                 setWorkflowStep('troubleshooting');
@@ -530,10 +537,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         }
       }
 
-      // Check for serial request state
-      if (lastAssistantMsg.content?.includes('serial number') && lastAssistantMsg.content?.includes('Verify')) {
-        setSerialRequestActive(true);
-      }
+      // Removed serial request state restoration
 
       // Check for device selection state
       if (lastAssistantMsg.showDeviceSelection) {
@@ -654,26 +658,11 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
       setMessages([solutionMsg]);
 
-      // If ticket also needs serial number, add image prompt
-      if (ticketData.needsSerial) {
-        setSerialRequestActive(true);
-        const promptMsg: ChatMsg = {
-          role: 'assistant',
-          content: 'To proceed, please enter your device serial number in the serial input below and press Verify.',
-          ts: Date.now() + 1,
-        };
-        setMessages(prev => [...prev, promptMsg]);
-      }
+      // Removed serial request prompt
     }
     // If no initial solution but needs serial, prompt for image
     else if (ticketData.needsSerial) {
-      setSerialRequestActive(true);
-      const promptMsg: ChatMsg = {
-        role: 'assistant',
-        content: 'To better assist you, please enter your device serial number in the serial input below and press Verify.',
-        ts: Date.now(),
-      };
-      setMessages([promptMsg]);
+      // Removed serial request prompt
     }
   }, [providedTicketId, ticketData, messages.length]);
 
@@ -804,39 +793,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     // unified: no legacy branch; authenticated users handled above; unauthenticated triage handled earlier.
   };
 
-  // Manual serial verification handling
-  const getActiveTicketId = () => (ticketData as any)?.ticketId || providedTicketId || sessionActiveTicketId || null;
-  const submitSerial = async () => {
-    const serial = serialInput.trim();
-    if (!serial) return;
-    const activeTicketId = getActiveTicketId();
-    if (!activeTicketId) {
-      const warn: ChatMsg = { role: 'agent', content: 'Please create or open a support ticket first before verifying the serial number.', ts: Date.now() };
-      setMessages(prev => [...prev, warn]);
-      return;
-    }
-    try {
-      const verifySerial = httpsCallable(functions, 'verifySerialAndFetchDocs');
-      const suggestStep = httpsCallable(functions, 'suggestTroubleshootingStep');
-      const verifyResult = await verifySerial({ ticketId: activeTicketId, serial });
-      const verifyData = verifyResult.data as any;
-      if (verifyData?.valid) {
-        const sres = await suggestStep({ ticketId: activeTicketId, docs: (verifyData.links || []) });
-        const suggestion = (sres?.data as any)?.suggestion || 'Device-specific troubleshooting steps will be provided based on your device documentation.';
-        const okMsg: ChatMsg = { role: 'assistant', content: `✅ Device verified! Serial: ${serial}\n\n${suggestion}`, ts: Date.now() };
-        setMessages(prev => [...prev, okMsg]);
-        setSerialRequestActive(false);
-        setSerialInput('');
-      } else {
-        const errMsg: ChatMsg = { role: 'agent', content: '❌ Device not recognized or not registered to your account. Please check the serial and try again.', ts: Date.now() };
-        setMessages(prev => [...prev, errMsg]);
-      }
-    } catch (error: any) {
-      const msg = '❌ Failed to verify the serial number. Please try again later.';
-      const errMsg: ChatMsg = { role: 'agent', content: msg, ts: Date.now() };
-      setMessages(prev => [...prev, errMsg]);
-    }
-  };
+  // Removed manual serial verification handling and callable usage
 
 
   const handleTicketVerification = async (confirmed: boolean) => {
@@ -896,24 +853,13 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     };
     setMessages(prev => [...prev, userMsg]);
     
-    // Check if device needs serial verification
-    if (device.serial) {
-      const confirmMsg: ChatMsg = {
-        role: 'agent',
-        content: `Device selected: ${device.name}. I can see this device is registered. How can I help you with it?`,
-        ts: Date.now() + 1
-      };
-      setMessages(prev => [...prev, confirmMsg]);
-    } else {
-      // Request manual serial entry
-      setSerialRequestActive(true);
-      const serialMsg: ChatMsg = {
-        role: 'assistant',
-        content: `Device selected: ${device.name}. Please type the device serial number in the serial input below and press Verify.`,
-        ts: Date.now() + 1
-      };
-      setMessages(prev => [...prev, serialMsg]);
-    }
+    // Proceed without requesting serial entry
+    const confirmMsg: ChatMsg = {
+      role: 'agent',
+      content: `Device selected: ${device.name}. How can I help you with it?`,
+      ts: Date.now() + 1
+    };
+    setMessages(prev => [...prev, confirmMsg]);
   };
 
   // Track if requestHuman is currently executing to prevent race conditions
@@ -1061,10 +1007,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         const ticketNumber = data.ticketId ? `#${String(data.ticketId).slice(-6).toUpperCase()}` : '';
         if (analysis) {
           setMessages((prev) => [...prev, { role: 'assistant', content: `I found your support ticket ${ticketNumber}. Here's what I can help you with:\n\n${analysis}`.trim(), ts: Date.now() }]);
-          if (needsSerial) {
-            setSerialRequestActive(true);
-            setMessages((prev) => [...prev, { role: 'assistant', content: 'Please type the serial number of your device in the serial input below and press Verify.', ts: Date.now() + 1 }]);
-          }
+          // Removed serial request prompt
         }
       } catch (e) {}
     } catch (e) {}
@@ -1514,29 +1457,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
       {/* Input Section at the bottom of the chat */}
       <div className="px-4 pb-4 sm:px-6">
-        {serialRequestActive && (
-          <div className="mb-3 p-3 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700">
-            <label className="block text-xs font-medium text-blue-900 dark:text-blue-100 mb-1">Enter device serial number</label>
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={serialInput}
-                onChange={(e) => setSerialInput(e.target.value)}
-                placeholder="e.g., SN-ABC12345"
-                className="flex-1 pill-input"
-                disabled={!isAuthenticated}
-              />
-              <button
-                type="button"
-                onClick={submitSerial}
-                disabled={!isAuthenticated || !serialInput.trim()}
-                className="inline-flex items-center px-3 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium disabled:opacity-50"
-              >
-                Verify
-              </button>
-            </div>
-          </div>
-        )}
+        {/* Removed serial input UI */}
         <form
           className="flex items-center gap-3 mt-4"
           onSubmit={(e) => { e.preventDefault(); send(); }}

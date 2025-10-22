@@ -284,7 +284,11 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
     if (sm) {
       const rawSerial = (sm[1] || "").trim();
       if (rawSerial) {
-        const norm = (s: string) => s.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
+        const norm = (s: string) => {
+          const normalized = s.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
+          console.log(`[NORMALIZE] Before: "${s}" | After: "${normalized}"`);
+          return normalized;
+        };
         const target = norm(rawSerial);
         console.log("EXTRACTED SERIAL RAW:", rawSerial);
         console.log("NORMALIZED TARGET:", target);
@@ -293,6 +297,16 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
 
         for (const d of userDevices as any[]) {
           console.log("CHECKING DEVICE:", d.id, d.deviceName || d.name || d.deviceType || d.type);
+          
+          // Check model number first
+          const modelNum = String(d.modelNumber || "").trim();
+          if (modelNum && norm(modelNum) === target) {
+            console.log("MATCHED modelNumber:", modelNum);
+            matched = { device: d, serialValue: modelNum };
+            break;
+          }
+          
+          // Check serials array
           const serialArr: any[] = Array.isArray(d.serials) ? d.serials : [];
           console.log("serials[] length:", serialArr.length);
           if (serialArr.length) {
@@ -410,6 +424,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
           String((d as any).deviceSerial || "").trim(),
           String((d as any).serial || "").trim(),
           String((d as any).serialNumber || "").trim(),
+          String(d.modelNumber || "").trim(), // Add modelNumber to fallback check
         ].filter(Boolean) as string[];
         for (const sv of singleSerials) {
           candidates.push({ value: sv, device: d });
@@ -696,130 +711,6 @@ ${deviceContext}${ticketContext}`,
 
 // Removed extractSerialFromImage callable – switched to manual serial verification
 
-export const verifySerialAndFetchDocs = onCall({ cors: true }, async (request) => {
-  const authCtx = request.auth;
-  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
-  const ticketId = (request.data?.ticketId as string | undefined)?.trim();
-  const serial = (request.data?.serial as string | undefined)?.trim();
-  if (!ticketId || !serial) throw new HttpsError("invalid-argument", "ticketId and serial are required");
-
-  const tRef = db.collection(CONFIG.COLLECTIONS.TICKETS).doc(ticketId);
-  const tSnap = await tRef.get();
-  if (!tSnap.exists) throw new HttpsError("not-found", "Ticket not found");
-  const t = tSnap.data() as any;
-  if (t.uid !== authCtx.uid) throw new HttpsError("permission-denied", "Not your ticket");
-
-  // Attempt to locate the serial within the user's registered devices
-  let matchedDeviceDoc: FirebaseFirestore.QueryDocumentSnapshot | null = null;
-  let matchedDeviceData: Record<string, any> | null = null;
-
-  try {
-    const userDevicesSnap = await db
-      .collection(CONFIG.COLLECTIONS.DEVICES)
-      .where("uid", "==", authCtx.uid)
-      .get();
-    try {
-      console.log("DEBUG verifySerialAndFetchDocs User_Devices read for uid:", authCtx.uid, "docs:", userDevicesSnap.size);
-      for (const d of userDevicesSnap.docs) {
-        const data = d.data() as any;
-        console.log("User_Devices doc:", d.id, "stored uid:", data?.uid);
-      }
-    } catch (e) {
-      console.warn("Failed to log uid checks in verifySerialAndFetchDocs:", e);
-    }
-
-    const norm = (s: string) => String(s || "").replace(/[^A-Za-z0-9]/g, "").toLowerCase();
-    const target = norm(serial);
-    let checkedDocs = 0;
-    for (const doc of userDevicesSnap.docs) {
-      checkedDocs++;
-      const data = doc.data() as Record<string, any>;
-      const serials: Array<Record<string, any>> = Array.isArray(data.serials) ? data.serials : [];
-
-      // Check array entries with normalization
-      const foundArray = serials.find((entry) => typeof entry?.serialNumber === "string" && norm(entry.serialNumber) === target);
-      if (foundArray) {
-        matchedDeviceDoc = doc;
-        matchedDeviceData = data;
-        break;
-      }
-
-      // Check single-value serial fields on the doc
-      const singleCandidates = [data.deviceSerial, data.serial, data.serialNumber].filter(Boolean);
-      const foundSingle = singleCandidates.some((sv: any) => norm(String(sv)) === target);
-      if (foundSingle) {
-        matchedDeviceDoc = doc;
-        matchedDeviceData = data;
-        break;
-      }
-    }
-    if (!matchedDeviceDoc) {
-      console.log("verifySerialAndFetchDocs: No match found in User_Devices. Checked docs:", checkedDocs, "target:", target);
-    }
-  } catch (error) {
-    console.warn("Failed to search user devices for serial:", error);
-  }
-
-  let deviceType: string = "generic";
-  let deviceModel: string = "unknown";
-  let deviceUID: string | undefined;
-
-  if (matchedDeviceDoc && matchedDeviceData) {
-    deviceType = matchedDeviceData.type || matchedDeviceData.deviceType || "generic";
-    deviceModel = matchedDeviceData.modelNumber || matchedDeviceData.deviceModel || matchedDeviceData.model || "unknown";
-    deviceUID = matchedDeviceData.sourceDeviceId || matchedDeviceDoc.id;
-  } else {
-    // Fallback to legacy main devices collection if present
-    const devSnap = await db.collection(CONFIG.COLLECTIONS.MAIN_DEVICES).doc(serial).get();
-    if (!devSnap.exists) {
-      return { valid: false, message: "This product is not recognized." };
-    }
-    const dev = devSnap.data() as any;
-    if (dev.ownerUid !== authCtx.uid) {
-      return { valid: false, message: "This product is not recognized." };
-    }
-    matchedDeviceData = dev;
-    deviceType = dev.deviceType || "generic";
-    deviceModel = dev.deviceModel || dev.model || "unknown";
-    deviceUID = dev.deviceUID || serial;
-  }
-
-  await tRef.set({ deviceSerial: serial, deviceType, deviceModel, updatedAt: Date.now() }, { merge: true });
-
-  // Fetch device-specific support documents using the proper path structure
-  let supportDocs: any[] = [];
-
-  try {
-    if (deviceUID) {
-      const userDeviceDocsSnap = await db
-        .collection(CONFIG.COLLECTIONS.DEVICES)
-        .where("uid", "==", authCtx.uid)
-        .where("sourceDeviceId", "==", deviceUID)
-        .get();
-
-      if (!userDeviceDocsSnap.empty) {
-        supportDocs = userDeviceDocsSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      }
-    }
-
-    // If no additional docs were found, fall back to the matched device doc itself (if available)
-    if (supportDocs.length === 0 && matchedDeviceDoc && matchedDeviceData) {
-      supportDocs = [{ id: matchedDeviceDoc.id, ...matchedDeviceData }];
-    }
-  } catch (error) {
-    console.warn("Failed to fetch support documents:", error);
-  }
-
-  return {
-    valid: true,
-    deviceType,
-    deviceModel,
-    deviceUID,
-    supportDocs,
-    // Legacy compatibility
-    links: supportDocs.map((doc) => doc.url || doc.link).filter(Boolean),
-  };
-});
 
 export const suggestTroubleshootingStep = onCall({secrets: [OPENAI_API_KEY], cors: true}, async (request) => {
   const authCtx = request.auth;
