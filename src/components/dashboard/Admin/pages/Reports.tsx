@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../../../../lib/firebase';
-import { collection, doc, onSnapshot, query, updateDoc, serverTimestamp, getDoc, where } from 'firebase/firestore';
+import { collection, doc, onSnapshot, query, updateDoc, serverTimestamp, getDoc, where, deleteDoc } from 'firebase/firestore';
 import { supportTicketsCollection } from '../../../../models/Collections';
 // Admin complaints table (Recharts removed per request)
 
@@ -26,6 +26,7 @@ const Reports: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [replyMap, setReplyMap] = useState<Record<string, string>>({});
   const [userCache, setUserCache] = useState<Record<string, { email?: string; displayName?: string; role?: string }>>({});
+  // No URL rewriting: use the stored download URL directly (same approach as device images)
   // Load only tickets with status In Progress from Firestore
   useEffect(() => {
     let unsub: undefined | (() => void);
@@ -53,6 +54,7 @@ const Reports: React.FC = () => {
           };
         });
         setTickets(arr);
+        // (no image URL debug logging in production)
         // seed reply inputs with existing replies
         const seed: Record<string, string> = {};
         arr.forEach(t => { if (t.adminReply) seed[t.id] = t.adminReply; });
@@ -169,12 +171,29 @@ const Reports: React.FC = () => {
     }
   };
 
+  const deleteTicket = async (ticket: Ticket) => {
+    try {
+      const ok = window.confirm('Delete this support ticket? This cannot be undone.');
+      if (!ok) return;
+      await deleteDoc(doc(db, 'Support_Tickets', ticket.id));
+    } catch (e) {
+      console.error('Error deleting ticket:', e);
+      setError('Failed to delete ticket.');
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Support Tickets</h1>
-          <span className="text-sm text-gray-700 dark:text-gray-400">{visible.length} active tickets</span>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            Support Tickets
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-6 w-6 text-teal-600 dark:text-teal-400">
+              <path d="M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3a2 2 0 1 0 0 4v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-3a2 2 0 1 0 0-4V7z" />
+              <path d="M12 8v8" strokeDasharray="2 2" />
+            </svg>
+          </h1>
+          <span className="text-sm text-gray-700 dark:text-gray-400 block mt-1">{visible.length} active tickets</span>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-700 dark:text-gray-300">Sort by:</span>
@@ -232,10 +251,27 @@ const Reports: React.FC = () => {
                       {userCache[ticket.userUid!]?.email}
                     </p>
                   )}
+                  <span className="text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap mt-0.5">
+                    {fmt(ticket.createdAt)}
+                  </span>
                 </div>
-                <span className="text-xs text-gray-500 dark:text-gray-500 whitespace-nowrap">
-                  {fmt(ticket.createdAt)}
-                </span>
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <button
+                    type="button"
+                    onClick={() => deleteTicket(ticket)}
+                    className="inline-flex items-center p-1.5 rounded-md text-gray-500 hover:text-red-600"
+                    aria-label="Delete ticket"
+                    title="Delete"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                      <path d="M10 11v6" />
+                      <path d="M14 11v6" />
+                      <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                    </svg>
+                  </button>
+                </div>
               </div>
 
               {/* Ticket content */}
@@ -253,9 +289,9 @@ const Reports: React.FC = () => {
                 {/* Image preview */}
                 {ticket.imageUrl && (
                   <div className="mt-2 rounded-md overflow-hidden border border-gray-800">
-                    <img 
-                      src={ticket.imageUrl} 
-                      alt="Ticket attachment" 
+                    <img
+                      src={ticket.imageUrl}
+                      alt="Ticket attachment"
                       className="w-full h-32 object-cover hover:scale-105 transition-transform duration-200 cursor-pointer"
                       onClick={() => ticket.imageUrl && window.open(ticket.imageUrl, '_blank')}
                     />

@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { db } from '../../../lib/firebase';
-import { getDocs, orderBy, query } from 'firebase/firestore';
-import { plannerLeadsCollection } from '../../../models/Collections';
+import { getDocs, orderBy, query, deleteDoc } from 'firebase/firestore';
+import { plannerLeadsCollection, plannerLeadDoc } from '../../../models/Collections';
+import { Trash2, ClipboardList } from 'lucide-react';
 
 type FormData = {
   budget: string;
@@ -41,6 +42,17 @@ const PlanLeads: React.FC = () => {
 
   const handleLeadClick = (lead: Lead) => {
     setOpenId(openId === lead.id ? null : lead.id);
+  };
+
+  const handleDelete = async (leadId: string) => {
+    try {
+      const ok = window.confirm('Delete this lead? This cannot be undone.');
+      if (!ok) return;
+      await deleteDoc(plannerLeadDoc(db, leadId));
+      setLeads(prev => prev.filter(l => l.id !== leadId));
+    } catch (e) {
+      setError('Failed to delete lead');
+    }
   };
 
   useEffect(() => {
@@ -121,7 +133,10 @@ const PlanLeads: React.FC = () => {
     <div className="p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Plan Leads</h1>
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2">
+            Plan Leads
+            <ClipboardList className="h-6 w-6 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+          </h1>
           <span className="text-sm text-gray-700 dark:text-gray-400">{leads.length} total leads</span>
         </div>
       </div>
@@ -148,6 +163,15 @@ const PlanLeads: React.FC = () => {
                   aria-expanded={openId === lead.id}
                   aria-controls={`lead-panel-${lead.id}`}
                 >
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); handleDelete(lead.id); }}
+                    title="Delete lead"
+                    className="absolute bottom-2 right-2 p-1 rounded-md text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"
+                    aria-label="Delete lead"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                   <div className="flex flex-col gap-2 mb-3 min-w-0">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">

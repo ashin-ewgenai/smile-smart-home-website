@@ -1,6 +1,7 @@
 import * as functions from "firebase-functions/v1";
 import { getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
 
 // Initialize Admin SDK once per environment
 if (!getApps().length) {
@@ -281,4 +282,53 @@ export const onQuoteCreated = functions.firestore
       relatedEntityId: docId,
       relatedEntityType: "quote",
     });
+  });
+
+/**
+ * Gen 1 Firestore trigger: When a support ticket is deleted, delete its
+ * Storage attachment if the document had an imageUrl.
+ * Path: Support_Tickets/{ticketId}
+ */
+export const onSupportTicketDeleted = functions.firestore
+  .document("Support_Tickets/{ticketId}")
+  .onDelete(async (snap) => {
+    try {
+      const data = (snap.data() || {}) as { imageUrl?: string | null };
+      const imageUrl = data?.imageUrl;
+      if (!imageUrl) return null;
+
+      let bucketName: string | undefined;
+      let filePath: string | undefined;
+
+      try {
+        if (imageUrl.startsWith("gs://")) {
+          const noScheme = imageUrl.replace("gs://", "");
+          const firstSlash = noScheme.indexOf("/");
+          if (firstSlash > 0) {
+            bucketName = noScheme.substring(0, firstSlash);
+            filePath = noScheme.substring(firstSlash + 1);
+          }
+        } else if (imageUrl.includes("/o/")) {
+          const url = new URL(imageUrl);
+          const parts = url.pathname.split("/");
+          const bIdx = parts.indexOf("b");
+          const oIdx = parts.indexOf("o");
+          if (bIdx >= 0 && bIdx + 1 < parts.length) {
+            bucketName = parts[bIdx + 1];
+          }
+          if (oIdx >= 0 && oIdx + 1 < parts.length) {
+            filePath = decodeURIComponent(parts[oIdx + 1]);
+          } else {
+            const nameParam = url.searchParams.get("name");
+            if (nameParam) filePath = decodeURIComponent(nameParam);
+          }
+        }
+      } catch {}
+
+      if (!filePath) return null;
+      const storage = getStorage();
+      const bucket = bucketName ? storage.bucket(bucketName) : storage.bucket();
+      await bucket.file(filePath).delete({ ignoreNotFound: true });
+    } catch {}
+    return null;
   });

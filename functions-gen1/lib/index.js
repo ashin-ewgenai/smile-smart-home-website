@@ -33,10 +33,11 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = void 0;
+exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = void 0;
 const functions = __importStar(require("firebase-functions/v1"));
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
+const storage_1 = require("firebase-admin/storage");
 // Initialize Admin SDK once per environment
 if (!(0, app_1.getApps)().length) {
     (0, app_1.initializeApp)();
@@ -274,4 +275,56 @@ exports.onQuoteCreated = functions.firestore
         relatedEntityId: docId,
         relatedEntityType: "quote",
     });
+});
+/**
+ * Gen 1 Firestore trigger: When a support ticket is deleted, delete its
+ * Storage attachment if the document had an imageUrl.
+ * Path: Support_Tickets/{ticketId}
+ */
+exports.onSupportTicketDeleted = functions.firestore
+    .document("Support_Tickets/{ticketId}")
+    .onDelete(async (snap) => {
+    try {
+        const data = (snap.data() || {});
+        const imageUrl = data?.imageUrl;
+        if (!imageUrl)
+            return null;
+        let bucketName;
+        let filePath;
+        try {
+            if (imageUrl.startsWith("gs://")) {
+                const noScheme = imageUrl.replace("gs://", "");
+                const firstSlash = noScheme.indexOf("/");
+                if (firstSlash > 0) {
+                    bucketName = noScheme.substring(0, firstSlash);
+                    filePath = noScheme.substring(firstSlash + 1);
+                }
+            }
+            else if (imageUrl.includes("/o/")) {
+                const url = new URL(imageUrl);
+                const parts = url.pathname.split("/");
+                const bIdx = parts.indexOf("b");
+                const oIdx = parts.indexOf("o");
+                if (bIdx >= 0 && bIdx + 1 < parts.length) {
+                    bucketName = parts[bIdx + 1];
+                }
+                if (oIdx >= 0 && oIdx + 1 < parts.length) {
+                    filePath = decodeURIComponent(parts[oIdx + 1]);
+                }
+                else {
+                    const nameParam = url.searchParams.get("name");
+                    if (nameParam)
+                        filePath = decodeURIComponent(nameParam);
+                }
+            }
+        }
+        catch { }
+        if (!filePath)
+            return null;
+        const storage = (0, storage_1.getStorage)();
+        const bucket = bucketName ? storage.bucket(bucketName) : storage.bucket();
+        await bucket.file(filePath).delete({ ignoreNotFound: true });
+    }
+    catch { }
+    return null;
 });

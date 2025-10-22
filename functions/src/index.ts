@@ -3,6 +3,7 @@ import {setGlobalOptions} from "firebase-functions/v2/options";
 import {initializeApp, getApps} from "firebase-admin/app";
 import {getAuth} from "firebase-admin/auth";
 import {getFirestore} from "firebase-admin/firestore";
+ 
 
 // Configure global options (tune as needed)
 setGlobalOptions({region: "us-central1", maxInstances: 10});
@@ -265,4 +266,3 @@ export const adminCloseTicket = onCall({ cors: true }, async (request) => {
   await db.collection("Support_Tickets").doc(ticketId).set({status: "closed", updatedAt: Date.now()}, {merge: true});
   return {status: "closed"};
 });
-
