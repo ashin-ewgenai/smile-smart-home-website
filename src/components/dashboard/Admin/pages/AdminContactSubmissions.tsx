@@ -3,6 +3,7 @@ import DashboardLayout from '../DashboardLayout';
 import { BrowserRouter, useInRouterContext } from 'react-router-dom';
 import { db } from '../../../../lib/firebase';
 import { collection, onSnapshot, getDocs, query, where, limit, deleteDoc, doc } from 'firebase/firestore';
+import { CircleUserRound } from 'lucide-react';
 
 const AdminContactSubmissions: React.FC = () => {
   // Read from localStorage only on client
@@ -135,7 +136,10 @@ const AdminContactSubmissions: React.FC = () => {
     <section className="p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center px-2 md:px-0">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Contact Submissions</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2">
+            Contact Submissions
+            <CircleUserRound className="h-4 w-4" aria-hidden="true" />
+          </h2>
         </div>
         {/* Search Input */}
         <div className="mt-4 px-2 md:px-0">

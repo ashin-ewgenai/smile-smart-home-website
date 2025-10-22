@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { db } from '../../../lib/firebase';
 import { getDocs, orderBy, query, deleteDoc } from 'firebase/firestore';
 import { plannerLeadsCollection, plannerLeadDoc } from '../../../models/Collections';
-import { Trash2, ClipboardList } from 'lucide-react';
+import { Trash2, FilePlus } from 'lucide-react';
 
 type FormData = {
   budget: string;
@@ -135,9 +135,9 @@ const PlanLeads: React.FC = () => {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2">
             Plan Leads
-            <ClipboardList className="h-6 w-6 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+            <FilePlus className="h-6 w-6 text-blue-600 dark:text-blue-400" aria-hidden="true" />
           </h1>
-          <span className="text-sm text-gray-700 dark:text-gray-400">{leads.length} total leads</span>
+          <div className="mt-1 text-sm text-gray-700 dark:text-gray-400">{leads.length} total leads</div>
         </div>
       </div>
       

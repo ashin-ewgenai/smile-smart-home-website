@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
 import EstimatePDF from './EstimatePDF';
 import { useSearchParams } from 'react-router-dom';
-import { Clock } from 'lucide-react';
+import { Clock, FilePlus } from 'lucide-react';
 import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc, where, limit } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { auth, db, storage } from '../../../lib/firebase';
@@ -582,7 +582,10 @@ const EstimationTool: React.FC = () => {
     <div className="p-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-0 mb-6">
         <div>
-          <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Quote Management</h1>
+          <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white inline-flex items-center gap-2">
+            Quote Management
+            <FilePlus className="h-4 w-4" aria-hidden="true" />
+          </h1>
         </div>
         <div className="mt-1 sm:mt-0">
           <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">

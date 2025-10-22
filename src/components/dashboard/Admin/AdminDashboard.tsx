@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText, ChevronDown, TrendingUp, TrendingDown, Activity, Eye, EyeOff } from 'lucide-react';
+import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText, ChevronDown, TrendingUp, TrendingDown, Activity, Eye, EyeOff, LayoutDashboard } from 'lucide-react';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
 import { COLLECTION_ACCOUNTS, accountsCollection, registerUserWithProfile, type Account } from '../../../models/Collections';
@@ -293,7 +293,9 @@ const AdminDashboard: React.FC = () => {
   return (
     <div>
       <div className="mb-6 glass-surface rounded-[24px] px-4 py-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white inline-flex items-center gap-2">Admin Dashboard
+          <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
+        </h1>
         <div className="mt-2 flex items-center justify-between">
           <p className="text-gray-600 dark:text-gray-400">Welcome to your admin dashboard</p>
           <div className="relative inline-block">
