@@ -11,7 +11,7 @@ import {
   estimationQuoteDoc,
   estimationQuotesCollection,
 } from '../../../../models/Collections';
-import { getDocs, getDoc, limit, query, where, updateDoc, doc, Timestamp, collection, onSnapshot } from 'firebase/firestore';
+import { getDocs, getDoc, limit, query, where, updateDoc, doc, Timestamp, collection, onSnapshot, deleteDoc } from 'firebase/firestore';
 import DeviceDetailsModal from '../components/DeviceDetailsModal';
 import AddDeviceModal from '../components/AddDeviceModal';
 import EstimationEditor from '../components/EstimationEditor';
@@ -113,6 +113,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       e.stopPropagation();
     }
   };
+  const [confirmDialog, setConfirmDialog] = useState<{ open: boolean; message: string; onConfirm: () => void } | null>(null);
   const [selected, setSelected] = useState<
     | { type: TabKey; id: string; data: any }
     | null
@@ -695,17 +696,17 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
 
   const saveStatus = async () => {
     if (!selected) return;
-    
+
     if (selected.type === 'devices') {
       try {
         // Update device in flat collection
         const userDevicesQuery = query(
-          collection(db, 'User_Devices'), 
+          collection(db, 'User_Devices'),
           where('uid', '==', account?.id),
           where('sourceDeviceId', '==', selected.id)
         );
         const userDevicesSnapshot = await getDocs(userDevicesQuery);
-        
+
         if (!userDevicesSnapshot.empty) {
           await updateDoc(userDevicesSnapshot.docs[0].ref, {
             isOnline: editStatus === 'online',
@@ -740,6 +741,58 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       setSaving(false);
     }
   };
+
+  async function deleteTicket(ticketId: string) {
+    if (!ticketId) return;
+    try {
+      const ref = supportTicketDoc(db, ticketId);
+      await deleteDoc(ref as any);
+      setTickets((prev) => (prev || []).filter((t) => t.id !== ticketId));
+    } catch (error) {
+      console.error('Error deleting ticket:', error);
+    }
+  }
+
+  async function deleteQuote(quoteId: string) {
+    if (!quoteId) return;
+    try {
+      // First, fetch the quote to check for estimation
+      const quoteRef = doc(db, 'quotes', quoteId);
+      const quoteSnap = await getDoc(quoteRef);
+
+      if (quoteSnap.exists()) {
+        const quoteData = quoteSnap.data();
+        const estimationQuoteId = quoteData.estimationQuoteId;
+
+        // If there's an associated estimation, delete it first
+        if (estimationQuoteId) {
+          const estimationRef = estimationQuoteDoc(db, estimationQuoteId);
+          await deleteDoc(estimationRef);
+          console.log(`Deleted estimation: ${estimationQuoteId}`);
+        }
+
+        // Then delete the quote
+        await deleteDoc(quoteRef);
+        setQuotes((prev) => (prev || []).filter((q) => q.id !== quoteId));
+        console.log(`Deleted quote: ${quoteId}`);
+      } else {
+        console.error('Quote not found');
+      }
+    } catch (error) {
+      console.error('Error deleting quote:', error);
+    }
+  }
+
+  async function deleteService(serviceId: string) {
+    if (!serviceId) return;
+    try {
+      const ref = doc(db, 'Request_service', serviceId);
+      await deleteDoc(ref);
+      setServices((prev) => (prev || []).filter((s) => s.id !== serviceId));
+    } catch (error) {
+      console.error('Error deleting service:', error);
+    }
+  }
 
   return (
     <section className="min-h-screen bg-gradient-to-br from-gray-100 via-gray-50 to-gray-100 dark:from-gray-900 dark:via-slate-900 dark:to-gray-900 p-4 md:p-6">
@@ -1204,16 +1257,19 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                         <>
                           <th className="py-2 pr-4">Subject</th>
                           <th className="py-2 pr-4">Created</th>
+                          <th className="py-2 pr-4">Actions</th>
                         </>
                       ) : activeTab === 'services' ? (
                         <>
                           <th className="py-2 pr-4">Service</th>
                           <th className="py-2 pr-4">Created</th>
+                          <th className="py-2 pr-4">Actions</th>
                         </>
                       ) : (
                         <>
                           <th className="py-2 pr-4">Quote Type</th>
                           <th className="py-2 pr-4">Created</th>
+                          <th className="py-2 pr-4">Actions</th>
                         </>
                       )}
                     </tr>
@@ -1304,6 +1360,24 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             </td>
                             <td className="py-2 pr-4">{statusBadge(status)}</td>
                             <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{fmt(dateFrom(created))}</td>
+                            <td className="py-2 pr-4">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirmDialog({
+                                    open: true,
+                                    message: 'Are you sure you want to delete this support ticket?',
+                                    onConfirm: () => deleteTicket(row.id)
+                                  });
+                                }}
+                                className="px-3 py-1 rounded border border-red-300 hover:border-red-400 text-red-600 hover:text-red-800 dark:border-red-400 dark:hover:border-red-300 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                                title="Delete Ticket"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+</svg>
+                              </button>
+                            </td>
                           </tr>
                         );
                       }
@@ -1320,6 +1394,24 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             </td>
                             <td className="py-2 pr-4">{statusBadge(status)}</td>
                             <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{fmt(dateFrom(created))}</td>
+                            <td className="py-2 pr-4">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setConfirmDialog({
+                                    open: true,
+                                    message: 'Are you sure you want to delete this service request?',
+                                    onConfirm: () => deleteService(row.id)
+                                  });
+                                }}
+                                className="px-3 py-1 rounded border border-red-300 hover:border-red-400 text-red-600 hover:text-red-800 dark:border-red-400 dark:hover:border-red-300 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                                title="Delete Service"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+</svg>
+                              </button>
+                            </td>
                           </tr>
                         );
                       }
@@ -1336,6 +1428,24 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                           </td>
                           <td className="py-2 pr-4">{statusBadge(status)}</td>
                           <td className="py-2 pr-4 text-gray-700 dark:text-gray-300">{fmt(dateFrom(created))}</td>
+                          <td className="py-2 pr-4">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setConfirmDialog({
+                                  open: true,
+                                  message: 'Are you sure you want to delete this quote?',
+                                  onConfirm: () => deleteQuote(row.id)
+                                });
+                              }}
+                              className="px-3 py-1 rounded border border-red-300 hover:border-red-400 text-red-600 hover:text-red-800 dark:border-red-400 dark:hover:border-red-300 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                              title="Delete Quote"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+</svg>
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}
@@ -1663,8 +1773,35 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         }
       `}
     </style>
+    {/* Confirmation Dialog */}
+    {confirmDialog?.open && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm mx-4 shadow-lg">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Confirm Deletion</h3>
+          <p className="mb-6 text-gray-700 dark:text-gray-300">{confirmDialog.message}</p>
+          <div className="flex justify-end space-x-4">
+            <button
+              onClick={() => setConfirmDialog(null)}
+              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-200 rounded"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                confirmDialog.onConfirm();
+                setConfirmDialog(null);
+              }}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
     </section>
   );
-}
+};
 
 export default AdminUserDetail;
