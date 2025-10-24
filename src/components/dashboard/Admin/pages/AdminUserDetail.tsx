@@ -968,210 +968,132 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               {email && loading && <div className="text-gray-600 dark:text-gray-300">Loading...</div>}
               {error && <div className="text-red-400">{error}</div>}
               {!loading && !error && account && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Left: Name & Email with inline name edit */}
-                  <div className="text-center md:text-left">
-                    {!editingName ? (
-                      <div className="flex flex-col md:flex-row md:items-center gap-2 justify-center md:justify-start">
-                        <div className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">{account.FullName || '—'}</div>
-                        <button
-                          type="button"
-                          onClick={() => { setTempName(account.FullName || ''); setEditingName(true); }}
-                          className="text-teal-400 hover:text-teal-600 dark:text-teal-300 text-sm px-3 py-1 rounded-lg bg-teal-500/10 hover:bg-teal-500/20 transition-colors"
-                          title="Edit name"
-                        >
-                          Edit
-                        </button>
+                <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4 md:p-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                    {/* Left: Name & Email */}
+                    <div className="flex flex-col items-center md:items-start gap-2">
+                      <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
+                        <span className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 dark:text-white text-center sm:text-left">{account.FullName || '—'}</span>
+                        {!editingName && (
+                          <button
+                            type="button"
+                            onClick={() => { setTempName(account.FullName || ''); setEditingName(true); }}
+                            className="text-teal-400 hover:text-teal-600 dark:text-teal-300 text-sm px-2 py-1 rounded bg-teal-500/10 hover:bg-teal-500/20 transition-colors"
+                            title="Edit name"
+                          >
+                            Edit
+                          </button>
+                        )}
                       </div>
-                    ) : (
-                      <div className="flex flex-col items-center md:flex-row md:items-center gap-2">
-                        <input
-                          type="text"
-                          value={tempName}
-                          onChange={(e) => setTempName(e.target.value)}
-                          className="px-4 py-2 rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/60 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 text-center md:text-left"
-                          placeholder="Full name"
-                        />
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={saveDisplayName}
-                            disabled={savingName}
-                            className="px-4 ■py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60 transition-colors"
-                          >
-                            {savingName ? 'Saving...' : 'Save'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => { setEditingName(false); setTempName(account.FullName || ''); }}
-                            className="px-4 py-2 rounded-xl border border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-700/50 transition-colors"
-                          >
-                            Cancel
-                          </button>
+                      {editingName ? (
+                        <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
+                          <input
+                            type="text"
+                            value={tempName}
+                            onChange={(e) => setTempName(e.target.value)}
+                            className="flex-1 px-3 py-2 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 text-center sm:text-left"
+                            placeholder="Full name"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={saveDisplayName}
+                              disabled={savingName}
+                              className="px-3 py-2 rounded bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60 transition-colors text-sm"
+                            >
+                              {savingName ? 'Saving...' : 'Save'}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => { setEditingName(false); setTempName(account.FullName || ''); }}
+                              className="px-3 py-2 rounded border border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-700/50 transition-colors text-sm"
+                            >
+                              Cancel
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-                    <div className="text-lg text-gray-600 dark:text-gray-300 mt-2 text-center md:text-left">{account.Email || '—'}</div>
-                  </div>
-                  {/* Right: UID / Role / Status */}
-                  <div className="grid grid-cols-1 gap-4 text-center md:text-left md:grid-cols-[auto,1fr] md:gap-x-4 md:gap-y-2">
-                    <div className="text-gray-900 dark:text-gray-400">UID</div>
-                    <div className="text-gray-900 dark:text-gray-200 truncate" title={account.Uid}>
-                      <div className="group/uid inline-flex items-center gap-2 max-w-full min-w-0">
-                        <span className="truncate font-mono text-sm tracking-wider px-3 py-1 rounded-lg bg-gray-100 dark:bg-gray-800/60 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200">
-                          {showUid ? (account.Uid || '—') : maskUid(account.Uid)}
-                        </span>
-                        <div className="inline-flex items-center gap-1 opacity-0 group-hover/uid:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={() => setShowUid((v) => !v)}
-                            className="p-1 text-gray-900 dark:text-gray-400 hover:text-gray-600 dark:text-gray-300 rounded"
-                            aria-label={showUid ? 'Hide UID' : 'Show UID'}
-                          >
-                            {showUid ? '👁️‍🗨️' : '👁️'}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              try {
-                                await navigator.clipboard.writeText(String(account.Uid || ''));
-                                setCopiedUid(true);
-                                setTimeout(() => setCopiedUid(false), 1200);
-                              } catch {}
-                            }}
-                            className="p-1 text-gray-900 dark:text-gray-400 hover:text-gray-600 dark:text-gray-300 rounded"
-                            aria-label="Copy UID"
-                          >
-                            📋
-                          </button>
+                      ) : (
+                        <div className="text-base sm:text-lg text-gray-600 dark:text-gray-300 text-center sm:text-left break-all">{account.Email || '—'}</div>
+                      )}
+                    </div>
+
+                    {/* Right: UID & Role */}
+                    <div className="grid grid-cols-2 gap-3 sm:gap-4 text-center md:text-left">
+                      <div className="text-gray-900 dark:text-gray-400 font-medium">UID</div>
+                      <div className="text-gray-900 dark:text-gray-200 truncate" title={account.Uid}>
+                        <div className="group/uid inline-flex items-center gap-1">
+                          <span className="font-mono text-xs sm:text-sm tracking-wider px-2 py-1 rounded bg-gray-100 dark:bg-gray-800/60 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200">
+                            {showUid ? (account.Uid || '—') : maskUid(account.Uid)}
+                          </span>
+                          <div className="opacity-0 group-hover/uid:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => setShowUid((v) => !v)}
+                              className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 rounded"
+                              aria-label={showUid ? 'Hide UID' : 'Show UID'}
+                            >
+                              👁️
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(String(account.Uid || ''));
+                                  setCopiedUid(true);
+                                  setTimeout(() => setCopiedUid(false), 1200);
+                                } catch {}
+                              }}
+                              className="p-1 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 rounded"
+                              aria-label="Copy UID"
+                            >
+                              📋
+                            </button>
+                          </div>
                           {copiedUid && (
                             <span className="text-xs px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-300">Copied</span>
                           )}
                         </div>
                       </div>
+                      <div className="text-gray-900 dark:text-gray-400 font-medium">Role</div>
+                      <div className="text-gray-900 dark:text-gray-200">{account.Role}</div>
                     </div>
-                    <div className="text-gray-900 dark:text-gray-400">Role</div>
-                    <div className="text-gray-900 dark:text-gray-200">{account.Role}</div>
                   </div>
 
                   {/* Contact Info */}
-                  <div className="mt-6 border-t border-gray-700/50 pt-6">
-                    {!editingContact ? (
-                      <div className="space-y-4">
-                        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                          {/* Phone */}
-                          <div className="flex items-center gap-3 flex-1">
-                            <div className="w-10 h-10 rounded-full bg-teal-500/20 dark:bg-teal-500/20 flex items-center justify-center flex-shrink-0">
-                              📱
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm text-gray-900 dark:text-gray-400">Phone</div>
-                              <div className="text-gray-900 dark:text-white font-medium">{(account as any)?.phoneNumber || '—'}</div>
-                            </div>
-                          </div>
-                          {/* Address */}
-                          <div className="flex items-center gap-3 flex-1">
-                            <div className="w-10 h-10 rounded-full bg-teal-500/20 dark:bg-teal-500/20 flex items-center justify-center flex-shrink-0">
-                              📍
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm text-gray-900 dark:text-gray-400">Address</div>
-                              <div className="text-gray-900 dark:text-white font-medium break-words">{(account as any)?.address || '—'}</div>
-                            </div>
-                          </div>
+                  <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center flex-shrink-0">
+                          📱
                         </div>
-                        {/* Edit button */}
-                        <div className="flex justify-center md:justify-end">
-                          <button
-                            type="button"
-                            onClick={() => setEditingContact(true)}
-                            className="px-6 py-3 rounded-xl border-2 border-teal-500/30 text-teal-600 dark:text-teal-300 hover:bg-teal-500/10 hover:border-teal-400/50 transition-all duration-300 backdrop-blur-sm bg-white/50 dark:bg-gray-800/50 shadow-lg hover:shadow-teal-500/20 font-medium"
-                          >
-                            ✏️ Edit Contact Info
-                          </button>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm text-gray-900 dark:text-gray-400">Phone</div>
+                          <div className="text-gray-900 dark:text-white font-medium truncate" title={(account as any)?.phoneNumber}>
+                            {(account as any)?.phoneNumber || '—'}
+                          </div>
                         </div>
                       </div>
-                    ) : (
-                      <div className="space-y-4">
-                        <div className="grid grid-cols-1 gap-4">
-                          <div>
-                            <label className="block text-sm text-gray-600 dark:text-gray-300 mb-2">Phone Number</label>
-                            {mounted && (
-                              <PhoneInput
-                                country="in"
-                                value={tempPhone}
-                                onChange={(phone: string) => setTempPhone(phone)}
-                                disableCountryGuess={true}
-                                disableCountryCode={false}
-                                disableDropdown={false}
-                                inputProps={{
-                                  name: 'phone',
-                                  required: false,
-                                  className:
-'w-full !pl-16 !py-3 !border-2 !border-gray-300 dark:!border-gray-600 !rounded-xl focus:!ring-2 focus:!ring-teal-500 focus:!border-teal-500 !bg-white/80 dark:!bg-gray-800/60 !text-gray-900 dark:!text-white',
-                                }}
-                                containerClass="w-full"
-                                buttonClass="!bg-gray-200 dark:!bg-gray-700 !border-r-2 !border-gray-300 dark:!border-gray-600 !rounded-l-xl !p-0 !w-14 !h-full !flex !items-center !justify-center hover:!bg-gray-300 dark:hover:!bg-gray-600 focus:!ring-2 focus:!ring-teal-500 text-gray-900 dark:text-gray-100"
-                                dropdownClass="!border-2 !border-gray-300 dark:!border-gray-600 !rounded-xl !shadow-2xl !bg-white dark:!bg-gray-800 !left-1/2 !-translate-x-1/2 !fixed !z-50 !w-80 [&_.highlight]:!bg-teal-100 dark:[&_.highlight]:!bg-teal-400/30 [&_.highlight]:!text-gray-900 dark:[&_.highlight]:!text-white [&_.country]:!text-gray-900 dark:[&_.country]:!text-gray-100 [&_.country:hover]:!bg-gray-100 dark:[&_.country:hover]:!bg-gray-700 [&_.country:hover_.country-name]:!text-gray-900 dark:[&_.country:hover_.country-name]:!text-white"
-                                containerStyle={{ width: '100%' }}
-                                inputStyle={{
-                                  width: '100%',
-                                  height: 'auto',
-                                  paddingLeft: '4rem',
-                                  backgroundColor: 'transparent',
-                                }}
-                                buttonStyle={{
-                                  backgroundColor: 'transparent',
-                                  border: 'none',
-                                }}
-                                dropdownStyle={{
-                                  borderRadius: '0.75rem',
-                                  marginTop: '0.5rem',
-                                  boxShadow:
-                                    '0 10px 25px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.1)',
-                                  maxHeight: '300px',
-                                  overflowY: 'auto',
-                                }}
-                                searchPlaceholder="Search country..."
-                                searchClass="!w-[calc(100%-1rem)] !mx-2 !my-2 !px-4 !py-2 !text-sm !rounded-lg !border-2 !border-gray-300 dark:!border-gray-600 focus:!ring-2 focus:!ring-teal-500 !bg-white dark:!bg-gray-800 !text-gray-900 dark:!text-gray-100"
-                                searchNotFound="No country found"
-                                enableSearch
-                                countryCodeEditable={false}
-                                disableSearchIcon
-                                preferredCountries={['us', 'gb', 'ca', 'au', 'in']}
-                              />
-                            )}
-                          </div>
-                          <div>
-                            <label className="block text-sm text-gray-600 dark:text-gray-300 mb-2">Address</label>
-                            <textarea
-                              value={tempAddress}
-                              onChange={(e) => setTempAddress(e.target.value)}
-                              rows={4}
-                              placeholder="Enter full address"
-                              className="w-full px-4 py-3 rounded-xl border-2 border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/60 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
-                            />
-                          </div>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-teal-500/20 flex items-center justify-center flex-shrink-0">
+                          📍
                         </div>
-                        <div className="flex justify-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => { setEditingContact(false); setTempPhone((account as any)?.phoneNumber || ''); setTempAddress((account as any)?.address || ''); }}
-                            className="px-6 py-3 rounded-xl border-2 border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-700/50 transition-colors font-medium"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            disabled={savingContact}
-                            onClick={saveContactInfo}
-                            className="px-6 py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60 transition-colors font-medium shadow-lg hover:shadow-teal-500/25"
-                          >
-                            {savingContact ? 'Saving...' : '💾 Save'}
-                          </button>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm text-gray-900 dark:text-gray-400">Address</div>
+                          <div className="text-gray-900 dark:text-white font-medium break-words" title={(account as any)?.address}>
+                            {(account as any)?.address || '—'}
+                          </div>
                         </div>
                       </div>
-                    )}
+                      <div className="flex-shrink-0 mt-3 sm:mt-0">
+                        <button
+                          type="button"
+                          onClick={() => setEditingContact(true)}
+                          className="w-full sm:w-auto px-4 py-2 rounded border border-teal-500/30 text-teal-600 dark:text-teal-300 hover:bg-teal-500/10 hover:border-teal-400/50 transition-colors text-sm"
+                        >
+                          ✏️ Edit Contact Info
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1182,10 +1104,10 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
 
       {/* Tabs */}
       {account?.id && (
-        <div className="max-w-6xl mx-auto mt-6 px-2 sm:px-4">
+        <div className="max-w-6xl mx-auto mt-4 sm:mt-6 px-2 sm:px-4">
           {/* Mobile/Tablet View - 2x2 Grid */}
           <div className="md:hidden">
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
               {([
                 { key: 'quotes', label: `Quotes (${quotes?.length ?? 0})` },
                 { key: 'services', label: `Services (${services?.length ?? 0})` },
@@ -1195,10 +1117,10 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                 <button
                   key={t.key}
                   onClick={() => setActiveTab(t.key)}
-                  className={`px-3 py-3 text-sm font-medium rounded-lg transition-all duration-200 ${
+                  className={`px-3 py-3 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 ${
                     activeTab === t.key
                       ? 'bg-teal-500/20 text-teal-600 dark:text-teal-300 border border-teal-500/40 shadow-lg shadow-teal-500/20'
-                      : 'bg-gray-800/40 text-gray-600 dark:text-gray-300 hover:bg-gray-700/50 border border-gray-700/50'
+                      : 'bg-gray-800/40 text-gray-600 dark:text-gray-300 hover:bg-gray-700/50 border border-gray-700/50 hover:border-gray-600/50'
                   }`}
                 >
                   {t.label}
@@ -1206,11 +1128,11 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
               ))}
             </div>
           </div>
-          
+
           {/* Desktop View - Single Row */}
           <div className="hidden md:block">
-            <div className="flex justify-between items-center border-b border-gray-200 bg-white rounded-t-xl px-2 sm:px-3 py-2 dark:bg-transparent dark:border-gray-700">
-              <div className="flex gap-2">
+            <div className="flex justify-between items-center border-b border-gray-200 bg-white rounded-t-xl px-3 py-3 dark:bg-transparent dark:border-gray-700">
+              <div className="flex gap-1">
                 {([
                   { key: 'quotes', label: `Quotes (${quotes?.length ?? 0})` },
                   { key: 'services', label: `Service Requests (${services?.length ?? 0})` },
@@ -1220,9 +1142,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                   <button
                     key={t.key}
                     onClick={() => setActiveTab(t.key)}
-                    className={`px-4 py-2 text-sm rounded-t-md border border-b-0 ${
+                    className={`px-4 py-2 text-sm rounded-t-md border border-b-0 transition-all duration-200 ${
                       activeTab === t.key
-                        ? 'bg-white text-gray-900 border-gray-200 dark:bg-gray-800 dark:border-gray-700 dark:text-white'
+                        ? 'bg-white text-gray-900 border-gray-200 dark:bg-gray-800 dark:border-gray-700 dark:text-white shadow-sm'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-50 border-transparent dark:bg-gray-800/40 dark:text-gray-300 dark:hover:bg-gray-700/50'
                     }`}
                   >
@@ -1233,15 +1155,15 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
             </div>
           </div>
 
-          <div className="bg-white border border-gray-200 rounded-b-md rounded-tr-md p-2 md:p-4 dark:bg-gray-800/60 dark:border-gray-700">
-            {loadingRelated && <div className="text-gray-600 dark:text-gray-300">Loading...</div>}
+          <div className="bg-white border border-gray-200 rounded-b-md rounded-tr-md p-2 sm:p-3 md:p-4 dark:bg-gray-800/60 dark:border-gray-700">
+            {loadingRelated && <div className="text-gray-600 dark:text-gray-300 text-center py-8">Loading...</div>}
             {!loadingRelated && lists[activeTab].length === 0 && (
-              <div className="text-gray-600 dark:text-gray-300">No items.</div>
+              <div className="text-gray-600 dark:text-gray-300 text-center py-8">No items.</div>
             )}
 
             {!loadingRelated && lists[activeTab].length > 0 && (
-              <div 
-                className="overflow-x-auto overflow-y-auto max-h-[220px] rounded-b-md rounded-tr-md custom-scroll"
+              <div
+                className="overflow-x-auto overflow-y-auto max-h-[300px] sm:max-h-[400px] rounded-b-md rounded-tr-md custom-scroll"
                 onWheel={handleTableWheel}
               >
                 <table className="w-full text-sm">
@@ -1284,10 +1206,10 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     })).map((row: any) => {
                       const status = row.status ?? row.Status;
                       const created = row.createdAt ?? row.created_at ?? row.ts;
-                      const isUnread = (status || '').toString().toLowerCase() === 'pending' || 
-                                     (status || '').toString().toLowerCase() === 'new' || 
+                      const isUnread = (status || '').toString().toLowerCase() === 'pending' ||
+                                     (status || '').toString().toLowerCase() === 'new' ||
                                      (status || '').toString().toLowerCase() === 'submitted';
-                      
+
                       if (activeTab === 'devices') {
                         return (
                           <tr
@@ -1302,7 +1224,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                   <span className="text-sm font-medium text-gray-900 dark:text-white">
                                     {row.deviceName || 'Unnamed Device'}
                                   </span>
-                                  <button 
+                                  <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       openDetails('devices', row.id, row);
@@ -1319,7 +1241,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                 </span>
                               </div>
                             </td>
-                            
+
                             {/* Desktop View - Side by Side */}
                             <td className="py-3 px-4 hidden md:table-cell">
                               <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -1331,7 +1253,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                 <span className="text-sm text-gray-700 dark:text-gray-300">
                                   {row.type || 'Unknown'}
                                 </span>
-                                <button 
+                                <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     openDetails('devices', row.id, row);
@@ -1347,7 +1269,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                           </tr>
                         );
                       }
-                      
+
                       if (activeTab === 'tickets') {
                         return (
                           <tr
@@ -1374,14 +1296,14 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                 title="Delete Ticket"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-</svg>
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
                               </button>
                             </td>
                           </tr>
                         );
                       }
-                      
+
                       if (activeTab === 'services') {
                         return (
                           <tr
@@ -1408,14 +1330,14 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                 title="Delete Service"
                               >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-</svg>
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
                               </button>
                             </td>
                           </tr>
                         );
                       }
-                      
+
                       // Default rendering for other tabs (quotes)
                       return (
                         <tr
@@ -1773,32 +1695,141 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
         }
       `}
     </style>
-    {/* Confirmation Dialog */}
-    {confirmDialog?.open && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-sm mx-4 shadow-lg">
-          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Confirm Deletion</h3>
-          <p className="mb-6 text-gray-700 dark:text-gray-300">{confirmDialog.message}</p>
-          <div className="flex justify-end space-x-4">
-            <button
-              onClick={() => setConfirmDialog(null)}
-              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-200 rounded"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => {
-                confirmDialog.onConfirm();
-                setConfirmDialog(null);
-              }}
-              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded"
-            >
-              Delete
-            </button>
+      {/* Confirmation Dialog */}
+      {confirmDialog?.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 max-w-sm w-full mx-4 shadow-lg">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Confirm Deletion</h3>
+              <button
+                onClick={() => setConfirmDialog(null)}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="mb-6 text-gray-700 dark:text-gray-300 text-sm sm:text-base">{confirmDialog.message}</p>
+            <div className="flex flex-col sm:flex-row justify-end gap-3">
+              <button
+                onClick={() => setConfirmDialog(null)}
+                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-500 text-gray-800 dark:text-gray-200 rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  confirmDialog.onConfirm();
+                  setConfirmDialog(null);
+                }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
+
+      {/* Editing Contact Modal */}
+      {editingContact && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-4 sm:p-6 max-w-md w-full mx-4 shadow-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Contact Info</h3>
+              <button
+                onClick={() => { setEditingContact(false); setTempPhone((account as any)?.phoneNumber || ''); setTempAddress((account as any)?.address || ''); }}
+                className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-gray-300 mb-2">Phone Number</label>
+                {mounted && (
+                  <PhoneInput
+                    country="in"
+                    value={tempPhone}
+                    onChange={(phone: string) => setTempPhone(phone)}
+                    disableCountryGuess={true}
+                    disableCountryCode={false}
+                    disableDropdown={false}
+                    inputProps={{
+                      name: 'phone',
+                      required: false,
+                      className:
+                        'w-full !pl-16 !py-3 !border !border-gray-300 dark:!border-gray-600 !rounded-lg focus:!ring-2 focus:!ring-teal-500 focus:!border-teal-500 !bg-white dark:!bg-gray-800 !text-gray-900 dark:!text-white !text-base',
+                    }}
+                    containerClass="w-full"
+                    buttonClass="!bg-gray-200 dark:!bg-gray-700 !border-r !border-gray-300 dark:!border-gray-600 !rounded-l-lg !p-0 !w-14 !h-full !flex !items-center !justify-center hover:!bg-gray-300 dark:hover:!bg-gray-600 focus:!ring-2 focus:!ring-teal-500 text-gray-900 dark:text-gray-100"
+                    dropdownClass="!border !border-gray-300 dark:!border-gray-600 !rounded-lg !shadow-2xl !bg-white dark:!bg-gray-800 !left-1/2 !-translate-x-1/2 !fixed !z-50 !w-80 [&_.highlight]:!bg-teal-100 dark:[&_.highlight]:!bg-teal-400/30 [&_.highlight]:!text-gray-900 dark:[&_.highlight]:!text-white [&_.country]:!text-gray-900 dark:[&_.country]:!text-gray-100 [&_.country:hover]:!bg-gray-100 dark:[&_.country:hover]:!bg-gray-700 [&_.country:hover_.country-name]:!text-gray-900 dark:[&_.country:hover_.country-name]:!text-white"
+                    containerStyle={{ width: '100%' }}
+                    inputStyle={{
+                      width: '100%',
+                      height: 'auto',
+                      paddingLeft: '4rem',
+                      backgroundColor: 'transparent',
+                      fontSize: '1rem',
+                    }}
+                    buttonStyle={{
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                    }}
+                    dropdownStyle={{
+                      borderRadius: '0.5rem',
+                      marginTop: '0.25rem',
+                      boxShadow: '0 10px 25px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.1)',
+                      maxHeight: '300px',
+                      overflowY: 'auto',
+                    }}
+                    searchPlaceholder="Search country..."
+                    searchClass="!w-[calc(100%-1rem)] !mx-2 !my-2 !px-4 !py-2 !text-sm !rounded-lg !border !border-gray-300 dark:!border-gray-600 focus:!ring-2 focus:!ring-teal-500 !bg-white dark:!bg-gray-800 !text-gray-900 dark:!text-gray-100"
+                    searchNotFound="No country found"
+                    enableSearch
+                    countryCodeEditable={false}
+                    disableSearchIcon
+                    preferredCountries={['us', 'gb', 'ca', 'au', 'in']}
+                  />
+                )}
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 dark:text-gray-300 mb-2">Address</label>
+                <textarea
+                  value={tempAddress}
+                  onChange={(e) => setTempAddress(e.target.value)}
+                  rows={4}
+                  placeholder="Enter full address"
+                  className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500 resize-none"
+                />
+              </div>
+              <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => { setEditingContact(false); setTempPhone((account as any)?.phoneNumber || ''); setTempAddress((account as any)?.address || ''); }}
+                  className="px-6 py-3 rounded-lg border border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-700/50 transition-colors text-sm font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={savingContact}
+                  onClick={async () => {
+                    await saveContactInfo();
+                    setEditingContact(false);
+                  }}
+                  className="px-6 py-3 rounded-lg bg-teal-600 hover:bg-teal-700 text-white disabled:opacity-60 transition-colors text-sm font-medium"
+                >
+                  {savingContact ? 'Saving...' : '💾 Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </section>
   );
