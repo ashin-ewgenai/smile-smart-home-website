@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, Wrench, ChevronRight } from 'lucide-react';
+import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, Wrench, ChevronRight, Router } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import RequestServiceModal from './RequestServiceModal';
 import RequestStatusModal from './RequestStatusModal';
@@ -592,7 +592,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     <div>
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome, {actualUserName}</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome&nbsp;&nbsp;&nbsp;{actualUserName}</h1>
           <p className="text-gray-600 dark:text-gray-400">Here's what's happening in your smart home</p>
         </div>
         {/* Help button moved to navbar; retained space for layout consistency */}
@@ -682,7 +682,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
             {/* My Devices */}
             <div ref={myDevicesRef} className="bg-white dark:bg-gray-800 rounded-[24px] shadow-lg border border-gray-200 dark:border-gray-700 lg:col-span-2 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Devices</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Devices <Router className="inline-block h-5 w-5 ml-2 text-teal-500" /></h2>
               </div>
               <div className="overflow-x-auto">
                 <table className="min-w-full table-auto divide-y divide-gray-200 dark:divide-gray-700">

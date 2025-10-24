@@ -33,7 +33,13 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = void 0;
+exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.checkExpiredWarranties = void 0;
+/**
+ * Scheduled function: scan user devices and create an unread 'warranty' notification
+ * in User_Notifications for any user who has at least one expired warranty.
+ *
+ * Runs daily; idempotent per user via deterministic ID 'warranty_<uid>'.
+ */
 const functions = __importStar(require("firebase-functions/v1"));
 const app_1 = require("firebase-admin/app");
 const firestore_1 = require("firebase-admin/firestore");
@@ -43,6 +49,74 @@ if (!(0, app_1.getApps)().length) {
     (0, app_1.initializeApp)();
 }
 const db = (0, firestore_1.getFirestore)();
+exports.checkExpiredWarranties = functions.pubsub
+    .schedule("every 24 hours")
+    .timeZone("UTC")
+    .onRun(async () => {
+    const nowMs = Date.now();
+    try {
+        const userDevicesSnap = await db.collection("User_Devices").select("uid", "warrantyExpiry", "warrantyEnd", "serials").get();
+        const expiredUids = new Set();
+        userDevicesSnap.forEach((d) => {
+            try {
+                const data = d.data() || {};
+                const uid = data.uid;
+                if (!uid)
+                    return;
+                const candidates = [];
+                if (data.warrantyExpiry != null)
+                    candidates.push(data.warrantyExpiry);
+                if (data.warrantyEnd != null)
+                    candidates.push(data.warrantyEnd);
+                if (Array.isArray(data.serials)) {
+                    for (const s of data.serials) {
+                        const v = s?.warrantyExpiry ?? s?.expiryDate ?? s?.warrantyEnd;
+                        if (v != null)
+                            candidates.push(v);
+                    }
+                }
+                for (const v of candidates) {
+                    let t = NaN;
+                    if (v && typeof v === "object" && typeof v.toDate === "function")
+                        t = v.toDate().getTime();
+                    else if (typeof v === "number")
+                        t = v < 1e12 ? v * 1000 : v;
+                    else if (typeof v === "string")
+                        t = Date.parse(v);
+                    if (!Number.isNaN(t) && t <= nowMs) {
+                        expiredUids.add(uid);
+                        break;
+                    }
+                }
+            }
+            catch { }
+        });
+        for (const uid of expiredUids) {
+            try {
+                const q = await db.collection("User_Notifications")
+                    .where("uid", "==", uid)
+                    .where("type", "==", "warranty")
+                    .where("status", "==", "unread")
+                    .limit(1)
+                    .get();
+                if (!q.empty)
+                    continue;
+                const notifId = `warranty_${uid}`;
+                await db.collection("User_Notifications").doc(notifId).set({
+                    uid,
+                    title: "Warranty Expired",
+                    message: "One or more device warranties have expired. Please review your devices.",
+                    type: "warranty",
+                    status: "unread",
+                    createdAt: firestore_1.FieldValue.serverTimestamp(),
+                }, { merge: true });
+            }
+            catch { }
+        }
+    }
+    catch { }
+    return null;
+});
 /**
  * Gen 1 Firestore trigger: When a new contact request is created, create an admin notification.
  * Path: contactRequests/{docId}

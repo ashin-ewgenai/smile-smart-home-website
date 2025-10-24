@@ -306,7 +306,7 @@ const UserProfile: React.FC = () => {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Profile</h1>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">My Profile <User className="ml-2 h-6 w-6 text-teal-600" /></h1>
         <p className="text-gray-600 dark:text-gray-400">Manage your personal information</p>
       </div>
       

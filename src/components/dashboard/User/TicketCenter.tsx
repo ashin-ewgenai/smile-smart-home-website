@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Ticket } from 'lucide-react';
 
 // Firebase
 import { auth, db, storage, functions } from '../../../lib/firebase';
@@ -359,7 +360,7 @@ const TicketCenter: React.FC = () => {
       <div className="px-4 py-4 sm:px-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Support Tickets</h2>
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Support Tickets <Ticket className="inline-block h-5 w-5 ml-2 text-teal-500" /></h2>
             <p className="text-sm text-gray-600 dark:text-gray-400">Raise a complaint and track its status</p>
           </div>
           {currentView === 'chat' && newlyCreatedTicketId && (

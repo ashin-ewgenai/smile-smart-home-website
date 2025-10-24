@@ -29,19 +29,19 @@ const AdminSidebar: React.FC = () => {
     <nav className="p-3 space-y-1">
       <Item href="/dashboard/admin">
         <span className="inline-flex items-center gap-2">
-          <LayoutDashboard className="h-4 w-4" />
+          <LayoutDashboard className="h-5 w-5" />
           Dashboard
         </span>
       </Item>
       <Item href="/dashboard/admin/estimates">
         <span className="inline-flex items-center gap-2">
-          <FilePlus className="h-4 w-4" />
+          <FilePlus className="h-5 w-5" />
           Quotes
         </span>
       </Item>
       <Item href="/dashboard/admin/devices/add">
         <span className="inline-flex items-center gap-2">
-          <Cpu className="h-4 w-4" />
+          <Cpu className="h-5 w-5" />
           Add Device
         </span>
       </Item>
@@ -59,7 +59,7 @@ const AdminSidebar: React.FC = () => {
       </Item>
       <Item href="/dashboard/admin/plan-leads">
         <span className="inline-flex items-center gap-2">
-          <FilePlus className="h-4 w-4" />
+          <FilePlus className="h-5 w-5" />
           Plan Leads
         </span>
       </Item>

@@ -65,6 +65,45 @@ const NotificationsPage: React.FC = () => {
 
         const now = Timestamp.now();
 
+        // Cache lookups to avoid repeated queries per key
+        const readKeyCache = new Map<string, boolean>();
+
+        // Guard: if any existing doc with same baseKey is already read, skip creating new docs
+        const hasReadForKey = async (baseKey: string): Promise<boolean> => {
+          if (readKeyCache.has(baseKey)) return readKeyCache.get(baseKey)!;
+          try {
+            // Prefer precise query if composite index exists
+            const qRead = query(
+              userNotificationsCollection(db),
+              where('uid', '==', userUid),
+              where('key', '==', baseKey),
+              where('status', '==', 'read')
+            );
+            const snapRead = await getDocs(qRead);
+            const found = snapRead.size > 0;
+            readKeyCache.set(baseKey, found);
+            return found;
+          } catch (e: any) {
+            // Fallback when composite index is missing: filter client-side
+            if (e?.code === 'failed-precondition') {
+              try {
+                const qKey = query(
+                  userNotificationsCollection(db),
+                  where('uid', '==', userUid),
+                  where('key', '==', baseKey)
+                );
+                const snapKey = await getDocs(qKey);
+                const found = snapKey.docs.some((d) => String((d.data() as any)?.status).toLowerCase() === 'read');
+                readKeyCache.set(baseKey, found);
+                return found;
+              } catch {
+                return false;
+              }
+            }
+            return false;
+          }
+        };
+
         const createNotifIfMissing = async (
           notifId: string,
           payload: {
@@ -116,6 +155,13 @@ const NotificationsPage: React.FC = () => {
 
             const serialKey = String(s.serialNumber || s.serial || idx);
             const baseKey = `${userUid}:${deviceId}:${serialKey}`;
+
+            // Guard: if a read notification exists for this key, skip creating any new one
+            const alreadyRead = await hasReadForKey(baseKey);
+            if (alreadyRead) {
+              continue;
+            }
+
             const notifId = `${baseKey}:${typeKey}`.replace(/[^a-zA-Z0-9:_-]/g, '_');
 
             const title = expired

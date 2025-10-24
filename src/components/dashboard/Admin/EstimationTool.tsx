@@ -584,7 +584,7 @@ const EstimationTool: React.FC = () => {
         <div>
           <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white inline-flex items-center gap-2">
             Quote Management
-            <FilePlus className="h-4 w-4" aria-hidden="true" />
+            <FilePlus className="h-5 w-5" aria-hidden="true" />
           </h1>
         </div>
         <div className="mt-1 sm:mt-0">

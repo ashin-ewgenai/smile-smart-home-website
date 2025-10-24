@@ -5,7 +5,7 @@ import { auth, db, functions } from '../../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
 import CreateUserModal from './CreateUserModal';
-import { Trash2, Plus, AlertTriangle, Shield } from 'lucide-react';
+import { Trash2, Plus, AlertTriangle, Shield, User } from 'lucide-react';
 import { accountsCollection, accountDoc } from '../../models/Collections';
 
 interface UserDoc {
@@ -373,6 +373,9 @@ export default function User_Admin_List() {
                     <Shield className="h-5 w-5 text-amber-600 dark:text-amber-400" aria-hidden="true" />
                   ) : null}
                   {title}
+                  {title === 'Users' ? (
+                    <User className="h-5 w-5 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+                  ) : null}
                 </span>
                 <span className="text-gray-500 text-sm">({count})</span>
               </h2>
