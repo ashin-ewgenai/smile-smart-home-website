@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Save, User, Bell, Shield, Globe, Moon, Sun, Home, Lock } from 'lucide-react';
+import { Save, Settings, Bell, Shield, Globe, Moon, Sun, Lock } from 'lucide-react';
 import ChangePassword from './ChangePassword';
 
 const UserSettings: React.FC = () => {
   const [darkMode, setDarkMode] = useState(false);
   const [emailNotifications, setEmailNotifications] = useState(true);
-  const [pushNotifications, setPushNotifications] = useState(true);
   const [deviceAlerts, setDeviceAlerts] = useState(true);
   const [language, setLanguage] = useState('en');
   const [saveStatus, setSaveStatus] = useState('');
@@ -33,7 +32,6 @@ const UserSettings: React.FC = () => {
     
     // Get notification preferences
     setEmailNotifications(localStorage.getItem('emailNotifications') !== 'false');
-    setPushNotifications(localStorage.getItem('pushNotifications') !== 'false');
     setDeviceAlerts(localStorage.getItem('deviceAlerts') !== 'false');
     
     // Get language preference
@@ -63,7 +61,6 @@ const UserSettings: React.FC = () => {
     
     // Save settings to localStorage
     localStorage.setItem('emailNotifications', String(emailNotifications));
-    localStorage.setItem('pushNotifications', String(pushNotifications));
     localStorage.setItem('deviceAlerts', String(deviceAlerts));
     localStorage.setItem('language', language);
     
@@ -80,70 +77,15 @@ const UserSettings: React.FC = () => {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white">User Settings</h1>
+        <h2 className="text-xl font-semibold text-white flex items-center mb-2">
+          <Settings className="mr-2 h-5 w-5 text-emerald-400" />
+          User Settings
+        </h2>
         <p className="text-gray-400 mt-1">Manage your account settings and preferences</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Account Settings */}
-        <div className="glass-surface rounded-2xl p-6 shadow-soft-lg">
-          <h2 className="text-xl font-semibold text-white flex items-center mb-4">
-            <User className="mr-2 h-5 w-5 text-emerald-400" />
-            Account Settings
-          </h2>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm text-gray-400 mb-1">Email Address</label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={userEmail}
-                disabled
-                className="w-full pill-input px-4 py-2"
-              />
-            </div>
-            <div>
-              <label htmlFor="name" className="block text-sm text-gray-400 mb-1">Name</label>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                className="w-full pill-input px-4 py-2"
-              />
-            </div>
-          </div>
-          <div className="border-t border-gray-700 my-4" />
-          {/* Home Settings */}
-          <h2 className="text-xl font-semibold text-white flex items-center mb-4">
-            <Home className="mr-2 h-5 w-5 text-emerald-400" />
-            Home Settings
-          </h2>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="homeName" className="block text-sm text-gray-400 mb-1">Home Name</label>
-              <input
-                type="text"
-                id="homeName"
-                name="homeName"
-                defaultValue="My Smart Home"
-                className="w-full pill-input px-4 py-2"
-              />
-            </div>
-            <div>
-              <label htmlFor="homeAddress" className="block text-sm text-gray-400 mb-1">Home Address</label>
-              <input
-                type="text"
-                id="homeAddress"
-                name="homeAddress"
-                defaultValue="123 Smart Street, Tech City"
-                className="w-full pill-input px-4 py-2"
-              />
-            </div>
-          </div>
-        </div>
+        
 
         {/* Security Settings */}
         <div className="glass-surface rounded-2xl p-6 shadow-soft-lg">
@@ -198,16 +140,6 @@ const UserSettings: React.FC = () => {
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" className="sr-only peer" checked={emailNotifications} onChange={() => setEmailNotifications(!emailNotifications)} />
-                <div className="w-12 h-7 rounded-full bg-gray-700 border border-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-400 transition peer-checked:bg-emerald-500 shadow-inner after:content-[''] after:absolute after:h-6 after:w-6 after:translate-x-0 after:rounded-full after:bg-white after:shadow after:transition-all after:top-0.5 after:left-0.5 peer-checked:after:translate-x-5"></div>
-              </label>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-white">Push Notifications</h3>
-                <p className="text-xs text-gray-400">Receive push notifications for important updates</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" checked={pushNotifications} onChange={() => setPushNotifications(!pushNotifications)} />
                 <div className="w-12 h-7 rounded-full bg-gray-700 border border-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-400 transition peer-checked:bg-emerald-500 shadow-inner after:content-[''] after:absolute after:h-6 after:w-6 after:translate-x-0 after:rounded-full after:bg-white after:shadow after:transition-all after:top-0.5 after:left-0.5 peer-checked:after:translate-x-5"></div>
               </label>
             </div>
