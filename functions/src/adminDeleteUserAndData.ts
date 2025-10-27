@@ -131,8 +131,10 @@ export const adminDeleteUserAndData = onCall({ region: "us-central1", cors: true
       summary[name] = await deleteByQuery(name, field, targetUid);
     }
 
-    // 2) quotes (flat) by uid only
-    summary.quotes = await deleteByQuery("quotes", "uid", targetUid);
+    // 2) quotes (flat) by uid or userUid (handle both field names)
+    const quotesByUid = await deleteByQuery("quotes", "uid", targetUid);
+    const quotesByUserUid = await deleteByQuery("quotes", "userUid", targetUid);
+    summary.quotes = quotesByUid + quotesByUserUid;
 
     // 3) Estimation_Quote (flat) by uid only
     // Prepare estimation quotes for this user (we will delete attachments first, then docs)

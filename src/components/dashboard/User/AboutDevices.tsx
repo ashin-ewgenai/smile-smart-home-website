@@ -285,12 +285,11 @@ const AboutDevices: React.FC = () => {
         .about-devices-select option { background-color: #ffffff; color: #111827; }
         .dark .about-devices-select option { background-color: #111827; color: #e5e7eb; }
       `}</style>
-      <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4 mb-6">
+      <div className="flex flex-col gap-4 mb-6">
         <div className="flex items-center gap-2 flex-wrap">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Devices</h1>
           <p className="text-xs text-gray-600 dark:text-gray-400 m-0">{devices.length} total • {filtered.length} shown</p>
         </div>
-
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full min-w-0">
           <div className="relative min-w-0">
             <input
@@ -303,13 +302,13 @@ const AboutDevices: React.FC = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M11 18a7 7 0 100-14 7 7 0 000 14z" />
             </svg>
           </div>
-          <select value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)} className="about-devices-select w-full min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100">
+          <select value={typeFilter} onChange={(e)=>setTypeFilter(e.target.value)} className="about-devices-select w-40 sm:w-48 min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100">
             <option>All</option>
             {Array.from(deviceTypes).map(t => (
               <option key={t}>{t}</option>
             ))}
           </select>
-          <select value={sortBy} onChange={(e)=>setSortBy(e.target.value as any)} className="about-devices-select w-full min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100">
+          <select value={sortBy} onChange={(e)=>setSortBy(e.target.value as any)} className="about-devices-select w-40 sm:w-48 min-w-0 px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 focus:outline-none focus:ring-2 focus:ring-teal/70 dark:bg-gray-900/40 dark:border-gray-800 dark:text-gray-100">
             <option value="name">Sort: Name</option>
             <option value="brand">Sort: Brand</option>
             <option value="type">Sort: Type</option>

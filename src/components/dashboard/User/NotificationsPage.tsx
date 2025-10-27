@@ -4,7 +4,7 @@ import { query, where, orderBy, onSnapshot, updateDoc, serverTimestamp, Timestam
 import { auth, db } from '../../../lib/firebase';
 import { userNotificationsCollection, userNotificationDoc, userDevicesCollection, type UserNotification } from '../../../models/Collections';
 import GlassCard from '../../ui/GlassCard';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Bell } from 'lucide-react';
 
 const NotificationsPage: React.FC = () => {
   const [notifications, setNotifications] = useState<(UserNotification & { id: string })[]>([]);
@@ -424,6 +424,7 @@ const NotificationsPage: React.FC = () => {
             <div>
               <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                 Notifications
+                <Bell className="inline-block ml-2 h-5 w-5 text-gray-500 dark:text-gray-400 align-middle" />
                 {unreadCount > 0 && (
                   <span className="ml-2 inline-flex items-center rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-800 dark:bg-red-900/30 dark:text-red-200">
                     {unreadCount} new
