@@ -14,7 +14,7 @@ import Reports from './pages/Reports';
 import Bill from './pages/Bill';
 import AboutDevice from './pages/AboutDevice';
 import Alerts from './pages/Alerts';
-import UserPlanLeads from '../User/PlanLeads.tsx';
+import PlanLeads from './PlanLeads';
 import AdminSupportApp from './AdminSupportApp';
 import AdminContactSubmissions from './pages/AdminContactSubmissions';
 
@@ -98,7 +98,7 @@ const AdminApp: React.FC = () => {
             <Route path="/reports" element={<Reports />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/alerts" element={<Alerts />} />
-            <Route path="/plan-leads" element={<UserPlanLeads />} />
+            <Route path="/plan-leads" element={<PlanLeads />} />
             <Route path="/bill" element={<Bill />} />
             <Route path="/about-device" element={<AboutDevice />} />
             <Route path="/support" element={<AdminSupportApp />} />
