@@ -42,6 +42,8 @@ const CONFIG = {
   }
 };
 
+const ENABLE_SERIAL_PARSING = false;
+
 // ===== UTILITY FUNCTIONS =====
 
 /**
@@ -266,253 +268,21 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
   }
 
 
-  // In-chat serial verification (Option A): parse a serial from the user's last message and verify against saved devices
+  // In-chat serial verification disabled by feature flag
   let deviceInfo: any = null;
-  try {
-    const lastUserMsgRaw = [...clean].reverse().find((m) => m.role === "user")?.content ?? "";
-    const lastUserText = (typeof lastUserMsgRaw === "string" ? lastUserMsgRaw : JSON.stringify(lastUserMsgRaw));
-
-    // Heuristic: capture a likely serial token ONLY when user mentions 'serial' or 'sn'
-    // Examples: "my serial is ABC-123-XYZ", "serial: ABC123XYZ", "SN ABC123"
-    const serialPattern = /(?:\bserial\b|\bsn\b|s\/n)\s*(?:number)?\s*(?:is|:)?\s*([A-Za-z0-9\-]{4,})/i;
-    const sm = lastUserText.match(serialPattern);
-
-    console.log("=== IN-CHAT SERIAL PARSE ===");
-    console.log("LAST USER RAW:", lastUserMsgRaw);
-    console.log("MATCH RESULT:", sm);
-
-    if (sm) {
-      const rawSerial = (sm[1] || "").trim();
-      if (rawSerial) {
-        const norm = (s: string) => {
-          const normalized = s.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
-          console.log(`[NORMALIZE] Before: "${s}" | After: "${normalized}"`);
-          return normalized;
-        };
-        const target = norm(rawSerial);
-        console.log("EXTRACTED SERIAL RAW:", rawSerial);
-        console.log("NORMALIZED TARGET:", target);
-
-        let matched: null | { device: any; entry?: any; serialValue?: string } = null;
-
-        for (const d of userDevices as any[]) {
-          console.log("CHECKING DEVICE:", d.id, d.deviceName || d.name || d.deviceType || d.type);
-          
-          // Check model number first
-          const modelNum = String(d.modelNumber || "").trim();
-          if (modelNum && norm(modelNum) === target) {
-            console.log("MATCHED modelNumber:", modelNum);
-            matched = { device: d, serialValue: modelNum };
-            break;
-          }
-          
-          // Check serials array
-          const serialArr: any[] = Array.isArray(d.serials) ? d.serials : [];
-          console.log("serials[] length:", serialArr.length);
-          if (serialArr.length) {
-            for (const entry of serialArr) {
-              const sv = String(entry?.serialNumber || "");
-              console.log(" - serials[].serialNumber:", sv);
-              console.log("   COMPARING:", sv ? norm(sv) : "", "vs target:", target);
-              if (sv && norm(sv) === target) {
-                matched = { device: d, entry, serialValue: sv };
-                break;
-              }
-            }
-          }
-          if (matched) break;
-
-          // Fallback single-field serials
-          const singleSerial = String((d as any).deviceSerial || (d as any).serial || "");
-          console.log("fallback deviceSerial/serial:", singleSerial);
-          if (singleSerial && norm(singleSerial) === target) {
-            matched = { device: d, serialValue: singleSerial };
-            break;
-          }
-        }
-
-        if (matched) {
-          let quickReply: string;
-          const name = matched.device.deviceName || matched.device.name || matched.device.deviceType || matched.device.type || "your device";
-          const model = matched.device.deviceModel || matched.device.model || matched.device.modelNumber || matched.entry?.modelNumber || "";
-          const type = matched.device.deviceType || matched.device.type || "";
-          const brand = matched.device.brand || "";
-          const description = matched.device.description || "";
-          const isOnline = matched.device.isOnline || false;
-
-          quickReply = `Serial verified successfully for ${name}.`;
-          if (matched.serialValue) quickReply += `\nSerial: ${matched.serialValue}`;
-          if (model) quickReply += `\nModel: ${model}`;
-
-          const wEnd = matched.entry?.warrantyEnd || matched.entry?.warrantyExpiry || matched.entry?.warrantyExpires;
-          if (wEnd) {
-            try {
-              const expiryDate = new Date(String(wEnd));
-              const now = new Date();
-              const days = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
-              if (!Number.isNaN(days)) {
-                if (days > 0) quickReply += `\nWarranty expires: ${expiryDate.toLocaleDateString()} (${days} days remaining)`;
-                else quickReply += `\nWarranty expired: ${expiryDate.toLocaleDateString()}`;
-              }
-            } catch {}
-          }
-
-          // Get documentation links
-          const documentation = matched.device.documentation || matched.device.manualUrl || matched.entry?.documentation || "";
-
-          // Create deviceInfo object for frontend
-          const deviceInfo = {
-            deviceName: name,
-            modelNumber: model,
-            serialNumber: matched.serialValue,
-            type: type,
-            brand: brand,
-            description: description,
-            isOnline: isOnline,
-            warrantyExpiry: wEnd ? new Date(String(wEnd)).toISOString() : undefined,
-            documentation: documentation,
-          };
-
-          // Include ticket details if an active ticket is present
-          let ticketDetails: any = null;
-          if (activeTicket) {
-            const ticketNumber = activeTicket.data.ticketNumber || `#${activeTicket.ticketId.slice(-6).toUpperCase()}`;
-            ticketDetails = {
-              ticketId: activeTicket.ticketId,
-              ticketNumber,
-              subject: activeTicket.data.subject,
-              description: activeTicket.data.description,
-              category: activeTicket.data.category,
-              status: activeTicket.data.status,
-              createdAt: activeTicket.data.createdAt?.toDate?.()?.toLocaleDateString(),
-            };
-          }
-
-          console.log("MATCH FOUND:", true);
-          return {
-            reply: quickReply,
-            sessionId,
-            deviceInfo,
-            ...(ticketDetails && { ticketDetails }),
-            ...(debugInfo && { debugInfo }),
-          };
-        } else {
-          console.log("MATCH FOUND:", false);
-          console.log("NO MATCH — continuing to OpenAI path");
-        }
-      }
+  if (ENABLE_SERIAL_PARSING) {
+    try {
+      const lastUserMsgRaw = [...clean].reverse().find((m) => m.role === "user")?.content ?? "";
+      const lastUserText = (typeof lastUserMsgRaw === "string" ? lastUserMsgRaw : JSON.stringify(lastUserMsgRaw));
+      const serialPattern = /(?:\bserial\b|\bsn\b|s\/n)\s*(?:number)?\s*(?:is|:)?\s*([A-Za-z0-9\-]{4,})/i;
+      const sm = lastUserText.match(serialPattern);
+      console.log("=== IN-CHAT SERIAL PARSE ===");
+      console.log("LAST USER RAW:", lastUserMsgRaw);
+      console.log("MATCH RESULT:", sm);
+      // Original parsing and return logic intentionally disabled.
+    } catch (err) {
+      console.warn("In-chat serial verification failed:", err);
     }
-    // Fallback: even if the user didn't say "serial"/"SN", try to detect any known serial present in the message
-    else {
-      const norm = (s: string) => s.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
-      const msgNorm = norm(lastUserText);
-      console.log("=== FALLBACK SERIAL SCAN ===");
-      console.log("NORMALIZED MESSAGE:", msgNorm);
-
-      type Candidate = { value: string; device: any; entry?: any };
-      const candidates: Candidate[] = [];
-
-      for (const d of userDevices as any[]) {
-        const serialArr: any[] = Array.isArray(d.serials) ? d.serials : [];
-        if (serialArr.length) {
-          for (const entry of serialArr) {
-            const sv = String(entry?.serialNumber || "").trim();
-            if (sv) candidates.push({ value: sv, device: d, entry });
-          }
-        }
-        const singleSerials = [
-          String((d as any).deviceSerial || "").trim(),
-          String((d as any).serial || "").trim(),
-          String((d as any).serialNumber || "").trim(),
-          String(d.modelNumber || "").trim(), // Add modelNumber to fallback check
-        ].filter(Boolean) as string[];
-        for (const sv of singleSerials) {
-          candidates.push({ value: sv, device: d });
-        }
-      }
-
-      console.log("CANDIDATE SERIAL COUNT:", candidates.length);
-      let matched: null | { device: any; entry?: any; serialValue?: string } = null;
-
-      for (const c of candidates) {
-        const cNorm = norm(c.value);
-        if (!cNorm || cNorm.length < 4) continue; // avoid tiny/ambiguous strings
-        // Accept either exact equality (when user typed cleanly) or substring (user inserted separators/spaces)
-        if (msgNorm === cNorm || msgNorm.includes(cNorm)) {
-          matched = { device: c.device, entry: c.entry, serialValue: c.value };
-          break;
-        }
-      }
-
-      if (matched) {
-        let quickReply: string;
-        const name = matched.device.deviceName || matched.device.name || matched.device.deviceType || matched.device.type || "your device";
-        const model = matched.device.deviceModel || matched.device.model || matched.device.modelNumber || matched.entry?.modelNumber || "";
-        const type = matched.device.deviceType || matched.device.type || "";
-        const brand = matched.device.brand || "";
-        const description = matched.device.description || "";
-        const isOnline = matched.device.isOnline || false;
-
-        quickReply = `Serial verified successfully for ${name}.`;
-        if (matched.serialValue) quickReply += `\nSerial: ${matched.serialValue}`;
-        if (model) quickReply += `\nModel: ${model}`;
-
-        const wEnd = matched.entry?.warrantyEnd || matched.entry?.warrantyExpiry || matched.entry?.warrantyExpires;
-        if (wEnd) {
-          try {
-            const expiryDate = new Date(String(wEnd));
-            const now = new Date();
-            const days = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
-            if (!Number.isNaN(days)) {
-              if (days > 0) quickReply += `\nWarranty expires: ${expiryDate.toLocaleDateString()} (${days} days remaining)`;
-              else quickReply += `\nWarranty expired: ${expiryDate.toLocaleDateString()}`;
-            }
-          } catch {}
-        }
-
-        // Get documentation links
-        const documentation = matched.device.documentation || matched.device.manualUrl || matched.entry?.documentation || "";
-
-        // Create deviceInfo object for frontend
-        deviceInfo = {
-          deviceName: name,
-          modelNumber: model,
-          serialNumber: matched.serialValue,
-          type: type,
-          brand: brand,
-          description: description,
-          isOnline: isOnline,
-          warrantyExpiry: wEnd ? new Date(String(wEnd)).toISOString() : undefined,
-          documentation: documentation,
-        };
-
-        let ticketDetails: any = null;
-        if (activeTicket) {
-          const ticketNumber = activeTicket.data.ticketNumber || `#${activeTicket.ticketId.slice(-6).toUpperCase()}`;
-          ticketDetails = {
-            ticketId: activeTicket.ticketId,
-            ticketNumber,
-            subject: activeTicket.data.subject,
-            description: activeTicket.data.description,
-            category: activeTicket.data.category,
-            status: activeTicket.data.status,
-            createdAt: activeTicket.data.createdAt?.toDate?.()?.toLocaleDateString(),
-          };
-        }
-        console.log("MATCH FOUND (FALLBACK):", true);
-        return {
-          reply: quickReply,
-          sessionId,
-          deviceInfo,
-          ...(ticketDetails && { ticketDetails }),
-          ...(debugInfo && { debugInfo }),
-        };
-      } else {
-        console.log("MATCH FOUND (FALLBACK):", false);
-      }
-    }
-  } catch (err) {
-    console.warn("In-chat serial verification failed:", err);
   }
 
   const systemPrompt = {
@@ -521,18 +291,10 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
 
 IMPORTANT RULES:
 1. ONLY answer questions related to smart home devices, automation, IoT, home security, lighting, climate control, entertainment systems, and Smile Smart Homes products/services.
-2. When handling device verification, compare user-typed serial numbers with registered devices and state clearly if they match or not.
+2. Provide helpful, actionable guidance without asking for serial numbers.
 3. Analyze each user message to determine if it's a COMPLAINT or GENERAL QUERY.
 4. If the message is unclear, ask ONE concise clarifying question (<=20 words).
 5. If no prior assistant message exists, begin with a brief greeting.
-
-SERIAL VERIFICATION WORKFLOW (TEXT ONLY):
-- Ask the user to TYPE the serial number
-- Compare the provided serial with their registered devices
-- If serials match: ✅ Confirm verification and proceed with troubleshooting
-- If serials don't match: ⚠️ Mention politely and suggest rechecking the label; still provide basic troubleshooting
-- Keep verification responses short, clear, and professional
-- Don't exceed what's needed to move the support process forward
 
 WORKFLOW RULES:
 - For NEW COMPLAINTS without active ticket: Suggest creating a support ticket and provide helpful guidance
@@ -542,15 +304,12 @@ WORKFLOW RULES:
 - If active ticket context is provided, ALWAYS acknowledge the existing ticket first
 - Consider troubleshooting history to avoid repeating failed solutions
 - If troubleshooting attempts are at 3/3, suggest escalation to human support
-- When device needs serial verification: Ask the user to type the serial number in the chat
 
 RESPONSE FORMAT:
 - Provide natural, conversational responses without technical prefixes
 - For complaints needing ticket: Explain that they should create a support ticket for better assistance
 - For ticket verification: Acknowledge their existing ticket and confirm you can help
 - For device selection: Ask them to specify which device needs help
-- For serial verification: Ask user to enter their device serial number as text
-- When providing serial verification results, be clear about match status
 - Keep responses concise and professional (under 150 words)
 - NEVER start responses with technical codes like "REQUIRES_TICKET:" or "DEVICE_SELECTION:"
 
