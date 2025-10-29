@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from './DashboardLayout';
 import UserDashboard from './UserDashboard';
@@ -12,6 +12,8 @@ import ChangePassword from './ChangePassword';
 import SupportChatPanel from '../../supportChat/SupportChatPanel';
 import { DevicesProvider } from '../../../contexts/DevicesContext';
 import NotificationsPage from './NotificationsPage';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from '../../../lib/firebase';
 
 // Simple wrapper to show the Quote Portal within standard padding
 const QuotePortalPage: React.FC = () => (
@@ -33,6 +35,23 @@ const NotificationsRoutePage: React.FC = () => (
 );
 
 const DashboardApp: React.FC = () => {
+  const [authReady, setAuthReady] = useState(false);
+  const [isAuthed, setIsAuthed] = useState(false);
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      setIsAuthed(!!user);
+      setAuthReady(true);
+    });
+    return () => unsub();
+  }, []);
+
+  const GuardedSupportChat: React.FC = () => {
+    if (!authReady) return null;
+    if (!isAuthed) return <Navigate to="/login" replace />;
+    return <SupportChatPanel raiseTicketsHref="/support-tickets" />;
+  };
+
   return (
     <BrowserRouter basename="/dashboard/user">
       <DevicesProvider>
@@ -43,7 +62,7 @@ const DashboardApp: React.FC = () => {
           <Route path="/notifications" element={<NotificationsRoutePage />} />
           <Route path="/quote-portal" element={<QuotePortalPage />} />
           <Route path="/support-tickets" element={<SupportTicketsPage />} />
-          <Route path="/support-chat" element={<SupportChatPanel raiseTicketsHref="/support-tickets" />} />
+          <Route path="/support-chat" element={<GuardedSupportChat />} />
           <Route path="/about-device" element={<AboutDevices />} />
           <Route path="/bill" element={<UserBill />} />
           <Route path="/profile" element={<UserProfile />} />

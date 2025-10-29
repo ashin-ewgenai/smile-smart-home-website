@@ -147,7 +147,7 @@ const ChangePassword = forwardRef<ChangePasswordHandle, ChangePasswordProps>((pr
         {loading ? 'Changing…' : 'Change Password'}
       </button>
 
-      <p className="text-xs mt-3 text-gray-600 dark:text-gray-400">
+      <p className="text-xs mt-3 text-gray-700 dark:text-gray-400">
         You may be asked to log in again if required for security.
       </p>
     </div>

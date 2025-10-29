@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, Wrench, ChevronRight, Router } from 'lucide-react';
+import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, Wrench, ChevronRight, Router, Smile } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import RequestServiceModal from './RequestServiceModal';
 import RequestStatusModal from './RequestStatusModal';
@@ -33,7 +33,13 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [isNavigating, setIsNavigating] = useState(false);
-  
+  const [iconOn, setIconOn] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setIconOn(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+  const [displayedDeviceCount, setDisplayedDeviceCount] = useState(0);
+
   // Get actual user name from Firestore or localStorage
   const [actualUserName, setActualUserName] = useState(userName);
   const [serviceRequestOpen, setServiceRequestOpen] = useState(false);
@@ -93,6 +99,24 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     
     return () => unsubscribe();
   }, []);
+
+  // Animate the visible device count from 0 to the current deviceCount
+  useEffect(() => {
+    const end = Math.max(0, deviceCount);
+    const duration = 800;
+    const startTime = performance.now();
+    let raf = 0;
+    const step = (now: number) => {
+      const t = Math.min((now - startTime) / duration, 1);
+      const eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t; // easeInOutQuad
+      const val = Math.round(eased * end);
+      setDisplayedDeviceCount(val);
+      if (t < 1) raf = requestAnimationFrame(step);
+    };
+    setDisplayedDeviceCount(0);
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [deviceCount]);
   
   const clearReqFeedback = () => {
     setReqSuccess('');
@@ -586,177 +610,172 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     if (days > 365) return `${(days / 365).toFixed(1)} years`;
     return `${days} days`;
   };
-
   return (
     <>
-    <div>
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome&nbsp;&nbsp;&nbsp;{actualUserName}</h1>
-          <p className="text-gray-600 dark:text-gray-400">Here's what's happening in your smart home</p>
+      <div>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome&nbsp;&nbsp;&nbsp;{actualUserName} <Smile className={`inline-block h-6 w-6 ml-2 text-teal-500 transition-all duration-700 ease-out ${iconOn ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-1 scale-75'}`} aria-hidden="true" /></h1>
+            <p className="text-gray-600 dark:text-gray-400">Here's what's happening in your smart home</p>
+          </div>
+          {/* Help button moved to navbar; retained space for layout consistency */}
         </div>
-        {/* Help button moved to navbar; retained space for layout consistency */}
-      </div>
-      
-      {isLoading ? (
-        <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
-        </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            {/* Device Stats Card */}
-            <div className="bg-white dark:bg-gray-800 rounded-[24px] shadow-md p-6 border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Devices</h2>
-                <Home className="h-6 w-6 text-teal-500" />
-              </div>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600 dark:text-gray-400">type of devices</span>
-                  <span className="text-xl font-bold text-gray-900 dark:text-white">{deviceCount}</span>
+
+        {isLoading ? (
+          <div className="flex justify-center items-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              {/* Device Stats Card */}
+              <div className="bg-white dark:bg-gray-800 rounded-[24px] shadow-md p-6 border border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Devices</h2>
+                  <Home className="h-6 w-6 text-teal-500" />
                 </div>
-                {/* View Service Requests Button */}
-                <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-600 dark:text-gray-400">type of devices</span>
+                    <span className="text-xl font-bold text-gray-900 dark:text-white">{displayedDeviceCount}</span>
+                  </div>
+                  {/* View Service Requests Button */}
+                  <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
+                    <button
+                      onClick={() => setRequestStatusOpen(true)}
+                      className="w-full px-4 py-2 text-sm font-medium text-white bg-teal rounded-full hover:bg-teal/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal dark:bg-teal dark:hover:bg-teal/90"
+                    >
+                      View Service Requests
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Controls */}
+              <div className="bg-white dark:bg-gray-800 rounded-[24px] shadow-md p-6 border border-gray-200 dark:border-gray-700 col-span-1 md:col-span-2">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Quick Controls</h2>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-3 gap-3">
+                  {/* Request Service */}
                   <button
-                    onClick={() => setRequestStatusOpen(true)}
-                    className="w-full px-4 py-2 text-sm font-medium text-white bg-teal rounded-full hover:bg-teal/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal dark:bg-teal dark:hover:bg-teal/90"
+                    onClick={() => setServiceRequestOpen(true)}
+                    className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
+                    aria-label="Open Request Service"
                   >
-                    View Service Requests
+                    <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mb-2">
+                      <Wrench className="h-5 w-5 text-green-600 dark:text-green-300" />
+                    </div>
+                    {!billingCompact && (
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Request Service</span>
+                    )}
                   </button>
+                  {/* About Device */}
+                  <Link
+                    to="/about-device"
+                    className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
+                    aria-label="Open About Device"
+                  >
+                    <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center mb-2">
+                      <Home className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
+                    </div>
+                    {!billingCompact && (
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">About Device</span>
+                    )}
+                  </Link>
+                  {/* Quote Portal */}
+                  <Link
+                    to="/quote-portal"
+                    className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
+                    aria-label="Open Quote Portal"
+                  >
+                    <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center mb-2">
+                      <Calendar className="h-5 w-5 text-amber-600 dark:text-amber-300" />
+                    </div>
+                    {!billingCompact && (
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">Quote Portal</span>
+                    )}
+                  </Link>
                 </div>
               </div>
             </div>
-            
-            {/* Billing & Warranty */}
-            <div className="bg-white dark:bg-gray-800 rounded-[24px] shadow-md p-6 border border-gray-200 dark:border-gray-700 col-span-1 md:col-span-2">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Quick Controls</h2>
-              </div>
-              {/* Single board with three actions */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-3 gap-3">
-                {/* Request Service */}
-                <button
-                  onClick={() => setServiceRequestOpen(true)}
-                  className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
-                  aria-label="Open Request Service"
-                >
-                  <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mb-2">
-                    <Wrench className="h-5 w-5 text-green-600 dark:text-green-300" />
-                  </div>
-                  {!billingCompact && (
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">Request Service</span>
-                  )}
-                </button>
-                {/* About Device */}
-                <Link
-                  to="/about-device"
-                  className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
-                  aria-label="Open About Device"
-                >
-                  <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center mb-2">
-                    <Home className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
-                  </div>
-                  {!billingCompact && (
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">About Device</span>
-                  )}
-                </Link>
-                {/* Quote Portal */}
-                <Link
-                  to="/quote-portal"
-                  className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
-                  aria-label="Open Quote Portal"
-                >
-                  <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center mb-2">
-                    <Calendar className="h-5 w-5 text-amber-600 dark:text-amber-300" />
-                  </div>
-                  {!billingCompact && (
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">Quote Portal</span>
-                  )}
-                </Link>
-              </div>
-            </div>
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* My Devices */}
-            <div ref={myDevicesRef} className="bg-white dark:bg-gray-800 rounded-[24px] shadow-lg border border-gray-200 dark:border-gray-700 lg:col-span-2 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Devices <Router className="inline-block h-5 w-5 ml-2 text-teal-500" /></h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full table-auto divide-y divide-gray-200 dark:divide-gray-700">
-                  <thead className="bg-slate-100/80 dark:bg-slate-700/80 backdrop-blur supports-backdrop-blur:backdrop-blur sticky top-0 z-10">
-                    <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Device Name</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Brand</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Model</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Type</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Warranty</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                    {userDevices.length > 0 ? (
-                      userDevices.map((device) => (
-                      <tr key={device.id} className="odd:bg-transparent even:bg-gray-50 dark:even:bg-gray-800/60 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{device.name}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {device.brand || 'N/A'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {device.modelNumber || 'N/A'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {device.type || 'Unknown'}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">
-                            {device.warranty || 'N/A'}
-                          </div>
-                        </td>
-                      </tr>
-                      ))
-                    ) : (
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* My Devices */}
+              <div ref={myDevicesRef} className="bg-white dark:bg-gray-800 rounded-[24px] shadow-lg border border-gray-200 dark:border-gray-700 lg:col-span-2 overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Devices <Router className="inline-block h-5 w-5 ml-2 text-teal-500" /></h2>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full table-auto divide-y divide-gray-200 dark:divide-gray-700">
+                    <thead className="bg-slate-100/80 dark:bg-slate-700/80 backdrop-blur supports-backdrop-blur:backdrop-blur sticky top-0 z-10">
                       <tr>
-                        <td colSpan={2} className="px-6 py-4 text-center text-sm text-gray-500">
-                          No devices found
-                        </td>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Device Name</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Brand</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Model</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Type</th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Warranty</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                      {userDevices.length > 0 ? (
+                        userDevices.map((device) => (
+                        <tr key={device.id} className="odd:bg-transparent even:bg-gray-50 dark:even:bg-gray-800/60 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">{device.name}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {device.brand || 'N/A'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {device.modelNumber || 'N/A'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {device.type || 'Unknown'}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500 dark:text-gray-400">
+                              {device.warranty || 'N/A'}
+                            </div>
+                          </td>
+                        </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={2} className="px-6 py-4 text-center text-sm text-gray-500">
+                            No devices found
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
-          </div>
+          </>
+        )}
 
-          
-        </>
-      )}
+        <RequestStatusModal
+          open={requestStatusOpen}
+          onClose={() => setRequestStatusOpen(false)}
+          myRequests={myRequests as any}
+          reqListLoading={reqListLoading}
+          reqListError={reqListError}
+        />
+      </div>
 
-    <RequestStatusModal
-      open={requestStatusOpen}
-      onClose={() => setRequestStatusOpen(false)}
-      myRequests={myRequests as any}
-      reqListLoading={reqListLoading}
-      reqListError={reqListError}
-    />
-    </div>
-    {/* Support Tickets modal removed here; now rendered globally in DashboardLayout */}
-
-    {/* console.log('Rendering RequestServiceModal with deviceOptions:', userDeviceOptions.map(device => device.name)) */}
-    <RequestServiceModal
-      open={serviceRequestOpen}
-      onClose={() => setServiceRequestOpen(false)}
-      deviceOptions={userDeviceOptions.map(device => device.name)}
-    />
+      {/* console.log('Rendering RequestServiceModal with deviceOptions:', userDeviceOptions.map(device => device.name)) */}
+      <RequestServiceModal
+        open={serviceRequestOpen}
+        onClose={() => setServiceRequestOpen(false)}
+        deviceOptions={userDeviceOptions.map(device => device.name)}
+      />
     </>
   );
 };

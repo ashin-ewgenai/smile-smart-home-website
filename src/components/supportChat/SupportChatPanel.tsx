@@ -166,21 +166,10 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         const devicesSnapshot = await getDocs(
           query(collection(db, 'User_Devices'), where('uid', '==', uid))
         );
-        console.group('=== DEVICE DATA DEBUG ===');
-        console.log('Total devices:', devicesSnapshot.size);
         devicesSnapshot.forEach((doc) => {
           const data = doc.data();
-          console.group(`Device: ${doc.id}`);
-          console.log('Raw Data:', data);
-          console.log('Model Number:', data.modelNumber || 'Not set');
-          console.log('Device Name:', data.deviceName || data.name || 'Unnamed Device');
-          console.log('Type:', data.deviceType || data.type || 'Unknown Type');
-          console.log('Serials:', Array.isArray(data.serials) ? data.serials : 'No serials array');
-          console.groupEnd();
         });
-        console.groupEnd();
       } catch (error) {
-        console.error('Error fetching device data:', error);
       }
     };
 

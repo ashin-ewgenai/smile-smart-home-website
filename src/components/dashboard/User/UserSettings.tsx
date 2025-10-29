@@ -88,7 +88,7 @@ const UserSettings: React.FC = () => {
         
 
         {/* Security Settings */}
-        <div className="glass-surface rounded-2xl p-6 shadow-soft-lg">
+        <div className="bg-gray-900/60 backdrop-blur rounded-2xl p-6 shadow-lg border border-gray-800">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center mb-4">
             <Shield className="mr-2 h-5 w-5 text-emerald-400" />
             Security
@@ -105,7 +105,7 @@ const UserSettings: React.FC = () => {
                 <Lock className="h-4 w-4 text-emerald-400" />
                 <div>
                   <p className="text-sm font-medium text-white">Change Password</p>
-                  <p className="text-xs text-gray-400">Update your account password</p>
+                  <p className="text-xs text-gray-900">Update your account password</p>
                 </div>
               </div>
               <svg
@@ -136,20 +136,10 @@ const UserSettings: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-medium text-white">Email Notifications</h3>
-                <p className="text-xs text-gray-400">Receive email notifications for important updates</p>
+                <p className="text-xs text-gray-900">Receive email notifications for important updates</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" className="sr-only peer" checked={emailNotifications} onChange={() => setEmailNotifications(!emailNotifications)} />
-                <div className="w-12 h-7 rounded-full bg-gray-700 border border-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-400 transition peer-checked:bg-emerald-500 shadow-inner after:content-[''] after:absolute after:h-6 after:w-6 after:translate-x-0 after:rounded-full after:bg-white after:shadow after:transition-all after:top-0.5 after:left-0.5 peer-checked:after:translate-x-5"></div>
-              </label>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium text-white">Device Alerts</h3>
-                <p className="text-xs text-gray-400">Receive notifications for device-related events</p>
-              </div>
-              <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" className="sr-only peer" checked={deviceAlerts} onChange={() => setDeviceAlerts(!deviceAlerts)} />
                 <div className="w-12 h-7 rounded-full bg-gray-700 border border-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-emerald-400 transition peer-checked:bg-emerald-500 shadow-inner after:content-[''] after:absolute after:h-6 after:w-6 after:translate-x-0 after:rounded-full after:bg-white after:shadow after:transition-all after:top-0.5 after:left-0.5 peer-checked:after:translate-x-5"></div>
               </label>
             </div>
@@ -165,7 +155,7 @@ const UserSettings: React.FC = () => {
             Language
           </h2>
           <div>
-            <label htmlFor="language" className="block text-sm text-gray-400 mb-1">Select Language</label>
+            <label htmlFor="language" className="block text-sm text-gray-900 mb-1">Select Language</label>
             <select
               id="language"
               name="language"

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText, ChevronDown, TrendingUp, TrendingDown, Activity, Eye, EyeOff, LayoutDashboard } from 'lucide-react';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, getDocs, getDoc, query, where } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../../lib/firebase';
-import { COLLECTION_ACCOUNTS, accountsCollection, registerUserWithProfile, type Account } from '../../../models/Collections';
+import { COLLECTION_ACCOUNTS, accountsCollection, accountDoc, registerUserWithProfile, type Account } from '../../../models/Collections';
 
 interface User {
   id: string;
@@ -132,81 +133,67 @@ const AdminDashboard: React.FC = () => {
 
   // Fetch and process all users
   useEffect(() => {
-    const fetchAndProcessUsers = async () => {
-      try {
-        setIsLoading(true);
-        const usersRef = accountsCollection(db);
-        // Restrict to end-user accounts to comply with stricter Firestore rules
-        const querySnapshot = await getDocs(
-          // fetch only Accounts where Role == 'user'
-          query(usersRef, where('Role', '==', 'user'))
-        );
-        
-        // Process all users with proper typing
-        const allUsers = querySnapshot.docs.map(doc => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            FullName: data.FullName || 'Unknown User',
-            Email: data.Email || null,
-            Status: data.Status || 'offline',
-            Role: data.Role || 'user',
-            CreatedAt: data.CreatedAt || null
-          } as User;
-        });
-        // Already constrained by query; still defensively filter and then sort
-        const userAccounts = allUsers
-          .filter(user => user.Role === 'user')
-          .sort((a, b) => {
-            const dateA = a.CreatedAt?.toDate() || new Date(0);
-            const dateB = b.CreatedAt?.toDate() || new Date(0);
-            return dateB.getTime() - dateA.getTime(); // Newest first
+    let unsub: any;
+    const start = () => {
+      setIsLoading(true);
+      unsub = onAuthStateChanged(auth, async (user) => {
+        try {
+          if (!user) {
+            setRecentUsers([]);
+            setUserStats({ totalUsers: 0, activeUsers: 0, newUsers: 0 });
+            return;
+          }
+          const snap = await getDoc(accountDoc(db, user.uid));
+          const role = snap.exists() ? (snap.data() as any).Role : undefined;
+          const allowed = role === 'admin' || role === 'Super Admin';
+          if (!allowed) {
+            setRecentUsers([]);
+            setUserStats({ totalUsers: 0, activeUsers: 0, newUsers: 0 });
+            return;
+          }
+          const usersRef = accountsCollection(db);
+          const querySnapshot = await getDocs(query(usersRef, where('Role', '==', 'user')));
+          const allUsers = querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+              id: doc.id,
+              FullName: data.FullName || 'Unknown User',
+              Email: data.Email || null,
+              Status: data.Status || 'offline',
+              Role: data.Role || 'user',
+              CreatedAt: data.CreatedAt || null
+            } as User;
           });
-        
-        // Get the 5 most recent users
-        const recent = userAccounts.slice(0, 5);
-        setRecentUsers(recent);
-        
-        // Calculate stats
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        
-        const totalUsers = userAccounts.length;
-        const activeUsers = userAccounts.filter(user => user.Status === 'online').length;
-        const newUsers = userAccounts.filter(user => {
-          const userDate = user.CreatedAt?.toDate() || new Date(0);
-          return userDate >= oneWeekAgo;
-        }).length;
-        
-        // Update KPIs
-        setKpis([{
-          key: 'users',
-          label: 'Total Users',
-          value: totalUsers,
-          delta: 0,
-          icon: Users,
-          color: 'text-teal-500',
-          data: [totalUsers],
-        }]);
-        
-        // Update user stats
-        setUserStats({
-          totalUsers,
-          activeUsers,
-          newUsers
-        });
-        
-      } catch (error) {
-        console.error('Error processing users:', error);
-        // Permission-denied or other failures: show empty state gracefully
-        setRecentUsers([]);
-        setUserStats({ totalUsers: 0, activeUsers: 0, newUsers: 0 });
-      } finally {
-        setIsLoading(false);
-      }
+          const userAccounts = allUsers
+            .filter(user => user.Role === 'user')
+            .sort((a, b) => {
+              const dateA = a.CreatedAt?.toDate() || new Date(0);
+              const dateB = b.CreatedAt?.toDate() || new Date(0);
+              return dateB.getTime() - dateA.getTime();
+            });
+          const recent = userAccounts.slice(0, 5);
+          setRecentUsers(recent);
+          const oneWeekAgo = new Date();
+          oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+          const totalUsers = userAccounts.length;
+          const activeUsers = userAccounts.filter(user => user.Status === 'online').length;
+          const newUsers = userAccounts.filter(user => {
+            const userDate = user.CreatedAt?.toDate() || new Date(0);
+            return userDate >= oneWeekAgo;
+          }).length;
+          setKpis([{ key: 'users', label: 'Total Users', value: totalUsers, delta: 0, icon: Users, color: 'text-teal-500', data: [totalUsers] }]);
+          setUserStats({ totalUsers, activeUsers, newUsers });
+        } catch (error) {
+          console.error('Error processing users:', error);
+          setRecentUsers([]);
+          setUserStats({ totalUsers: 0, activeUsers: 0, newUsers: 0 });
+        } finally {
+          setIsLoading(false);
+        }
+      });
     };
-    
-    fetchAndProcessUsers();
+    start();
+    return () => { if (unsub) unsub(); };
   }, []);
 
   const [kpis, setKpis] = useState<Array<{
@@ -252,7 +239,7 @@ const AdminDashboard: React.FC = () => {
       animationRef.current = null;
     }
     startTimeRef.current = null;
-    startValueRef.current = animatedUsersCount; // continue from current displayed value
+    startValueRef.current = 0; // always start from 0
 
     const duration = 1200; // ms
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
