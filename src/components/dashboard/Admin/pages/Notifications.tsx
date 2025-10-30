@@ -158,6 +158,15 @@ const Notifications: React.FC = () => {
         const targetId = item.relatedEntityId || item.id;
         try {
           await updateDoc(supportTicketDoc(db, targetId), { status: 'ack' } as any);
+          // Also mark corresponding Admin_Notifications as read to clear bell
+          try {
+            const snap = await getDocs(query(
+              adminNotificationsCollection(db),
+              where('relatedEntityId', '==', targetId),
+              where('relatedEntityType', '==', 'support_ticket')
+            ));
+            await Promise.all(snap.docs.map(d => updateDoc(adminNotificationDoc(db, d.id), { status: 'read' })));
+          } catch {}
         } catch (e: any) {
           // If the support ticket doc doesn't exist, fall back to marking admin notification as read
           const msg = String(e?.message || '');
@@ -196,6 +205,15 @@ const Notifications: React.FC = () => {
         const targetId = item.relatedEntityId || item.id;
         try {
           await updateDoc(supportTicketDoc(db, targetId), { status: 'closed' });
+          // Also remove or mark related admin notifications so bell count drops
+          try {
+            const snap = await getDocs(query(
+              adminNotificationsCollection(db),
+              where('relatedEntityId', '==', targetId),
+              where('relatedEntityType', '==', 'support_ticket')
+            ));
+            await Promise.all(snap.docs.map(d => deleteDoc(adminNotificationDoc(db, d.id))));
+          } catch {}
           // Remove from local UI immediately
           setItems(prev => prev.filter(i => i.id !== item.id));
           showToast('Support ticket closed', 'success');
@@ -322,7 +340,7 @@ const Notifications: React.FC = () => {
 
         // Initial fetch: Admin Notifications
         const snap = await getDocs(query(adminNotificationsCollection(db), orderBy('createdAt', 'desc')));
-        const adminNotifications = snap.docs.map(d => {
+        const adminNotificationsAll = snap.docs.map(d => {
           const data = d.data() as AdminNotification;
           return {
             id: d.id,
@@ -339,6 +357,8 @@ const Notifications: React.FC = () => {
             timestamp: data.createdAt?.toMillis?.() || 0,
           } as UnifiedNotification;
         });
+        // De-duplicate: exclude admin notifications that reference support tickets
+        const adminNotifications = adminNotificationsAll.filter(n => String(n.relatedEntityType || '').toLowerCase() !== 'support_ticket');
         latestAdmin = adminNotifications;
 
         // Initial fetch: Support Tickets
@@ -394,7 +414,7 @@ const Notifications: React.FC = () => {
         const unsubscribeAdminNotifications = onSnapshot(
           query(adminNotificationsCollection(db), orderBy('createdAt', 'desc')),
           (snapshot) => {
-            latestAdmin = snapshot.docs.map(doc => {
+            const all = snapshot.docs.map(doc => {
               const data = doc.data() as AdminNotification;
               return {
                 id: doc.id,
@@ -411,6 +431,7 @@ const Notifications: React.FC = () => {
                 timestamp: data.createdAt?.toMillis?.() || 0,
               } as UnifiedNotification;
             });
+            latestAdmin = all.filter(n => String(n.relatedEntityType || '').toLowerCase() !== 'support_ticket');
             setItems([...(latestAdmin || []), ...(latestTickets || [])]);
           },
           (error) => {

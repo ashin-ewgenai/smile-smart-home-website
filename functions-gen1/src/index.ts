@@ -72,6 +72,52 @@ export const checkExpiredWarranties = functions.pubsub
   });
 
 /**
+ * Gen 1 Firestore trigger: When a support ticket is created by a user,
+ * create an admin notification so the admin bell can show an unread red dot.
+ * Path: Support_Tickets/{ticketId}
+ */
+export const onSupportTicketCreated = functions.firestore
+  .document("Support_Tickets/{ticketId}")
+  .onCreate(async (snap) => {
+    try {
+      const data = (snap.data() || {}) as Record<string, any>;
+      const ticketId = snap.id;
+      const uid = (data.uid || data.userUid || "").toString();
+      const description = (data.description || data.message || "").toString();
+      const createdAt = data.createdAt || FieldValue.serverTimestamp();
+
+      // Resolve customer email from Accounts/{uid} if missing on the ticket
+      let email: string | null = (data.email || data.userEmail || null) ? String(data.email || data.userEmail) : null;
+      if (!email && uid) {
+        try {
+          const acc = await db.collection("Accounts").doc(uid).get();
+          email = ((acc.data() as any)?.Email || null) ? String((acc.data() as any).Email) : null;
+        } catch {}
+      }
+
+      const title = email ? `New Support Ticket from ${email}` : `New Support Ticket`;
+      const message = description || "A new support ticket has been submitted.";
+
+      await db.collection("Admin_Notifications").add({
+        title,
+        message,
+        type: "support_ticket",
+        status: "unread",
+        createdAt,
+        priority: "high",
+        customerEmail: email,
+        customerUid: uid || null,
+        relatedEntityId: ticketId,
+        relatedEntityType: "support_ticket",
+      });
+    } catch {
+      // Best-effort only
+      return null;
+    }
+    return null;
+  });
+
+/**
  * Gen 1 Firestore trigger: When a new contact request is created, create an admin notification.
  * Path: contactRequests/{docId}
  */

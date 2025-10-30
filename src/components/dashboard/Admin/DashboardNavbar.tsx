@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Menu, X, User, LogOut, Bell, ArrowLeft, Crown } from 'lucide-react';
 import { onSnapshot, query, where, limit, orderBy } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
-import { adminNotificationsCollection, userNotificationsCollection } from '../../../models/Collections';
+import { adminNotificationsCollection, userNotificationsCollection, supportTicketsCollection } from '../../../models/Collections';
 import { Link } from 'react-router-dom';
 import { handleLogout } from './LogoutHandler';
 import DarkModeToggle from '../../ui/DarkModeToggle';
@@ -47,75 +47,59 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
   // Listen for unread notifications and toggle red dot
   useEffect(() => {
     if (userType === 'admin') {
-      // For admins, respect rules that may scope reads by adminUid
+      // Admin bell: combine unread Admin_Notifications (excluding support_ticket) and open Support_Tickets
       let unsubAuth: any;
-      let unsubTargeted: any;
-      let unsubGlobal: any;
+      let unsubAdmin: any;
+      let unsubTickets: any;
       try {
         unsubAuth = auth.onAuthStateChanged((user) => {
           // Cleanup previous listeners when auth changes
-          try { if (unsubTargeted) unsubTargeted(); } catch {}
-          try { if (unsubGlobal) unsubGlobal(); } catch {}
-          if (!user?.uid) {
-            setHasUnread(false);
-            return;
-          }
+          try { if (unsubAdmin) unsubAdmin(); } catch {}
+          try { if (unsubTickets) unsubTickets(); } catch {}
+          if (!user?.uid) { setHasUnread(false); return; }
+
+          let adminHasUnread = false;
+          let ticketsHasUnread = false;
+          const compute = () => setHasUnread(adminHasUnread || ticketsHasUnread);
+
+          // Unread admin notifications only, exclude support_ticket client-side
           try {
-            // Admin-specific notifications
-            const q1 = query(
+            const qAdmin = query(
               adminNotificationsCollection(db),
-              where('adminUid', '==', user.uid),
-              orderBy('createdAt', 'desc'),
-              limit(25)
+              where('status', '==', 'unread'),
+              limit(50)
             );
-            // Global admin notifications (broadened: no adminUid filter; rules must gate access)
-            const q2 = query(
-              adminNotificationsCollection(db),
-              orderBy('createdAt', 'desc'),
-              limit(25)
-            );
-            let latestTargetedUnread = false;
-            let latestGlobalUnread = false;
-            const compute = () => setHasUnread(latestTargetedUnread || latestGlobalUnread);
-            unsubTargeted = onSnapshot(q1, (snap) => {
-              latestTargetedUnread = snap.docs.some((d) => {
+            unsubAdmin = onSnapshot(qAdmin, (snap) => {
+              adminHasUnread = snap.docs.some((d) => {
                 const data: any = d.data();
-                const status = String((data?.status ?? data?.Status ?? '') as string).toLowerCase();
-                const readFlag = (data?.read ?? data?.isRead) as boolean | undefined;
-                return status === 'unread' || readFlag === false;
+                const relatedType = String((data?.relatedEntityType ?? '') as string).toLowerCase();
+                return relatedType !== 'support_ticket';
               });
               compute();
-            }, (err) => {
-              try { console.warn('Admin targeted notifications error:', err?.message || err); } catch {}
-              latestTargetedUnread = false;
-              compute();
-            });
-            unsubGlobal = onSnapshot(q2, (snap) => {
-              latestGlobalUnread = snap.docs.some((d) => {
-                const data: any = d.data();
-                const status = String((data?.status ?? data?.Status ?? '') as string).toLowerCase();
-                const readFlag = (data?.read ?? data?.isRead) as boolean | undefined;
-                return status === 'unread' || readFlag === false;
+            }, () => { adminHasUnread = false; compute(); });
+          } catch { adminHasUnread = false; compute(); }
+
+          // Support tickets considered unread when status not in ack/closed/resolved/archived
+          try {
+            const qTickets = query(
+              supportTicketsCollection(db),
+              limit(50)
+            );
+            unsubTickets = onSnapshot(qTickets, (snap) => {
+              ticketsHasUnread = snap.docs.some((d) => {
+                const st = String(((d.data() as any)?.status || '') as string).toLowerCase();
+                return st !== 'ack' && st !== 'closed' && st !== 'resolved' && st !== 'archived';
               });
               compute();
-            }, (err) => {
-              try { console.warn('Admin global notifications error:', err?.message || err); } catch {}
-              latestGlobalUnread = false;
-              compute();
-            });
-          } catch (err) {
-            try { console.warn('Admin notifications setup error:', (err as any)?.message || err); } catch {}
-            setHasUnread(false);
-          }
+            }, () => { ticketsHasUnread = false; compute(); });
+          } catch { ticketsHasUnread = false; compute(); }
         });
         return () => {
-          try { if (unsubTargeted) unsubTargeted(); } catch {}
-          try { if (unsubGlobal) unsubGlobal(); } catch {}
+          try { if (unsubAdmin) unsubAdmin(); } catch {}
+          try { if (unsubTickets) unsubTickets(); } catch {}
           try { if (unsubAuth) unsubAuth(); } catch {}
         };
-      } catch {
-        setHasUnread(false);
-      }
+      } catch { setHasUnread(false); }
     } else {
       // user navbar: show dot when the current user has unread notifications
       let unsubAuth: any;

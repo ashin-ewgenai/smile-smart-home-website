@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.checkExpiredWarranties = void 0;
+exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.onSupportTicketCreated = exports.checkExpiredWarranties = void 0;
 /**
  * Scheduled function: scan user devices and create an unread 'warranty' notification
  * in User_Notifications for any user who has at least one expired warranty.
@@ -115,6 +115,50 @@ exports.checkExpiredWarranties = functions.pubsub
         }
     }
     catch { }
+    return null;
+});
+/**
+ * Gen 1 Firestore trigger: When a support ticket is created by a user,
+ * create an admin notification so the admin bell can show an unread red dot.
+ * Path: Support_Tickets/{ticketId}
+ */
+exports.onSupportTicketCreated = functions.firestore
+    .document("Support_Tickets/{ticketId}")
+    .onCreate(async (snap) => {
+    try {
+        const data = (snap.data() || {});
+        const ticketId = snap.id;
+        const uid = (data.uid || data.userUid || "").toString();
+        const description = (data.description || data.message || "").toString();
+        const createdAt = data.createdAt || firestore_1.FieldValue.serverTimestamp();
+        // Resolve customer email from Accounts/{uid} if missing on the ticket
+        let email = (data.email || data.userEmail || null) ? String(data.email || data.userEmail) : null;
+        if (!email && uid) {
+            try {
+                const acc = await db.collection("Accounts").doc(uid).get();
+                email = (acc.data()?.Email || null) ? String(acc.data().Email) : null;
+            }
+            catch { }
+        }
+        const title = email ? `New Support Ticket from ${email}` : `New Support Ticket`;
+        const message = description || "A new support ticket has been submitted.";
+        await db.collection("Admin_Notifications").add({
+            title,
+            message,
+            type: "support_ticket",
+            status: "unread",
+            createdAt,
+            priority: "high",
+            customerEmail: email,
+            customerUid: uid || null,
+            relatedEntityId: ticketId,
+            relatedEntityType: "support_ticket",
+        });
+    }
+    catch {
+        // Best-effort only
+        return null;
+    }
     return null;
 });
 /**
