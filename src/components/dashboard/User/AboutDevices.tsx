@@ -286,7 +286,7 @@ const AboutDevices: React.FC = () => {
         .dark .about-devices-select option { background-color: #111827; color: #e5e7eb; }
       `}</style>
       <div className="flex flex-col gap-4 mb-6">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Devices</h1>
           <p className="text-xs text-gray-600 dark:text-gray-400 m-0">{devices.length} total • {filtered.length} shown</p>
         </div>
