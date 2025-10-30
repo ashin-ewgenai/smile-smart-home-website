@@ -50,6 +50,7 @@ export default function DeviceForm() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [editImageFile, setEditImageFile] = useState<File | null>(null);
   const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
   type DeviceDoc = {
     id: string;
     name: string;
@@ -486,7 +487,35 @@ export default function DeviceForm() {
 
   return (
     <>
-      
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-semibold text-gray-800 dark:text-white inline-flex items-center gap-2">
+          Devices
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-cpu h-5 w-5" aria-hidden="true"><path d="M12 20v2"></path><path d="M12 2v2"></path><path d="M17 20v2"></path><path d="M17 2v2"></path><path d="M2 12h2"></path><path d="M2 17h2"></path><path d="M2 7h2"></path><path d="M20 12h2"></path><path d="M20 17h2"></path><path d="M20 7h2"></path><path d="M7 20v2"></path><path d="M7 2v2"></path><rect x="4" y="4" width="16" height="16" rx="2"></rect><rect x="8" y="8" width="8" height="8" rx="1"></rect></svg>
+        </h1>
+        <div className="flex items-center gap-2">
+          {!showForm && (
+            <button
+              type="button"
+              onClick={() => setShowForm(true)}
+              className="inline-flex items-center px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+            >
+              Add New Device
+            </button>
+          )}
+          {showForm && (
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="inline-flex items-center px-4 py-2 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Hide Form
+            </button>
+          )}
+        </div>
+      </div>
+
+      {showForm && (
+        <>
 
       {/* Persistent embedded product (after Add) */}
       {embeddedPreview && (
@@ -741,12 +770,21 @@ export default function DeviceForm() {
       </div>
 
       <div className="flex items-center justify-end gap-3 pt-2">
-        <a href="/dashboard/admin/devices" className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</a>
+        <button
+          type="button"
+          onClick={() => setShowForm(false)}
+          className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+        >
+          Cancel
+        </button>
         <button type="submit" className="inline-flex items-center px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500" disabled={!canSubmit}>
           {submitting ? 'Saving…' : 'Save Device'}
         </button>
       </div>
     </form>
+
+        </>
+      )}
 
       {/* Devices list */}
       <section className="mt-8">
