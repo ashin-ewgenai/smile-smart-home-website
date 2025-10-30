@@ -55,7 +55,6 @@ const EstimationTool: React.FC = () => {
             setShowCreateForm(false);
           }
         } catch (err) {
-          console.error('Error loading quote:', err);
           setError('Failed to load the requested quote.');
         }
       } else {
@@ -237,17 +236,14 @@ const EstimationTool: React.FC = () => {
     try {
       const uid = auth.currentUser?.uid;
       if (!uid) {
-        console.log('[Debug] Auth: no user signed in');
         return { isAdmin: false as boolean, role: null as string | null };
       }
       const accRef = doc(db, 'Accounts', uid);
       const accSnap = await getDoc(accRef);
       const role = accSnap.exists() ? ((accSnap.data() as any)?.Role ?? null) : null;
       const isAdmin = role === 'admin' || role === 'Super Admin';
-      console.log('[Debug] Accounts role check', { uid, role, isAdmin });
       return { isAdmin, role };
     } catch (e) {
-      console.error('[Debug] Failed to read Accounts role', e);
       return { isAdmin: false as boolean, role: null as string | null };
     }
   }, []);
@@ -260,7 +256,6 @@ const EstimationTool: React.FC = () => {
   // Debug: subscribe to auth state to verify sign-in status on this origin
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
-      console.log('[Debug] Auth state', { uid: u?.uid || null, email: u?.email || null });
     });
     return () => unsub();
   }, []);
@@ -269,8 +264,6 @@ const EstimationTool: React.FC = () => {
   const onFilesSelected = async (files: FileList | null) => {
     if (!files) return;
     try {
-      // Debug: verify role at time of upload
-      await logCurrentUserRole();
       const uid = auth.currentUser?.uid;
       if (!uid) {
         alert('You must be signed in to upload attachments.');
@@ -287,7 +280,6 @@ const EstimationTool: React.FC = () => {
       }
       setCreateForm((p) => ({ ...p, attachments: [...(p.attachments || []), ...uploaded] }));
     } catch (e) {
-      console.error('Attachment upload failed:', e);
       alert('Failed to upload one or more attachments.');
     }
   };
@@ -329,7 +321,6 @@ const EstimationTool: React.FC = () => {
         });
       } catch (estimationError) {
         // Estimation quote might not exist yet, that's okay
-        // Removed console.log
       }
       
       // Update local state
@@ -347,7 +338,6 @@ const EstimationTool: React.FC = () => {
       
       alert('Quote has been confirmed and sent to the customer.');
     } catch (error) {
-      console.error('Error updating quote status:', error);
       alert('Failed to update quote status. Please try again.');
     }
   };
@@ -421,7 +411,6 @@ const EstimationTool: React.FC = () => {
       });
 
       // Save estimation quote
-      // Removed sensitive console.log
       await setDoc(estimationQuoteDoc(db, estimationId), payload);
       
       // Only update original quote status when sending to customer (Confirmed)
@@ -488,7 +477,6 @@ const EstimationTool: React.FC = () => {
         }]);
       }
     } catch (error) {
-      console.error('Error saving estimation quote:', error);
       alert('Failed to save quote. Please try again.');
     } finally {
       setSaving(false);
@@ -513,9 +501,7 @@ const EstimationTool: React.FC = () => {
       const notificationId = `notification_${Date.now()}_${customerUid}`;
       
       await setDoc(doc(userNotificationsCollection(db), notificationId), notificationData);
-      console.log('User notification created successfully for quote:', quoteId);
     } catch (error) {
-      console.error('Error creating user notification:', error);
       // Don't throw error to avoid breaking the main flow
     }
   };
@@ -547,7 +533,6 @@ const EstimationTool: React.FC = () => {
         })
       );
     } catch (err) {
-      console.error('Error fetching quotes:', err);
       setError('Failed to load quotes. Please try again later.');
     } finally {
       setLoading(false);

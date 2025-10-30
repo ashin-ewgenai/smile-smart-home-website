@@ -127,6 +127,7 @@ export default function DeviceForm() {
   };
   const [previewData, setPreviewData] = useState<ProductPreview | null>(null);
   const [embeddedPreview, setEmbeddedPreview] = useState<ProductPreview | null>(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Warranty helpers
   const formatWarranty = useCallback((value?: number, unit: 'months' | 'years' = 'months') => {
@@ -337,7 +338,7 @@ export default function DeviceForm() {
         if (!payload.documentation) delete payload.documentation;
         if (typeof payload.price === 'undefined' || payload.price === null) delete payload.price;
         await addDoc(devicesCollection(db), payload);
-        alert('Device added successfully.');
+        setShowSuccessModal(true);
         setValues((v) => ({ ...initialState, assignedToEmail: v.assignedToEmail }));
         setImageFile(null);
         // Stay on this page; the real-time list below will reflect the new device
@@ -1126,6 +1127,24 @@ export default function DeviceForm() {
                 className="px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
               >
                 Add to page
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowSuccessModal(false)} />
+          <div className="relative z-10 w-[95vw] max-w-sm bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-5">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">Success</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300">Device added successfully.</p>
+            <div className="mt-4 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowSuccessModal(false)}
+                className="px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+              >
+                OK
               </button>
             </div>
           </div>

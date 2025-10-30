@@ -26,6 +26,8 @@ const Reports: React.FC = () => {
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
   const [replyMap, setReplyMap] = useState<Record<string, string>>({});
   const [userCache, setUserCache] = useState<Record<string, { email?: string; displayName?: string; role?: string }>>({});
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [ticketToDelete, setTicketToDelete] = useState<Ticket | null>(null);
   // No URL rewriting: use the stored download URL directly (same approach as device images)
   // Load only tickets with status In Progress from Firestore
   useEffect(() => {
@@ -172,14 +174,25 @@ const Reports: React.FC = () => {
   };
 
   const deleteTicket = async (ticket: Ticket) => {
+    setTicketToDelete(ticket);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!ticketToDelete) return;
     try {
-      const ok = window.confirm('Delete this support ticket? This cannot be undone.');
-      if (!ok) return;
-      await deleteDoc(doc(db, 'Support_Tickets', ticket.id));
+      await deleteDoc(doc(db, 'Support_Tickets', ticketToDelete.id));
     } catch (e) {
-      console.error('Error deleting ticket:', e);
       setError('Failed to delete ticket.');
+    } finally {
+      setShowDeleteModal(false);
+      setTicketToDelete(null);
     }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setTicketToDelete(null);
   };
 
   return (
@@ -332,6 +345,31 @@ const Reports: React.FC = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={cancelDelete} />
+          <div className="relative z-10 w-[95vw] max-w-sm bg-white dark:bg-gray-900 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-5">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">Confirm Delete</h3>
+            <p className="text-sm text-gray-700 dark:text-gray-300">Delete this support ticket? This cannot be undone.</p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={cancelDelete}
+                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDelete}
+                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                OK
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
