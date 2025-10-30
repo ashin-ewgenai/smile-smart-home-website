@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.onSupportTicketCreate = exports.checkExpiredWarranties = void 0;
+exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.checkExpiredWarranties = void 0;
 /**
  * Scheduled function: scan user devices and create an unread 'warranty' notification
  * in User_Notifications for any user who has at least one expired warranty.
@@ -115,52 +115,6 @@ exports.checkExpiredWarranties = functions.pubsub
         }
     }
     catch { }
-    return null;
-});
-/**
- * Gen 1 Firestore trigger: When a support ticket is created by a user,
- * create an admin notification so admins are alerted in real-time.
- * Path: Support_Tickets/{ticketId}
- */
-exports.onSupportTicketCreate = functions.firestore
-    .document("Support_Tickets/{ticketId}")
-    .onCreate(async (snap, context) => {
-    try {
-        const data = (snap.data() || {});
-        const ticketId = context.params.ticketId;
-        const subject = (data.subject || "").toString();
-        const description = (data.description || "").toString();
-        const priorityRaw = (data.priority || "medium").toString().toLowerCase();
-        const priority = priorityRaw === "high" ? "high" : priorityRaw === "low" ? "low" : "medium";
-        // Attempt to resolve customer email from document or Accounts/{uid}
-        let customerEmail = (data?.email || data?.userEmail || "");
-        const uid = (data.uid || "").toString();
-        if (!customerEmail && uid) {
-            try {
-                const acc = await db.collection("Accounts").doc(uid).get();
-                customerEmail = (acc.data()?.Email || "");
-            }
-            catch { }
-        }
-        const title = "New Support Ticket";
-        const message = subject ? `Ticket: ${subject}` : description;
-        await db.collection("Admin_Notifications").add({
-            title,
-            message,
-            type: "support_ticket",
-            status: "unread",
-            createdAt: firestore_1.FieldValue.serverTimestamp(),
-            relatedEntityId: ticketId,
-            relatedEntityType: "ticket",
-            customerEmail: customerEmail || null,
-            customerUid: uid || null,
-            priority,
-        });
-    }
-    catch {
-        // Best-effort; avoid retries for transient failures
-        return null;
-    }
     return null;
 });
 /**

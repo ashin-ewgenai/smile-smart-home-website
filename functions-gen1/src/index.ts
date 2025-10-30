@@ -47,8 +47,6 @@ export const checkExpiredWarranties = functions.pubsub
           }
         } catch {}
       });
-
- 
       for (const uid of expiredUids) {
         try {
           const q = await db.collection("User_Notifications")
@@ -70,55 +68,6 @@ export const checkExpiredWarranties = functions.pubsub
         } catch {}
       }
     } catch {}
-    return null;
-  });
-
-/**
- * Gen 1 Firestore trigger: When a support ticket is created by a user,
- * create an admin notification so admins are alerted in real-time.
- * Path: Support_Tickets/{ticketId}
- */
-export const onSupportTicketCreate = functions.firestore
-  .document("Support_Tickets/{ticketId}")
-  .onCreate(async (snap, context) => {
-    try {
-      const data = (snap.data() || {}) as Record<string, any>;
-      const ticketId = context.params.ticketId as string;
-      const subject = (data.subject || "").toString();
-      const description = (data.description || "").toString();
-      const priorityRaw = (data.priority || "medium").toString().toLowerCase();
-      const priority: "high" | "medium" | "low" =
-        priorityRaw === "high" ? "high" : priorityRaw === "low" ? "low" : "medium";
-
-      // Attempt to resolve customer email from document or Accounts/{uid}
-      let customerEmail = ((data as any)?.email || (data as any)?.userEmail || "") as string;
-      const uid = (data.uid || "").toString();
-      if (!customerEmail && uid) {
-        try {
-          const acc = await db.collection("Accounts").doc(uid).get();
-          customerEmail = ((acc.data() as any)?.Email || "") as string;
-        } catch {}
-      }
-
-      const title = "New Support Ticket";
-      const message = subject ? `Ticket: ${subject}` : description;
-
-      await db.collection("Admin_Notifications").add({
-        title,
-        message,
-        type: "support_ticket",
-        status: "unread",
-        createdAt: FieldValue.serverTimestamp(),
-        relatedEntityId: ticketId,
-        relatedEntityType: "ticket",
-        customerEmail: customerEmail || null,
-        customerUid: uid || null,
-        priority,
-      });
-    } catch {
-      // Best-effort; avoid retries for transient failures
-      return null;
-    }
     return null;
   });
 
