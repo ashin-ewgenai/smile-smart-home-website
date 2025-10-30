@@ -321,7 +321,7 @@ const PlanLeads: React.FC = () => {
                   aria-expanded={openId === lead.id}
                   aria-controls={`lead-panel-${lead.id}`}
                 >
-                  <div className="absolute top-2 right-2">
+                  <div className="absolute bottom-2 right-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
@@ -336,8 +336,8 @@ const PlanLeads: React.FC = () => {
                   </div>
                   <div className="flex flex-col gap-2 min-w-0 pr-6">
                     <div className="min-w-0 pr-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      <div className="flex items-center gap-2 overflow-hidden">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
                           {lead.email || 'Unknown Email'}
                         </span>
                       </div>
