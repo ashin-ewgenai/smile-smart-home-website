@@ -151,12 +151,23 @@ const Notifications: React.FC = () => {
       setUpdating(key);
       if (!item.id) return;
       
-      // Support ticket notifications are derived from Support_Tickets and not stored in Admin_Notifications
-      // So don't attempt to update Admin_Notifications for them
-      const isSupportTicket = String(item.type || '').toLowerCase() === 'support_ticket' || String(item.relatedEntityType || '').toLowerCase() === 'support_ticket';
+      // Treat as support ticket when type or relatedEntityType matches
+      const isSupportTicket = String(item.relatedEntityType || item.type || '').toLowerCase() === 'support_ticket';
       if (isSupportTicket) {
         // Persist read state for tickets as acknowledged
-        try { await updateDoc(supportTicketDoc(db, item.id), { status: 'ack' } as any); } catch {}
+        const targetId = item.relatedEntityId || item.id;
+        try {
+          await updateDoc(supportTicketDoc(db, targetId), { status: 'ack' } as any);
+        } catch (e: any) {
+          // If the support ticket doc doesn't exist, fall back to marking admin notification as read
+          const msg = String(e?.message || '');
+          const code = String(e?.code || '');
+          if (code === 'not-found' || msg.includes('No document to update')) {
+            await updateDoc(adminNotificationDoc(db, item.id!), { status: 'read' });
+          } else {
+            throw e;
+          }
+        }
       } else {
         // Update admin notification status to 'read'
         await updateDoc(adminNotificationDoc(db, item.id), { status: 'read' });
@@ -179,13 +190,27 @@ const Notifications: React.FC = () => {
     
     try {
       setUpdating(`delete:${item.id}`);
-      const isSupportTicket = String(item.type || '').toLowerCase() === 'support_ticket' || String(item.relatedEntityType || '').toLowerCase() === 'support_ticket';
+      const isSupportTicket = String(item.relatedEntityType || item.type || '').toLowerCase() === 'support_ticket';
       if (isSupportTicket) {
         // Close the support ticket instead of deleting a notification doc
-        await updateDoc(supportTicketDoc(db, item.id), { status: 'closed' });
-        // Remove from local UI immediately
-        setItems(prev => prev.filter(i => i.id !== item.id));
-        showToast('Support ticket closed', 'success');
+        const targetId = item.relatedEntityId || item.id;
+        try {
+          await updateDoc(supportTicketDoc(db, targetId), { status: 'closed' });
+          // Remove from local UI immediately
+          setItems(prev => prev.filter(i => i.id !== item.id));
+          showToast('Support ticket closed', 'success');
+        } catch (e: any) {
+          // If ticket isn't found, delete the admin notification as a fallback
+          const msg = String(e?.message || '');
+          const code = String(e?.code || '');
+          if (code === 'not-found' || msg.includes('No document to update')) {
+            await deleteDoc(adminNotificationDoc(db, item.id));
+            setItems(prev => prev.filter(i => i.id !== item.id));
+            showToast('Notification removed', 'success');
+          } else {
+            throw e;
+          }
+        }
       } else {
         // Delete admin notification
         await deleteDoc(adminNotificationDoc(db, item.id));
