@@ -566,7 +566,7 @@ const EstimationTool: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-8">
+        <div className="glass-surface rounded-[24px] px-4 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent inline-flex items-center gap-2">
               Quote Management
@@ -587,11 +587,11 @@ const EstimationTool: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-sm sm:text-base">
         {showCreateForm ? (
           <div className="lg:col-span-3">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 p-6">
+            <div className="bg-white/95 dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
               <div className="mb-6 flex items-start justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Create Estimation Quote</h2>
-                  <div className="h-1 w-20 bg-teal/70 rounded-full" />
+                  <div className="h-1 w-20 bg-teal-500/70 rounded-full" />
                 </div>
                 <button
                   type="button"
@@ -765,7 +765,7 @@ const EstimationTool: React.FC = () => {
                   <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Products & Services</h3>
                   <div className="overflow-x-auto -mx-4 sm:mx-0">
                     <table className="min-w-full table-auto divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead>
+                      <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
                         <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
                           <th className="px-2 py-2 min-w-[140px] text-left">Product/Service</th>
                           <th className="px-2 py-2 min-w-[120px] text-left hidden sm:table-cell">Description</th>
@@ -790,7 +790,7 @@ const EstimationTool: React.FC = () => {
                                 <input
                                   type="text"
                                   placeholder="Product name"
-                                  className="w-full min-w-[120px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                                  className="w-full min-w-[120px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
                                   value={r.name}
                                   onChange={(e) => updateRow(r.id, { name: e.target.value })}
                                   onBlur={async () => {
@@ -809,7 +809,7 @@ const EstimationTool: React.FC = () => {
                                 <input
                                   type="text"
                                   placeholder="Description"
-                                  className="w-full min-w-[100px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                                  className="w-full min-w-[100px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
                                   value={r.description}
                                   onChange={(e) => updateRow(r.id, { description: e.target.value })}
                                   onFocus={async () => {
@@ -830,7 +830,7 @@ const EstimationTool: React.FC = () => {
                                   min={1}
                                   inputMode="numeric"
                                   onFocus={(e) => e.currentTarget.select()}
-                                  className="no-spin w-full min-w-[50px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                                  className="no-spin w-full min-w-[50px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
                                   value={r.quantity}
                                   onChange={(e) => updateRow(r.id, { quantity: Number(e.target.value) })}
                                 />
@@ -852,7 +852,7 @@ const EstimationTool: React.FC = () => {
                                       if (Object.keys(patch).length) updateRow(r.id, patch);
                                     } catch {}
                                   }}
-                                  className="no-spin w-full min-w-[70px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                                  className="no-spin w-full min-w-[70px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
                                   value={r.unitPrice}
                                   onChange={(e) => updateRow(r.id, { unitPrice: Number(e.target.value) })}
                                 />
@@ -866,7 +866,7 @@ const EstimationTool: React.FC = () => {
                                   inputMode="decimal"
                                   placeholder="%"
                                   onFocus={(e) => e.currentTarget.select()}
-                                  className="no-spin w-full min-w-[60px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
+                                  className="no-spin w-full min-w-[60px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
                                   value={r.discount || ''}
                                   onChange={(e) => updateRow(r.id, { discount: e.target.value === '' ? 0 : Number(e.target.value) })}
                                 />
@@ -907,7 +907,7 @@ const EstimationTool: React.FC = () => {
                           max={100}
                           step="0.01"
                           inputMode="decimal"
-                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm"
                           value={createForm.overallDiscountPercent || ''}
                           onChange={(e) => setCreateForm({ ...createForm, overallDiscountPercent: e.target.value === '' ? 0 : Number(e.target.value) })}
                         />
@@ -916,7 +916,7 @@ const EstimationTool: React.FC = () => {
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tax Type</label>
                           <select
-                            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm"
                             value={createForm.taxType}
                             onChange={(e) => setCreateForm({ ...createForm, taxType: e.target.value as 'GST' | 'Custom' })}
                           >
@@ -931,7 +931,7 @@ const EstimationTool: React.FC = () => {
                             max={100}
                             step="0.01"
                             inputMode="decimal"
-                            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm"
+                            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm"
                             value={createForm.taxPercent || ''}
                             onChange={(e) => setCreateForm({ ...createForm, taxPercent: e.target.value === '' ? 0 : Number(e.target.value) })}
                           />
@@ -960,7 +960,7 @@ const EstimationTool: React.FC = () => {
                             <input
                               type="text"
                               placeholder="Tax name (e.g., SGST)"
-                              className="col-span-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1.5"
+                              className="col-span-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm px-2 py-1.5"
                               value={t.name}
                               onChange={(e) => setCreateForm((p) => {
                                 const taxes = [...(p.taxes || [])];
@@ -975,7 +975,7 @@ const EstimationTool: React.FC = () => {
                               step="0.01"
                               inputMode="decimal"
                               placeholder="%"
-                              className="col-span-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm px-2 py-1.5"
+                              className="col-span-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm px-2 py-1.5"
                               value={t.percent || ''}
                               onChange={(e) => setCreateForm((p) => {
                                 const taxes = [...(p.taxes || [])];
@@ -995,19 +995,19 @@ const EstimationTool: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Shipping/Delivery Charges</label>
-                        <input type="number" min={0} step="0.01" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.shippingCharges || ''} onChange={(e) => setCreateForm({ ...createForm, shippingCharges: e.target.value === '' ? 0 : Number(e.target.value) })} />
+                        <input type="number" min={0} step="0.01" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.shippingCharges || ''} onChange={(e) => setCreateForm({ ...createForm, shippingCharges: e.target.value === '' ? 0 : Number(e.target.value) })} />
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Installation/Service Charges</label>
-                        <input type="number" min={0} step="0.01" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.installationCharges || ''} onChange={(e) => setCreateForm({ ...createForm, installationCharges: e.target.value === '' ? 0 : Number(e.target.value) })} />
+                        <input type="number" min={0} step="0.01" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.installationCharges || ''} onChange={(e) => setCreateForm({ ...createForm, installationCharges: e.target.value === '' ? 0 : Number(e.target.value) })} />
                       </div>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-700 rounded-md p-4 flex items-center justify-between">
+                    <div className="bg-gray-50 dark:bg-gray-800 rounded-md p-4 flex items-center justify-between">
                       <span className="text-base font-medium text-gray-900 dark:text-white">Grand Total</span>
                       <span className="text-xl font-semibold text-teal-600">{totals.grand.toFixed(2)}</span>
                     </div>
                     {/* Payable Summary */}
-                    <div className="mt-2 bg-gray-50 dark:bg-gray-700 rounded-md p-4 space-y-1 text-sm">
+                    <div className="mt-2 bg-gray-50 dark:bg-gray-800 rounded-md p-4 space-y-1 text-sm">
                       <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Total Price</span><span className="text-gray-900 dark:text-white">{totals.subtotal.toFixed(2)}</span></div>
                       <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Discount</span><span className="text-gray-900 dark:text-white">-{totals.discountAmount.toFixed(2)}</span></div>
                       <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Tax</span><span className="text-gray-900 dark:text-white">{totals.taxes.toFixed(2)}</span></div>
@@ -1019,12 +1019,14 @@ const EstimationTool: React.FC = () => {
                 </div>
 
                 {/* Terms & Conditions */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Terms & Conditions</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="bg-white/95 dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
+                  <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+                    <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Terms & Conditions</h2>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-6">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Payment Terms</label>
-                      <select className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.paymentTerms} onChange={(e) => setCreateForm({ ...createForm, paymentTerms: e.target.value })}>
+                      <select className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.paymentTerms} onChange={(e) => setCreateForm({ ...createForm, paymentTerms: e.target.value })}>
                         <option value="">Not selected</option>
                         <option>Advance 50% / Balance Net 15</option>
                         <option>Advance 30% / Balance Net 30</option>
@@ -1034,44 +1036,48 @@ const EstimationTool: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Warranty / Support</label>
-                      <input type="text" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.warranty} onChange={(e) => setCreateForm({ ...createForm, warranty: e.target.value })} placeholder="e.g., 1 year standard warranty" />
+                      <input type="text" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.warranty} onChange={(e) => setCreateForm({ ...createForm, warranty: e.target.value })} placeholder="e.g., 1 year standard warranty" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Delivery Timeline</label>
-                      <input type="text" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.deliveryTimeline} onChange={(e) => setCreateForm({ ...createForm, deliveryTimeline: e.target.value })} placeholder="e.g., 2-3 weeks from order" />
+                      <input type="text" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.deliveryTimeline} onChange={(e) => setCreateForm({ ...createForm, deliveryTimeline: e.target.value })} placeholder="e.g., 2-3 weeks from order" />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
-                      <textarea rows={4} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" value={createForm.notes} onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })} />
+                      <textarea rows={4} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.notes} onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })} />
                     </div>
                   </div>
                 </div>
 
                 {/* Attachments */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Attachments</h3>
-                  <input
-                    type="file"
-                    multiple
-                    className="block w-full text-sm text-gray-700 dark:text-gray-300"
-                    onChange={(e) => onFilesSelected(e.target.files)}
-                  />
-                  {Array.isArray(createForm.attachments) && createForm.attachments.length > 0 && (
-                    <ul className="mt-2 list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                      {createForm.attachments.map((url, idx) => (
-                        <li key={idx} className="flex items-center gap-2">
-                          <a href={url} target="_blank" rel="noreferrer" className="text-teal-600 dark:text-teal-400 hover:underline">Attachment {idx + 1}</a>
-                          <button
-                            type="button"
-                            className="text-xs text-red-600 dark:text-red-400 hover:underline"
-                            onClick={() => setCreateForm((p) => ({ ...p, attachments: (p.attachments || []).filter((_, i) => i !== idx) }))}
-                          >
-                            Remove
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+                <div className="bg-white/95 dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
+                  <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+                    <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Attachments</h2>
+                  </div>
+                  <div className="p-6">
+                    <input
+                      type="file"
+                      multiple
+                      className="block w-full text-sm text-gray-700 dark:text-gray-300"
+                      onChange={(e) => onFilesSelected(e.target.files)}
+                    />
+                    {Array.isArray(createForm.attachments) && createForm.attachments.length > 0 && (
+                      <ul className="mt-2 list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                        {createForm.attachments.map((url, idx) => (
+                          <li key={idx} className="flex items-center gap-2">
+                            <a href={url} target="_blank" rel="noreferrer" className="text-teal-600 dark:text-teal-400 hover:underline">Attachment {idx + 1}</a>
+                            <button
+                              type="button"
+                              className="text-xs text-red-600 dark:text-red-400 hover:underline"
+                              onClick={() => setCreateForm((p) => ({ ...p, attachments: (p.attachments || []).filter((_, i) => i !== idx) }))}
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
                 </div>
 
                 {/* Actions */}
@@ -1163,7 +1169,7 @@ const EstimationTool: React.FC = () => {
           </div>
         ) : (
           <div className="lg:col-span-2">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800">
+            <div className="bg-white/95 dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
               <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
                 <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Pending Quotes</h2>
               </div>
@@ -1203,7 +1209,7 @@ const EstimationTool: React.FC = () => {
         {showPdfPreview && (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/50" onClick={() => setShowPdfPreview(false)} />
-            <div className="relative z-10 bg-white dark:bg-gray-900 rounded-xl shadow-xl w-[95vw] h-[90vh] max-w-6xl border border-gray-200 dark:border-gray-700 flex flex-col">
+            <div className="relative z-10 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-[95vw] h-[90vh] max-w-6xl border border-gray-200 dark:border-gray-700 flex flex-col">
               <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="text-base font-semibold text-gray-900 dark:text-white">Estimate Preview</h3>
                 <div className="flex items-center gap-2">
