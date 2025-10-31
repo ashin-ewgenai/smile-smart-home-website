@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Menu, X, User, LogOut, Settings, ArrowLeft, Moon, Sun, Bell } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { onSnapshot, query, where, limit, doc, getDoc } from 'firebase/firestore';
+import { onSnapshot, query, where, limit, doc, getDoc, getDocs, updateDoc } from 'firebase/firestore';
 import { auth, db, storage } from '../../../lib/firebase';
-import { userNotificationsCollection } from '../../../models/Collections';
+import { userNotificationsCollection, userDevicesCollection, createWarrantyExpiryNotification, userNotificationDoc } from '../../../models/Collections';
 import { handleLogout } from './LogoutHandler';
 import { getDownloadURL, listAll, ref as storageRef } from 'firebase/storage';
 
@@ -153,6 +153,8 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
       try { localStorage.setItem('hasUnreadNotifications', '0'); } catch {}
     }
   }, []);
+
+  
 
   const toggleDarkMode = () => {
     const next = !darkMode;

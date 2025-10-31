@@ -33,12 +33,13 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.onSupportTicketCreated = exports.checkExpiredWarranties = void 0;
+exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.onSupportTicketCreatedGen1 = exports.checkExpiredWarranties = exports.onUserDeviceWriteWarrantyNotify = void 0;
 /**
- * Scheduled function: scan user devices and create an unread 'warranty' notification
- * in User_Notifications for any user who has at least one expired warranty.
- *
- * Runs daily; idempotent per user via deterministic ID 'warranty_<uid>'.
+ * Warranty notifications
+ * - Firestore trigger: on write to User_Devices, evaluate warranty and create/update
+ *   unread 'warranty_expiry' notifications per device/serial.
+ * - Scheduled function: daily sweep to ensure expired warranties still have an unread
+ *   'warranty_expiry' notification for the user if at least one device is expired.
  */
 const functions = __importStar(require("firebase-functions/v1"));
 const app_1 = require("firebase-admin/app");
@@ -49,13 +50,123 @@ if (!(0, app_1.getApps)().length) {
     (0, app_1.initializeApp)();
 }
 const db = (0, firestore_1.getFirestore)();
+function toMillisFlexible(v) {
+    try {
+        if (!v && v !== 0)
+            return null;
+        if (v && typeof v === "object" && typeof v.toDate === "function") {
+            return v.toDate().getTime();
+        }
+        if (typeof v === "number") {
+            // If seconds, convert to ms
+            return v < 1e12 ? v * 1000 : v;
+        }
+        if (typeof v === "string") {
+            const t = Date.parse(v);
+            return Number.isNaN(t) ? null : t;
+        }
+    }
+    catch { }
+    return null;
+}
+function extractExpiryCandidates(data) {
+    const out = [];
+    try {
+        const pushIfValid = (v) => {
+            const ms = toMillisFlexible(v);
+            if (ms != null)
+                out.push(ms);
+        };
+        pushIfValid(data?.warrantyExpiry);
+        pushIfValid(data?.warrantyEnd);
+        pushIfValid(data?.warrantyExpiryDate);
+        pushIfValid(data?.warrantyEndDate);
+        if (Array.isArray(data?.serials)) {
+            for (const s of data.serials) {
+                pushIfValid(s?.warrantyExpiry);
+                pushIfValid(s?.expiryDate);
+                pushIfValid(s?.warrantyEnd);
+            }
+        }
+    }
+    catch { }
+    return out;
+}
+async function ensureUnreadWarrantyNotification(params) {
+    const { uid, deviceId, deviceName, expiryAt, expired } = params;
+    const message = expired
+        ? `${deviceName || "Your device"} warranty expired on ${new Date(expiryAt).toLocaleDateString()}.`
+        : `${deviceName || "Your device"} warranty expires on ${new Date(expiryAt).toLocaleDateString()}.`;
+    const title = deviceName ? `${deviceName} • Warranty Expiry` : "Warranty Expiry";
+    // Deterministic ID when deviceId is present, else per-user aggregate
+    const baseId = deviceId ? `warranty_${uid}_${deviceId}` : `warranty_${uid}`;
+    await db.collection("User_Notifications").doc(baseId).set({
+        uid,
+        title,
+        message,
+        type: "warranty_expiry",
+        // Always ensure it's marked unread so the bell shows
+        status: "unread",
+        relatedDeviceId: deviceId || null,
+        deviceName: deviceName || null,
+        expiryAt,
+        expired,
+        createdAt: firestore_1.FieldValue.serverTimestamp(),
+    }, { merge: true });
+}
+exports.onUserDeviceWriteWarrantyNotify = functions.firestore
+    .document("User_Devices/{docId}")
+    .onWrite(async (change, context) => {
+    try {
+        const after = change.after.exists ? change.after.data() : null;
+        const before = change.before.exists ? change.before.data() : null;
+        const data = after || before;
+        if (!data)
+            return;
+        const uid = data.uid;
+        if (!uid)
+            return;
+        const deviceId = context.params.docId;
+        const deviceName = data?.deviceName || data?.name || "Your device";
+        const candidates = extractExpiryCandidates(data);
+        if (!candidates.length)
+            return;
+        const now = Date.now();
+        const in30Days = now + 30 * 24 * 60 * 60 * 1000;
+        // Choose the nearest upcoming (<= 30 days) or any expired (any time in the past)
+        let chosen = null;
+        for (const t of candidates) {
+            if (t <= now || t <= in30Days) {
+                if (chosen == null)
+                    chosen = t;
+                else
+                    chosen = Math.min(chosen, t);
+            }
+        }
+        if (chosen == null)
+            return;
+        await ensureUnreadWarrantyNotification({
+            uid,
+            deviceId,
+            deviceName,
+            expiryAt: chosen,
+            expired: chosen <= now,
+        });
+    }
+    catch (e) {
+        // Swallow errors to avoid retries storm
+    }
+});
 exports.checkExpiredWarranties = functions.pubsub
     .schedule("every 24 hours")
     .timeZone("UTC")
     .onRun(async () => {
     const nowMs = Date.now();
     try {
-        const userDevicesSnap = await db.collection("User_Devices").select("uid", "warrantyExpiry", "warrantyEnd", "serials").get();
+        const userDevicesSnap = await db
+            .collection("User_Devices")
+            .select("uid", "warrantyExpiry", "warrantyEnd", "warrantyExpiryDate", "warrantyEndDate", "serials")
+            .get();
         const expiredUids = new Set();
         userDevicesSnap.forEach((d) => {
             try {
@@ -63,27 +174,9 @@ exports.checkExpiredWarranties = functions.pubsub
                 const uid = data.uid;
                 if (!uid)
                     return;
-                const candidates = [];
-                if (data.warrantyExpiry != null)
-                    candidates.push(data.warrantyExpiry);
-                if (data.warrantyEnd != null)
-                    candidates.push(data.warrantyEnd);
-                if (Array.isArray(data.serials)) {
-                    for (const s of data.serials) {
-                        const v = s?.warrantyExpiry ?? s?.expiryDate ?? s?.warrantyEnd;
-                        if (v != null)
-                            candidates.push(v);
-                    }
-                }
-                for (const v of candidates) {
-                    let t = NaN;
-                    if (v && typeof v === "object" && typeof v.toDate === "function")
-                        t = v.toDate().getTime();
-                    else if (typeof v === "number")
-                        t = v < 1e12 ? v * 1000 : v;
-                    else if (typeof v === "string")
-                        t = Date.parse(v);
-                    if (!Number.isNaN(t) && t <= nowMs) {
+                const candidates = extractExpiryCandidates(data);
+                for (const t of candidates) {
+                    if (t <= nowMs) {
                         expiredUids.add(uid);
                         break;
                     }
@@ -93,23 +186,11 @@ exports.checkExpiredWarranties = functions.pubsub
         });
         for (const uid of expiredUids) {
             try {
-                const q = await db.collection("User_Notifications")
-                    .where("uid", "==", uid)
-                    .where("type", "==", "warranty")
-                    .where("status", "==", "unread")
-                    .limit(1)
-                    .get();
-                if (!q.empty)
-                    continue;
-                const notifId = `warranty_${uid}`;
-                await db.collection("User_Notifications").doc(notifId).set({
+                await ensureUnreadWarrantyNotification({
                     uid,
-                    title: "Warranty Expired",
-                    message: "One or more device warranties have expired. Please review your devices.",
-                    type: "warranty",
-                    status: "unread",
-                    createdAt: firestore_1.FieldValue.serverTimestamp(),
-                }, { merge: true });
+                    expiryAt: nowMs, // aggregate notice doesn't have a specific device; use now
+                    expired: true,
+                });
             }
             catch { }
         }
@@ -122,7 +203,7 @@ exports.checkExpiredWarranties = functions.pubsub
  * create an admin notification so the admin bell can show an unread red dot.
  * Path: Support_Tickets/{ticketId}
  */
-exports.onSupportTicketCreated = functions.firestore
+exports.onSupportTicketCreatedGen1 = functions.firestore
     .document("Support_Tickets/{ticketId}")
     .onCreate(async (snap) => {
     try {

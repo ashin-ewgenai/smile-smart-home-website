@@ -13,7 +13,8 @@ import {
   where,
   increment,
   limit,
-  setDoc
+  setDoc,
+  addDoc
 } from 'firebase/firestore';
 import { type Auth, type UserCredential, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 
@@ -458,6 +459,20 @@ export function userNotificationsCollection(db: Firestore): CollectionReference<
 
 export function userNotificationDoc(db: Firestore, id: string): DocumentReference<UserNotification> {
   return doc(db, COLLECTION_USER_NOTIFICATIONS, id) as DocumentReference<UserNotification>;
+}
+
+export async function createWarrantyExpiryNotification(db: Firestore, params: { uid: string; message: string; title?: string; [key: string]: any; }): Promise<void> {
+  const { uid, message, title = 'Warranty Expiry', ...rest } = params;
+  const payload = {
+    uid,
+    title,
+    message,
+    type: 'warranty_expiry',
+    status: 'unread',
+    createdAt: serverTimestamp(),
+    ...rest,
+  } as any;
+  await addDoc(userNotificationsCollection(db), payload);
 }
 
 // Admin Notifications collection

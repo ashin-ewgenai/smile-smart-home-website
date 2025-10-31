@@ -53,152 +53,6 @@ const NotificationsPage: React.FC = () => {
     return () => unsub();
   }, [userUid]);
 
-  // Warranty expiry detection and notification creation (re-enabled)
-  useEffect(() => {
-    if (!userUid) return;
-
-    const scanWarrantyAndNotify = async () => {
-      try {
-        // Get all user devices for this user
-        const qRef = query(userDevicesCollection(db), where('uid', '==', userUid));
-        const snap = await getDocs(qRef);
-
-        const now = Timestamp.now();
-
-        // Cache lookups to avoid repeated queries per key
-        const readKeyCache = new Map<string, boolean>();
-
-        // Guard: if any existing doc with same baseKey is already read, skip creating new docs
-        const hasReadForKey = async (baseKey: string): Promise<boolean> => {
-          if (readKeyCache.has(baseKey)) return readKeyCache.get(baseKey)!;
-          try {
-            // Prefer precise query if composite index exists
-            const qRead = query(
-              userNotificationsCollection(db),
-              where('uid', '==', userUid),
-              where('key', '==', baseKey),
-              where('status', '==', 'read')
-            );
-            const snapRead = await getDocs(qRead);
-            const found = snapRead.size > 0;
-            readKeyCache.set(baseKey, found);
-            return found;
-          } catch (e: any) {
-            // Fallback when composite index is missing: filter client-side
-            if (e?.code === 'failed-precondition') {
-              try {
-                const qKey = query(
-                  userNotificationsCollection(db),
-                  where('uid', '==', userUid),
-                  where('key', '==', baseKey)
-                );
-                const snapKey = await getDocs(qKey);
-                const found = snapKey.docs.some((d) => String((d.data() as any)?.status).toLowerCase() === 'read');
-                readKeyCache.set(baseKey, found);
-                return found;
-              } catch {
-                return false;
-              }
-            }
-            return false;
-          }
-        };
-
-        const createNotifIfMissing = async (
-          notifId: string,
-          payload: {
-            uid: string;
-            title: string;
-            message: string;
-            type: string;
-            status: 'unread' | 'read';
-            createdAt: Timestamp;
-            deviceId?: string;
-            serialNumber?: string;
-            warrantyExpiry?: string;
-            key?: string;
-          }
-        ) => {
-          const ref = userNotificationDoc(db, notifId);
-          // Only create if missing; do NOT overwrite existing doc (preserve read status)
-          let exists = false;
-          try {
-            const snap = await getDoc(ref);
-            exists = snap.exists();
-          } catch {}
-          if (exists) {
-            return;
-          }
-          try {
-            await setDoc(ref, payload);
-          } catch (err) {
-            throw err;
-          }
-        };
-
-        for (const d of snap.docs) {
-          const data = d.data() as any;
-          const deviceId = d.id;
-          const deviceName = data.deviceName || data.name || 'Device';
-          const serials: any[] = Array.isArray(data.serials) ? data.serials : [];
-          
-
-          for (let idx = 0; idx < serials.length; idx++) {
-            const s = serials[idx] || {};
-            const expiry = getExpiryFromSerial(s, data);
-            if (!expiry) { continue; }
-
-            const expired = isPast(expiry);
-            const days = daysUntil(expiry);
-            // Always create a notification if an expiry exists, regardless of days remaining
-            const typeKey = expired ? 'warranty_expired' : 'warranty_expiring';
-
-            const serialKey = String(s.serialNumber || s.serial || idx);
-            const baseKey = `${userUid}:${deviceId}:${serialKey}`;
-
-            // Guard: if a read notification exists for this key, skip creating any new one
-            const alreadyRead = await hasReadForKey(baseKey);
-            if (alreadyRead) {
-              continue;
-            }
-
-            const notifId = `${baseKey}:${typeKey}`.replace(/[^a-zA-Z0-9:_-]/g, '_');
-
-            const title = expired
-              ? `Warranty expired for ${deviceName}`
-              : `Warranty expiring soon for ${deviceName}`;
-            const daysText = days != null ? ` (${days} days left).` : '.';
-            const message = expired
-              ? `The warranty for serial ${serialKey} expired on ${expiry}.`
-              : `The warranty for serial ${serialKey} expires on ${expiry}${daysText}`;
-
-            
-
-            await createNotifIfMissing(notifId, {
-              uid: userUid,
-              title,
-              message,
-              type: 'device',
-              status: 'unread',
-              createdAt: now,
-              deviceId,
-              serialNumber: String(s.serialNumber || s.serial || ''),
-              warrantyExpiry: expiry,
-              key: baseKey,
-            });
-            
-          }
-        }
-      } catch (e: any) {
-        const msg = e?.message || '';
-        const code = e?.code || '';
-        // Gracefully ignore permission issues for User_Devices reads
-        if (code === 'permission-denied' || msg.includes('Missing or insufficient permissions')) { return; }
-      }
-    };
-
-    void scanWarrantyAndNotify();
-  }, [userUid]);
 
   // Mark notification as read
   const markAsRead = async (notificationId: string) => {
@@ -256,6 +110,14 @@ const NotificationsPage: React.FC = () => {
         return (
           <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        );
+      case 'warranty_expiry':
+        // Warning icon (triangle with exclamation)
+        return (
+          <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v4m0 4h.01" />
           </svg>
         );
       case 'device':
@@ -465,6 +327,7 @@ const NotificationsPage: React.FC = () => {
                           <div className="flex items-start gap-4">
                             <div className={`flex-shrink-0 p-2 rounded-full ${
                               notification.type === 'system' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
+                              notification.type === 'warranty_expiry' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
                               notification.type === 'device' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
                               notification.type === 'billing' ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' :
                               notification.type === 'support' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
@@ -507,6 +370,7 @@ const NotificationsPage: React.FC = () => {
                                     </span>
                                     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                                       notification.type === 'system' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' :
+                                      notification.type === 'warranty_expiry' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200' :
                                       notification.type === 'device' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200' :
                                       notification.type === 'billing' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200' :
                                       notification.type === 'support' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200' :
@@ -570,6 +434,7 @@ const NotificationsPage: React.FC = () => {
                         <div className="flex items-start gap-4">
                           <div className={`flex-shrink-0 p-2 rounded-full ${
                             notification.type === 'system' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
+                            notification.type === 'warranty_expiry' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
                             notification.type === 'device' ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400' :
                             notification.type === 'billing' ? 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' :
                             notification.type === 'support' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400' :
@@ -609,6 +474,7 @@ const NotificationsPage: React.FC = () => {
                                   </span>
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                                     notification.type === 'system' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200' :
+                                    notification.type === 'warranty_expiry' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200' :
                                     notification.type === 'device' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200' :
                                     notification.type === 'billing' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-200' :
                                     notification.type === 'support' ? 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-200' :
