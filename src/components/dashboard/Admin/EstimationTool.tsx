@@ -564,28 +564,30 @@ const EstimationTool: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1 sm:gap-0 mb-6">
-        <div>
-          <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white inline-flex items-center gap-2">
-            Quote Management
-            <FilePlus className="h-5 w-5" aria-hidden="true" />
-          </h1>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-4 sm:p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-8">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent inline-flex items-center gap-2">
+              Quote Management
+              <FilePlus className="h-6 w-6" aria-hidden="true" />
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Create and manage customer quotes</p>
+          </div>
+          <div className="mt-1 sm:mt-0">
+            <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2 bg-teal-50 dark:bg-gray-800 px-3 py-1.5 rounded-full">
+              {quotes.length > 0 && (
+                <Clock className="h-4 w-4" aria-hidden="true" />
+              )}
+              {quotes.length} {quotes.length === 1 ? 'quote' : 'quotes'} pending
+            </p>
+          </div>
         </div>
-        <div className="mt-1 sm:mt-0">
-          <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
-            {quotes.length > 0 && (
-              <Clock className="h-4 w-4 animate-spin" aria-hidden="true" />
-            )}
-            {quotes.length} {quotes.length === 1 ? 'quote' : 'quotes'} pending
-          </p>
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 glass-surface p-4 text-sm sm:text-base rounded-[24px]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-sm sm:text-base">
         {showCreateForm ? (
           <div className="lg:col-span-3">
-            <div className="glass-surface rounded-2xl shadow-soft-lg p-6">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-800 p-6">
               <div className="mb-6 flex items-start justify-between">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Create Estimation Quote</h2>
@@ -1161,18 +1163,18 @@ const EstimationTool: React.FC = () => {
           </div>
         ) : (
           <div className="lg:col-span-2">
-            <div className="rounded-2xl overflow-hidden bg-transparent shadow-none">
-              <div className="p-4 border-b border-white/50 dark:border-white/10">
+            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-xl overflow-hidden border border-gray-100 dark:border-gray-800">
+              <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
                 <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Pending Quotes</h2>
               </div>
               {quotes.length === 0 ? (
                 <div className="p-6 text-sm text-gray-600 dark:text-gray-400">No pending quotes.</div>
               ) : (
-                <ul className="divide-y divide-white/50 dark:divide-white/10">
+                <ul className="divide-y divide-gray-100 dark:divide-gray-800">
                   {quotes.map((quote) => (
                     <li
                       key={quote.id}
-                      className="px-6 py-4 hover:bg-white/20 dark:hover:bg-white/5 cursor-pointer"
+                      className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
                       onClick={() => setSelectedQuote(quote)}
                     >
                       <div className="w-full flex items-center">
@@ -1244,6 +1246,7 @@ const EstimationTool: React.FC = () => {
           `}
         </style>
       </div>
+    </div>
     </div>
   );
 };
