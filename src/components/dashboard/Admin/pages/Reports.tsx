@@ -176,9 +176,20 @@ const Reports: React.FC = () => {
     try { return v ? new Date(v).toLocaleString() : ''; } catch { return ''; }
   };
 
-  // Fallback image (inline SVG) when no image is provided or load fails
-  const FALLBACK_IMG =
+  const FALLBACK_IMG_LIGHT =
     'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="128"><rect width="100%" height="100%" fill="%23e5e7eb"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%236b7280" font-family="Arial, Helvetica, sans-serif" font-size="16">No image</text></svg>';
+  const FALLBACK_IMG_DARK =
+    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="128"><rect width="100%" height="100%" fill="%231f2937"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%239ca3af" font-family="Arial, Helvetica, sans-serif" font-size="16">No image</text></svg>';
+
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    const root = document.documentElement;
+    const update = () => setIsDark(root.classList.contains('dark'));
+    update();
+    const mo = new MutationObserver(update);
+    mo.observe(root, { attributes: true, attributeFilter: ['class'] });
+    return () => mo.disconnect();
+  }, []);
 
   const updateTicketStatus = async (ticket: Ticket, newStatus: string) => {
     try {
@@ -362,13 +373,14 @@ const Reports: React.FC = () => {
                 {/* Image preview with fallback */}
                 <div className="mt-2 rounded-md overflow-hidden border border-gray-800">
                   <img
-                    src={ticket.imageUrl || FALLBACK_IMG}
+                    src={ticket.imageUrl || (isDark ? FALLBACK_IMG_DARK : FALLBACK_IMG_LIGHT)}
                     alt="Ticket attachment"
                     className="w-full h-32 object-cover hover:scale-105 transition-transform duration-200 cursor-pointer"
                     onError={(e) => {
                       const img = e.currentTarget as HTMLImageElement;
-                      if (img.src !== FALLBACK_IMG) {
-                        img.src = FALLBACK_IMG;
+                      const fallback = isDark ? FALLBACK_IMG_DARK : FALLBACK_IMG_LIGHT;
+                      if (img.src !== fallback) {
+                        img.src = fallback;
                       }
                     }}
                     onClick={() => ticket.imageUrl && window.open(ticket.imageUrl, '_blank')}
