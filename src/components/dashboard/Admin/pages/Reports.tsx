@@ -156,6 +156,10 @@ const Reports: React.FC = () => {
     try { return v ? new Date(v).toLocaleString() : ''; } catch { return ''; }
   };
 
+  // Fallback image (inline SVG) when no image is provided or load fails
+  const FALLBACK_IMG =
+    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="128"><rect width="100%" height="100%" fill="%23e5e7eb"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%236b7280" font-family="Arial, Helvetica, sans-serif" font-size="16">No image</text></svg>';
+
   const updateTicketStatus = async (ticket: Ticket, newStatus: string) => {
     try {
       if (!ticket.userUid) throw new Error('Missing user UID on ticket.');
@@ -299,17 +303,21 @@ const Reports: React.FC = () => {
                   </p>
                 </div>
 
-                {/* Image preview */}
-                {ticket.imageUrl && (
-                  <div className="mt-2 rounded-md overflow-hidden border border-gray-800">
-                    <img
-                      src={ticket.imageUrl}
-                      alt="Ticket attachment"
-                      className="w-full h-32 object-cover hover:scale-105 transition-transform duration-200 cursor-pointer"
-                      onClick={() => ticket.imageUrl && window.open(ticket.imageUrl, '_blank')}
-                    />
-                  </div>
-                )}
+                {/* Image preview with fallback */}
+                <div className="mt-2 rounded-md overflow-hidden border border-gray-800">
+                  <img
+                    src={ticket.imageUrl || FALLBACK_IMG}
+                    alt="Ticket attachment"
+                    className="w-full h-32 object-cover hover:scale-105 transition-transform duration-200 cursor-pointer"
+                    onError={(e) => {
+                      const img = e.currentTarget as HTMLImageElement;
+                      if (img.src !== FALLBACK_IMG) {
+                        img.src = FALLBACK_IMG;
+                      }
+                    }}
+                    onClick={() => ticket.imageUrl && window.open(ticket.imageUrl, '_blank')}
+                  />
+                </div>
 
                 {/* Admin reply section */}
                 {(ticket.adminReply || ticket.adminRepliedAt) && (
