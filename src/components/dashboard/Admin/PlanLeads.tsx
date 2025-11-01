@@ -329,7 +329,7 @@ const PlanLeads: React.FC = () => {
                   aria-expanded={openId === lead.id}
                   aria-controls={`lead-panel-${lead.id}`}
                 >
-                  <div className="absolute bottom-2 right-2">
+                  <div className="absolute top-2 right-2">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
