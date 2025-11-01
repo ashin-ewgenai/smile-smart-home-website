@@ -28,6 +28,7 @@ const Reports: React.FC = () => {
   const [userCache, setUserCache] = useState<Record<string, { email?: string; displayName?: string; role?: string }>>({});
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [ticketToDelete, setTicketToDelete] = useState<Ticket | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   // No URL rewriting: use the stored download URL directly (same approach as device images)
   // Load only tickets with status In Progress from Firestore
   useEffect(() => {
@@ -118,16 +119,35 @@ const Reports: React.FC = () => {
     })();
   }, [tickets, userCache]);
 
-  // Sort and filter tickets
+  // Sort, filter and search tickets
   const visible = useMemo(() => {
+    const searchLower = searchTerm.toLowerCase();
+    
     return [...tickets]
-      .filter(t => t.status && t.status.toLowerCase() !== 'resolved')
+      .filter(ticket => {
+        // Filter out resolved tickets
+        if (!ticket.status || ticket.status.toLowerCase() === 'resolved') return false;
+        
+        // If search term is empty, include all non-resolved tickets
+        if (!searchTerm.trim()) return true;
+        
+        // Get user data from cache
+        const user = ticket.userUid ? userCache[ticket.userUid] : null;
+        const userName = user?.displayName?.toLowerCase() || '';
+        const userEmail = user?.email?.toLowerCase() || '';
+        
+        // Check if search term matches name or email
+        return (
+          userName.includes(searchLower) ||
+          userEmail.includes(searchLower)
+        );
+      })
       .sort((a, b) => {
         const dateA = a.createdAt?.getTime() || 0;
         const dateB = b.createdAt?.getTime() || 0;
         return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
       });
-  }, [tickets, sortOrder]);
+  }, [tickets, sortOrder, searchTerm, userCache]);
 
   // Group tickets by user details for collapsible list
   // Group tickets by user details for collapsible list
@@ -211,6 +231,42 @@ const Reports: React.FC = () => {
             </svg>
           </h1>
           <span className="text-sm text-gray-700 dark:text-gray-400 block mt-1">{visible.length} active tickets</span>
+        </div>
+        <div className="flex-1 max-w-md">
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search by name or email..."
+              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <svg
+              className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                fillRule="evenodd"
+                d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                clipRule="evenodd"
+              />
+            </svg>
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                aria-label="Clear search"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-sm text-gray-700 dark:text-gray-300">Sort by:</span>
