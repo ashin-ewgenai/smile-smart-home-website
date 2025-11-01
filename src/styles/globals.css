@@ -89,6 +89,12 @@
     @apply focus:outline-none focus:ring-2 focus:ring-teal focus:ring-offset-2 dark:focus:ring-offset-charcoal;
   }
 
+  /* Hide Edge/IE native password reveal and clear icons to avoid duplicates with custom toggle */
+  input[type="password"]::-ms-reveal,
+  input[type="password"]::-ms-clear {
+    display: none;
+  }
+
   .btn-primary {
     @apply bg-teal hover:bg-teal/90 text-white px-8 py-3 rounded-lg font-medium transition-all duration-120 transform hover:scale-[1.02] hover:shadow-lg;
   }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText, ChevronDown, TrendingUp, TrendingDown, Activity, Eye, EyeOff, LayoutDashboard } from 'lucide-react';
+import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText, ChevronDown, TrendingUp, TrendingDown, Activity, Eye, EyeOff, LayoutDashboard, UserSearch } from 'lucide-react';
 import { collection, getDocs, getDoc, query, where } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../../lib/firebase';
@@ -368,7 +368,7 @@ const AdminDashboard: React.FC = () => {
             {/* Recent Users */}
             <div className="bg-white/95 dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Users</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white inline-flex items-center gap-2">Recent Users<UserSearch className="h-4 w-4" aria-hidden="true" /></h2>
                 <a href="/dashboard/admin/users" className="text-sm text-teal-600 dark:text-teal-400 hover:underline">View All</a>
               </div>
               <div className="overflow-x-auto">

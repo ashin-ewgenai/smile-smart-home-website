@@ -96,6 +96,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const [confirmNewChatOpen, setConfirmNewChatOpen] = useState(false);
   // Track unresolved ticket (if any) shown in prompt
   const unresolvedShownRef = useRef<string | null>(null);
+  const [awaitingModel, setAwaitingModel] = useState<boolean>(false);
   
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -663,6 +664,60 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     setInput('');
     setIsSending(true);
 
+    if (awaitingModel) {
+      try {
+        if (!uid) { setIsSending(false); return; }
+        const modelInput = content.toLowerCase();
+        const devicesSnap = await getDocs(query(collection(db, 'User_Devices'), where('uid', '==', uid)));
+        const devices = devicesSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+        const match = devices.find((d: any) => {
+          const candidates = [d.deviceModel, d.model, d.modelNumber].filter(Boolean).map((x: string) => String(x).toLowerCase());
+          return candidates.includes(modelInput);
+        });
+        setMessages((prev) => [...prev, { role: 'user', content, ts: Date.now() - 1 }]);
+        if (!match) {
+          const failMsg: ChatMsg = { role: 'assistant', content: 'I could not find a device with that model number in your account. Please check and enter the exact model number printed on the device or packaging.', ts: Date.now() };
+          setMessages((prev) => [...prev, failMsg]);
+          setIsSending(false);
+          return;
+        }
+        setAwaitingModel(false);
+        const verified: Device = {
+          id: match.id,
+          name: (match.deviceName || match.name || 'Device') as string,
+          type: (match.deviceType || match.type || 'Device') as string,
+          model: (match.deviceModel || match.model || match.modelNumber || '') as string,
+          serial: (match.deviceSerial || match.serial || '') as string,
+        };
+        setSelectedDevice(verified);
+        const okMsg: ChatMsg = { role: 'assistant', content: `Model verified (${verified.model}). Let me suggest a troubleshooting step for you.`, ts: Date.now() };
+        setMessages((prev) => [...prev, okMsg]);
+
+        const activeTid = providedTicketId || sessionActiveTicketId || (ticketData as any)?.ticketId || undefined;
+        if (activeTid) {
+          try {
+            const call = httpsCallable(functions, 'suggestTroubleshootingStep');
+            const res: any = await call({ ticketId: activeTid, docs: [] });
+            const suggestion: string | undefined = res?.data?.suggestion || res?.data?.message;
+            if (suggestion) {
+              const assist: ChatMsg = { role: 'assistant', content: suggestion, ts: Date.now() + 1 };
+              setMessages((prev) => [...prev, assist]);
+              if (uid && sessionId) {
+                try {
+                  const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+                  await addDoc(msgsCol, { role: 'assistant', content: suggestion, ts: Date.now() + 2, source: 'ai' });
+                  await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp() }, { merge: true });
+                } catch {}
+              }
+            }
+          } catch {}
+        }
+      } finally {
+        setIsSending(false);
+      }
+      return;
+    }
+
     // Auto-escalation: if the last assistant message suggested escalation and user consents ("yes", "ok", etc.),
     // automatically create a human support request and confirm in chat.
     try {
@@ -787,38 +842,10 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
   const handleTicketVerification = async (confirmed: boolean) => {
     if (confirmed) {
-      setWorkflowStep('device_selection');
-      // Send confirmation to chatbot to trigger device selection
-      const userMsg: ChatMsg = { 
-        role: 'user', 
-        content: 'Yes, the ticket details are correct', 
-        ts: Date.now() 
-      };
-      setMessages(prev => [...prev, userMsg]);
-      
-      // Call chatbot to get device selection response
-      try {
-        const call = httpsCallable(functions, 'chatWithOpenAI');
-        const res = await call({
-          messages: messages.concat(userMsg).map(msg => ({
-            role: msg.role === 'agent' ? 'assistant' : msg.role,
-            content: msg.content || ''
-          })),
-          sessionId: sessionId
-        });
-        
-        const resData = res?.data as any;
-        if (resData?.deviceSelection) {
-          const deviceMsg: ChatMsg = {
-            role: 'agent',
-            content: 'Please select the device you need help with:',
-            showDeviceSelection: true,
-            devices: resData.deviceSelection.devices,
-            ts: Date.now() + 1
-          };
-          setMessages(prev => [...prev, deviceMsg]);
-        }
-      } catch (error) {}
+      setWorkflowStep('troubleshooting');
+      const userMsg: ChatMsg = { role: 'user', content: 'Yes, the ticket details are correct', ts: Date.now() };
+      setMessages(prev => [...prev, userMsg, { role: 'assistant', content: 'Please provide the model number of the device you need help with.', ts: Date.now() + 1 }]);
+      setAwaitingModel(true);
     } else {
       // User wants to update ticket
       const updateMsg: ChatMsg = {
