@@ -271,6 +271,10 @@ export interface Device {
   rating?: number | null;
   discount?: number | null;
   warranty?: string | number | null;
+  troubleshooting?: Array<{
+    problem: string;
+    solution: string;
+  }>;
   createdAt?: Timestamp | null;
   createdByUid?: string | null;
   createdByEmail?: string | null;

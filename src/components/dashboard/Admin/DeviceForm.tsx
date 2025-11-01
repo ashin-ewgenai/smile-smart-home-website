@@ -4,6 +4,11 @@ import { addDoc, serverTimestamp, onSnapshot, query, orderBy, updateDoc, deleteD
 import { devicesCollection, deviceDoc } from '../../../models/Collections';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
+export type TroubleshootingItem = {
+  problem: string;
+  solution: string;
+};
+
 export type DeviceFormValues = {
   name: string;
   type: string;
@@ -22,6 +27,7 @@ export type DeviceFormValues = {
   documentation?: string;
   customType: string;
   isCustomType: boolean;
+  troubleshooting?: TroubleshootingItem[];
 };
 
 const initialState: DeviceFormValues = {
@@ -42,6 +48,7 @@ const initialState: DeviceFormValues = {
   documentation: '',
   customType: '',
   isCustomType: false,
+  troubleshooting: [],
 };
 
 export default function DeviceForm() {
@@ -61,6 +68,7 @@ export default function DeviceForm() {
     assignedToEmail?: string;
     price?: number;
     stock?: number;
+    troubleshooting?: TroubleshootingItem[];
     description?: string;
     brand?: string;
     rating?: number;
@@ -93,8 +101,37 @@ export default function DeviceForm() {
 
   // Edit modal state
   const [editing, setEditing] = useState<null | DeviceDoc>(null);
+  const [editTroubleshootItem, setEditTroubleshootItem] = useState<TroubleshootingItem>({ problem: '', solution: '' });
+  
+  // Edit troubleshooting helpers
+  const addEditTroubleshootItem = useCallback(() => {
+    if (!editTroubleshootItem.problem.trim() || !editTroubleshootItem.solution.trim()) return;
+    
+    setEditValues(v => ({
+      ...v,
+      troubleshooting: [...(v.troubleshooting || []), { ...editTroubleshootItem }]
+    }));
+    
+    setEditTroubleshootItem({ problem: '', solution: '' });
+  }, [editTroubleshootItem]);
+
+  const updateEditTroubleshootItem = useCallback((index: number, field: keyof TroubleshootingItem, value: string) => {
+    setEditValues(v => {
+      const updated = [...(v.troubleshooting || [])];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...v, troubleshooting: updated };
+    });
+  }, []);
+
+  const removeEditTroubleshootItem = useCallback((index: number) => {
+    setEditValues(v => {
+      const updated = [...(v.troubleshooting || [])];
+      updated.splice(index, 1);
+      return { ...v, troubleshooting: updated };
+    });
+  }, []);
   type EditValues = Partial<DeviceDoc> & { warrantyValue?: number; warrantyUnit?: 'months' | 'years' };
-  const [editValues, setEditValues] = useState<EditValues & { customType: string; isCustomType: boolean }>({
+  const [editValues, setEditValues] = useState<EditValues & { customType: string; isCustomType: boolean; troubleshooting?: TroubleshootingItem[] }>({
     name: '',
     type: '',
     status: 'Active',
@@ -128,6 +165,35 @@ export default function DeviceForm() {
   const [previewData, setPreviewData] = useState<ProductPreview | null>(null);
   const [embeddedPreview, setEmbeddedPreview] = useState<ProductPreview | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [newTroubleshootItem, setNewTroubleshootItem] = useState<TroubleshootingItem>({ problem: '', solution: '' });
+
+  // Troubleshooting helpers
+  const addTroubleshootItem = useCallback(() => {
+    if (!newTroubleshootItem.problem.trim() || !newTroubleshootItem.solution.trim()) return;
+    
+    setValues(v => ({
+      ...v,
+      troubleshooting: [...(v.troubleshooting || []), { ...newTroubleshootItem }]
+    }));
+    
+    setNewTroubleshootItem({ problem: '', solution: '' });
+  }, [newTroubleshootItem]);
+
+  const updateTroubleshootItem = useCallback((index: number, field: keyof TroubleshootingItem, value: string) => {
+    setValues(v => {
+      const updated = [...(v.troubleshooting || [])];
+      updated[index] = { ...updated[index], [field]: value };
+      return { ...v, troubleshooting: updated };
+    });
+  }, []);
+
+  const removeTroubleshootItem = useCallback((index: number) => {
+    setValues(v => {
+      const updated = [...(v.troubleshooting || [])];
+      updated.splice(index, 1);
+      return { ...v, troubleshooting: updated };
+    });
+  }, []);
 
   // Warranty helpers
   const formatWarranty = useCallback((value?: number, unit: 'months' | 'years' = 'months') => {
@@ -196,6 +262,7 @@ export default function DeviceForm() {
           discount: typeof data.discount === 'number' ? data.discount : (typeof data.discount === 'string' ? parseFloat(data.discount) : undefined),
           warranty: data.warranty,
           documentation: data.documentation ?? '',
+          troubleshooting: Array.isArray(data.troubleshooting) ? data.troubleshooting : [],
         };
       });
       setDevices(list);
@@ -323,6 +390,8 @@ export default function DeviceForm() {
           brand: values.brand?.trim() || '',
           warranty: formatWarranty(values.warrantyValue, values.warrantyUnit),
           documentation: values.documentation?.trim() || '',
+          // Only include troubleshooting if there are items
+          ...(values.troubleshooting?.length ? { troubleshooting: values.troubleshooting } : {}),
           status: values.status || 'Active', // Default to 'Active' if not set
           createdAt: serverTimestamp(),
           createdByUid: auth?.currentUser?.uid ?? null,
@@ -361,6 +430,12 @@ export default function DeviceForm() {
     setEditImageFile(null);
     setEditImagePreview(null);
     
+    // Reset the edit troubleshooting item
+    setEditTroubleshootItem({ problem: '', solution: '' });
+    
+    // Log the troubleshooting data for debugging
+    console.log('Device troubleshooting data:', d.troubleshooting);
+    
     setEditValues({
       name: d.name,
       type: isCustomType ? '' : d.type,
@@ -376,6 +451,8 @@ export default function DeviceForm() {
       warrantyUnit: parsed.unit as any,
       customType: isCustomType ? d.type : '',
       isCustomType,
+      // Ensure we properly handle the troubleshooting array, including when it's undefined
+      troubleshooting: d.troubleshooting ? [...d.troubleshooting] : []
     });
   }, [parseWarranty, typeOptions]);
 
@@ -418,6 +495,8 @@ export default function DeviceForm() {
       stock: typeof editValues.stock === 'number' ? editValues.stock : null,
       description: (editValues.description ?? '').toString().trim(),
       warranty: warranty,
+      // Only include troubleshooting if there are items
+      ...(editValues.troubleshooting?.length ? { troubleshooting: editValues.troubleshooting } : { troubleshooting: deleteField() }),
     };
     // Remove legacy 'name' field if it exists
     update.name = deleteField();
@@ -861,6 +940,83 @@ export default function DeviceForm() {
         />
       </div>
 
+      {/* Troubleshooting Section */}
+      <div className="pt-2">
+        <div className="flex justify-between items-center mb-2">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Troubleshooting</label>
+          <span className="text-xs text-gray-500">Add common problems and solutions</span>
+        </div>
+        
+        {/* Existing troubleshooting items */}
+        <div className="space-y-2 mb-3">
+          {values.troubleshooting?.map((item, index) => (
+            <div key={index} className="flex items-start gap-2">
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={item.problem}
+                  onChange={(e) => updateTroubleshootItem(index, 'problem', e.target.value)}
+                  className="block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
+                  placeholder="Problem"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={item.solution}
+                    onChange={(e) => updateTroubleshootItem(index, 'solution', e.target.value)}
+                    className="block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
+                    placeholder="Solution"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => removeTroubleshootItem(index)}
+                    className="px-3 py-2 rounded-md text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none"
+                    title="Remove"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Add new troubleshooting item */}
+        <div className="flex items-start gap-2">
+          <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+            <input
+              type="text"
+              value={newTroubleshootItem.problem}
+              onChange={(e) => setNewTroubleshootItem({...newTroubleshootItem, problem: e.target.value})}
+              className="block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
+              placeholder="Problem"
+            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newTroubleshootItem.solution}
+                onChange={(e) => setNewTroubleshootItem({...newTroubleshootItem, solution: e.target.value})}
+                className="block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
+                placeholder="Solution"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newTroubleshootItem.problem && newTroubleshootItem.solution) {
+                    addTroubleshootItem();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={addTroubleshootItem}
+                disabled={!newTroubleshootItem.problem.trim() || !newTroubleshootItem.solution.trim()}
+                className="px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="flex items-center justify-end gap-3 pt-2">
         <button
           type="button"
@@ -1142,6 +1298,83 @@ export default function DeviceForm() {
                     <option value="months">months</option>
                     <option value="years">years</option>
                   </select>
+                </div>
+              </div>
+              
+              {/* Troubleshooting Section in Edit Modal */}
+              <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex justify-between items-center mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Troubleshooting</label>
+                  <span className="text-xs text-gray-500">Add common problems and solutions</span>
+                </div>
+                
+                {/* Existing troubleshooting items */}
+                <div className="space-y-2 mb-3">
+                  {editValues.troubleshooting?.map((item, index) => (
+                    <div key={index} className="flex items-start gap-2">
+                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          value={item.problem}
+                          onChange={(e) => updateEditTroubleshootItem(index, 'problem', e.target.value)}
+                          className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+                          placeholder="Problem"
+                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={item.solution}
+                            onChange={(e) => updateEditTroubleshootItem(index, 'solution', e.target.value)}
+                            className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+                            placeholder="Solution"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeEditTroubleshootItem(index)}
+                            className="px-3 py-2 rounded-md text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 focus:outline-none"
+                            title="Remove"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Add new troubleshooting item */}
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={editTroubleshootItem.problem}
+                      onChange={(e) => setEditTroubleshootItem({...editTroubleshootItem, problem: e.target.value})}
+                      className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+                      placeholder="Problem"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={editTroubleshootItem.solution}
+                        onChange={(e) => setEditTroubleshootItem({...editTroubleshootItem, solution: e.target.value})}
+                        className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+                        placeholder="Solution"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && editTroubleshootItem.problem && editTroubleshootItem.solution) {
+                            addEditTroubleshootItem();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={addEditTroubleshootItem}
+                        disabled={!editTroubleshootItem.problem.trim() || !editTroubleshootItem.solution.trim()}
+                        className="px-4 py-2 rounded-md bg-teal-600 text-white hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
