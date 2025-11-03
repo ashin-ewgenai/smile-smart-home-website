@@ -164,19 +164,64 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
     }
   } catch {}
 
-  // Device context for better answers
+  // Device and profile context for better answers
   const devicesQuery = await db.collection(CONFIG.COLLECTIONS.DEVICES).where("uid", "==", uid).get();
+  const userDevices = devicesQuery.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) })) as Array<any>;
+
+  // Fetch basic user profile (non-sensitive)
+  let userProfile: any = null;
   try {
-    console.log("DEBUG User_Devices read for uid:", uid, "docs:", devicesQuery.size);
-    for (const d of devicesQuery.docs) {
-      const data = d.data() as any;
-      console.log("User_Devices doc:", d.id, "stored uid:", data?.uid);
+    const acctSnap = await db.collection(CONFIG.COLLECTIONS.ACCOUNTS).doc(uid).get();
+    if (acctSnap.exists) {
+      const a = acctSnap.data() as any;
+      userProfile = {
+        displayName: a?.displayName || a?.name || undefined,
+        plan: a?.plan || a?.subscription || undefined,
+        city: a?.city || a?.location?.city || undefined,
+        state: a?.state || a?.location?.state || undefined,
+        country: a?.country || a?.location?.country || undefined,
+        timezone: a?.timezone || undefined,
+      };
     }
   } catch (e) {
-    console.warn("Failed to log User_Devices uid checks:", e);
+    console.warn("Failed to fetch user profile:", e);
   }
-  const userDevices = devicesQuery.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) })) as Array<{ id: string; deviceName?: string; name?: string }>;
-  // Build lightweight debug info for client-side verification
+
+  // Mask serial number for safety: keep last 4 characters
+  const maskSerial = (s: any) => {
+    const v = typeof s === 'string' ? s : '';
+    if (!v) return '';
+    const last4 = v.slice(-4);
+    return v.length > 4 ? `***${last4}` : `***${last4}`;
+  };
+
+  // Summarize devices with useful fields commonly present in User_Devices
+  const deviceSummaries = userDevices.map((d: any) => {
+    const serialCandidates = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean);
+    const serialMasked = serialCandidates.length > 0 ? maskSerial(serialCandidates[0]) : '';
+    const serialArray = Array.isArray(d.serials) ? d.serials : [];
+    const serialsMasked = serialArray
+      .map((e: any) => ({
+        serialNumber: maskSerial(e?.serialNumber),
+        warrantyExpiry: e?.warrantyExpiry || e?.warrantyEnd || undefined,
+      }))
+      .filter((e: any) => e.serialNumber);
+    return {
+      id: d.id,
+      name: d.deviceName || d.name || 'Unknown Device',
+      type: d.deviceType || d.type || 'Device',
+      model: d.deviceModel || d.model || d.modelNumber || '',
+      serial: serialMasked,
+      isOnline: typeof d.isOnline === 'boolean' ? d.isOnline : undefined,
+      lastSeen: d.lastSeen || d.lastActive || undefined,
+      room: d.room || d.location || undefined,
+      installedAt: d.installedAt || d.addedAt || undefined,
+      warrantyExpiry: d.warrantyExpiry || d.warrantyEnd || undefined,
+      serials: serialsMasked,
+    };
+  });
+
+  // Build lightweight debug info for client-side verification (kept)
   const debugInfo = debug
     ? {
         queriedCollection: CONFIG.COLLECTIONS.DEVICES,
@@ -193,7 +238,26 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
         })),
       }
     : undefined;
-  const deviceContext = userDevices.length > 0 ? `User has the following devices installed: ${userDevices.map((d) => d.deviceName || d.name || "Unknown Device").join(", ")}.` : "";
+
+  // Compose human-readable context blocks
+  const profileContext = userProfile
+    ? `USER PROFILE:\n- Name: ${userProfile.displayName || 'User'}\n` +
+      `${userProfile.plan ? `- Plan: ${userProfile.plan}\n` : ''}` +
+      `${userProfile.city || userProfile.state || userProfile.country ? `- Location: ${[userProfile.city, userProfile.state, userProfile.country].filter(Boolean).join(', ')}\n` : ''}` +
+      `${userProfile.timezone ? `- Timezone: ${userProfile.timezone}\n` : ''}`
+    : '';
+
+  const deviceContext = deviceSummaries.length > 0
+    ? `DEVICES:\n` + deviceSummaries.map((d: any, i: number) => (
+        `#${i + 1} ${d.name} (${d.type})\n` +
+        `${d.model ? `  - Model: ${d.model}\n` : ''}` +
+        `${d.serial ? `  - Serial: ${d.serial} (masked)\n` : ''}` +
+        `${typeof d.isOnline === 'boolean' ? `  - Status: ${d.isOnline ? 'Online' : 'Offline'}\n` : ''}` +
+        `${d.lastSeen ? `  - Last seen: ${new Date(d.lastSeen?.toDate?.() || d.lastSeen).toLocaleString?.() || d.lastSeen}\n` : ''}` +
+        `${d.room ? `  - Location: ${d.room}\n` : ''}` +
+        `${d.warrantyExpiry ? `  - Warranty expiry: ${d.warrantyExpiry}\n` : ''}`
+      )).join('')
+    : '';
 
   // DEBUG: Dump user device serial-related fields to logs to verify availability
   try {
@@ -314,7 +378,14 @@ RESPONSE FORMAT:
 - NEVER start responses with technical codes like "REQUIRES_TICKET:" or "DEVICE_SELECTION:"
 
 USER CONTEXT:
-${deviceContext}${ticketContext}`,
+${profileContext}
+${deviceContext}
+${ticketContext}
+
+PRIVACY & SAFETY:
+- Never reveal full serial numbers. Only masked serials are available.
+- Use the provided device list and user profile to tailor answers.
+- If the user asks about a specific device, match by name or model from DEVICES and answer accordingly.`,
   };
   console.log("System prompt content:", systemPrompt.content);
 
