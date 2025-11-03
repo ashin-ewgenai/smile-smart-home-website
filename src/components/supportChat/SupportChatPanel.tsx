@@ -97,6 +97,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   // Track unresolved ticket (if any) shown in prompt
   const unresolvedShownRef = useRef<string | null>(null);
   const [awaitingModel, setAwaitingModel] = useState<boolean>(false);
+  const [confirmInline, setConfirmInline] = useState(false);
+  const [showResolveFooter, setShowResolveFooter] = useState(false);
   
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -117,6 +119,27 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const botNeedsTicket = !claimed && !providedTicketId;
 
   const sessionId = useMemo(() => (uid ? `live_${uid}` : null), [uid]);
+  const unresolvedPromptTicket = useMemo(() => {
+    const m = messages.find((x) => x.showUnresolvedPrompt && x.unresolvedTicket);
+    return m?.unresolvedTicket || null;
+  }, [messages]);
+  const hasUnresolvedActive = useMemo(() => {
+    const s = String((ticketData as any)?.status || '');
+    const activeUnresolved = !noTicketMode && !!(ticketData as any)?.ticketId && s.toLowerCase() !== 'resolved';
+    const promptUnresolved = !!unresolvedPromptTicket;
+    return activeUnresolved || promptUnresolved;
+  }, [noTicketMode, ticketData, unresolvedPromptTicket]);
+
+  useEffect(() => {
+    if (hasUnresolvedActive) {
+      setShowResolveFooter(true);
+    }
+    const s = String((ticketData as any)?.status || '');
+    if (noTicketMode || s.toLowerCase() === 'resolved') {
+      setShowResolveFooter(false);
+    }
+    if (!hasUnresolvedActive) setConfirmInline(false);
+  }, [hasUnresolvedActive, noTicketMode, ticketData]);
   
   // Chat reset function to clear initialization state
   const resetChat = () => {
@@ -1052,6 +1075,27 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     }
   };
 
+  const handleResolveTicket = async () => {
+    const activeId = (ticketData as any)?.ticketId || sessionActiveTicketId;
+    const targetId = activeId || (unresolvedPromptTicket as any)?.id;
+    if (!uid || !sessionId || !targetId) return;
+    try {
+      const tRef = doc(db, 'Support_Tickets', targetId);
+      await updateDoc(tRef, { status: 'Resolved', updatedAt: serverTimestamp() });
+      if (!activeId && (unresolvedPromptTicket as any)?.id === targetId) {
+        try { await dismissUnresolvedPrompt(targetId); } catch {}
+        setMessages((prev) => prev.filter((m) => !m.showUnresolvedPrompt));
+      }
+      if (activeId && ticketData) {
+        setTicketData({ ...(ticketData as any), status: 'Resolved' });
+      }
+      setMessages(prev => [...prev, { role: 'agent', content: '✅ Ticket marked as Resolved.', ts: Date.now() }]);
+      setShowResolveFooter(false);
+    } catch (e) {
+      setMessages(prev => [...prev, { role: 'agent', content: '❌ Could not mark the ticket as resolved. Please try again or request human support.', ts: Date.now() }]);
+    }
+  };
+
   // Start New Chat: resolve pending ticket, clear active binding, set no-ticket mode
   const handleStartNewChat = async () => {
     const currentId = (ticketData as any)?.ticketId || sessionActiveTicketId;
@@ -1473,6 +1517,60 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
       {/* Input Section at the bottom of the chat */}
       <div className="px-4 pb-4 sm:px-6">
+        {showResolveFooter && (
+          <div className="mt-2 mb-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-sm text-amber-800 dark:text-amber-200 flex items-center justify-between gap-2">
+            <span>{confirmInline ? 'Confirm mark this ticket as Resolved?' : 'Is your ticket issue resolved?'}</span>
+            <div className="flex items-center gap-2">
+              {!confirmInline ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmInline(true)}
+                    className="px-3 py-1.5 text-sm rounded-md bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Yes
+                  </button>
+                  <button
+                    type="button"
+                    className="px-3 py-1.5 text-sm rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+                    onClick={async () => {
+                      await requestHuman();
+                      const content = 'I\'ve requested human support. An agent will connect with you shortly.';
+                      const ts = Date.now();
+                      setMessages(prev => [...prev, { role: 'agent', content, ts }]);
+                      try {
+                        if (uid && sessionId) {
+                          const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+                          await addDoc(msgsCol, { role: 'assistant', content, ts, source: 'system' });
+                          await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human_requested' }, { merge: true });
+                        }
+                      } catch {}
+                    }}
+                  >
+                    No
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={async () => { await handleResolveTicket(); setConfirmInline(false); }}
+                    className="px-3 py-1.5 text-sm rounded-md bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Confirm
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmInline(false)}
+                    className="px-3 py-1.5 text-sm rounded-md bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
         {/* Removed serial input UI */}
         <form
           className="flex items-center gap-3 mt-4"
