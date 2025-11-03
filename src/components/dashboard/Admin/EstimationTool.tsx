@@ -831,8 +831,8 @@ const EstimationTool: React.FC = () => {
                                   inputMode="numeric"
                                   onFocus={(e) => e.currentTarget.select()}
                                   className="no-spin w-full min-w-[50px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
-                                  value={r.quantity}
-                                  onChange={(e) => updateRow(r.id, { quantity: Number(e.target.value) })}
+                                  value={r.quantity || ''}
+                                  onChange={(e) => updateRow(r.id, { quantity: e.target.value === '' ? 0 : Number(e.target.value) })}
                                 />
                               </td>
                               <td className="px-2 py-2">
@@ -853,8 +853,8 @@ const EstimationTool: React.FC = () => {
                                     } catch {}
                                   }}
                                   className="no-spin w-full min-w-[70px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
-                                  value={r.unitPrice}
-                                  onChange={(e) => updateRow(r.id, { unitPrice: Number(e.target.value) })}
+                                  value={r.unitPrice || ''}
+                                  onChange={(e) => updateRow(r.id, { unitPrice: e.target.value === '' ? 0 : Number(e.target.value) })}
                                 />
                               </td>
                               <td className="px-2 py-2 hidden md:table-cell">
