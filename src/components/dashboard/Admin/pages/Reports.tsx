@@ -232,7 +232,7 @@ const Reports: React.FC = () => {
 
   return (
     <div className="p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="mb-6 space-y-4">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             Support Tickets
@@ -243,67 +243,70 @@ const Reports: React.FC = () => {
           </h1>
           <span className="text-sm text-gray-700 dark:text-gray-400 block mt-1">{visible.length} active tickets</span>
         </div>
-        <div className="flex-1 max-w-md">
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search by name or email..."
-              className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-            <svg
-              className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 20 20"
-              fill="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                fillRule="evenodd"
-                d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-                clipRule="evenodd"
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex-1 max-w-md">
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by name or email..."
+                className="w-full pl-10 pr-4 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
-            </svg>
-            {searchTerm && (
+              <svg
+                className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  aria-label="Clear search"
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-700 dark:text-gray-300">Sort by:</span>
+            <div className="inline-flex rounded-md shadow-sm" role="group">
               <button
                 type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                aria-label="Clear search"
+                onClick={() => setSortOrder('newest')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-l-md ${
+                  sortOrder === 'newest'
+                    ? 'bg-teal-600 text-white'
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                } transition-colors`}
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                Newest First
               </button>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-700 dark:text-gray-300">Sort by:</span>
-          <div className="inline-flex rounded-md shadow-sm" role="group">
-            <button
-              type="button"
-              onClick={() => setSortOrder('newest')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-l-md ${
-                sortOrder === 'newest'
-                  ? 'bg-teal-600 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
-              } transition-colors`}
-            >
-              Newest First
-            </button>
-            <button
-              type="button"
-              onClick={() => setSortOrder('oldest')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-r-md ${
-                sortOrder === 'oldest'
-                  ? 'bg-teal-600 text-white'
-                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
-              } transition-colors`}
-            >
-              Oldest First
-            </button>
+              <button
+                type="button"
+                onClick={() => setSortOrder('oldest')}
+                className={`px-3 py-1.5 text-xs font-medium rounded-r-md ${
+                  sortOrder === 'oldest'
+                    ? 'bg-teal-600 text-white'
+                    : 'bg-gray-200 text-gray-800 hover:bg-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700'
+                } transition-colors`}
+              >
+                Oldest First
+              </button>
+            </div>
           </div>
         </div>
       </div>

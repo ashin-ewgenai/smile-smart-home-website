@@ -145,7 +145,8 @@ const AdminDashboard: React.FC = () => {
           }
           const snap = await getDoc(accountDoc(db, user.uid));
           const role = snap.exists() ? (snap.data() as any).Role : undefined;
-          const allowed = role === 'admin' || role === 'Super Admin';
+          const roleNorm = typeof role === 'string' ? role.toLowerCase().replace(/[_-]+/g, ' ').trim() : '';
+          const allowed = roleNorm === 'admin' || roleNorm === 'super admin';
           if (!allowed) {
             setRecentUsers([]);
             setUserStats({ totalUsers: 0, activeUsers: 0, newUsers: 0 });

@@ -18,7 +18,16 @@ service cloud.firestore {
 
     function isAdmin() {
       let role = userRole();
-      return role == 'admin' || role == 'Super Admin';
+      // Tolerate common variants of admin/super admin without relying on string funcs not supported in rules
+      return role == 'admin' ||
+             role == 'Admin' ||
+             role == 'ADMIN' ||
+             role == 'Super Admin' ||
+             role == 'super admin' ||
+             role == 'SUPER ADMIN' ||
+             role == 'super_admin' ||
+             role == 'SUPER_ADMIN' ||
+             role == 'Super_Admin';
     }
 
     function isValidEmail(email) {

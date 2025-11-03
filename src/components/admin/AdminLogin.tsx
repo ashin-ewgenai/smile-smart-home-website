@@ -4,6 +4,7 @@ import { getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
 import { accountDoc, accountLoginMergePayload } from '../../models';
+import { Eye, EyeOff } from 'lucide-react';
 
 type Role = 'admin' | 'Super Admin';
 
@@ -16,6 +17,7 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // If already authenticated, redirect based on role and replace history to prevent Back returning here
   useEffect(() => {
@@ -183,14 +185,23 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
           <div className="relative">
             <input
               id="password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={isLoading}
-              className="block w-full px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150 ease-in-out"
+              className="block w-full pr-12 px-4 py-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-150 ease-in-out"
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              disabled={isLoading}
+              aria-pressed={showPassword}
+              className="absolute inset-y-0 right-3 my-auto h-8 w-8 inline-flex items-center justify-center text-gray-300 hover:text-white focus:outline-none"
+            >
+              {showPassword ? <EyeOff className="h-5 w-5 text-gray-400" /> : <Eye className="h-5 w-5 text-gray-400" />}
+            </button>
           </div>
         </div>
 

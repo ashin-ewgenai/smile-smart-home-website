@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { db } from '../../../lib/firebase';
 import { getDocs, orderBy, query, deleteDoc } from 'firebase/firestore';
 import { plannerLeadsCollection, plannerLeadDoc } from '../../../models/Collections';
@@ -73,24 +73,13 @@ const PlanLeads: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [columnLeads, setColumnLeads] = useState<[Lead[], Lead[], Lead[]]>([[], [], []]);
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    // Filter leads based on search term
-    const filteredLeads = searchTerm 
-      ? leads.filter(lead => 
-          lead.email.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-      : leads;
-
-    // Distribute filtered leads into 3 columns, maintaining their original order
-    const newColumnLeads: [Lead[], Lead[], Lead[]] = [[], [], []];
-    filteredLeads.forEach((lead, index) => {
-      newColumnLeads[index % 3].push(lead);
-    });
-    setColumnLeads(newColumnLeads);
+  const filteredLeads: Lead[] = useMemo(() => {
+    const term = searchTerm.trim().toLowerCase();
+    if (!term) return leads;
+    return leads.filter(lead => (lead.email || '').toLowerCase().includes(term));
   }, [leads, searchTerm]);
 
   const handleLeadClick = (lead: Lead) => {
@@ -285,7 +274,7 @@ const PlanLeads: React.FC = () => {
             Plan leads will appear here once users submit their smart home planning forms.
           </p>
         </div>
-      ) : searchTerm && columnLeads.every(column => column.length === 0) ? (
+      ) : searchTerm && filteredLeads.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
           <svg
             className="mx-auto h-12 w-12 text-gray-400"
@@ -313,87 +302,82 @@ const PlanLeads: React.FC = () => {
         </div>
       ) : (
         <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-          {columnLeads.map((column, columnIndex) => (
-            <div key={columnIndex} className="space-y-4">
-              {column.map((lead) => (
-                <div 
-                  key={lead.id} 
-                  onClick={() => handleLeadClick(lead)}
-                  className={`group relative rounded-lg border p-4 transition-colors duration-200 shadow-sm
-                    ${openId === lead.id 
-                      ? 'bg-gray-50 border-blue-600/40 dark:bg-gray-950 dark:border-blue-600/50' 
-                      : 'bg-white hover:bg-gray-50 border-gray-200 dark:bg-gray-950 dark:hover:bg-gray-900 dark:border-gray-900'}`}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLeadClick(lead)}
-                  aria-expanded={openId === lead.id}
-                  aria-controls={`lead-panel-${lead.id}`}
+          {filteredLeads.map((lead: Lead) => (
+            <div
+              key={lead.id}
+              onClick={() => handleLeadClick(lead)}
+              className={`group relative rounded-lg border p-4 transition-colors duration-200 shadow-sm h-full flex flex-col
+                ${openId === lead.id 
+                  ? 'bg-gray-50 border-blue-600/40 dark:bg-gray-950 dark:border-blue-600/50' 
+                  : 'bg-white hover:bg-gray-50 border-gray-200 dark:bg-gray-950 dark:hover:bg-gray-900 dark:border-gray-900'}`}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && handleLeadClick(lead)}
+              aria-expanded={openId === lead.id}
+              aria-controls={`lead-panel-${lead.id}`}
+            >
+              <div className="absolute top-2 right-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteClick(lead.id);
+                  }}
+                  className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-red-500 transition-colors"
+                  title="Delete lead"
+                  aria-label="Delete lead"
                 >
-                  <div className="absolute top-2 right-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteClick(lead.id);
-                      }}
-                      className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-red-500 transition-colors"
-                      title="Delete lead"
-                      aria-label="Delete lead"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex flex-col gap-2 min-w-0 pr-6">
+                <div className="min-w-0 pr-2">
+                  <div className="flex items-center gap-2 overflow-hidden">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                      {lead.email || 'Unknown Email'}
+                    </span>
                   </div>
-                  <div className="flex flex-col gap-2 min-w-0 pr-6">
-                    <div className="min-w-0 pr-2">
-                      <div className="flex items-center gap-2 overflow-hidden">
-                        <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                          {lead.email || 'Unknown Email'}
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-300 truncate mt-0.5">
-                        {lead.complexity} Plan • {lead.formData?.spaceType || 'N/A'}
-                      </p>
-                      <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                        {lead.updatedAt 
-                          ? new Date(
-                              typeof lead.updatedAt === 'object' && 'toDate' in lead.updatedAt 
-                                ? lead.updatedAt.toDate() 
-                                : lead.updatedAt
-                            ).toLocaleDateString('en-US', {
-                              year: 'numeric',
-                              month: 'numeric',
-                              day: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })
-                          : 'No date'}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
-                        {lead.formData?.goals?.join(', ') || 'No goals specified'}
-                      </p>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                        {openId === lead.id ? 'Hide details' : 'View details'}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  {openId === lead.id && (
-                    <div 
-                      id={`lead-panel-${lead.id}`}
-                      className="pt-3 mt-3 border-t border-gray-200 dark:border-gray-800"
-                    >
-                      <div className="text-sm text-gray-700 dark:text-gray-300 space-y-3">
-                        {renderPlan(lead)}
-                      </div>
-                    </div>
-                  )}
+                  <p className="text-xs text-gray-600 dark:text-gray-300 truncate mt-0.5">
+                    {lead.complexity} Plan • {lead.formData?.spaceType || 'N/A'}
+                  </p>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    {lead.updatedAt 
+                      ? new Date(
+                          typeof lead.updatedAt === 'object' && 'toDate' in lead.updatedAt 
+                            ? lead.updatedAt.toDate() 
+                            : lead.updatedAt
+                        ).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'numeric',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : 'No date'}
+                  </span>
                 </div>
-              ))}
+              </div>
+              <div className="space-y-3 flex-1">
+                <div>
+                  <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
+                    {lead.formData?.goals?.join(', ') || 'No goals specified'}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between mt-auto">
+                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                  {openId === lead.id ? 'Hide details' : 'View details'}
+                </span>
+              </div>
+              {openId === lead.id && (
+                <div 
+                  id={`lead-panel-${lead.id}`}
+                  className="pt-3 mt-3 border-t border-gray-200 dark:border-gray-800"
+                >
+                  <div className="text-sm text-gray-700 dark:text-gray-300 space-y-3">
+                    {renderPlan(lead)}
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
