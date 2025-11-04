@@ -14,7 +14,14 @@ type DeviceDoc = {
   id: string;
   deviceName?: string;
   name?: string;
+  model?: string;
   type?: string;
+  quantity?: number;
+  description?: string;
+  serialNumbers?: Array<{
+    serialNumber: string;
+    warrantyExpiry?: string | Date;
+  }>;
   status?: string;
   serial?: string;
   modelNumber?: string;
@@ -26,7 +33,6 @@ type DeviceDoc = {
   warranty?: any | null;
   warrantySource?: 'user' | 'device';
   brand?: string;
-  description?: string;
   documentationUrl?: string;
   serials?: SerialItem[];
 };
@@ -378,107 +384,163 @@ const AboutDevices: React.FC = () => {
       )}
       {selectedDevice && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto transition-all duration-300"
           role="dialog"
           aria-modal="true"
           onClick={() => { setSelectedDevice(null); setSelectedDeviceCount(null); setUserTotalDevices(null); }}
         >
           <div
             ref={modalRef}
-            className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-lg bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden"
+            className="w-full max-w-2xl max-h-[90vh] flex flex-col rounded-xl bg-white dark:bg-gray-900/95 border border-gray-200/80 dark:border-gray-700/80 shadow-2xl overflow-hidden transform transition-all duration-300 scale-95 hover:scale-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-800">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Device Details</h3>
-              <button
-                className="flex items-center space-x-1 px-3 py-1.5 rounded-full bg-red-50 hover:bg-red-100 dark:bg-red-900/30 dark:hover:bg-red-900/40 text-red-600 hover:text-red-700 dark:text-red-300 dark:hover:text-red-200 transition-all duration-200 text-sm shadow-sm hover:shadow-md hover:shadow-red-500/20 dark:hover:shadow-red-400/10 border border-red-100 dark:border-red-800/50 hover:border-red-200 dark:hover:border-red-700"
-                aria-label="Close"
-                onClick={() => { setSelectedDevice(null); setSelectedDeviceCount(null); setUserTotalDevices(null); }}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-800 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-800">
+              <div className="flex items-center space-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600 dark:text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M7 2a2 2 0 00-2 2v12a2 2 0 002 2h6a2 2 0 002-2V4a2 2 0 00-2-2H7zm3 14a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
                 </svg>
-                <span>Close</span>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Device Details</h3>
+              </div>
+              <button
+                className="px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 text-sm font-medium shadow-sm"
+                onClick={() => { setSelectedDevice(null); setSelectedDeviceCount(null); setUserTotalDevices(null); }}
+                aria-label="Close modal"
+              >
+                Close
               </button>
             </div>
 
             <div
-              className="px-4 py-4 text-sm space-y-3 overflow-y-auto flex-1 custom-scrollbar"
+              className="p-6 space-y-6 overflow-y-auto flex-1 custom-scrollbar"
               style={{ WebkitOverflowScrolling: 'touch' as any }}
               onWheel={onContentWheel}
               onWheelCapture={onContentWheel}
               tabIndex={0}
             >
-              <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
-                <h4 className="font-medium text-gray-900 dark:text-gray-200 mb-3">Device Information</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Name</div>
-                    <div className="text-gray-800 dark:text-gray-200">{selectedDevice.deviceName || selectedDevice.name || '—'}</div>
+              {/* Device Information Card */}
+              <div className="bg-white dark:bg-gray-800/80 p-6 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-shadow duration-300">
+                <div className="flex items-center space-x-2 mb-4">
+                  <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0v12h8V4H6z" />
+                    </svg>
                   </div>
-                  <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Brand</div>
-                    <div className="text-gray-800 dark:text-gray-200">{selectedDevice.brand || '—'}</div>
+                  <h4 className="text-base font-semibold text-gray-900 dark:text-white">Device Information</h4>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Name</div>
+                    <div className="text-gray-800 dark:text-gray-200 font-medium flex items-center">
+                      <span className="truncate">{selectedDevice.deviceName}</span>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Model</div>
-                    <div className="text-gray-800 dark:text-gray-200">{selectedDevice.modelNumber || '—'}</div>
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Brand</div>
+                    <div className="text-gray-800 dark:text-gray-200">{selectedDevice.brand || 'N/A'}</div>
                   </div>
-                  <div>
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Type</div>
-                    <div className="text-gray-800 dark:text-gray-200">{selectedDevice.type || '—'}</div>
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Model</div>
+                    <div className="text-gray-800 dark:text-gray-200">{selectedDevice.model || 'N/A'}</div>
                   </div>
-                  {selectedDeviceCount !== null && (
-                    <div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">Quantity</div>
-                      <div className="text-gray-800 dark:text-gray-200">{selectedDeviceCountLoading ? 'Loading…' : selectedDeviceCount}</div>
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</div>
+                    <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
+                      {selectedDevice.type || 'N/A'}
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Quantity</div>
+                    <div className="text-gray-800 dark:text-gray-200 font-medium">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm">
+                        {selectedDevice.quantity}
+                      </span>
+                    </div>
+                  </div>
+                  {selectedDevice.documentationUrl && (
+                    <div className="space-y-1">
+                      <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Documentation</div>
+                      <div className="text-gray-800 dark:text-gray-200 font-medium">
+                        <a
+                          href={selectedDevice.documentationUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-4 inline-flex items-center text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm"
+                        >
+                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          View Documentation
+                        </a>
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
 
+              {/* Description Card */}
               {selectedDevice.description && (
-                <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gray-900 dark:text-gray-200 mb-2">Description</h4>
-                  <p className="text-gray-700 dark:text-gray-300 text-sm">{selectedDevice.description}</p>
+                <div className="bg-white dark:bg-gray-800/80 p-6 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-shadow duration-300">
+                  <div className="flex items-center space-x-2 mb-4">
+                    <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0l4 4a1 1 0 010 2 1 1 0 01-2 0l-4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <h4 className="text-base font-semibold text-gray-900 dark:text-white">Description</h4>
+                  </div>
+                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    {selectedDevice.description}
+                  </p>
                 </div>
               )}
 
-              <div className="bg-gray-50 dark:bg-gray-800/50 p-4 rounded-lg">
-                <h4 className="font-medium text-gray-900 dark:text-gray-200 mb-3">Serial Numbers</h4>
-                {selectedDevice.serials && selectedDevice.serials.length > 0 ? (
-                  <div className="space-y-2">
-                    {selectedDevice.serials.map((serialItem: SerialItem, index: number) => (
-                      <div key={index} className="grid grid-cols-2 gap-4 p-3 bg-gray-100 dark:bg-gray-700/30 rounded">
-                        <div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">Serial Number</div>
-                          <div className="text-gray-800 dark:text-gray-200 font-mono">{serialItem.serialNumber || '—'}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 dark:text-gray-400">Warranty Expiry</div>
-                          <div className="text-gray-800 dark:text-gray-200">{serialItem.warrantyExpiry ? new Date(serialItem.warrantyExpiry).toLocaleDateString() : '—'}</div>
+              {/* Serial Numbers Card */}
+              {((selectedDevice.serialNumbers && selectedDevice.serialNumbers.length > 0) || (selectedDevice.serials && selectedDevice.serials.length > 0)) && (
+                <div className="bg-white dark:bg-gray-800/80 p-6 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-shadow duration-300">
+                  <div className="flex items-center space-x-2 mb-4">
+                    <div className="p-2 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <h4 className="text-base font-semibold text-gray-900 dark:text-white">Serial Numbers & Warranty</h4>
+                  </div>
+                  <div className="space-y-3">
+                    {(selectedDevice.serialNumbers || selectedDevice.serials || []).map((sn: any, index: number) => (
+                      <div 
+                        key={index} 
+                        className="p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-gray-700/50 hover:border-blue-200 dark:hover:border-blue-900/50 transition-colors duration-200"
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1">
+                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Serial Number</div>
+                            <div className="font-mono text-sm bg-gray-100 dark:bg-gray-800/50 px-3 py-1.5 rounded-md text-gray-800 dark:text-gray-200">
+                              {sn.serialNumber || sn.serial}
+                            </div>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Warranty Expiry</div>
+                            <div className="flex items-center">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                sn.warrantyExpiry && new Date(sn.warrantyExpiry) > new Date() 
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' 
+                                  : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                              }`}>
+                                {sn.warrantyExpiry 
+                                  ? new Date(sn.warrantyExpiry).toLocaleDateString() 
+                                  : 'No expiry date'}
+                                {sn.warrantyExpiry && new Date(sn.warrantyExpiry) > new Date() && (
+                                  <svg className="ml-1 w-3 h-3" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-gray-600 dark:text-gray-400 text-sm">No serial numbers available</p>
-                )}
-              </div>
-
-              {selectedDevice.documentationUrl && (
-                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
-                  <a
-                    href={selectedDevice.documentationUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 text-sm flex items-center"
-                  >
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    View Documentation
-                  </a>
                 </div>
               )}
             </div>
