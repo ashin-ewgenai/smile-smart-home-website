@@ -55,7 +55,8 @@ function parseStorageUrl(url: string): { bucket?: string; path?: string } {
 
 const db = getFirestore();
 const adminAuth = getAuth();
-const storage = getStorage().bucket();
+// Do NOT initialize a Storage bucket at module load; projects without a default bucket will crash here.
+// Access Storage lazily inside helper functions with try/catch.
 
 // No role enforcement needed in this app context
 
@@ -91,7 +92,8 @@ async function deleteByQuery(collectionName: string, field: string, uid: string)
 // Storage cleanup helpers
 async function deleteStoragePrefix(prefix: string): Promise<number> {
   try {
-    const [files] = await storage.getFiles({ prefix });
+    const bucket = getStorage().bucket();
+    const [files] = await bucket.getFiles({ prefix });
     if (!files.length) return 0;
     await Promise.all(files.map(f => f.delete().catch(() => {})));
     return files.length;
@@ -118,7 +120,8 @@ export const adminDeleteUserAndData = onCall({ region: "us-central1", cors: true
   const targetAccountRef = db.collection("Accounts").doc(targetUid);
 
   const summary: Record<string, any> = {};
-  const bucketName = storage.name;
+  let bucketName = 'unknown';
+  try { bucketName = getStorage().bucket().name; } catch {}
   console.log('[adminDeleteUserAndData] Using bucket:', bucketName);
 
   try {

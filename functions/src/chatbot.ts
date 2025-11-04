@@ -624,6 +624,73 @@ export const analyzeTicketById = onCall({ secrets: [OPENAI_API_KEY], cors: true 
     console.warn("Failed to fetch user devices:", e);
   }
 
+  // Try to resolve a specific device related to the ticket
+  let matchedDevice: any = null;
+  try {
+    if (t.deviceId) {
+      const dSnap = await db.collection(CONFIG.COLLECTIONS.DEVICES).doc(String(t.deviceId)).get();
+      if (dSnap.exists) {
+        const d = dSnap.data() as any;
+        if (!d.uid || d.uid === authCtx.uid) {
+          matchedDevice = { id: dSnap.id, ...d };
+        }
+      }
+    }
+    if (!matchedDevice && userDevices.length > 0) {
+      const serialNeedle = String(t.deviceSerial || '').trim();
+      const modelNeedle = String(t.deviceModel || '').trim();
+      matchedDevice = userDevices.find((d: any) => {
+        const serials = [d.deviceSerial, d.serial, d.serialNumber]
+          .filter(Boolean)
+          .map((x: any) => String(x).trim());
+        const models = [d.deviceModel, d.model, d.modelNumber]
+          .filter(Boolean)
+          .map((x: any) => String(x).trim());
+        const serialMatch = serialNeedle && serials.includes(serialNeedle);
+        const modelMatch = modelNeedle && models.includes(modelNeedle);
+        return serialMatch || modelMatch;
+      }) || null;
+    }
+  } catch (err) {
+    console.warn('Failed to resolve matched device:', err);
+  }
+
+  // Local serial masker
+  const maskSerialLocal = (s: any) => {
+    const v = typeof s === 'string' ? s : '';
+    if (!v) return '';
+    const last4 = v.slice(-4);
+    return v.length > 4 ? `***${last4}` : `***${last4}`;
+  };
+
+  // Prepare deviceDetails object for UI and a readable message for chat
+  let deviceDetails: any = null;
+  let deviceDetailsMessage: string | null = null;
+  if (matchedDevice) {
+    const serialMasked = maskSerialLocal(matchedDevice.deviceSerial || matchedDevice.serial || matchedDevice.serialNumber || '');
+    deviceDetails = {
+      deviceName: matchedDevice.deviceName || matchedDevice.name || 'Device',
+      type: matchedDevice.deviceType || matchedDevice.type || 'Device',
+      modelNumber: matchedDevice.deviceModel || matchedDevice.model || matchedDevice.modelNumber || '',
+      brand: matchedDevice.brand || undefined,
+      serialNumber: serialMasked,
+      warrantyExpiry: matchedDevice.warrantyExpiry || matchedDevice.warrantyEnd || undefined,
+      documentation: matchedDevice.documentation || matchedDevice.manualUrl || undefined,
+      isOnline: typeof matchedDevice.isOnline === 'boolean' ? matchedDevice.isOnline : undefined,
+    };
+    const parts = [
+      `Here are the device details I found:`,
+      `- Name: ${deviceDetails.deviceName}`,
+      `- Type: ${deviceDetails.type}`,
+      deviceDetails.modelNumber ? `- Model: ${deviceDetails.modelNumber}` : '',
+      deviceDetails.serialNumber ? `- Serial: ${deviceDetails.serialNumber} (masked)` : '',
+      typeof deviceDetails.isOnline === 'boolean' ? `- Status: ${deviceDetails.isOnline ? 'Online' : 'Offline'}` : '',
+      deviceDetails.warrantyExpiry ? `- Warranty expiry: ${deviceDetails.warrantyExpiry}` : '',
+      deviceDetails.documentation ? `- Docs: ${deviceDetails.documentation}` : '',
+    ].filter(Boolean);
+    deviceDetailsMessage = parts.join('\n');
+  }
+
   const deviceList = userDevices.length > 0
     ? `User's devices: ${userDevices.map((d: any) => d.deviceName || d.name || d.id).join(", ")}`
     : "User has no registered devices.";
@@ -724,6 +791,15 @@ Important guidance:
         ts: Date.now(),
         source: "ai",
       });
+      if (deviceDetailsMessage) {
+        await sessionsCol.doc(sessionId).collection("messages").add({
+          role: "assistant",
+          content: deviceDetailsMessage,
+          ts: Date.now() + 1,
+          source: "system",
+          deviceInfo: deviceDetails,
+        });
+      }
       await sessionsCol.doc(sessionId).set({ updatedAt: Date.now() }, { merge: true });
     } catch (e) {
       console.warn("Failed to persist analysis to chat session:", e);
@@ -735,5 +811,6 @@ Important guidance:
     ticketId,
     initialSolution: content,
     needsSerial,
+    ...(deviceDetails ? { deviceInfo: deviceDetails } : {}),
   };
 });

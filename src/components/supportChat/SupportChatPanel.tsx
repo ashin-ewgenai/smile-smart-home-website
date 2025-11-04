@@ -569,7 +569,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   // Online (human) vs Offline (bot) mode handling
   const setupOnlineChat = useCallback(async () => {
     if (msgsUnsubRef.current) {
-      try { msgsUnsubRef.current(); } catch {}
+      try { msgsUnsubRef.current(); } catch (_e) {}
       msgsUnsubRef.current = null;
     }
 
@@ -628,7 +628,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setLoading(false);
       return () => {
         if (msgsUnsubRef.current) {
-          try { msgsUnsubRef.current(); } catch {}
+          try { msgsUnsubRef.current(); } catch (_e) {}
           msgsUnsubRef.current = null;
         }
       };
@@ -640,7 +640,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
     return () => {
       if (msgsUnsubRef.current) {
-        try { msgsUnsubRef.current(); } catch {}
+        try { msgsUnsubRef.current(); } catch (_e) {}
         msgsUnsubRef.current = null;
       }
     };
@@ -730,10 +730,24 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                   const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
                   await addDoc(msgsCol, { role: 'assistant', content: suggestion, ts: Date.now() + 2, source: 'ai' });
                   await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp() }, { merge: true });
-                } catch {}
+                } catch (_e) {}
               }
             }
-          } catch {}
+          } catch (error) {
+            const err = error as any;
+            console.error('suggestTroubleshootingStep failed:', err);
+            const code: string = String(err?.code || '');
+            let message = "I’m having trouble responding right now. Please try again.";
+            if (code.includes('resource-exhausted')) {
+              message = "You’re sending messages too quickly. Please wait a few seconds and try again.";
+            } else if (code.includes('unauthenticated')) {
+              message = "Please sign in to continue troubleshooting.";
+            }
+            setMessages((prev) => [
+              ...prev,
+              { role: 'assistant', content: message, ts: Date.now() },
+            ]);
+          }
         }
       } finally {
         setIsSending(false);
@@ -804,6 +818,15 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           // Enable server-side debug info in response (temporary; remove for prod)
           debug: true,
         };
+
+        // Optimistic UI: append the user's message immediately with a sending flag
+        const optimisticTs = Date.now();
+        setMessages((prev) => [
+          ...prev,
+          { role: 'user', content, ts: optimisticTs, uploading: true },
+          { role: 'agent', content: 'Sending…', ts: optimisticTs + 1, uploading: true },
+        ]);
+
         const call = httpsCallable(functions, 'chatWithOpenAI');
         const res = await call(payload);
         const reply = (res?.data as any)?.reply as string | undefined;
@@ -847,7 +870,19 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           // no-op
         }
       } catch (error) {
-        // Let backend handle error messaging or show a lightweight local notice if needed
+        const err = error as any;
+        const code: string = String(err?.code || '');
+        let message = "I’m having trouble responding right now. Please try again.";
+        if (code.includes('resource-exhausted')) {
+          message = "You’re sending messages too quickly. Please wait a few seconds and try again.";
+        } else if (code.includes('unauthenticated')) {
+          message = "Please sign in to use the assistant.";
+        }
+        try { console.error('chatWithOpenAI failed:', err); } catch {}
+        setMessages((prev) => [
+          ...prev,
+          { role: 'assistant', content: message, ts: Date.now() },
+        ]);
       } finally {
         setIsSending(false);
       }
@@ -1173,6 +1208,11 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                 <span className="text-xs text-gray-600 dark:text-gray-400">
                   {claimed ? 'Human support connected' : hasSupportRequest ? 'Human support requested' : 'AI Assistant active'}
                 </span>
+                {claimed && (
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 border border-gray-200/70 dark:border-gray-600/60">
+                    AI responses are disabled while human support is connected
+                  </span>
+                )}
                 {!hasSupportRequest && (
                   <button onClick={requestHuman} className="text-xs px-2 py-1 rounded-full bg-teal-50 text-teal-700 hover:bg-teal-100 dark:bg-teal-900/20 dark:text-teal-300 dark:hover:bg-teal-900/40 transition-colors">
                     Request human

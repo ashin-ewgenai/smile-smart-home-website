@@ -1,0 +1,105 @@
+[debug] [2025-11-04T07:50:28.116Z] ----------------------------------------------------------------------
+[debug] [2025-11-04T07:50:28.161Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\gokul\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js deploy --only functions:default --debug
+[debug] [2025-11-04T07:50:28.164Z] CLI Version:   14.11.1
+[debug] [2025-11-04T07:50:28.164Z] Platform:      win32
+[debug] [2025-11-04T07:50:28.165Z] Node Version:  v22.18.0
+[debug] [2025-11-04T07:50:28.167Z] Time:          Tue Nov 04 2025 13:20:28 GMT+0530 (India Standard Time)
+[debug] [2025-11-04T07:50:28.168Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-11-04T07:50:30.832Z] Field "/functions" in "firebase.json" is possibly invalid: must be object
+[debug] [2025-11-04T07:50:30.851Z] Object "/functions/1" in "firebase.json" has unknown property: {"additionalProperty":"gen"}
+[debug] [2025-11-04T07:50:30.857Z] Field "/functions" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[debug] [2025-11-04T07:50:30.901Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-11-04T07:50:30.910Z] > authorizing via signed-in user (gokulnath@expectationwalkers.tech)
+[debug] [2025-11-04T07:50:30.917Z] [iam] checking project smile-smart-homes for permissions ["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]
+[debug] [2025-11-04T07:50:30.934Z] Checked if tokens are valid: true, expires at: 1762245436530
+[debug] [2025-11-04T07:50:30.950Z] Checked if tokens are valid: true, expires at: 1762245436530
+[debug] [2025-11-04T07:50:30.958Z] >>> [apiv2][query] POST https://cloudresourcemanager.googleapis.com/v1/projects/smile-smart-homes:testIamPermissions [none]
+[debug] [2025-11-04T07:50:30.962Z] >>> [apiv2][(partial)header] POST https://cloudresourcemanager.googleapis.com/v1/projects/smile-smart-homes:testIamPermissions x-goog-quota-user=projects/smile-smart-homes
+[debug] [2025-11-04T07:50:30.964Z] >>> [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/smile-smart-homes:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2025-11-04T07:50:33.315Z] <<< [apiv2][status] POST https://cloudresourcemanager.googleapis.com/v1/projects/smile-smart-homes:testIamPermissions 200
+[debug] [2025-11-04T07:50:33.474Z] <<< [apiv2][body] POST https://cloudresourcemanager.googleapis.com/v1/projects/smile-smart-homes:testIamPermissions {"permissions":["cloudfunctions.functions.create","cloudfunctions.functions.delete","cloudfunctions.functions.get","cloudfunctions.functions.list","cloudfunctions.functions.update","cloudfunctions.operations.get","firebase.projects.get"]}
+[debug] [2025-11-04T07:50:33.665Z] Checked if tokens are valid: true, expires at: 1762245436530
+[debug] [2025-11-04T07:50:33.813Z] Checked if tokens are valid: true, expires at: 1762245436530
+[debug] [2025-11-04T07:50:33.958Z] >>> [apiv2][query] POST https://iam.googleapis.com/v1/projects/smile-smart-homes/serviceAccounts/smile-smart-homes@appspot.gserviceaccount.com:testIamPermissions [none]
+[debug] [2025-11-04T07:50:34.026Z] >>> [apiv2][body] POST https://iam.googleapis.com/v1/projects/smile-smart-homes/serviceAccounts/smile-smart-homes@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[debug] [2025-11-04T07:50:35.794Z] <<< [apiv2][status] POST https://iam.googleapis.com/v1/projects/smile-smart-homes/serviceAccounts/smile-smart-homes@appspot.gserviceaccount.com:testIamPermissions 200
+[debug] [2025-11-04T07:50:35.809Z] <<< [apiv2][body] POST https://iam.googleapis.com/v1/projects/smile-smart-homes/serviceAccounts/smile-smart-homes@appspot.gserviceaccount.com:testIamPermissions {"permissions":["iam.serviceAccounts.actAs"]}
+[info] 
+[info] === Deploying to 'smile-smart-homes'...
+[info] 
+[info] i  deploying functions 
+[debug] [2025-11-04T07:50:36.059Z] Checked if tokens are valid: true, expires at: 1762245436530
+[debug] [2025-11-04T07:50:36.192Z] Checked if tokens are valid: true, expires at: 1762245436530
+[debug] [2025-11-04T07:50:36.240Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/smile-smart-homes [none]
+[debug] [2025-11-04T07:50:36.943Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/smile-smart-homes 200
+[debug] [2025-11-04T07:50:36.992Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/smile-smart-homes {"projectNumber":"963327038910","projectId":"smile-smart-homes","lifecycleState":"ACTIVE","name":"smile-smart-homes","labels":{"firebase":"enabled","firebase-core":"disabled","generative-language":"enabled"},"createTime":"2025-08-11T11:55:10.130780Z"}
+[info] i  functions: preparing codebase default for deployment 
+[info] i  functions: ensuring required API cloudfunctions.googleapis.com is enabled... 
+[info] i  functions: ensuring required API cloudbuild.googleapis.com is enabled... 
+[info] i  artifactregistry: ensuring required API artifactregistry.googleapis.com is enabled... 
+[debug] [2025-11-04T07:50:37.492Z] Checked if tokens are valid: true, expires at: 1762245436530
+[debug] [2025-11-04T07:50:37.527Z] Checked if tokens are valid: true, expires at: 1762245436530
+[debug] [2025-11-04T07:50:37.619Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/smile-smart-homes/adminSdkConfig [none]
+[debug] [2025-11-04T07:50:39.092Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/smile-smart-homes/adminSdkConfig 200
+[debug] [2025-11-04T07:50:39.113Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/smile-smart-homes/adminSdkConfig {"projectId":"smile-smart-homes","databaseURL":"https://smile-smart-homes-default-rtdb.firebaseio.com","storageBucket":"smile-smart-homes.firebasestorage.app"}
+[debug] [2025-11-04T07:50:39.119Z] Checked if tokens are valid: true, expires at: 1762245436530
+[debug] [2025-11-04T07:50:39.247Z] Checked if tokens are valid: true, expires at: 1762245436530
+[debug] [2025-11-04T07:50:39.290Z] >>> [apiv2][query] GET https://runtimeconfig.googleapis.com/v1beta1/projects/smile-smart-homes/configs [none]
+[debug] [2025-11-04T07:50:39.837Z] <<< [apiv2][status] GET https://runtimeconfig.googleapis.com/v1beta1/projects/smile-smart-homes/configs 200
+[debug] [2025-11-04T07:50:39.858Z] <<< [apiv2][body] GET https://runtimeconfig.googleapis.com/v1beta1/projects/smile-smart-homes/configs {}
+[debug] [2025-11-04T07:50:39.920Z] Validating nodejs source
+[debug] [2025-11-04T07:50:50.398Z] checkFunctionsSDKVersion was unable to fetch information from NPM Error: spawnSync C:\WINDOWS\system32\cmd.exe ETIMEDOUT
+    at Object.spawnSync (node:internal/child_process:1120:20)
+    at Object.spawnSync (node:child_process:901:24)
+    at Function.spawnSync [as sync] (C:\Users\gokul\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\cross-spawn\index.js:26:23)
+    at Object.getLatestSDKVersion (C:\Users\gokul\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js:54:25)
+    at Object.checkFunctionsSDKVersion (C:\Users\gokul\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js:74:32)
+    at Delegate.validate (C:\Users\gokul\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:89:20)
+    at loadCodebases (C:\Users\gokul\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js:307:31)
+    at async prepare (C:\Users\gokul\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\prepare.js:61:24)
+    at async chain (C:\Users\gokul\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js:42:9)
+    at async deploy (C:\Users\gokul\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\index.js:119:5)
+[debug] [2025-11-04T07:50:50.425Z] > [functions] package.json contents: {
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "functions",
+  "scripts": {
+    "lint": "eslint --ext .ts src",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "20"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^6.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "@typescript-eslint/eslint-plugin": "^5.12.0",
+    "@typescript-eslint/parser": "^5.12.0",
+    "eslint": "^8.9.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.25.4",
+    "firebase-functions-test": "^3.1.0",
+    "typescript": "^5.7.3",
+    "undici-types": "^7.14.0"
+  },
+  "private": true
+}
+[debug] [2025-11-04T07:50:50.439Z] Building nodejs source
+[info] i  functions: Loading and analyzing source code for codebase default to determine what to deploy 
+[debug] [2025-11-04T07:50:50.484Z] Could not find functions.yaml. Must use http discovery
+[debug] [2025-11-04T07:50:50.580Z] Found firebase-functions binary at 'D:\Expectation Walker\smile-smart-home-website\node_modules\.bin\firebase-functions'
+[debug] [2025-11-04T07:51:00.978Z] Failed to call quitquitquit. This often means the server failed to start request to http://localhost:8708/__/quitquitquit failed, reason:  {"message":"request to http://localhost:8708/__/quitquitquit failed, reason: ","type":"system","errno":"ECONNREFUSED","code":"ECONNREFUSED"}
+[info] Serving at port 8708
+
+[error] 
+[error] Error: User code failed to load. Cannot determine backend specification. Timeout after 10000. See https://firebase.google.com/docs/functions/tips#avoid_deployment_timeouts_during_initialization'
