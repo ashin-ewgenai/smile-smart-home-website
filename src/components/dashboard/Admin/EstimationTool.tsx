@@ -1049,37 +1049,6 @@ const EstimationTool: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Attachments */}
-                <div className="bg-white/95 dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
-                  <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-                    <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Attachments</h2>
-                  </div>
-                  <div className="p-6">
-                    <input
-                      type="file"
-                      multiple
-                      className="block w-full text-sm text-gray-700 dark:text-gray-300"
-                      onChange={(e) => onFilesSelected(e.target.files)}
-                    />
-                    {Array.isArray(createForm.attachments) && createForm.attachments.length > 0 && (
-                      <ul className="mt-2 list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                        {createForm.attachments.map((url, idx) => (
-                          <li key={idx} className="flex items-center gap-2">
-                            <a href={url} target="_blank" rel="noreferrer" className="text-teal-600 dark:text-teal-400 hover:underline">Attachment {idx + 1}</a>
-                            <button
-                              type="button"
-                              className="text-xs text-red-600 dark:text-red-400 hover:underline"
-                              onClick={() => setCreateForm((p) => ({ ...p, attachments: (p.attachments || []).filter((_, i) => i !== idx) }))}
-                            >
-                              Remove
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-
                 {/* Actions */}
                 <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row flex-wrap gap-3">
                   <button type="button" className="inline-flex justify-center rounded-full border border-transparent px-4 py-2 text-sm font-medium text-white shadow-soft focus:outline-none focus:ring-2 focus:ring-offset-2 bg-teal-600 hover:bg-teal-700 focus:ring-teal-500 disabled:opacity-50" onClick={() => {

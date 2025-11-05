@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { PDFDownloadLink } from '@react-pdf/renderer';
+import EstimatePDF from '../Admin/EstimatePDF';
 import LocationSelector from '../../common/LocationSelector';
 import { auth, db } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -1433,7 +1435,66 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
                 )}
               </div>
               <div className="flex justify-end pt-2">
-                <button onClick={closeModal} className="px-4 py-2 rounded-lg bg-teal text-white hover:bg-teal/90">Close</button>
+                {/* Bottom-left Download PDF and right-aligned Close */}
+                <div className="flex w-full items-center justify-between">
+                  {estimation && (
+                    <PDFDownloadLink
+                      document={(
+                        <EstimatePDF
+                          createForm={{
+                            quoteId: (estimation as any)?.quoteId || (estimation as any)?.id || '',
+                            issueDate: formatEstimationDate((estimation as any)?.issueDate) || '',
+                            expiryDate: (estimation as any)?.expiryDate ? formatEstimationDate((estimation as any)?.expiryDate) : undefined,
+                            customerEmail: (selectedQuote as any)?.customerEmail || (selectedQuote as any)?.userEmail || '',
+                            paymentTerms: (estimation as any)?.paymentTerms || '',
+                            warranty: (estimation as any)?.warranty || '',
+                            deliveryTimeline: (estimation as any)?.deliveryTimeline || '',
+                            notes: (estimation as any)?.notes || '',
+                            shippingCharges: Number((estimation as any)?.shippingCharges || 0),
+                            installationCharges: Number((estimation as any)?.installationCharges || 0),
+                            overallDiscountPercent: Number((estimation as any)?.overallDiscountPercent || 0),
+                            taxType: (estimation as any)?.taxType || 'GST',
+                            taxPercent: Number((estimation as any)?.taxPercent || 0),
+                            taxes: Array.isArray((estimation as any)?.taxBreakdown)
+                              ? ((estimation as any)?.taxBreakdown as any[]).map((t) => ({ name: String(t.name || 'Tax'), percent: Number(t.percent || 0) }))
+                              : Array.isArray((estimation as any)?.taxes)
+                                ? ((estimation as any)?.taxes as any[]).map((t) => ({ name: String(t.name || 'Tax'), percent: Number(t.percent || 0) }))
+                                : [],
+                          }}
+                          items={Array.isArray((estimation as any)?.items)
+                            ? ((estimation as any)?.items as any[]).map((it) => ({
+                                id: String(it.id || ''),
+                                name: String(it.name || ''),
+                                description: String(it.description || ''),
+                                quantity: Number(it.quantity || 0),
+                                unitPrice: Number(it.unitPrice || 0),
+                                discount: Number(it.discount || 0),
+                                taxPercent: Number(it.taxPercent || 0),
+                              }))
+                            : []}
+                          totals={{
+                            subtotal: Number((estimation as any)?.subtotal || 0),
+                            discountAmount: Number((estimation as any)?.overallDiscountAmount || 0),
+                            taxes: Number((estimation as any)?.taxes || 0),
+                            grand: Number((estimation as any)?.grandTotal || 0),
+                          }}
+                        />
+                      )}
+                      fileName={`${((estimation as any)?.quoteId || (estimation as any)?.id || 'estimate')}.pdf`}
+                    >
+                      {({ loading }) => (
+                        <button
+                          type="button"
+                          className="px-4 py-2 rounded-lg bg-teal text-white hover:bg-teal/90 text-sm"
+                          title="Download PDF"
+                        >
+                          {loading ? 'Preparing…' : 'Download PDF'}
+                        </button>
+                      )}
+                    </PDFDownloadLink>
+                  )}
+                  <button onClick={closeModal} className="px-4 py-2 rounded-lg bg-teal text-white hover:bg-teal/90">Close</button>
+                </div>
               </div>
             </div>
           </div>
