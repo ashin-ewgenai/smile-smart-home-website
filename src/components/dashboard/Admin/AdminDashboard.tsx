@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { Users, Home, Settings, Bell, BarChart2, Calendar, HelpCircle, FileText, ChevronDown, TrendingUp, TrendingDown, Activity, Eye, EyeOff, LayoutDashboard, UserSearch } from 'lucide-react';
-import { collection, getDocs, getDoc, query, where } from 'firebase/firestore';
+import { collection, getDocs, getDoc, query, where, getCountFromServer } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../../lib/firebase';
-import { COLLECTION_ACCOUNTS, accountsCollection, accountDoc, registerUserWithProfile, type Account } from '../../../models/Collections';
+import { COLLECTION_ACCOUNTS, accountsCollection, accountDoc, registerUserWithProfile, type Account, contactRequestsCollection, supportTicketsCollection } from '../../../models/Collections';
 
 interface User {
   id: string;
@@ -81,6 +81,8 @@ const AdminDashboard: React.FC = () => {
     activeUsers: 0,
     newUsers: 0
   });
+  const [contactCount, setContactCount] = useState(0);
+  const [pendingTicketCount, setPendingTicketCount] = useState(0);
   
   const [systemStats, setSystemStats] = useState<SystemStats>({
     totalDevices: 0,
@@ -182,7 +184,6 @@ const AdminDashboard: React.FC = () => {
             const userDate = user.CreatedAt?.toDate() || new Date(0);
             return userDate >= oneWeekAgo;
           }).length;
-          setKpis([{ key: 'users', label: 'Total Users', value: totalUsers, delta: 0, icon: Users, color: 'text-teal-500', data: [totalUsers] }]);
           setUserStats({ totalUsers, activeUsers, newUsers });
         } catch (error) {
           console.error('Error processing users:', error);
@@ -195,6 +196,48 @@ const AdminDashboard: React.FC = () => {
     };
     start();
     return () => { if (unsub) unsub(); };
+  }, []);
+
+  // Track loading state for KPIs
+  const [isKpiLoading, setIsKpiLoading] = useState(true);
+
+  // Fetch counts for Contact Submissions and Pending Support Tickets
+  useEffect(() => {
+    let mounted = true;
+    const load = async () => {
+      try {
+        setIsKpiLoading(true);
+        // Contact submissions count
+        const contactsCountSnap = await getCountFromServer(contactRequestsCollection(db));
+
+        // Pending tickets = total tickets - resolved/cancelled tickets
+        const [totalTicketsCountSnap, resolvedCancelledCountSnap] = await Promise.all([
+          getCountFromServer(supportTicketsCollection(db)),
+          getCountFromServer(query(
+            supportTicketsCollection(db),
+            where('status', 'in', ['Resolved', 'resolved', 'closed', 'Closed', 'cancelled', 'Canceled', 'Cancelled'])
+          ))
+        ]);
+
+        if (!mounted) return;
+        
+        const totalTickets = totalTicketsCountSnap.data().count || 0;
+        const resolvedCancelled = resolvedCancelledCountSnap.data().count || 0;
+        const pending = Math.max(0, totalTickets - resolvedCancelled);
+        
+        setContactCount(contactsCountSnap.data().count || 0);
+        setPendingTicketCount(pending);
+      } catch (e) {
+        if (!mounted) return;
+        console.error('Error loading KPI data:', e);
+        setContactCount(0);
+        setPendingTicketCount(0);
+      } finally {
+        if (mounted) setIsKpiLoading(false);
+      }
+    };
+    load();
+    return () => { mounted = false; };
   }, []);
 
   const [kpis, setKpis] = useState<Array<{
@@ -267,6 +310,45 @@ const AdminDashboard: React.FC = () => {
       }
     };
   }, [kpis]);
+
+  // Recompute KPI cards when counts change
+  useEffect(() => {
+    const loadingValue = isKpiLoading ? '...' : 0;
+    const usersKpi = { 
+      key: 'users', 
+      label: 'Total Users', 
+      value: userStats.totalUsers, 
+      delta: 0, 
+      icon: Users, 
+      color: 'text-teal-500', 
+      data: [userStats.totalUsers],
+      isLoading: false
+    } as const;
+    
+    const contactsKpi = { 
+      key: 'contacts', 
+      label: 'Contact Submissions', 
+      value: isKpiLoading ? loadingValue : contactCount, 
+      delta: 0, 
+      icon: FileText, 
+      color: 'text-indigo-500', 
+      data: [contactCount],
+      isLoading: isKpiLoading
+    } as const;
+    
+    const ticketsKpi = { 
+      key: 'tickets', 
+      label: 'Pending Tickets', 
+      value: isKpiLoading ? loadingValue : pendingTicketCount, 
+      delta: 0, 
+      icon: HelpCircle, 
+      color: 'text-amber-500', 
+      data: [pendingTicketCount],
+      isLoading: isKpiLoading
+    } as const;
+    
+    setKpis([usersKpi as any, contactsKpi as any, ticketsKpi as any]);
+  }, [userStats.totalUsers, contactCount, pendingTicketCount, isKpiLoading]);
   
   const recentAlerts = [
     { id: 1, device: 'Living Room Camera', type: 'Motion Detected', time: '10:23 AM', date: 'Today' },
