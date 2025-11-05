@@ -984,20 +984,34 @@ export default function DeviceForm() {
         {/* Add new troubleshooting item */}
         <div className="flex items-start gap-2">
           <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
-            <input
-              type="text"
+            <textarea
               value={newTroubleshootItem.problem}
-              onChange={(e) => setNewTroubleshootItem({...newTroubleshootItem, problem: e.target.value})}
-              className="block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
+              onChange={(e) => {
+                setNewTroubleshootItem({...newTroubleshootItem, problem: e.target.value});
+                // Auto-resize the textarea
+                const target = e.target as HTMLTextAreaElement;
+                target.style.height = 'auto';
+                target.style.height = `${target.scrollHeight}px`;
+              }}
+              className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2 min-h-[38px] resize-none overflow-hidden"
               placeholder="Problem"
+              rows={1}
+              style={{ minHeight: '38px' }}
             />
             <div className="flex gap-2">
-              <input
-                type="text"
+              <textarea
                 value={newTroubleshootItem.solution}
-                onChange={(e) => setNewTroubleshootItem({...newTroubleshootItem, solution: e.target.value})}
-                className="block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
+                onChange={(e) => {
+                  setNewTroubleshootItem({...newTroubleshootItem, solution: e.target.value});
+                  // Auto-resize the textarea
+                  const target = e.target as HTMLTextAreaElement;
+                  target.style.height = 'auto';
+                  target.style.height = `${target.scrollHeight}px`;
+                }}
+                className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2 min-h-[38px] resize-none overflow-hidden"
                 placeholder="Solution"
+                rows={1}
+                style={{ minHeight: '38px' }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && newTroubleshootItem.problem && newTroubleshootItem.solution) {
                     addTroubleshootItem();
@@ -1313,20 +1327,34 @@ export default function DeviceForm() {
                   {editValues.troubleshooting?.map((item, index) => (
                     <div key={index} className="flex items-start gap-2">
                       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
-                        <input
-                          type="text"
+                        <textarea
                           value={item.problem}
-                          onChange={(e) => updateEditTroubleshootItem(index, 'problem', e.target.value)}
-                          className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+                          onChange={(e) => {
+                            updateEditTroubleshootItem(index, 'problem', e.target.value);
+                            // Auto-resize the textarea
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = 'auto';
+                            target.style.height = `${target.scrollHeight}px`;
+                          }}
+                          className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2 min-h-[38px] resize-none overflow-hidden"
                           placeholder="Problem"
+                          rows={1}
+                          style={{ minHeight: '38px' }}
                         />
                         <div className="flex gap-2">
-                          <input
-                            type="text"
+                          <textarea
                             value={item.solution}
-                            onChange={(e) => updateEditTroubleshootItem(index, 'solution', e.target.value)}
-                            className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+                            onChange={(e) => {
+                              updateEditTroubleshootItem(index, 'solution', e.target.value);
+                              // Auto-resize the textarea
+                              const target = e.target as HTMLTextAreaElement;
+                              target.style.height = 'auto';
+                              target.style.height = `${target.scrollHeight}px`;
+                            }}
+                            className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2 min-h-[38px] resize-none overflow-hidden"
                             placeholder="Solution"
+                            rows={1}
+                            style={{ minHeight: '38px' }}
                           />
                           <button
                             type="button"
@@ -1345,20 +1373,34 @@ export default function DeviceForm() {
                 {/* Add new troubleshooting item */}
                 <div className="flex items-start gap-2">
                   <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <input
-                      type="text"
+                    <textarea
                       value={editTroubleshootItem.problem}
-                      onChange={(e) => setEditTroubleshootItem({...editTroubleshootItem, problem: e.target.value})}
-                      className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+                      onChange={(e) => {
+                        setEditTroubleshootItem({...editTroubleshootItem, problem: e.target.value});
+                        // Auto-resize the textarea
+                        const target = e.target as HTMLTextAreaElement;
+                        target.style.height = 'auto';
+                        target.style.height = `${target.scrollHeight}px`;
+                      }}
+                      className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2 min-h-[38px] resize-none overflow-hidden"
                       placeholder="Problem"
+                      rows={1}
+                      style={{ minHeight: '38px' }}
                     />
                     <div className="flex gap-2">
-                      <input
-                        type="text"
+                      <textarea
                         value={editTroubleshootItem.solution}
-                        onChange={(e) => setEditTroubleshootItem({...editTroubleshootItem, solution: e.target.value})}
-                        className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
+                        onChange={(e) => {
+                          setEditTroubleshootItem({...editTroubleshootItem, solution: e.target.value});
+                          // Auto-resize the textarea
+                          const target = e.target as HTMLTextAreaElement;
+                          target.style.height = 'auto';
+                          target.style.height = `${target.scrollHeight}px`;
+                        }}
+                        className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2 min-h-[38px] resize-none overflow-hidden"
                         placeholder="Solution"
+                        rows={1}
+                        style={{ minHeight: '38px' }}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' && editTroubleshootItem.problem && editTroubleshootItem.solution) {
                             addEditTroubleshootItem();
