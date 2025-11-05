@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { db } from '../../../lib/firebase';
 import { getDocs, orderBy, query, deleteDoc } from 'firebase/firestore';
 import { plannerLeadsCollection, plannerLeadDoc } from '../../../models/Collections';
@@ -75,6 +75,54 @@ const PlanLeads: React.FC = () => {
   const [openId, setOpenId] = useState<string | null>(null);
   const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  const setItemRef = (id: string) => (el: HTMLDivElement | null) => {
+    const map = itemRefs.current;
+    if (el) {
+      map.set(id, el);
+    } else {
+      map.delete(id);
+    }
+  };
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const styles = window.getComputedStyle(container);
+    const autoRows = parseFloat(styles.getPropertyValue('grid-auto-rows')) || 8;
+    const rowGap = parseFloat(styles.getPropertyValue('row-gap')) || 16;
+
+    const computeFor = (el: HTMLElement) => {
+      const h = el.getBoundingClientRect().height;
+      // Include the row gap in the calculation to avoid visible gaps
+      const span = Math.ceil((h + rowGap) / (autoRows + rowGap));
+      el.style.gridRowEnd = `span ${Math.max(span, 1)}`;
+    };
+
+    // Initial compute for all items
+    itemRefs.current.forEach((el) => computeFor(el));
+
+    // Recompute on window resize
+    const onResize = () => itemRefs.current.forEach((el) => computeFor(el));
+    window.addEventListener('resize', onResize);
+
+    // Observe each item's size for dynamic recompute
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const el = entry.target as HTMLElement;
+        computeFor(el);
+      }
+    });
+    itemRefs.current.forEach((el) => ro.observe(el));
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+      ro.disconnect();
+    };
+  }, [leads, searchTerm, openId]);
 
   const filteredLeads: Lead[] = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -301,12 +349,13 @@ const PlanLeads: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+        <div ref={containerRef} className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 grid-flow-dense auto-rows-[1px] items-start">
           {filteredLeads.map((lead: Lead) => (
             <div
               key={lead.id}
               onClick={() => handleLeadClick(lead)}
-              className={`group relative rounded-lg border p-4 transition-colors duration-200 shadow-sm h-full flex flex-col
+              ref={setItemRef(lead.id)}
+              className={`group relative rounded-lg border p-4 transition-colors duration-200 shadow-sm w-full flex flex-col
                 ${openId === lead.id 
                   ? 'bg-gray-50 border-blue-600/40 dark:bg-gray-950 dark:border-blue-600/50' 
                   : 'bg-white hover:bg-gray-50 border-gray-200 dark:bg-gray-950 dark:hover:bg-gray-900 dark:border-gray-900'}`}
@@ -356,14 +405,14 @@ const PlanLeads: React.FC = () => {
                   </span>
                 </div>
               </div>
-              <div className="space-y-3 flex-1">
+              <div className="space-y-3">
                 <div>
                   <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
                     {lead.formData?.goals?.join(', ') || 'No goals specified'}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center justify-between mt-auto">
+              <div className="flex items-center justify-between mt-2">
                 <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
                   {openId === lead.id ? 'Hide details' : 'View details'}
                 </span>
