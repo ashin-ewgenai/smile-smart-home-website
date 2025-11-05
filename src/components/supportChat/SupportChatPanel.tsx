@@ -713,14 +713,66 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           serial: (match.deviceSerial || match.serial || '') as string,
         };
         setSelectedDevice(verified);
-        const okMsg: ChatMsg = { role: 'assistant', content: `Model verified (${verified.model}). Let me suggest a troubleshooting step for you.`, ts: Date.now() };
+        // Derive warranty expiry if present on document
+        let warrantyExpiry: string | undefined = undefined;
+        try {
+          const w = (match.warrantyExpiry || match.warrantyEnd || match.warrantyExpiryDate || match.warrantyEndDate);
+          if (w && typeof w?.toDate === 'function') {
+            warrantyExpiry = w.toDate().toISOString();
+          } else if (typeof w === 'number' || typeof w === 'string') {
+            const ms = typeof w === 'number' ? (w < 1e12 ? w * 1000 : w) : Date.parse(w);
+            if (!Number.isNaN(ms)) warrantyExpiry = new Date(ms).toISOString();
+          }
+        } catch {}
+
+        // Show device info including warranty
+        const infoMsg: ChatMsg = {
+          role: 'assistant',
+          content: `Model verified (${verified.model}). I fetched your device details and warranty info below.`,
+          deviceInfo: {
+            deviceName: verified.name,
+            modelNumber: verified.model,
+            serialNumber: verified.serial,
+            warrantyExpiry,
+            type: verified.type,
+          },
+          ts: Date.now(),
+        };
+        setMessages((prev) => [...prev, infoMsg]);
+
+        // Check for existing unresolved ticket linked to this device
+        try {
+          const unresolvedSnap = await getDocs(query(
+            collection(db, 'Support_Tickets'),
+            where('uid', '==', uid),
+            where('deviceId', '==', verified.id),
+            orderBy('createdAt', 'desc'),
+            limit(1)
+          ));
+          const t = unresolvedSnap.docs[0]?.data() as any;
+          const tId = unresolvedSnap.docs[0]?.id as string | undefined;
+          const status = String(t?.status || '').toLowerCase();
+          const isActive = ['pending', 'in progress', 'awaiting_user', 'open'].includes(status);
+          if (t && tId && isActive) {
+            const ticketNumber = t.ticketNumber || `#${tId.slice(-6).toUpperCase()}`;
+            const msg: ChatMsg = {
+              role: 'assistant',
+              content: `I found an existing ticket for this device (${ticketNumber}) with status "${t.status || 'Pending'}". We can continue there if you like.`,
+              ts: Date.now() + 1,
+            };
+            setMessages((prev) => [...prev, msg]);
+          }
+        } catch {}
+
+        // Follow-up: suggest troubleshooting steps via callable
+        const okMsg: ChatMsg = { role: 'assistant', content: `Let me suggest some troubleshooting steps for ${verified.model}…`, ts: Date.now() + 2 };
         setMessages((prev) => [...prev, okMsg]);
 
         const activeTid = providedTicketId || sessionActiveTicketId || (ticketData as any)?.ticketId || undefined;
         if (activeTid) {
           try {
             const call = httpsCallable(functions, 'suggestTroubleshootingStep');
-            const res: any = await call({ ticketId: activeTid, docs: [] });
+            const res: any = await call({ ticketId: activeTid, device: { id: verified.id, model: verified.model, type: verified.type } });
             const suggestion: string | undefined = res?.data?.suggestion || res?.data?.message;
             if (suggestion) {
               const assist: ChatMsg = { role: 'assistant', content: suggestion, ts: Date.now() + 1 };
@@ -749,6 +801,20 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             ]);
           }
         }
+        // Ask user if they want to generate a support ticket if none exists for this device
+        try {
+          const existingForDevice = await getDocs(query(
+            collection(db, 'Support_Tickets'),
+            where('uid', '==', uid),
+            where('deviceId', '==', verified.id),
+            orderBy('createdAt', 'desc'),
+            limit(1)
+          ));
+          if (existingForDevice.empty) {
+            const askMsg: ChatMsg = { role: 'assistant', content: 'Would you like me to generate a support ticket for this device so our team can follow up?', ts: Date.now() + 3, showTicketCTA: true };
+            setMessages((prev) => [...prev, askMsg]);
+          }
+        } catch {}
       } finally {
         setIsSending(false);
       }
@@ -793,6 +859,17 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
       await addDoc(msgsCol, { role: 'user', content, ts: Date.now() });
       await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human' }, { merge: true });
+      setIsSending(false);
+      return;
+    }
+
+    // If authenticated user, first detect device problem intent and prompt for model number
+    const problemIntent = /\b(not working|doesn't work|doesnt work|issue|problem|malfunction|broken|no power|no wifi|disconnect|blinking|beeping|overheating)\b/i.test(content);
+    const mentionsDevice = /\b(device|sensor|camera|lock|light|switch|plug|thermostat|router|hub)\b/i.test(content);
+    if (!awaitingModel && problemIntent && mentionsDevice) {
+      const promptMsg: ChatMsg = { role: 'assistant', content: 'Sorry to hear that. Please provide the exact model number of the device so I can fetch its warranty details and give you the right steps.', ts: Date.now() };
+      setMessages((prev) => [...prev, { role: 'user', content, ts: Date.now() - 1 }, promptMsg]);
+      setAwaitingModel(true);
       setIsSending(false);
       return;
     }

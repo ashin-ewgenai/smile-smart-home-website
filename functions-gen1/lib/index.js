@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.onSupportTicketCreatedGen1 = exports.checkExpiredWarranties = exports.onUserDeviceWriteWarrantyNotify = void 0;
+exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.onSupportTicketCreatedGen1 = exports.suggestTroubleshootingStep = exports.checkExpiredWarranties = exports.onUserDeviceWriteWarrantyNotify = void 0;
 /**
  * Warranty notifications
  * - Firestore trigger: on write to User_Devices, evaluate warranty and create/update
@@ -197,6 +197,98 @@ exports.checkExpiredWarranties = functions.pubsub
     }
     catch { }
     return null;
+});
+/**
+ * Gen 1 Callable: suggestTroubleshootingStep
+ * Returns basic troubleshooting guidance based on device model/type.
+ * Input: { ticketId: string, device: { id?: string, model?: string, type?: string } }
+ * Output: { suggestion: string }
+ */
+exports.suggestTroubleshootingStep = functions.https.onCall(async (data, context) => {
+    try {
+        if (!context.auth) {
+            throw new functions.https.HttpsError('unauthenticated', 'Authentication required');
+        }
+        const ticketId = (data?.ticketId || '').toString();
+        const device = (data?.device || {});
+        const model = (device.model || '').toString().trim().toLowerCase();
+        const type = (device.type || '').toString().trim().toLowerCase();
+        // Heuristic-based suggestions by device type/model
+        let suggestion = '';
+        const isRouterOrHub = /router|gateway|hub/.test(type) || /router|gateway|hub/.test(model);
+        const isCamera = /camera|cam/.test(type) || /camera|cam/.test(model);
+        const isSensor = /sensor/.test(type) || /sensor/.test(model);
+        const isLight = /light|bulb/.test(type) || /light|bulb/.test(model);
+        const isLock = /lock/.test(type) || /lock/.test(model);
+        const isThermostat = /thermostat|ac|hvac/.test(type) || /thermostat|ac|hvac/.test(model);
+        if (isRouterOrHub) {
+            suggestion = [
+                '1) Power-cycle the hub/router: unplug for 30 seconds, then plug back in.',
+                '2) Ensure the status LED is solid (not blinking red).',
+                '3) Verify the Ethernet/Wi-Fi connection and internet availability.',
+                '4) Open the app and check if the hub appears online after 2–3 minutes.',
+                '5) If still offline, try moving the hub away from interference (microwaves, thick walls).',
+            ].join('\n');
+        }
+        else if (isCamera) {
+            suggestion = [
+                '1) Confirm the camera has power (LED indicator on).',
+                '2) Reboot the camera by unplugging for 15 seconds and plugging back in.',
+                '3) Ensure Wi‑Fi signal is strong; try moving router closer or using 2.4GHz.',
+                '4) In the app, remove and re-add the camera if it remains offline.',
+                '5) Check for firmware updates in the app and apply if available.',
+            ].join('\n');
+        }
+        else if (isSensor) {
+            suggestion = [
+                '1) Replace or reseat the sensor battery.',
+                '2) Press the pairing/reset button for 5–10 seconds to rejoin the network.',
+                '3) Ensure the sensor is within range of the hub (avoid metal obstructions).',
+                '4) In the app, trigger a refresh and verify readings update.',
+            ].join('\n');
+        }
+        else if (isLight) {
+            suggestion = [
+                '1) Power-cycle the light 3–5 times to enter pairing mode.',
+                '2) Ensure the switch is not a dimmer unless the bulb supports it.',
+                '3) In the app, try “Discover Devices” or re-add the bulb.',
+                '4) Check for firmware updates and apply if available.',
+            ].join('\n');
+        }
+        else if (isLock) {
+            suggestion = [
+                '1) Replace the lock batteries with fresh ones.',
+                '2) Perform a manual calibration (as per the lock manual).',
+                '3) Ensure the bolt moves freely; check for door alignment issues.',
+                '4) Re-pair the lock with the hub/app.',
+            ].join('\n');
+        }
+        else if (isThermostat) {
+            suggestion = [
+                '1) Verify power to the thermostat (check C-wire or batteries).',
+                '2) Reset Wi‑Fi settings and rejoin the network.',
+                '3) Ensure mode and schedules are configured correctly.',
+                '4) Check for firmware updates in the app.',
+            ].join('\n');
+        }
+        else {
+            suggestion = [
+                '1) Power-cycle the device (unplug/remove power for 15–30 seconds, then restore).',
+                '2) Ensure it is within range of your hub/router and the LED shows normal status.',
+                '3) Re-add the device in the app if it remains offline.',
+                '4) Check for firmware updates and apply if available.',
+            ].join('\n');
+        }
+        // Optionally annotate with ticket id for traceability
+        if (ticketId) {
+            suggestion += `\n\nTicket: #${ticketId.slice(-6).toUpperCase()}`;
+        }
+        return { suggestion };
+    }
+    catch (e) {
+        // Map unexpected errors to an HttpsError to avoid leaking stack traces
+        throw new functions.https.HttpsError('internal', 'Failed to generate troubleshooting steps');
+    }
 });
 /**
  * Gen 1 Firestore trigger: When a support ticket is created by a user,
