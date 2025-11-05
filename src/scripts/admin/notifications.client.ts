@@ -1,5 +1,5 @@
 // Admin guard and notifications logic extracted from notifications.astro
-import { showToast } from '../../../lib/toast';
+import { showToast } from '../../lib/toast';
 // Guard against SSR/prerender: only run in browser
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 document.addEventListener('DOMContentLoaded', () => {
@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
   (async () => {
     try {
       const [{ db }, { collection, query, orderBy, onSnapshot, updateDoc, doc, getDoc, getDocs, where } ] = await Promise.all([
-        import('../../../lib/firebase'),
+        import('../../lib/firebase'),
         import('firebase/firestore')
       ]);
 
