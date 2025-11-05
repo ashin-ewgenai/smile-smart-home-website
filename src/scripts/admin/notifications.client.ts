@@ -1,6 +1,7 @@
 // Admin guard and notifications logic extracted from notifications.astro
 import { showToast } from '../../../lib/toast';
-
+// Guard against SSR/prerender: only run in browser
+if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 document.addEventListener('DOMContentLoaded', () => {
   const userEmail = localStorage.getItem('userEmail');
   const userRole = localStorage.getItem('userRole');
@@ -254,3 +255,4 @@ document.addEventListener('DOMContentLoaded', () => {
   // Cleanup on navigation
   window.addEventListener('beforeunload', () => { if (typeof unsubscribe === 'function') unsubscribe(); });
 });
+}

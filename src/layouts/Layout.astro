@@ -18,10 +18,11 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <!-- Prevent theme flash: set dark class before paint based on saved preference or OS -->
     <script>
       (function() {
+        if (typeof window === 'undefined' || typeof document === 'undefined') return;
         try {
           var saved = localStorage.getItem('theme');
-          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          var isDark = saved ? saved === 'dark' : prefersDark;
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = saved ? saved === 'dark' : !!prefersDark;
           var root = document.documentElement;
           if (isDark) root.classList.add('dark');
           else root.classList.remove('dark');
@@ -104,25 +105,31 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
     <script type="module">
       // Initialize animations
       import { inViewReveal, scrollProgress, magneticButton } from '/src/lib/animate';
-      
-      document.addEventListener('DOMContentLoaded', () => {
-        // Initialize scroll progress
-        scrollProgress();
-        // Initialize reveal animations
-        const revealElements = document.querySelectorAll('.reveal-on-scroll');
-        if (revealElements.length > 0) {
-          inViewReveal(revealElements);
-        }
-        // Initialize magnetic buttons
-        const magneticButtons = document.querySelectorAll('.btn-magnetic');
-        magneticButtons.forEach(button => magneticButton(button));
-
-        // Respect reduced motion preference
-        const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        if (prefersReducedMotion) {
-          // Optional: reduced-motion adjustments
-        }
-      });
+      if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+        document.addEventListener('DOMContentLoaded', () => {
+          // Initialize scroll progress
+          try { scrollProgress(); } catch {}
+          // Initialize reveal animations
+          try {
+            const revealElements = document.querySelectorAll('.reveal-on-scroll');
+            if (revealElements.length > 0) {
+              inViewReveal(revealElements);
+            }
+          } catch {}
+          // Initialize magnetic buttons
+          try {
+            const magneticButtons = document.querySelectorAll('.btn-magnetic');
+            magneticButtons.forEach(button => magneticButton(button));
+          } catch {}
+          // Respect reduced motion preference
+          try {
+            const prefersReducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (prefersReducedMotion) {
+              // Optional: reduced-motion adjustments
+            }
+          } catch {}
+        });
+      }
     </script>
 
     <!-- Mount global auth modals so window events can open them anywhere -->

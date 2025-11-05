@@ -32,5 +32,14 @@
   },
   "database": {
     "rules": "database.rules.json"
+  },
+  "hosting": {
+    "site": "smile-smart-homes",
+    "public": "dist",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ]
   }
 }
