@@ -52,6 +52,7 @@ const UserProfile: React.FC = () => {
   const [profilePicUrl, setProfilePicUrl] = useState<string>('');
   const [picStatus, setPicStatus] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const phoneInputRef = useRef<HTMLInputElement | null>(null);
   const previewUrlRef = useRef<string | null>(null);
 
   // Fetch user's device count
@@ -140,6 +141,17 @@ const UserProfile: React.FC = () => {
     fetchDeviceCount();
   }, [fetchUserData, fetchDeviceCount]);
   
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
+    setUserData({ ...userData, phoneNumber: digits });
+    const valid = /^([6-9][0-9]{9})$/.test(digits);
+    if (!digits || valid) {
+      phoneInputRef.current?.setCustomValidity('');
+    } else {
+      phoneInputRef.current?.setCustomValidity('Enter a valid 10-digit Indian mobile number starting with 6-9');
+    }
+  };
+
   // Handle profile picture selection & upload (moved to component scope)
   const onPickFile = () => {
     fileInputRef.current?.click();
@@ -221,6 +233,13 @@ const UserProfile: React.FC = () => {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const phone = userData.phoneNumber || '';
+    const isPhoneValid = /^([6-9][0-9]{9})$/.test(phone);
+    if (!isPhoneValid) {
+      phoneInputRef.current?.reportValidity();
+      setSaveStatus('Please enter a valid Indian mobile number before saving.');
+      return;
+    }
     setLoading(true);
     setSaveStatus('Saving changes...');
     
@@ -427,8 +446,14 @@ const UserProfile: React.FC = () => {
                   id="phone"
                   name="phone"
                   value={userData.phoneNumber || ''}
-                  onChange={(e) => setUserData({...userData, phoneNumber: e.target.value})}
-                  placeholder="e.g., +1 (555) 123-4567"
+                  onChange={handlePhoneChange}
+                  ref={phoneInputRef}
+                  required
+                  inputMode="numeric"
+                  maxLength={10}
+                  pattern="^[6-9][0-9]{9}$"
+                  title="Enter a valid 10-digit Indian mobile number starting with 6-9"
+                  placeholder="e.g., 9876543210"
                   className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
                 />
               </div>
