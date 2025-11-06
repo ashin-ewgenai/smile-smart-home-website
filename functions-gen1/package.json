@@ -1,5 +1,4 @@
 {
-  "$schema": "https://json.schemastore.org/package.json",
   "name": "functions-gen1-contact",
   "private": true,
   "main": "lib/index.js",

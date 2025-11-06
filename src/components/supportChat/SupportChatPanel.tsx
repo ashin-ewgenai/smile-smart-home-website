@@ -25,7 +25,7 @@ interface TicketData {
     model?: string;
     name?: string;
     serial?: string;
-  };
+  }
   [key: string]: any;
 }
 
@@ -574,7 +574,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     }
 
     if (!uid || !sessionId) return;
-    const sessionRef = doc(db, 'chat_sessions', sessionId);
+    const sessionRef = doc(db, 'chat_sessions', sessionId!);
     const snap = await getDoc(sessionRef);
     if (!snap.exists()) {
       await setDoc(sessionRef, {
@@ -591,7 +591,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setSessionActiveTicketId((sdata?.activeTicketId as string) || null);
       if (!sdata?.activeTicketId) setNoTicketMode(false);
     } catch {}
-    const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+    const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
     msgsUnsubRef.current = onSnapshot(query(msgsCol, orderBy('ts', 'asc')), (qSnap) => {
       let list: ChatMsg[] = qSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
       // Filter out resolved prompts and deduplicate unresolved prompts (keep first per ticketId)
@@ -681,7 +681,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
   const [isSending, setIsSending] = useState(false);
 
-  const send = async () => {
+  const send: () => Promise<void> = async () => {
     const content = input.trim();
     if (!content || isSending) return;
     setInput('');
@@ -698,9 +698,25 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           return candidates.includes(modelInput);
         });
         setMessages((prev) => [...prev, { role: 'user', content, ts: Date.now() - 1 }]);
+        // Persist user's model reply
+        if (uid && sessionId) {
+          try {
+            const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
+            await addDoc(msgsCol, { role: 'user', content, ts: Date.now() });
+            await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
+          } catch (e) {}
+        }
         if (!match) {
           const failMsg: ChatMsg = { role: 'assistant', content: 'I could not find a device with that model number in your account. Please check and enter the exact model number printed on the device or packaging.', ts: Date.now() };
           setMessages((prev) => [...prev, failMsg]);
+          // Persist assistant failure message
+          if (uid && sessionId) {
+            try {
+              const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
+              await addDoc(msgsCol, { role: 'assistant', content: failMsg.content, ts: Date.now(), source: 'system' });
+              await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
+            } catch (e) {}
+          }
           setIsSending(false);
           return;
         }
@@ -739,6 +755,67 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           ts: Date.now(),
         };
         setMessages((prev) => [...prev, infoMsg]);
+        // Persist assistant device info message
+        if (uid && sessionId) {
+          try {
+            const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
+            await addDoc(msgsCol, { role: 'assistant', content: infoMsg.content, ts: Date.now(), source: 'flow', deviceInfo: infoMsg.deviceInfo });
+            await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
+          } catch (e) {}
+        }
+
+        try {
+          console.log('[getUserDeviceDetails] calling with:', { deviceId: verified.id });
+          const callDetails = httpsCallable(functions, 'getUserDeviceDetails');
+          const t0 = performance.now();
+          const detailsRes: any = await callDetails({ deviceId: verified.id });
+          const t1 = performance.now();
+          console.log('[getUserDeviceDetails] response:', detailsRes?.data, `(${(t1 - t0).toFixed(0)}ms)`);
+        } catch (e) {
+          console.error('[getUserDeviceDetails] error:', e);
+        }
+
+        try {
+          const normalized = String(verified.model || '').toLowerCase().trim();
+          let meta: any = null;
+          const q1 = query(collection(db, 'Devices'), where('model', '==', normalized), limit(1));
+          const s1 = await getDocs(q1);
+          if (!s1.empty) meta = s1.docs[0].data();
+          if (!meta) {
+            const q2 = query(collection(db, 'Devices'), where('modelNumber', '==', normalized), limit(1));
+            const s2 = await getDocs(q2);
+            if (!s2.empty) meta = s2.docs[0].data();
+          }
+          if (!meta) {
+            const q3 = query(collection(db, 'Devices'), where('deviceModel', '==', normalized), limit(1));
+            const s3 = await getDocs(q3);
+            if (!s3.empty) meta = s3.docs[0].data();
+          }
+          if (meta) {
+            const raw = (meta as any).troubleshooting ?? (meta as any).troubleshootingSteps ?? null;
+            let steps: string[] = Array.isArray(raw) ? raw.map((x: any) => String(x)) : (raw ? [String(raw)] : []);
+            if (steps.length === 0) {
+              const ci = (meta as any).commonIssues;
+              steps = Array.isArray(ci) ? ci.map((x: any) => String(x)) : [];
+            }
+            if (steps.length > 0) {
+              const bullet = '• ' + steps.join('\n• ');
+              const msg: ChatMsg = { role: 'assistant', content: `Here are the troubleshooting steps for ${verified.model}:\n\n${bullet}`, ts: Date.now() };
+              setMessages((prev) => [...prev, msg]);
+              console.log('[Devices troubleshooting] steps returned:', steps);
+              if (uid && sessionId) {
+                try {
+                  const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
+                  await addDoc(msgsCol, { role: 'assistant', content: msg.content, ts: Date.now(), source: 'flow' });
+                  await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
+                } catch (e) {}
+              }
+            }
+          }
+
+        } catch (e) {
+          console.error('[Devices troubleshooting] fetch error:', e);
+        }
 
         // Check for existing unresolved ticket linked to this device
         try {
@@ -767,6 +844,14 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         // Follow-up: suggest troubleshooting steps via callable
         const okMsg: ChatMsg = { role: 'assistant', content: `Let me suggest some troubleshooting steps for ${verified.model}…`, ts: Date.now() + 2 };
         setMessages((prev) => [...prev, okMsg]);
+        // Persist follow-up assistant message
+        if (uid && sessionId) {
+          try {
+            const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
+            await addDoc(msgsCol, { role: 'assistant', content: okMsg.content, ts: Date.now(), source: 'flow' });
+            await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
+          } catch (e) {}
+        }
 
         const activeTid = providedTicketId || sessionActiveTicketId || (ticketData as any)?.ticketId || undefined;
         if (activeTid) {
@@ -779,9 +864,9 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
               setMessages((prev) => [...prev, assist]);
               if (uid && sessionId) {
                 try {
-                  const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+                  const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
                   await addDoc(msgsCol, { role: 'assistant', content: suggestion, ts: Date.now() + 2, source: 'ai' });
-                  await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp() }, { merge: true });
+                  await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
                 } catch (_e) {}
               }
             }
@@ -826,7 +911,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     try {
       const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && (m.content || '').length > 0);
       const affirmative = /^(yes|yep|yeah|ok|okay|sure|please|do it|go ahead|proceed|confirm)\b/i.test(content);
-      const escalationSuggested = lastAssistant && /escalat/i.test(lastAssistant.content || '');
+      const escalationSuggested = !!(lastAssistant && /escalat/i.test(lastAssistant.content || ''));
       if (affirmative && escalationSuggested) {
         await requestHuman();
         const confirmMsg: ChatMsg = {
@@ -856,19 +941,28 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     if (claimed) {
       // Human online: send to Firestore live chat
       if (!uid || !sessionId) { setIsSending(false); return; }
-      const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+      const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
       await addDoc(msgsCol, { role: 'user', content, ts: Date.now() });
-      await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human' }, { merge: true });
+      await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp(), status: 'human' }, { merge: true });
       setIsSending(false);
       return;
     }
 
     // If authenticated user, first detect device problem intent and prompt for model number
     const problemIntent = /\b(not working|doesn't work|doesnt work|issue|problem|malfunction|broken|no power|no wifi|disconnect|blinking|beeping|overheating)\b/i.test(content);
-    const mentionsDevice = /\b(device|sensor|camera|lock|light|switch|plug|thermostat|router|hub)\b/i.test(content);
+    const mentionsDevice = /\b(device|cctv|camera|cam|security cam|ip camera|smart cam|light|lamp|bulb|smart light|smart lamp|wifi bulb|door lock|smart lock|lock|door|keypad lock|digital lock|plug|socket|smart plug|power plug|adapter|fan|ceiling fan|smart fan|cooler|thermostat|temperature|ac control|climate control|switch|controller|remote switch|smart board|speaker|smart speaker|voice assistant|alexa|google home|doorbell|bell|video bell|smart bell|sensor|motion sensor|temp sensor|humidity sensor|gas sensor|tv|display|screen|smart tv|monitor|ac|air conditioner|hvac|curtain|blinds|shade|window cover|router|hub)\b/i.test(content);
     if (!awaitingModel && problemIntent && mentionsDevice) {
       const promptMsg: ChatMsg = { role: 'assistant', content: 'Sorry to hear that. Please provide the exact model number of the device so I can fetch its warranty details and give you the right steps.', ts: Date.now() };
       setMessages((prev) => [...prev, { role: 'user', content, ts: Date.now() - 1 }, promptMsg]);
+      // Persist user message and assistant prompt for model request
+      if (uid && sessionId) {
+        try {
+          const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
+          await addDoc(msgsCol, { role: 'user', content, ts: Date.now() });
+          await addDoc(msgsCol, { role: 'assistant', content: promptMsg.content, ts: Date.now() + 1, source: 'system' });
+          await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
+        } catch (e) {}
+      }
       setAwaitingModel(true);
       setIsSending(false);
       return;
@@ -1016,7 +1110,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   // Track if requestHuman is currently executing to prevent race conditions
   const isRequestingHuman = useRef(false);
 
-  const requestHuman = async () => {
+  async function requestHuman() {
     if (!uid) return;
 
     // Prevent multiple simultaneous calls
