@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { db, auth, storage } from '../../../lib/firebase';
 import { addDoc, serverTimestamp, onSnapshot, query, orderBy, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { devicesCollection, deviceDoc } from '../../../models/Collections';
 import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+
+ 
 
 export type TroubleshootingItem = {
   problem: string;
@@ -166,6 +168,57 @@ export default function DeviceForm() {
   const [embeddedPreview, setEmbeddedPreview] = useState<ProductPreview | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [newTroubleshootItem, setNewTroubleshootItem] = useState<TroubleshootingItem>({ problem: '', solution: '' });
+
+  // Auto-resize helpers
+  const resizeTextarea = useCallback((el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, []);
+
+  // Add form: description and troubleshooting fields
+  const descriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const problemTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const solutionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    resizeTextarea(descriptionRef.current);
+  }, [values.description, resizeTextarea]);
+  useEffect(() => {
+    resizeTextarea(problemTextareaRef.current);
+  }, [newTroubleshootItem.problem, resizeTextarea]);
+  useEffect(() => {
+    resizeTextarea(solutionTextareaRef.current);
+  }, [newTroubleshootItem.solution, resizeTextarea]);
+
+  // Edit modal: description and troubleshooting fields
+  const editDescriptionRef = useRef<HTMLTextAreaElement | null>(null);
+  const editProblemRef = useRef<HTMLTextAreaElement | null>(null);
+  const editSolutionRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    resizeTextarea(editDescriptionRef.current);
+  }, [editValues.description, resizeTextarea]);
+  useEffect(() => {
+    resizeTextarea(editProblemRef.current);
+  }, [editTroubleshootItem.problem, resizeTextarea]);
+  useEffect(() => {
+    resizeTextarea(editSolutionRef.current);
+  }, [editTroubleshootItem.solution, resizeTextarea]);
+
+  // Existing items: auto-resize on initial render/update
+  const existingTroubleshootRef = useRef<HTMLDivElement | null>(null);
+  const editExistingTroubleshootRef = useRef<HTMLDivElement | null>(null);
+  const resizeAllTextareas = useCallback((container: HTMLElement | null) => {
+    if (!container) return;
+    const nodes = container.querySelectorAll('textarea');
+    nodes.forEach((n) => resizeTextarea(n as HTMLTextAreaElement));
+  }, [resizeTextarea]);
+  useEffect(() => {
+    resizeAllTextareas(existingTroubleshootRef.current as HTMLElement | null);
+  }, [values.troubleshooting, resizeAllTextareas]);
+  useEffect(() => {
+    if (!editing) return;
+    resizeAllTextareas(editExistingTroubleshootRef.current as HTMLElement | null);
+  }, [editing, editValues.troubleshooting, resizeAllTextareas]);
 
   // Troubleshooting helpers
   const addTroubleshootItem = useCallback(() => {
@@ -916,6 +969,7 @@ export default function DeviceForm() {
       <div>
         <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
         <textarea
+          ref={descriptionRef}
           id="description"
           name="description"
           rows={3}
@@ -948,24 +1002,36 @@ export default function DeviceForm() {
         </div>
         
         {/* Existing troubleshooting items */}
-        <div className="space-y-2 mb-3">
+        <div ref={existingTroubleshootRef} className="space-y-2 mb-3">
           {values.troubleshooting?.map((item, index) => (
             <div key={index} className="flex items-start gap-2">
               <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
-                <input
-                  type="text"
+                <textarea
                   value={item.problem}
-                  onChange={(e) => updateTroubleshootItem(index, 'problem', e.target.value)}
-                  className="block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
+                  onChange={(e) => {
+                    updateTroubleshootItem(index, 'problem', e.target.value);
+                    const target = e.target as HTMLTextAreaElement;
+                    target.style.height = 'auto';
+                    target.style.height = `${target.scrollHeight}px`;
+                  }}
+                  className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2 min-h-[38px] resize-none overflow-hidden"
                   placeholder="Problem"
+                  rows={1}
+                  style={{ minHeight: '38px' }}
                 />
                 <div className="flex gap-2">
-                  <input
-                    type="text"
+                  <textarea
                     value={item.solution}
-                    onChange={(e) => updateTroubleshootItem(index, 'solution', e.target.value)}
-                    className="block w-full rounded-md border-2 border-gray-600 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white shadow focus:border-gray-800 focus:ring-teal-600 px-3 py-2"
+                    onChange={(e) => {
+                      updateTroubleshootItem(index, 'solution', e.target.value);
+                      const target = e.target as HTMLTextAreaElement;
+                      target.style.height = 'auto';
+                      target.style.height = `${target.scrollHeight}px`;
+                    }}
+                    className="block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2 min-h-[38px] resize-none overflow-hidden"
                     placeholder="Solution"
+                    rows={1}
+                    style={{ minHeight: '38px' }}
                   />
                   <button
                     type="button"
@@ -985,6 +1051,7 @@ export default function DeviceForm() {
         <div className="flex items-start gap-2">
           <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
             <textarea
+              ref={problemTextareaRef}
               value={newTroubleshootItem.problem}
               onChange={(e) => {
                 setNewTroubleshootItem({...newTroubleshootItem, problem: e.target.value});
@@ -1000,6 +1067,7 @@ export default function DeviceForm() {
             />
             <div className="flex gap-2">
               <textarea
+                ref={solutionTextareaRef}
                 value={newTroubleshootItem.solution}
                 onChange={(e) => {
                   setNewTroubleshootItem({...newTroubleshootItem, solution: e.target.value});
@@ -1277,6 +1345,7 @@ export default function DeviceForm() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
                 <textarea
+                  ref={editDescriptionRef}
                   rows={3}
                   className="mt-1 block w-full rounded-md border-2 border-gray-400 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-teal-500 focus:ring-teal-500 px-3 py-2"
                   value={editValues.description ?? ''}
@@ -1323,7 +1392,7 @@ export default function DeviceForm() {
                 </div>
                 
                 {/* Existing troubleshooting items */}
-                <div className="space-y-2 mb-3">
+                <div ref={editExistingTroubleshootRef} className="space-y-2 mb-3">
                   {editValues.troubleshooting?.map((item, index) => (
                     <div key={index} className="flex items-start gap-2">
                       <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -1374,6 +1443,7 @@ export default function DeviceForm() {
                 <div className="flex items-start gap-2">
                   <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
                     <textarea
+                      ref={editProblemRef}
                       value={editTroubleshootItem.problem}
                       onChange={(e) => {
                         setEditTroubleshootItem({...editTroubleshootItem, problem: e.target.value});
@@ -1389,6 +1459,7 @@ export default function DeviceForm() {
                     />
                     <div className="flex gap-2">
                       <textarea
+                        ref={editSolutionRef}
                         value={editTroubleshootItem.solution}
                         onChange={(e) => {
                           setEditTroubleshootItem({...editTroubleshootItem, solution: e.target.value});
