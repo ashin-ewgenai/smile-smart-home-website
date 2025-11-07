@@ -187,14 +187,22 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setSessionActiveTicketId(null);
       setTicketData(null);
       setWorkflowStep('initial');
-      // Allow automated initialization (unresolved prompt / analysis) to run
-      setNoTicketMode(false);
+      // Show generic welcome path with Raise a Ticket CTA
+      setNoTicketMode(true);
       hasInitialized.current = false;
-      // Clear local messages so the init effect can repopulate automated answers
-      setMessages([]);
+      // Seed welcome with Raise Ticket CTA so it appears immediately
+      const welcome = {
+        role: 'assistant' as const,
+        content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Or raise a new support ticket using the button below',
+        showTicketCTA: true,
+        ts: Date.now(),
+        source: 'system'
+      };
       try {
+        await addDoc(collection(db, 'chat_sessions', sessionId, 'messages'), welcome);
         await setDoc(sessionRef, { updatedAt: serverTimestamp() }, { merge: true });
       } catch {}
+      setMessages([welcome]);
     } catch (e) {
       // If anything fails, at least clear local UI
       resetChat();
