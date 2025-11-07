@@ -440,7 +440,7 @@ const AboutDevices: React.FC = () => {
                   </div>
                   <div className="space-y-1">
                     <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Model</div>
-                    <div className="text-gray-800 dark:text-gray-200">{selectedDevice.model || 'N/A'}</div>
+                    <div className="text-gray-800 dark:text-gray-200">{selectedDevice.modelNumber || 'N/A'}</div>
                   </div>
                   <div className="space-y-1">
                     <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</div>
