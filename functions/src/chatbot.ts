@@ -206,6 +206,9 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
         warrantyExpiry: e?.warrantyExpiry || e?.warrantyEnd || undefined,
       }))
       .filter((e: any) => e.serialNumber);
+    // Compute combined warranty: prefer device-level, else first available from serials[]
+    const serialWarranty = (serialsMasked.find((e: any) => e?.warrantyExpiry)?.warrantyExpiry) || undefined;
+    const warrantyCombined = d.warrantyExpiry || d.warrantyEnd || serialWarranty || undefined;
     return {
       id: d.id,
       name: d.deviceName || d.name || 'Unknown Device',
@@ -217,6 +220,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
       room: d.room || d.location || undefined,
       installedAt: d.installedAt || d.addedAt || undefined,
       warrantyExpiry: d.warrantyExpiry || d.warrantyEnd || undefined,
+      warrantyCombined,
       serials: serialsMasked,
     };
   });
@@ -255,7 +259,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
         `${typeof d.isOnline === 'boolean' ? `  - Status: ${d.isOnline ? 'Online' : 'Offline'}\n` : ''}` +
         `${d.lastSeen ? `  - Last seen: ${new Date(d.lastSeen?.toDate?.() || d.lastSeen).toLocaleString?.() || d.lastSeen}\n` : ''}` +
         `${d.room ? `  - Location: ${d.room}\n` : ''}` +
-        `${d.warrantyExpiry ? `  - Warranty expiry: ${d.warrantyExpiry}\n` : ''}`
+        `${d.warrantyCombined ? `  - Warranty expiry: ${d.warrantyCombined}\n` : ''}`
       )).join('')
     : '';
 
@@ -359,6 +363,7 @@ IMPORTANT RULES:
 3. Analyze each user message to determine if it's a COMPLAINT or GENERAL QUERY.
 4. If the message is unclear, ask ONE concise clarifying question (<=20 words).
 5. If no prior assistant message exists, begin with a brief greeting.
+6. If the user reports a device problem (e.g., "not working", "issue", "problem"), and the device cannot be confidently identified from DEVICES, ask specifically for the device model number (not the serial). Keep it to one concise question.
 
 WORKFLOW RULES:
 - For NEW COMPLAINTS without active ticket: Suggest creating a support ticket and provide helpful guidance
