@@ -216,6 +216,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               {isSuperAdmin && (
                 <a
                   href={`${SUPER_ADMIN_BASE_PATH}/dashboard`}
+                  data-astro-reload
                   className="mr-2 inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-yellow-300 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 dark:border-yellow-600 dark:text-yellow-200 dark:bg-yellow-900/20 text-xs"
                   title="Switch to Super Admin Dashboard"
                 >
@@ -417,6 +418,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
               {isSuperAdmin && (
                 <a
                   href={`${SUPER_ADMIN_BASE_PATH}/dashboard`}
+                  data-astro-reload
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="flex items-center gap-3 px-2 py-2 rounded-md border border-yellow-300 text-yellow-700 bg-yellow-50 hover:bg-yellow-100 dark:border-yellow-600 dark:text-yellow-200 dark:bg-yellow-900/20"
                   title="Switch to Super Admin Dashboard"

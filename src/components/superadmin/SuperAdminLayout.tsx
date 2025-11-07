@@ -167,6 +167,7 @@ export default function SuperAdminLayout({ children }: Props) {
           <nav className="hidden md:flex items-center gap-2 sm:gap-4 text-sm relative">
             <a
               href="/dashboard/admin"
+              data-astro-reload
               className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-teal-300 text-teal-700 hover:bg-teal-50 dark:border-teal-500 dark:text-teal-300 dark:hover:bg-teal-900/20 transition-colors"
               title="Switch to Admin Dashboard"
             >
@@ -282,6 +283,7 @@ export default function SuperAdminLayout({ children }: Props) {
             <div className="max-w-full mx-auto px-4 py-3 space-y-2">
               <a
                 href="/dashboard/admin"
+                data-astro-reload
                 className="flex items-center gap-3 px-2 py-2 rounded-md border border-teal-300 text-teal-700 hover:bg-teal-50 dark:border-teal-500 dark:text-teal-300 dark:hover:bg-teal-900/20"
                 title="Switch to Admin Dashboard"
                 onClick={() => setIsMobileMenuOpen(false)}

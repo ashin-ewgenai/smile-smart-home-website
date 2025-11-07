@@ -11,19 +11,22 @@ function checkAdminRedirect() {
   if (typeof window === 'undefined') return;
 
   // Function to check if user is admin
-  const isAdmin = () => {
+  const getRoleNorm = () => {
     try {
       const userRole = localStorage.getItem('userRole') || '';
-      const roleNorm = userRole.toLowerCase().replace(/[_-]+/g, ' ').trim();
-      return roleNorm === 'admin' || roleNorm === 'super admin';
+      return userRole.toLowerCase().replace(/[_-]+/g, ' ').trim();
     } catch {
-      return false;
+      return '';
     }
   };
+  const isSuperAdmin = () => getRoleNorm() === 'super admin';
+  const isAdminOnly = () => getRoleNorm() === 'admin';
 
-  // Check if already on admin page to prevent redirect loops
-  const isAdminPage = window.location.pathname.startsWith('/dashboard/admin') || 
-                     window.location.pathname === '/admin_login';
+  // Check if already on an admin/super-admin page to prevent redirect loops
+  const path = window.location.pathname;
+  const isAdminPage = path.startsWith('/dashboard/admin') || 
+                      path === '/admin_login' ||
+                      path.startsWith('/super_admin-a1b2c3');
 
   // If already on an admin page, no need to redirect
   if (isAdminPage) return;
@@ -33,12 +36,17 @@ function checkAdminRedirect() {
     // Check auth state
     onAuthStateChanged(auth, (user) => {
       if (user) {
-        // If user is signed in, check admin status
-        if (isAdmin()) {
-          console.log('Admin user detected, redirecting to admin dashboard');
+        // If user is signed in, check role priority: super admin first
+        if (isSuperAdmin()) {
           // Small delay to ensure the page has loaded
           setTimeout(() => {
-            // Only redirect if not already on the admin page
+            if (!window.location.pathname.startsWith('/super_admin-a1b2c3')) {
+              window.location.href = '/super_admin-a1b2c3/dashboard';
+            }
+          }, 100);
+        } else if (isAdminOnly()) {
+          // Small delay to ensure the page has loaded
+          setTimeout(() => {
             if (!window.location.pathname.startsWith('/dashboard/admin')) {
               window.location.href = '/dashboard/admin';
             }
