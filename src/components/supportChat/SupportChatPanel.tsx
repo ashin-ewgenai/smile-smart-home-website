@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { auth, db, functions, storage } from '../../lib/firebase';
-import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit, updateDoc, deleteField, where } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit, updateDoc, deleteField, where, deleteDoc, writeBatch } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 // Removed unused triageChat import - functionality integrated into chatWithOpenAI
@@ -99,6 +99,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const [awaitingModel, setAwaitingModel] = useState<boolean>(false);
   const [confirmInline, setConfirmInline] = useState(false);
   const [showResolveFooter, setShowResolveFooter] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -149,6 +150,66 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     setWorkflowStep('initial');
     hasInitialized.current = false; // Reset initialization flag
   };
+
+  // Start a brand new chat without touching any ticket statuses
+  const startNewChat = useCallback(async () => {
+    if (!isAuthenticated || !uid || !sessionId || isResetting) return;
+    setIsResetting(true);
+    try {
+      // Resolve (hide) existing messages in batches to avoid delete permission issues
+      const msgsColRef = collection(db, 'chat_sessions', sessionId, 'messages');
+      const allMsgsSnap = await getDocs(msgsColRef);
+      let batch = writeBatch(db);
+      let ops = 0;
+      for (const d of allMsgsSnap.docs) {
+        batch.set(d.ref, { resolved: true }, { merge: true });
+        ops++;
+        if (ops >= 450) { // stay under limit to be safe
+          await batch.commit();
+          batch = writeBatch(db);
+          ops = 0;
+        }
+      }
+      if (ops > 0) {
+        await batch.commit();
+      }
+
+      // Unbind any active ticket and reset session meta
+      const sessionRef = doc(db, 'chat_sessions', sessionId);
+      await setDoc(sessionRef, {
+        updatedAt: Date.now(),
+        status: 'ai',
+        type: 'ai',
+        activeTicketId: deleteField(),
+      }, { merge: true });
+
+      // Reset local state
+      setSessionActiveTicketId(null);
+      setTicketData(null);
+      setWorkflowStep('initial');
+      setNoTicketMode(true);
+      hasInitialized.current = false;
+
+      // Seed a fresh welcome message
+      const welcome = {
+        role: 'assistant' as const,
+        content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Or raise a new support ticket using the button below',
+        showTicketCTA: true,
+        ts: Date.now(),
+        source: 'system'
+      };
+      try {
+        await addDoc(collection(db, 'chat_sessions', sessionId, 'messages'), welcome);
+        await setDoc(sessionRef, { updatedAt: serverTimestamp() }, { merge: true });
+      } catch {}
+      setMessages([welcome]);
+    } catch (e) {
+      // If anything fails, at least clear local UI
+      resetChat();
+    } finally {
+      setIsResetting(false);
+    }
+  }, [isAuthenticated, uid, sessionId, isResetting]);
 
   // Offline mode removed: Support Chat requires full Firebase Auth
 
@@ -1835,6 +1896,18 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
               </button>
             </div>
           )}
+          {/* New chat button */}
+          <button
+            type="button"
+            onClick={startNewChat}
+            disabled={!isAuthenticated || isSending || isResetting}
+            className="mr-2 inline-flex items-center justify-center h-10 w-10 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm border border-gray-200 dark:border-gray-700"
+            title="Start a new chat"
+          >
+            <svg className="h-5 w-5 text-teal-600 dark:text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
           <div className="flex-1 relative">
             <input
               type="text"
