@@ -244,6 +244,58 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
     : undefined;
 
   // Compose human-readable context blocks
+  // Detect warranty intent and try deterministic device match by model/name
+  const lastUserMsg = [...clean].reverse().find((m) => m.role === "user")?.content || "";
+  const isWarrantyQuestion = /\b(warranty|guarantee|coverage|warran|wty)\b/i.test(String(lastUserMsg));
+
+  // Build fast lookup for device matching using names, models, and types
+  const matchedDeviceIndexList: number[] = [];
+  if (isWarrantyQuestion && deviceSummaries.length > 0) {
+    const text = String(lastUserMsg).toLowerCase();
+    deviceSummaries.forEach((d: any, i: number) => {
+      const nameStr = String(d.name || "").toLowerCase();
+      const modelStr = String(d.model || "").toLowerCase();
+      const typeStr = String(d.type || "").toLowerCase();
+      const nameHit = nameStr && text.includes(nameStr);
+      const modelHit = modelStr && text.includes(modelStr);
+      // allow loose contains for type keywords like "cctv", "camera", "plug"
+      const tokens = ["cctv","camera","plug","light","sensor","switch","thermostat","router","night vision"]; 
+      const typeHit = typeStr && (text.includes(typeStr) || tokens.some(tk => text.includes(tk) && typeStr.includes(tk)));
+      if (nameHit || modelHit || typeHit) matchedDeviceIndexList.push(i);
+    });
+  }
+
+  // If exactly one match, prepare deterministic warranty context
+  let warrantyContext = "";
+  let deterministicWarrantyMessage: string | null = null;
+  const hasSingleMatch = matchedDeviceIndexList.length === 1;
+  if (isWarrantyQuestion && hasSingleMatch) {
+    const d = deviceSummaries[matchedDeviceIndexList[0]];
+    const deviceLabel = `${d.name}${d.model ? ` (${d.model})` : ''}`;
+    // Prefer serial-based warranty if present
+    const serialWArr = Array.isArray(d.serials) ? d.serials : [];
+    const pickWarrantyVal = (val: any): string => {
+      try {
+        if (!val) return '';
+        const anyVal: any = val as any;
+        if (typeof anyVal?.toDate === 'function') {
+          return anyVal.toDate().toLocaleDateString();
+        }
+        if (typeof anyVal === 'number') return new Date(anyVal).toLocaleDateString();
+        const parsed = Date.parse(String(anyVal));
+        if (!Number.isNaN(parsed)) return new Date(parsed).toLocaleDateString();
+        return String(anyVal);
+      } catch { return String(val); }
+    };
+    const serialWarrantyVal = pickWarrantyVal(serialWArr.find((e: any) => e?.warrantyExpiry)?.warrantyExpiry);
+    const deviceWarrantyVal = pickWarrantyVal(d.warrantyCombined || d.warrantyExpiry);
+    const w = serialWarrantyVal || deviceWarrantyVal;
+    if (w) {
+      warrantyContext = `\nWARRANTY CONTEXT:\n- ${deviceLabel}: Warranty expiry: ${w}\n`;
+      deterministicWarrantyMessage = `Warranty expiry: ${w}`;
+    }
+  }
+
   const profileContext = userProfile
     ? `USER PROFILE:\n- Name: ${userProfile.displayName || 'User'}\n` +
       `${userProfile.plan ? `- Plan: ${userProfile.plan}\n` : ''}` +
@@ -386,6 +438,7 @@ USER CONTEXT:
 ${profileContext}
 ${deviceContext}
 ${ticketContext}
+${warrantyContext}
 
 PRIVACY & SAFETY:
 - Never reveal full serial numbers. Only masked serials are available.
@@ -518,6 +571,24 @@ PRIVACY & SAFETY:
       if (ticketMatch && subjectMatch) {
         enhancedReply = `I see you have an active ticket #${ticketMatch[1]} about "${subjectMatch[1]}". ${content}`;
       }
+    }
+
+    // Inject deterministic warranty into reply when available
+    if (isWarrantyQuestion && deterministicWarrantyMessage) {
+      const lower = (enhancedReply || '').toLowerCase();
+      if (!lower.includes('warranty')) {
+        enhancedReply = `${deterministicWarrantyMessage}\n\n${enhancedReply}`;
+      }
+    }
+    // If warranty was asked but we couldn't deterministically resolve a single device, ask for model number
+    if (isWarrantyQuestion && !deterministicWarrantyMessage) {
+      const options = deviceSummaries
+        .slice(0, 3)
+        .map((d: any) => `${d.name}${d.model ? ` (${d.model})` : ''}`)
+        .filter(Boolean)
+        .join(', ');
+      const hint = options ? ` For reference, I see: ${options}.` : '';
+      enhancedReply = `To fetch the warranty, please provide the device model number (not the serial).${hint}`;
     }
 
     return {
