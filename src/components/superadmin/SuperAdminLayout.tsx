@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { handleLogout as adminLogout } from '../dashboard/Admin/LogoutHandler';
-import { UserCircle, Sun, Moon, Shield, Menu, X } from 'lucide-react';
+import { UserCircle, Sun, Moon, Shield, Menu, X, Key } from 'lucide-react';
 import { auth, db } from '../../lib/firebase';
 import { SUPER_ADMIN_BASE_PATH } from '../../lib/constants';
-import { getDoc } from 'firebase/firestore';
+import { getDoc, updateDoc } from 'firebase/firestore';
 import { accountDoc } from '../../models/Collections';
+import { reauthenticateWithCredential, EmailAuthProvider, updatePassword } from 'firebase/auth';
 import { onAuthStateChanged } from 'firebase/auth';
 
 interface Props { children: React.ReactNode; }
@@ -41,8 +42,16 @@ export default function SuperAdminLayout({ children }: Props) {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profile, setProfile] = useState<{ displayName?: string; email?: string; role?: string; lastLoginAt?: any } | null>(null);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // Ensure initials are available immediately when logged in
   useEffect(() => {
@@ -72,28 +81,105 @@ export default function SuperAdminLayout({ children }: Props) {
 
   // Close on outside click and Esc
   useEffect(() => {
-    if (!profileOpen) return;
     function handleClickOutside(e: MouseEvent | TouchEvent) {
       const target = e.target as Node | null;
       if (!target) return;
-      const withinDropdown = dropdownRef.current?.contains(target);
-      const withinTrigger = triggerRef.current?.contains(target);
-      if (!withinDropdown && !withinTrigger) {
-        setProfileOpen(false);
+      
+      // Handle profile dropdown
+      if (profileOpen) {
+        const withinDropdown = dropdownRef.current?.contains(target);
+        const withinTrigger = triggerRef.current?.contains(target);
+        if (!withinDropdown && !withinTrigger) {
+          setProfileOpen(false);
+        }
+      }
+      
+      // Handle password modal
+      if (showPasswordModal && modalRef.current && !modalRef.current.contains(target)) {
+        setShowPasswordModal(false);
       }
     }
+    
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') setProfileOpen(false);
+      if (e.key === 'Escape') {
+        if (showPasswordModal) {
+          setShowPasswordModal(false);
+        } else if (profileOpen) {
+          setProfileOpen(false);
+        }
+      }
     }
+    
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('touchstart', handleClickOutside);
     document.addEventListener('keydown', handleKeyDown);
+    
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [profileOpen]);
+  }, [profileOpen, showPasswordModal]);
+  
+  // Handle password change
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError('');
+    setPasswordSuccess('');
+    
+    // Validate passwords
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match');
+      return;
+    }
+    
+    if (newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters long');
+      return;
+    }
+    
+    const user = auth.currentUser;
+    if (!user || !user.email) {
+      setPasswordError('No user is signed in');
+      return;
+    }
+    
+    try {
+      setIsUpdating(true);
+      
+      // Re-authenticate the user
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      
+      // Update the password
+      await updatePassword(user, newPassword);
+      
+      setPasswordSuccess('Password updated successfully!');
+      
+      // Reset form
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+      
+      // Close modal after 2 seconds
+      setTimeout(() => {
+        setShowPasswordModal(false);
+        setPasswordSuccess('');
+      }, 2000);
+      
+    } catch (error: any) {
+      console.error('Error updating password:', error);
+      if (error.code === 'auth/wrong-password') {
+        setPasswordError('Current password is incorrect');
+      } else if (error.code === 'auth/weak-password') {
+        setPasswordError('Password is too weak');
+      } else {
+        setPasswordError(error.message || 'Failed to update password');
+      }
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   // Load role for the user being viewed so we can show Admin/User Details in navbar
   useEffect(() => {
@@ -235,28 +321,40 @@ export default function SuperAdminLayout({ children }: Props) {
                         </div>
                       )}
                       <div className="pt-3 border-t border-gray-200 dark:border-gray-700 mt-2" />
-                      <div className="pt-2 flex items-center justify-between gap-2">
-                        {auth?.currentUser?.uid ? (
-                          <Link
-                            to={`${SUPER_ADMIN_BASE_PATH}/user/${encodeURIComponent(auth.currentUser.uid)}`}
-                            className="px-3 py-1.5 rounded-md bg-teal-600 text-white hover:bg-teal-700 text-sm"
+                      <div className="pt-2 flex flex-col gap-2">
+                        <div className="flex items-center justify-between gap-2">
+                          {auth?.currentUser?.uid ? (
+                            <Link
+                              to={`${SUPER_ADMIN_BASE_PATH}/user/${encodeURIComponent(auth.currentUser.uid)}`}
+                              className="flex-1 px-3 py-1.5 text-center rounded-md bg-teal-600 text-white hover:bg-teal-700 text-sm"
+                            >
+                              Edit Profile
+                            </Link>
+                          ) : (
+                            <span className="flex-1 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-500">Loading…</span>
+                          )}
+                          <button
+                            onClick={adminLogout}
+                            className="flex-1 px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700 text-sm"
                           >
-                            Edit profile
-                          </Link>
-                        ) : (
-                          <span className="px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-500">Loading…</span>
-                        )}
+                            Logout
+                          </button>
+                          <button
+                            onClick={() => setProfileOpen(false)}
+                            className="px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+                          >
+                            Close
+                          </button>
+                        </div>
                         <button
-                          onClick={adminLogout}
-                          className="px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700 text-sm"
+                          onClick={() => {
+                            setProfileOpen(false);
+                            setShowPasswordModal(true);
+                          }}
+                          className="w-full mt-1 flex items-center justify-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
                         >
-                          Logout
-                        </button>
-                        <button
-                          onClick={() => setProfileOpen(false)}
-                          className="px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
-                        >
-                          Close
+                          <Key className="h-4 w-4" />
+                          Change Password
                         </button>
                       </div>
                     </div>
@@ -329,6 +427,116 @@ export default function SuperAdminLayout({ children }: Props) {
       <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 pb-6 overflow-y-auto">
         {children}
       </main>
+
+      {/* Password Change Modal */}
+      {showPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div 
+            ref={modalRef}
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md overflow-hidden"
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Change Password</h3>
+                <button
+                  onClick={() => setShowPasswordModal(false)}
+                  className="text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              
+              <form onSubmit={handlePasswordChange} className="space-y-4">
+                {passwordError && (
+                  <div className="p-3 text-sm text-red-700 bg-red-100 dark:bg-red-900/30 dark:text-red-300 rounded-md">
+                    {passwordError}
+                  </div>
+                )}
+                
+                {passwordSuccess && (
+                  <div className="p-3 text-sm text-green-700 bg-green-100 dark:bg-green-900/30 dark:text-green-300 rounded-md">
+                    {passwordSuccess}
+                  </div>
+                )}
+                
+                <div>
+                  <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    id="currentPassword"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-teal-500 focus:border-teal-500 dark:bg-gray-700 dark:text-white"
+                    required
+                    disabled={isUpdating}
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    id="newPassword"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-teal-500 focus:border-teal-500 dark:bg-gray-700 dark:text-white"
+                    required
+                    minLength={8}
+                    disabled={isUpdating}
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    id="confirmPassword"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:ring-teal-500 focus:border-teal-500 dark:bg-gray-700 dark:text-white"
+                    required
+                    minLength={8}
+                    disabled={isUpdating}
+                  />
+                </div>
+                
+                <div className="pt-2 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswordModal(false)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
+                    disabled={isUpdating}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium text-white bg-teal-600 border border-transparent rounded-md shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 flex items-center gap-2"
+                    disabled={isUpdating}
+                  >
+                    {isUpdating ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Updating...
+                      </>
+                    ) : 'Update Password'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
