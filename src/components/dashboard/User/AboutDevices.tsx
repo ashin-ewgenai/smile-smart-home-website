@@ -452,7 +452,11 @@ const AboutDevices: React.FC = () => {
                     <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Quantity</div>
                     <div className="text-gray-800 dark:text-gray-200 font-medium">
                       <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 text-sm">
-                        {selectedDevice.quantity}
+                        {selectedDeviceCountLoading ? (
+                          <span className="inline-block w-2 h-2 rounded-full bg-blue-700 dark:bg-blue-300 animate-pulse" />
+                        ) : (
+                          (selectedDeviceCount ?? (Array.isArray(selectedDevice.serials) ? selectedDevice.serials.length : (selectedDevice.quantity ?? 1)))
+                        )}
                       </span>
                     </div>
                   </div>
