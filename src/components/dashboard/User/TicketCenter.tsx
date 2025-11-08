@@ -59,6 +59,8 @@ const TicketCenter: React.FC = () => {
   // View state
   const [currentView, setCurrentView] = useState<'tickets' | 'chat'>('tickets');
   const [newlyCreatedTicketId, setNewlyCreatedTicketId] = useState<string | null>(null);
+  const [expandedTicketId, setExpandedTicketId] = useState<string | null>(null);
+  const [hoveredTicketId, setHoveredTicketId] = useState<string | null>(null);
 
   // Auth presence and dynamic user id
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
@@ -356,19 +358,22 @@ const TicketCenter: React.FC = () => {
         </div>
       )}
 
-      <GlassCard className="p-0 overflow-hidden">
-      <div className="px-4 py-4 sm:px-6">
+      <GlassCard className="p-0 overflow-hidden transition-all duration-300 hover:shadow-xl">
+      <div className="px-4 py-4 sm:px-6 bg-gradient-to-r from-teal-50/30 to-blue-50/30 dark:from-teal-900/10 dark:to-blue-900/10">
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">Support Tickets <Ticket className="inline-block h-5 w-5 ml-2 text-teal-500" /></h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">Raise a complaint and track its status</p>
+          <div className="group">
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+              Support Tickets 
+              <Ticket className="h-5 w-5 text-teal-500 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Raise a complaint and track its status</p>
           </div>
           {currentView === 'chat' && newlyCreatedTicketId && (
             <button
               onClick={() => setCurrentView('tickets')}
-              className="inline-flex items-center px-3 py-1.5 rounded-md bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 text-sm font-medium transition-colors"
+              className="inline-flex items-center px-4 py-2 rounded-lg bg-gradient-to-r from-gray-100 to-gray-50 text-gray-800 hover:from-gray-200 hover:to-gray-100 dark:from-gray-700 dark:to-gray-800 dark:text-gray-200 dark:hover:from-gray-600 dark:hover:to-gray-700 text-sm font-medium transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-x-1"
             >
-              <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-4 w-4 mr-1.5 transition-transform duration-200 group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
               Back to Tickets
@@ -382,7 +387,7 @@ const TicketCenter: React.FC = () => {
         {currentView === 'tickets' ? (
           <>
             {hasUnresolvedTicket ? (
-              <div className="mb-4 p-4 rounded-xl bg-amber-50/70 border border-amber-200/70 dark:bg-amber-900/20 dark:border-amber-800/40">
+              <div className="mb-4 p-4 rounded-xl bg-amber-50/70 border border-amber-200/70 dark:bg-amber-900/20 dark:border-amber-800/40 animate-pulse-slow shadow-lg">
                 <div className="flex items-center">
                   <svg className="h-5 w-5 text-amber-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -396,8 +401,12 @@ const TicketCenter: React.FC = () => {
                       <span className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200">AI response ready</span>
                       <button
                         onClick={viewAIResponseFromBanner}
-                        className="inline-flex items-center px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium"
+                        className="inline-flex items-center px-3 py-1.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-all duration-200 hover:scale-105 hover:shadow-lg active:scale-95"
                       >
+                        <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
                         View AI Response
                       </button>
                     </div>
@@ -407,8 +416,13 @@ const TicketCenter: React.FC = () => {
             ) : (
               <>
                 {fetchError && (
-                  <div className="mb-3 p-3 rounded-xl bg-red-100/80 text-red-800 dark:bg-red-900/30 dark:text-red-200">
-                    {fetchError}
+                  <div className="mb-3 p-3 rounded-xl bg-red-100/80 text-red-800 dark:bg-red-900/30 dark:text-red-200 border border-red-300 dark:border-red-800 animate-shake">
+                    <div className="flex items-center gap-2">
+                      <svg className="h-5 w-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>{fetchError}</span>
+                    </div>
                   </div>
                 )}
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -421,7 +435,7 @@ const TicketCenter: React.FC = () => {
                       type="text"
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
-                      className="w-full pill-input"
+                      className="w-full pill-input transition-all duration-200 focus:ring-2 focus:ring-teal-500 focus:scale-[1.01]"
                       placeholder="Brief summary of the issue"
                       required
                     />
@@ -436,7 +450,7 @@ const TicketCenter: React.FC = () => {
                       id="ticket-category"
                       value={category}
                       onChange={(e) => setCategory(e.target.value as 'Device Issue' | 'Connectivity' | 'Other')}
-                      className="w-full pill-input"
+                      className="w-full pill-input transition-all duration-200 focus:ring-2 focus:ring-teal-500 cursor-pointer"
                       required
                     >
                       <option>Device Issue</option>
@@ -454,7 +468,7 @@ const TicketCenter: React.FC = () => {
                         id="ticket-device"
                         value={selectedDeviceId}
                         onChange={e => setSelectedDeviceId(e.target.value)}
-                        className="w-full pill-input"
+                        className="w-full pill-input transition-all duration-200 focus:ring-2 focus:ring-teal-500 cursor-pointer"
                         required
                       >
                         <option value="" disabled>Select your device</option>
@@ -474,7 +488,7 @@ const TicketCenter: React.FC = () => {
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
                       rows={4}
-                      className="w-full pill-textarea"
+                      className="w-full pill-textarea transition-all duration-200 focus:ring-2 focus:ring-teal-500 focus:scale-[1.01]"
                       placeholder="Describe the problem in detail"
                       required
                     />
@@ -498,8 +512,14 @@ const TicketCenter: React.FC = () => {
                     <button
                       type="submit"
                       disabled={submitting || processingAI}
-                      className="inline-flex items-center px-5 py-2 rounded-full bg-teal-600 hover:bg-teal-700 text-white font-medium border-2 border-teal-700 hover:border-teal-800 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-soft"
+                      className="inline-flex items-center px-6 py-2.5 rounded-full bg-gradient-to-r from-teal-600 to-teal-700 hover:from-teal-700 hover:to-teal-800 text-white font-medium border-2 border-teal-700 hover:border-teal-800 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-105 active:scale-95 disabled:hover:scale-100"
                     >
+                      {submitting && (
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      )}
                       {submitting ? 'Creating Ticket…' : processingAI ? 'Preparing AI Response…' : 'Raise Ticket'}
                     </button>
                   </div>
@@ -521,35 +541,87 @@ const TicketCenter: React.FC = () => {
 
       {/* Tickets list */}
       {currentView === 'tickets' && (
-        <div className="px-4 pb-5 sm:px-6 border-t border-white/50 dark:border-white/10">
-          <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3">Your Tickets</h3>
+        <div className="px-4 pb-5 sm:px-6 border-t border-white/50 dark:border-white/10 bg-gradient-to-b from-transparent to-gray-50/30 dark:to-gray-900/20">
+          <div className="flex items-center justify-between mb-3 pt-4">
+            <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">Your Tickets</h3>
+            {sortedTickets.length > 0 && (
+              <span className="px-2 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 text-xs font-medium rounded-full">
+                {sortedTickets.length} {sortedTickets.length === 1 ? 'ticket' : 'tickets'}
+              </span>
+            )}
+          </div>
 
           {loading ? (
-            <p className="text-sm text-gray-600 dark:text-gray-400">Loading tickets…</p>
+            <div className="flex items-center justify-center py-8">
+              <svg className="animate-spin h-8 w-8 text-teal-600" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <span className="ml-3 text-sm text-gray-600 dark:text-gray-400">Loading tickets…</span>
+            </div>
           ) : sortedTickets.length === 0 ? (
-            <p className="text-sm text-gray-600 dark:text-gray-400">No tickets yet. Raise your first one above.</p>
+            <div className="text-center py-8 px-4">
+              <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="text-sm text-gray-600 dark:text-gray-400">No tickets yet. Raise your first one above.</p>
+            </div>
           ) : (
-            <ul className="divide-y divide-white/50 dark:divide-white/10">
-              {sortedTickets.map((t) => (
-                <li key={t.id} className="py-3">
+            <ul className="divide-y divide-white/50 dark:divide-white/10 space-y-1">
+              {sortedTickets.map((t, index) => (
+                <li 
+                  key={t.id} 
+                  className="py-3 transition-all duration-200 hover:bg-white/50 dark:hover:bg-gray-800/30 rounded-lg px-2 -mx-2"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                  onMouseEnter={() => setHoveredTicketId(t.id.toString())}
+                  onMouseLeave={() => setHoveredTicketId(null)}
+                >
                   <div className="flex items-start justify-between">
-                    <div className="min-w-0 pr-4 flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="px-2 py-1 bg-blue-600/90 text-white text-xs font-mono rounded-full font-semibold shadow-soft">
+                    <div className="min-w-0 pr-4 flex-1 cursor-pointer" onClick={() => setExpandedTicketId(expandedTicketId === t.id.toString() ? null : t.id.toString())}>
+                      <div className="flex items-center gap-2 mb-1 group">
+                        <span className={`px-2.5 py-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xs font-mono rounded-full font-semibold shadow-md transition-all duration-200 ${
+                          hoveredTicketId === t.id.toString() ? 'scale-105 shadow-lg' : ''
+                        }`}>
                           {t.ticketNumber || `#${t.id.toString().slice(-6).toUpperCase()}`}
                         </span>
-                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{t.subject}</p>
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">{t.subject}</p>
+                        <svg 
+                          className={`h-4 w-4 text-gray-400 transition-transform duration-200 ml-auto ${
+                            expandedTicketId === t.id.toString() ? 'rotate-180' : ''
+                          }`} 
+                          fill="none" 
+                          stroke="currentColor" 
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-gray-100/80 text-gray-800 dark:bg-gray-700/60 dark:text-gray-200">
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gradient-to-r from-gray-100 to-gray-50 text-gray-800 dark:from-gray-700 dark:to-gray-800 dark:text-gray-200 font-medium shadow-sm">
                           {t.category}
                         </span>
-                        <span className={statusClasses(t.status)}>{t.status}</span>
-                        <span className="text-gray-500">{formatDate(t.createdAt)}</span>
+                        <span className={`${statusClasses(t.status)} shadow-sm transition-all duration-200 hover:scale-105`}>{t.status}</span>
+                        <span className="text-gray-500 flex items-center gap-1">
+                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          {formatDate(t.createdAt)}
+                        </span>
                       </div>
+                      
+                      {/* Expanded Details */}
+                      {expandedTicketId === t.id.toString() && (
+                        <div className="mt-3 p-3 bg-gray-50/80 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 animate-slideDown">
+                          <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{t.description}</p>
+                        </div>
+                      )}
                       {t.imageUrl && (
                         <div className="mt-2">
-                          <img src={t.imageUrl} alt="attachment" className="h-16 w-16 object-cover rounded border border-gray-200 dark:border-gray-700" />
+                          <img 
+                            src={t.imageUrl} 
+                            alt="attachment" 
+                            className="h-20 w-20 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700 shadow-md hover:scale-150 transition-transform duration-300 cursor-zoom-in" 
+                          />
                         </div>
                       )}
                     </div>
@@ -558,9 +630,15 @@ const TicketCenter: React.FC = () => {
                       {(t.status === 'Pending' || t.status === 'In Progress') && (
                         <>
                           <button
-                            onClick={() => cancelTicket(t.id.toString())}
-                            className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-red-100/80 text-red-800 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-200 dark:hover:bg-red-900/50 transition-colors"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              cancelTicket(t.id.toString());
+                            }}
+                            className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-gradient-to-r from-red-100 to-red-50 text-red-800 hover:from-red-200 hover:to-red-100 dark:from-red-900/30 dark:to-red-900/20 dark:text-red-200 dark:hover:from-red-900/50 dark:hover:to-red-900/40 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 active:scale-95"
                           >
+                            <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
                             Cancel
                           </button>
                         </>
