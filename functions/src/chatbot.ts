@@ -258,22 +258,28 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
       const typeStr = String(d.type || "").toLowerCase();
       const nameHit = nameStr && text.includes(nameStr);
       const modelHit = modelStr && text.includes(modelStr);
-      // allow loose contains for type keywords like "cctv", "camera", "plug"
-      const tokens = ["cctv","camera","plug","light","sensor","switch","thermostat","router","night vision"]; 
+      // allow loose contains for broader type/name keywords
+      const tokens = [
+        "cctv","camera","plug","light","smart light","bulb","lamp","led","strip","lightstrip","light strip","lighting",
+        "sensor","switch","thermostat","router","night vision"
+      ]; 
+      const anyTokenInText = tokens.some(tk => text.includes(tk));
       const typeHit = typeStr && (text.includes(typeStr) || tokens.some(tk => text.includes(tk) && typeStr.includes(tk)));
-      if (nameHit || modelHit || typeHit) matchedDeviceIndexList.push(i);
+      const nameTokenHit = anyTokenInText && tokens.some(tk => nameStr.includes(tk));
+      const modelTokenHit = anyTokenInText && tokens.some(tk => modelStr.includes(tk));
+      if (nameHit || modelHit || typeHit || nameTokenHit || modelTokenHit) matchedDeviceIndexList.push(i);
     });
   }
 
   // If exactly one match, prepare deterministic warranty context
   let warrantyContext = "";
   let deterministicWarrantyMessage: string | null = null;
+  let multiWarrantyMessage: string | null = null;
   const hasSingleMatch = matchedDeviceIndexList.length === 1;
   if (isWarrantyQuestion && hasSingleMatch) {
     const d = deviceSummaries[matchedDeviceIndexList[0]];
     const deviceLabel = `${d.name}${d.model ? ` (${d.model})` : ''}`;
-    // Prefer serial-based warranty if present
-    const serialWArr = Array.isArray(d.serials) ? d.serials : [];
+    // Helper to format various date types
     const pickWarrantyVal = (val: any): string => {
       try {
         if (!val) return '';
@@ -287,12 +293,75 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
         return String(anyVal);
       } catch { return String(val); }
     };
-    const serialWarrantyVal = pickWarrantyVal(serialWArr.find((e: any) => e?.warrantyExpiry)?.warrantyExpiry);
-    const deviceWarrantyVal = pickWarrantyVal(d.warrantyCombined || d.warrantyExpiry);
-    const w = serialWarrantyVal || deviceWarrantyVal;
-    if (w) {
-      warrantyContext = `\nWARRANTY CONTEXT:\n- ${deviceLabel}: Warranty expiry: ${w}\n`;
-      deterministicWarrantyMessage = `Warranty expiry: ${w}`;
+
+    // If multiple devices share the same model, list warranties for all of them
+    const norm = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const modelKey = norm(d.model);
+    const sameModelIdx = modelKey
+      ? deviceSummaries
+          .map((x: any, idx: number) => ({ idx, key: norm(x.model) }))
+          .filter((o: any) => o.key && o.key === modelKey)
+          .map((o: any) => o.idx)
+      : [];
+    if (modelKey && sameModelIdx.length > 1) {
+      const lines: string[] = [];
+      const maxItems = 10;
+      for (const idx of sameModelIdx.slice(0, maxItems)) {
+        const dd = deviceSummaries[idx];
+        const lbl = `${dd.name}${dd.model ? ` (${dd.model})` : ''}`;
+        const serialWArr = Array.isArray(dd.serials) ? dd.serials : [];
+        const serialWarrantyVal = pickWarrantyVal(serialWArr.find((e: any) => e?.warrantyExpiry)?.warrantyExpiry);
+        const deviceWarrantyVal = pickWarrantyVal(dd.warrantyCombined || dd.warrantyExpiry);
+        const w = serialWarrantyVal || deviceWarrantyVal || '';
+        lines.push(`- ${lbl}: ${w || 'Warranty not available'}`);
+      }
+      if (lines.length > 0) {
+        // Prefer multi list when multiple devices share same model
+        multiWarrantyMessage = `Found multiple devices with model ${d.model}. Warranties:\n${lines.join('\n')}`;
+      }
+    } else {
+      // Single device path: Prefer serial-based warranty if present
+      const serialWArr = Array.isArray(d.serials) ? d.serials : [];
+      const serialWarrantyVal = pickWarrantyVal(serialWArr.find((e: any) => e?.warrantyExpiry)?.warrantyExpiry);
+      const deviceWarrantyVal = pickWarrantyVal(d.warrantyCombined || d.warrantyExpiry);
+      const w = serialWarrantyVal || deviceWarrantyVal;
+      if (w) {
+        warrantyContext = `\nWARRANTY CONTEXT:\n- ${deviceLabel}: Warranty expiry: ${w}\n`;
+        deterministicWarrantyMessage = `Warranty expiry: ${w}`;
+      }
+    }
+  }
+
+  // If multiple matches, prepare a multi-device warranty summary
+  if (isWarrantyQuestion && matchedDeviceIndexList.length > 1) {
+    // Helper to format various date types
+    const pickWarrantyVal = (val: any): string => {
+      try {
+        if (!val) return '';
+        const anyVal: any = val as any;
+        if (typeof anyVal?.toDate === 'function') {
+          return anyVal.toDate().toLocaleDateString();
+        }
+        if (typeof anyVal === 'number') return new Date(anyVal).toLocaleDateString();
+        const parsed = Date.parse(String(anyVal));
+        if (!Number.isNaN(parsed)) return new Date(parsed).toLocaleDateString();
+        return String(anyVal);
+      } catch { return String(val); }
+    };
+
+    const lines: string[] = [];
+    const maxItems = 5;
+    for (const idx of matchedDeviceIndexList.slice(0, maxItems)) {
+      const d = deviceSummaries[idx];
+      const label = `${d.name}${d.model ? ` (${d.model})` : ''}`;
+      const serialWArr = Array.isArray(d.serials) ? d.serials : [];
+      const serialWarrantyVal = pickWarrantyVal(serialWArr.find((e: any) => e?.warrantyExpiry)?.warrantyExpiry);
+      const deviceWarrantyVal = pickWarrantyVal(d.warrantyCombined || d.warrantyExpiry);
+      const w = serialWarrantyVal || deviceWarrantyVal || '';
+      lines.push(`- ${label}: ${w || 'Warranty not available'}`);
+    }
+    if (lines.length > 0) {
+      multiWarrantyMessage = `Found multiple devices. Warranties:\n${lines.join('\n')}`;
     }
   }
 
@@ -573,6 +642,10 @@ PRIVACY & SAFETY:
       }
     }
 
+    // If multiple matches, show warranties for each
+    if (isWarrantyQuestion && multiWarrantyMessage) {
+      enhancedReply = multiWarrantyMessage;
+    }
     // Inject deterministic warranty into reply when available
     if (isWarrantyQuestion && deterministicWarrantyMessage) {
       const lower = (enhancedReply || '').toLowerCase();
@@ -581,7 +654,7 @@ PRIVACY & SAFETY:
       }
     }
     // If warranty was asked but we couldn't deterministically resolve a single device, ask for model number
-    if (isWarrantyQuestion && !deterministicWarrantyMessage) {
+    if (isWarrantyQuestion && !deterministicWarrantyMessage && !multiWarrantyMessage) {
       const options = deviceSummaries
         .slice(0, 3)
         .map((d: any) => `${d.name}${d.model ? ` (${d.model})` : ''}`)
