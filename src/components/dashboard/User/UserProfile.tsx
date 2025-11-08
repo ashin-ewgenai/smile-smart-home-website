@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import PhoneInput from 'react-phone-input-2';
+import 'react-phone-input-2/lib/style.css';
 import { Save, User, Mail, Phone, MapPin, Calendar, Home, Camera } from 'lucide-react';
 import { collection, doc, getDoc, getDocs, query, setDoc, where, Timestamp } from 'firebase/firestore';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
@@ -141,15 +143,8 @@ const UserProfile: React.FC = () => {
     fetchDeviceCount();
   }, [fetchUserData, fetchDeviceCount]);
   
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, '').slice(0, 10);
-    setUserData({ ...userData, phoneNumber: digits });
-    const valid = /^([6-9][0-9]{9})$/.test(digits);
-    if (!digits || valid) {
-      phoneInputRef.current?.setCustomValidity('');
-    } else {
-      phoneInputRef.current?.setCustomValidity('Enter a valid 10-digit Indian mobile number starting with 6-9');
-    }
+  const handlePhoneChange = (value: string) => {
+    setUserData({ ...userData, phoneNumber: value });
   };
 
   // Handle profile picture selection & upload (moved to component scope)
@@ -233,11 +228,9 @@ const UserProfile: React.FC = () => {
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const phone = userData.phoneNumber || '';
-    const isPhoneValid = /^([6-9][0-9]{9})$/.test(phone);
-    if (!isPhoneValid) {
-      phoneInputRef.current?.reportValidity();
-      setSaveStatus('Please enter a valid Indian mobile number before saving.');
+    const phone = (userData.phoneNumber || '').trim();
+    if (!phone) {
+      setSaveStatus('Please enter your phone number before saving.');
       return;
     }
     setLoading(true);
@@ -441,20 +434,22 @@ const UserProfile: React.FC = () => {
                 <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Phone Number
                 </label>
-                <input
-                  type="tel"
-                  id="phone"
-                  name="phone"
+                <PhoneInput
                   value={userData.phoneNumber || ''}
                   onChange={handlePhoneChange}
-                  ref={phoneInputRef}
-                  required
-                  inputMode="numeric"
-                  maxLength={10}
-                  pattern="^[6-9][0-9]{9}$"
-                  title="Enter a valid 10-digit Indian mobile number starting with 6-9"
-                  placeholder="e.g., 9876543210"
-                  className="w-full px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                  inputProps={{
+                    name: 'phone',
+                    id: 'phone',
+                    required: true,
+                    placeholder: '1 (702) 123-4567',
+                    autoComplete: 'tel',
+                  }}
+                  country={undefined}
+                  enableSearch
+                  countryCodeEditable
+                  inputClass="w-full !pl-16 !py-3 !border !border-gray-300 dark:!border-gray-600 !rounded-lg focus:!ring-2 focus:!ring-teal-500 focus:!border-teal-500 !bg-white dark:!bg-gray-800 !text-gray-900 dark:!text-white !text-base"
+                  buttonClass="!border !border-gray-300 dark:!border-gray-600 !rounded-l-lg !bg-white dark:!bg-gray-800"
+                  containerClass="w-full"
                 />
               </div>
             </div>
