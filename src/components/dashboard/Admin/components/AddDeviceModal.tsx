@@ -35,6 +35,10 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [addedIds, setAddedIds] = useState<string[]>([]);
   const [assignedIds, setAssignedIds] = useState<string[]>([]);
+  const [pendingDevice, setPendingDevice] = useState<Device | null>(null);
+  const [serialInput, setSerialInput] = useState('');
+  const [addDate, setAddDate] = useState<string>('');
+  const [saving, setSaving] = useState(false);
 
   // Add passive event listener for better touchpad scrolling
   useEffect(() => {
@@ -199,33 +203,88 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
     });
   }, [devices, search, typeFilter, brandFilter]);
 
-  const handleAddDevice = async (deviceId: string) => {
+  const parseWarrantyToMonths = (w: unknown): number | null => {
+    if (w == null) return null;
+    if (typeof w === 'number' && isFinite(w)) return w;
+    const s = String(w).toLowerCase().trim();
+    const m = s.match(/(\d+\.?\d*)\s*(month|months|yr|yrs|year|years|m|y)/i);
+    if (m) {
+      const n = parseFloat(m[1]);
+      const unit = m[2];
+      if (!isFinite(n)) return null;
+      if (unit.startsWith('y')) return Math.round(n * 12);
+      return Math.round(n);
+    }
+    const onlyNum = s.match(/^(\d+)$/);
+    if (onlyNum) return parseInt(onlyNum[1], 10);
+    return null;
+  };
+
+  const computeWarrantyExpiry = (startISO: string, warrantyValue: unknown): string => {
+    const months = parseWarrantyToMonths(warrantyValue);
+    if (!months) return '';
+    const d = new Date(startISO);
+    const day = d.getDate();
+    d.setMonth(d.getMonth() + months);
+    if (d.getDate() < day) d.setDate(0);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  const beginAddWithSerial = (deviceId: string) => {
+    const source = devices.find(d => d.id === deviceId) || null;
+    setPendingDevice(source);
+    setSerialInput('');
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    setAddDate(`${yyyy}-${mm}-${dd}`);
+  };
+
+  const confirmAddDevice = async () => {
+    if (!pendingDevice) return;
     try {
       setError(null);
-      const now = new Date().toISOString();
-      const source = devices.find(d => d.id === deviceId);
+      if (!serialInput.trim()) {
+        setError('Please enter a serial number.');
+        return;
+      }
+      setSaving(true);
+      const addedAtISO = new Date(`${addDate}T00:00:00`).toISOString();
+      const warrantyExpiry = computeWarrantyExpiry(addedAtISO, pendingDevice.warranty);
       const deviceRef = doc(collection(db, 'User_Devices'));
       await setDoc(deviceRef, {
         uid: userId,
-        sourceDeviceId: deviceId,
-        brand: source?.brand ?? '',
-        description: source?.description ?? '',
-        deviceName: source?.deviceName ?? '',
-        documentation: (source as any)?.documentation ?? '',
-        modelNumber: source?.modelNumber ?? '',
-        type: source?.type ?? '',
-        addedAt: now,
-        updatedAt: now,
-        isOnline: false
+        sourceDeviceId: pendingDevice.id,
+        brand: pendingDevice?.brand ?? '',
+        description: pendingDevice?.description ?? '',
+        deviceName: pendingDevice?.deviceName ?? '',
+        documentation: (pendingDevice as any)?.documentation ?? '',
+        modelNumber: pendingDevice?.modelNumber ?? '',
+        type: pendingDevice?.type ?? '',
+        addedAt: addedAtISO,
+        updatedAt: addedAtISO,
+        isOnline: false,
+        serial: serialInput.trim(),
+        numberOfDevices: 1,
+        serials: [
+          { serialNumber: serialInput.trim(), warrantyExpiry }
+        ]
       });
       await cleanOrphanedUserDevices();
       onDeviceAdded();
-      // Mark as added and assigned so UI shows Remove
-      setAddedIds(prev => (prev.includes(deviceId) ? prev : [...prev, deviceId]));
-      setAssignedIds(prev => (prev.includes(deviceId) ? prev : [...prev, deviceId]));
+      setAddedIds(prev => (prev.includes(pendingDevice.id) ? prev : [...prev, pendingDevice.id]));
+      setAssignedIds(prev => (prev.includes(pendingDevice.id) ? prev : [...prev, pendingDevice.id]));
+      setPendingDevice(null);
+      setSerialInput('');
     } catch (err) {
       console.error('Error adding device:', err);
       setError('Failed to add device. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -320,6 +379,7 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
   };
 
   return (
+    <>
     <div
       className={`fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 ${isOpen ? 'flex' : 'hidden'}`}
       onClick={onClose}
@@ -471,7 +531,7 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleAddDevice(device.id)}
+                      onClick={() => beginAddWithSerial(device.id)}
                       className="inline-flex items-center justify-center min-w-[96px] px-3 py-2 text-sm font-medium rounded-md bg-teal-600 hover:bg-teal-700 text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
                     >
                       Add
@@ -501,5 +561,54 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
       </div>
     </div>
   </div>
-);
+  {pendingDevice && (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => !saving && setPendingDevice(null)}>
+      <div className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+        <h4 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-3">Add Device</h4>
+        <div className="text-sm text-gray-600 dark:text-gray-300 mb-4">{pendingDevice?.deviceName || '-'} • {pendingDevice?.modelNumber || '-'} • {pendingDevice?.brand || '-'}</div>
+        {error && (
+          <div className="mb-3 p-2 text-sm bg-red-900/30 text-red-300 border border-red-700 rounded">{error}</div>
+        )}
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Serial Number</label>
+            <input value={serialInput} onChange={(e) => setSerialInput(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:bg-gray-700/80 dark:text-gray-100 dark:border-gray-600" placeholder="Enter serial number" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Added Date</label>
+              <input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} className="w-full bg-white text-gray-900 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:bg-gray-700/80 dark:text-gray-100 dark:border-gray-600" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Warranty</label>
+              <div className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-200 text-sm">
+                {(() => {
+                  const months = parseWarrantyToMonths(pendingDevice?.warranty);
+                  return months ? `${months} months` : 'No default warranty';
+                })()}
+              </div>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Warranty Expiry</label>
+            <div className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-200 text-sm">
+              {(() => {
+                const iso = new Date(`${addDate}T00:00:00`).toISOString();
+                const exp = computeWarrantyExpiry(iso, pendingDevice?.warranty);
+                return exp || '-';
+              })()}
+            </div>
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button disabled={saving} onClick={() => setPendingDevice(null)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">Cancel</button>
+          <button disabled={saving} onClick={confirmAddDevice} className="px-4 py-2 text-sm rounded-md bg-teal-600 hover:bg-teal-700 text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+            {saving ? 'Saving...' : 'Add Device'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+    </>
+  );
 }

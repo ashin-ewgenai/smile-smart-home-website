@@ -47,6 +47,22 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
   const [warrantyControls, setWarrantyControls] = useState<{count: number; unit: 'months' | 'years'}[]>([]);
 
   // Helpers for warranty quick-set controls
+  const parseWarrantyToMonths = (w: unknown): number | null => {
+    if (w == null) return null;
+    if (typeof w === 'number' && isFinite(w)) return w;
+    const s = String(w).toLowerCase().trim();
+    const m = s.match(/(\d+\.?\d*)\s*(month|months|yr|yrs|year|years|m|y)/i);
+    if (m) {
+      const n = parseFloat(m[1]);
+      const unit = m[2];
+      if (!isFinite(n)) return null;
+      if (unit.startsWith('y')) return Math.round(n * 12);
+      return Math.round(n);
+    }
+    const onlyNum = s.match(/^(\d+)$/);
+    if (onlyNum) return parseInt(onlyNum[1], 10);
+    return null;
+  };
   const toYMD = (d: Date) => {
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -136,9 +152,10 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
         setNumberOfDevices(numDevices);
         setEditingSerials(deviceSerials);
         
-        // Initialize warranty controls
+        // Initialize warranty controls: default to device's warranty months if available
+        const defaultMonths = parseWarrantyToMonths(mergedDeviceData.warranty) ?? 12;
         const initialWarrantyControls = deviceSerials.map(() => ({
-          count: 12,
+          count: defaultMonths,
           unit: 'months' as const
         }));
         setWarrantyControls(initialWarrantyControls);
