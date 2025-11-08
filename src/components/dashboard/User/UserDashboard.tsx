@@ -17,6 +17,8 @@ interface Device {
   warranty?: string;
   modelNumber?: string;
   brand?: string;
+  warrantyEnd?: string | null;
+  warrantyStart?: string | null;
 }
 
 interface DeviceStats {
@@ -170,10 +172,41 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
         const devices = await Promise.all(userDevicesSnapshot.docs.map(async (userDeviceDoc) => {
           const deviceData = userDeviceDoc.data();
           const deviceId = userDeviceDoc.id;
+          const sourceDeviceId = (deviceData as any).sourceDeviceId || deviceId;
+
+          const parseWarrantyToMonths = (w: unknown): number | null => {
+            if (w == null) return null;
+            if (typeof w === 'number' && isFinite(w)) return w;
+            const s = String(w).toLowerCase().trim();
+            const m = s.match(/(\d+\.?\d*)\s*(month|months|yr|yrs|year|years|m|y)/i);
+            if (m) {
+              const n = parseFloat(m[1]);
+              const unit = m[2];
+              if (!isFinite(n)) return null;
+              if (unit.startsWith('y')) return Math.round(n * 12);
+              return Math.round(n);
+            }
+            const onlyNum = s.match(/^(\d+)$/);
+            if (onlyNum) return parseInt(onlyNum[1], 10);
+            return null;
+          };
+          const computeExpiry = (startISO?: string | null, warrantyVal?: unknown): string | null => {
+            if (!startISO) return null;
+            const months = parseWarrantyToMonths(warrantyVal);
+            if (!months) return null;
+            const d = new Date(startISO);
+            const day = d.getDate();
+            d.setMonth(d.getMonth() + months);
+            if (d.getDate() < day) d.setDate(0);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const dd = String(d.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+          };
           
           try {
             // Try to get device details from the main Devices collection
-            const deviceDoc = await getDoc(doc(db, 'Devices', deviceId));
+            const deviceDoc = await getDoc(doc(db, 'Devices', sourceDeviceId));
             
             if (deviceDoc.exists()) {
               const deviceInfo = deviceDoc.data();
@@ -183,6 +216,14 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
               //   type: deviceInfo.deviceType || deviceInfo.type || 'Unknown'
               // });
               
+              // Prefer warranty from user device serials if present
+              const warrantyStart = (deviceData as any)?.addedAt || null;
+              let warrantyEnd = Array.isArray((deviceData as any)?.serials) && (deviceData as any).serials[0]?.warrantyExpiry
+                ? (deviceData as any).serials[0].warrantyExpiry as string
+                : null;
+              if (!warrantyEnd) {
+                warrantyEnd = computeExpiry(warrantyStart, deviceInfo.warranty) as any;
+              }
               return {
                 id: deviceId,
                 name: deviceInfo.deviceName || deviceInfo.name || `Device ${deviceId}`,
@@ -191,7 +232,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                 lastActivity: 'Just now',
                 brand: deviceInfo.brand || deviceInfo.manufacturer || '',
                 modelNumber: deviceInfo.modelNumber || deviceInfo.model || '',
-                warranty: deviceInfo.warranty || deviceInfo.warrantyPeriod || ''
+                warranty: deviceInfo.warranty || deviceInfo.warrantyPeriod || '',
+                warrantyEnd,
+                warrantyStart
               };
             }
             
@@ -206,6 +249,14 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
             //   type: deviceType
             // });
             
+            const warrantyStart = (deviceData as any)?.addedAt || null;
+            let warrantyEnd = Array.isArray((deviceData as any)?.serials) && (deviceData as any).serials[0]?.warrantyExpiry
+              ? (deviceData as any).serials[0].warrantyExpiry as string
+              : null;
+            if (!warrantyEnd) {
+              const fallbackWarranty = (deviceData as any).warranty || (deviceData as any).warrantyPeriod || (deviceData as any).data?.warranty || (deviceData as any).data?.warrantyPeriod;
+              warrantyEnd = computeExpiry(warrantyStart, fallbackWarranty) as any;
+            }
             return {
               id: deviceId,
               name: deviceData.deviceName || deviceData.name || deviceData.data?.deviceName || deviceData.data?.name || `Device ${deviceId}`,
@@ -214,7 +265,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
               lastActivity: 'Just now',
               brand: deviceData.brand || deviceData.manufacturer || deviceData.data?.brand || deviceData.data?.manufacturer || '',
               modelNumber: deviceData.modelNumber || deviceData.model || deviceData.data?.modelNumber || deviceData.data?.model || '',
-              warranty: deviceData.warranty || deviceData.warrantyPeriod || deviceData.data?.warranty || deviceData.data?.warrantyPeriod || ''
+              warranty: deviceData.warranty || deviceData.warrantyPeriod || deviceData.data?.warranty || deviceData.data?.warrantyPeriod || '',
+              warrantyEnd,
+              warrantyStart
             };
           } catch (error) {
             // console.error('Error processing device:', error);
@@ -592,7 +645,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     lastActivity: device.lastActivity || 'Just now',
     brand: device.brand || '',
     modelNumber: device.modelNumber || '',
-    warranty: device.warranty || ''
+    warranty: device.warranty || '',
+    warrantyEnd: (device as any).warrantyEnd ?? null,
+    warrantyStart: (device as any).warrantyStart ?? null,
   }));
   
   // Warranty helpers
@@ -741,7 +796,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-500 dark:text-gray-400">
-                              {device.warranty || 'N/A'}
+                              {device.warrantyEnd ? (
+                                <div className="space-y-0.5">
+                                  <div>Start: {device.warrantyStart ? formatDate(new Date(device.warrantyStart)) : '—'}</div>
+                                  <div>End: {formatDate(new Date(device.warrantyEnd))}</div>
+                                  <div className="text-xs text-gray-400">Remaining: {remainingText(new Date(device.warrantyEnd))}</div>
+                                </div>
+                              ) : (
+                                device.warranty || 'N/A'
+                              )}
                             </div>
                           </td>
                         </tr>
