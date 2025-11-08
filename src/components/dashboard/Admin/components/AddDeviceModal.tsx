@@ -37,14 +37,22 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
   const [assignedIds, setAssignedIds] = useState<string[]>([]);
   const [pendingDevice, setPendingDevice] = useState<Device | null>(null);
   const [serialInput, setSerialInput] = useState('');
+  const [quantity, setQuantity] = useState<number>(1);
+  const [quantityStr, setQuantityStr] = useState<string>('1');
+  const [serialInputs, setSerialInputs] = useState<string[]>(['']);
   const [addDate, setAddDate] = useState<string>('');
   const [saving, setSaving] = useState(false);
+
+  const parsedQty = useMemo(() => {
+    const n = parseInt(quantityStr, 10);
+    if (Number.isFinite(n) && n > 0) return n;
+    return 0;
+  }, [quantityStr]);
 
   // Add passive event listener for better touchpad scrolling
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
-
     const handleWheel = (e: WheelEvent) => {
       if (!container.contains(e.target as Node)) return;
       
@@ -237,6 +245,9 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
     const source = devices.find(d => d.id === deviceId) || null;
     setPendingDevice(source);
     setSerialInput('');
+    setQuantity(1);
+    setQuantityStr('1');
+    setSerialInputs(['']);
     const today = new Date();
     const yyyy = today.getFullYear();
     const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -248,8 +259,20 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
     if (!pendingDevice) return;
     try {
       setError(null);
-      if (!serialInput.trim()) {
-        setError('Please enter a serial number.');
+      const qty = quantityStr.trim() === '' ? quantity : Math.max(1, parseInt(quantityStr, 10) || 1);
+      // Build serial list from new multi-inputs if present, else fallback to single input
+      let serialList = (serialInputs && Array.isArray(serialInputs) ? serialInputs : [serialInput]).map(s => (s || '').trim());
+      if (serialList.length < qty) {
+        serialList = [...serialList, ...Array(qty - serialList.length).fill('')];
+      } else if (serialList.length > qty) {
+        serialList = serialList.slice(0, qty);
+      }
+      if (serialList.length !== qty) {
+        setError('Please enter serial numbers for all units.');
+        return;
+      }
+      if (serialList.some(s => !s)) {
+        setError('Please enter a serial number for each unit.');
         return;
       }
       setSaving(true);
@@ -268,11 +291,9 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
         addedAt: addedAtISO,
         updatedAt: addedAtISO,
         isOnline: false,
-        serial: serialInput.trim(),
-        numberOfDevices: 1,
-        serials: [
-          { serialNumber: serialInput.trim(), warrantyExpiry }
-        ]
+        serial: serialList[0],
+        numberOfDevices: qty,
+        serials: serialList.map(s => ({ serialNumber: s, warrantyExpiry }))
       });
       await cleanOrphanedUserDevices();
       onDeviceAdded();
@@ -280,6 +301,7 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
       setAssignedIds(prev => (prev.includes(pendingDevice.id) ? prev : [...prev, pendingDevice.id]));
       setPendingDevice(null);
       setSerialInput('');
+      setSerialInputs(['']);
     } catch (err) {
       console.error('Error adding device:', err);
       setError('Failed to add device. Please try again.');
@@ -570,15 +592,67 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
           <div className="mb-3 p-2 text-sm bg-red-900/30 text-red-300 border border-red-700 rounded">{error}</div>
         )}
         <div className="space-y-3">
-          <div>
-            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Serial Number</label>
-            <input value={serialInput} onChange={(e) => setSerialInput(e.target.value)} className="w-full bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:bg-gray-700/80 dark:text-gray-100 dark:border-gray-600" placeholder="Enter serial number" />
-          </div>
           <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Quantity</label>
+              <input
+                type="number"
+                min={1}
+                value={quantityStr}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setQuantityStr(val);
+                  const parsed = parseInt(val, 10);
+                  if (Number.isFinite(parsed) && parsed > 0) {
+                    setQuantity(parsed);
+                    setSerialInputs((prev) => {
+                      const arr = [...prev];
+                      while (arr.length < parsed) arr.push('');
+                      while (arr.length > parsed) arr.pop();
+                      return arr;
+                    });
+                  }
+                }}
+                className="w-full bg-white text-gray-900 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:bg-gray-700/80 dark:text-gray-100 dark:border-gray-600"
+              />
+            </div>
             <div>
               <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Added Date</label>
               <input type="date" value={addDate} onChange={(e) => setAddDate(e.target.value)} className="w-full bg-white text-gray-900 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:bg-gray-700/80 dark:text-gray-100 dark:border-gray-600" />
             </div>
+          </div>
+          {parsedQty > 0 ? (
+            <div>
+              <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Serial Numbers</label>
+              <div className="space-y-2">
+                {Array.from({ length: parsedQty }).map((_, idx) => (
+                  <div key={idx} className="flex items-center gap-3">
+                    <span className="text-xs w-5 text-gray-500">{idx + 1}.</span>
+                    <input
+                      value={serialInputs[idx] || ''}
+                      onChange={(e) => setSerialInputs((prev) => {
+                        const arr = [...prev];
+                        arr[idx] = e.target.value;
+                        return arr;
+                      })}
+                      className="flex-1 bg-white text-gray-900 placeholder-gray-400 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-1 focus:ring-teal-500 dark:bg-gray-700/80 dark:text-gray-100 dark:border-gray-600"
+                      placeholder={`Enter serial number #${idx + 1}`}
+                    />
+                    <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                      Exp: {(() => {
+                        const iso = new Date(`${addDate}T00:00:00`).toISOString();
+                        const exp = computeWarrantyExpiry(iso, pendingDevice?.warranty);
+                        return exp || '-';
+                      })()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-gray-500 dark:text-gray-400">Enter a quantity to add serial numbers</div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Warranty</label>
               <div className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-200 text-sm">
@@ -589,20 +663,10 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
               </div>
             </div>
           </div>
-          <div>
-            <label className="block text-xs text-gray-600 dark:text-gray-400 mb-1">Warranty Expiry</label>
-            <div className="px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-200 text-sm">
-              {(() => {
-                const iso = new Date(`${addDate}T00:00:00`).toISOString();
-                const exp = computeWarrantyExpiry(iso, pendingDevice?.warranty);
-                return exp || '-';
-              })()}
-            </div>
-          </div>
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button disabled={saving} onClick={() => setPendingDevice(null)} className="px-4 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">Cancel</button>
-          <button disabled={saving} onClick={confirmAddDevice} className="px-4 py-2 text-sm rounded-md bg-teal-600 hover:bg-teal-700 text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+          <button disabled={saving || parsedQty < 1} onClick={confirmAddDevice} className="px-4 py-2 text-sm rounded-md bg-teal-600 hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
             {saving ? 'Saving...' : 'Add Device'}
           </button>
         </div>
