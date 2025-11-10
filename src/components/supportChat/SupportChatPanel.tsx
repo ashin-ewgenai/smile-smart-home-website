@@ -96,7 +96,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const [confirmNewChatOpen, setConfirmNewChatOpen] = useState(false);
   // Track unresolved ticket (if any) shown in prompt
   const unresolvedShownRef = useRef<string | null>(null);
-  const [awaitingModel, setAwaitingModel] = useState<boolean>(false);
   const [confirmInline, setConfirmInline] = useState(false);
   const [showResolveFooter, setShowResolveFooter] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
@@ -748,225 +747,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     setInput('');
     setIsSending(true);
 
-    if (awaitingModel) {
-      try {
-        if (!uid) { setIsSending(false); return; }
-        const modelInput = content.toLowerCase();
-        const devicesSnap = await getDocs(query(collection(db, 'User_Devices'), where('uid', '==', uid)));
-        const devices = devicesSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        const match = devices.find((d: any) => {
-          const candidates = [d.deviceModel, d.model, d.modelNumber].filter(Boolean).map((x: string) => String(x).toLowerCase());
-          return candidates.includes(modelInput);
-        });
-        setMessages((prev) => [...prev, { role: 'user', content, ts: Date.now() - 1 }]);
-        // Persist user's model reply
-        if (uid && sessionId) {
-          try {
-            const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
-            await addDoc(msgsCol, { role: 'user', content, ts: Date.now() });
-            await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
-          } catch (e) {}
-        }
-        if (!match) {
-          const failMsg: ChatMsg = { role: 'assistant', content: 'I could not find a device with that model number in your account. Please check and enter the exact model number printed on the device or packaging.', ts: Date.now() };
-          setMessages((prev) => [...prev, failMsg]);
-          // Persist assistant failure message
-          if (uid && sessionId) {
-            try {
-              const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
-              await addDoc(msgsCol, { role: 'assistant', content: failMsg.content, ts: Date.now(), source: 'system' });
-              await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
-            } catch (e) {}
-          }
-          setIsSending(false);
-          return;
-        }
-        setAwaitingModel(false);
-        const verified: Device = {
-          id: match.id,
-          name: (match.deviceName || match.name || 'Device') as string,
-          type: (match.deviceType || match.type || 'Device') as string,
-          model: (match.deviceModel || match.model || match.modelNumber || '') as string,
-          serial: (match.deviceSerial || match.serial || '') as string,
-        };
-        setSelectedDevice(verified);
-        // Derive warranty expiry if present on document
-        let warrantyExpiry: string | undefined = undefined;
-        try {
-          const w = (match.warrantyExpiry || match.warrantyEnd || match.warrantyExpiryDate || match.warrantyEndDate);
-          if (w && typeof w?.toDate === 'function') {
-            warrantyExpiry = w.toDate().toISOString();
-          } else if (typeof w === 'number' || typeof w === 'string') {
-            const ms = typeof w === 'number' ? (w < 1e12 ? w * 1000 : w) : Date.parse(w);
-            if (!Number.isNaN(ms)) warrantyExpiry = new Date(ms).toISOString();
-          }
-        } catch {}
-
-        // Show device info including warranty
-        const infoMsg: ChatMsg = {
-          role: 'assistant',
-          content: `Model verified (${verified.model}). I fetched your device details and warranty info below.`,
-          deviceInfo: {
-            deviceName: verified.name,
-            modelNumber: verified.model,
-            serialNumber: verified.serial,
-            warrantyExpiry,
-            type: verified.type,
-          },
-          ts: Date.now(),
-        };
-        setMessages((prev) => [...prev, infoMsg]);
-        // Persist assistant device info message
-        if (uid && sessionId) {
-          try {
-            const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
-            await addDoc(msgsCol, { role: 'assistant', content: infoMsg.content, ts: Date.now(), source: 'flow', deviceInfo: infoMsg.deviceInfo });
-            await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
-          } catch (e) {}
-        }
-
-        try {
-          console.log('[getUserDeviceDetails] calling with:', { deviceId: verified.id });
-          const callDetails = httpsCallable(functions, 'getUserDeviceDetails');
-          const t0 = performance.now();
-          const detailsRes: any = await callDetails({ deviceId: verified.id });
-          const t1 = performance.now();
-          console.log('[getUserDeviceDetails] response:', detailsRes?.data, `(${(t1 - t0).toFixed(0)}ms)`);
-        } catch (e) {
-          console.error('[getUserDeviceDetails] error:', e);
-        }
-
-        try {
-          const normalized = String(verified.model || '').toLowerCase().trim();
-          let meta: any = null;
-          const q1 = query(collection(db, 'Devices'), where('model', '==', normalized), limit(1));
-          const s1 = await getDocs(q1);
-          if (!s1.empty) meta = s1.docs[0].data();
-          if (!meta) {
-            const q2 = query(collection(db, 'Devices'), where('modelNumber', '==', normalized), limit(1));
-            const s2 = await getDocs(q2);
-            if (!s2.empty) meta = s2.docs[0].data();
-          }
-          if (!meta) {
-            const q3 = query(collection(db, 'Devices'), where('deviceModel', '==', normalized), limit(1));
-            const s3 = await getDocs(q3);
-            if (!s3.empty) meta = s3.docs[0].data();
-          }
-          if (meta) {
-            const raw = (meta as any).troubleshooting ?? (meta as any).troubleshootingSteps ?? null;
-            let steps: string[] = Array.isArray(raw) ? raw.map((x: any) => String(x)) : (raw ? [String(raw)] : []);
-            if (steps.length === 0) {
-              const ci = (meta as any).commonIssues;
-              steps = Array.isArray(ci) ? ci.map((x: any) => String(x)) : [];
-            }
-            if (steps.length > 0) {
-              const bullet = '• ' + steps.join('\n• ');
-              const msg: ChatMsg = { role: 'assistant', content: `Here are the troubleshooting steps for ${verified.model}:\n\n${bullet}`, ts: Date.now() };
-              setMessages((prev) => [...prev, msg]);
-              console.log('[Devices troubleshooting] steps returned:', steps);
-              if (uid && sessionId) {
-                try {
-                  const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
-                  await addDoc(msgsCol, { role: 'assistant', content: msg.content, ts: Date.now(), source: 'flow' });
-                  await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
-                } catch (e) {}
-              }
-            }
-          }
-
-        } catch (e) {
-          console.error('[Devices troubleshooting] fetch error:', e);
-        }
-
-        // Check for existing unresolved ticket linked to this device
-        try {
-          const unresolvedSnap = await getDocs(query(
-            collection(db, 'Support_Tickets'),
-            where('uid', '==', uid),
-            where('deviceId', '==', verified.id),
-            orderBy('createdAt', 'desc'),
-            limit(1)
-          ));
-          const t = unresolvedSnap.docs[0]?.data() as any;
-          const tId = unresolvedSnap.docs[0]?.id as string | undefined;
-          const status = String(t?.status || '').toLowerCase();
-          const isActive = ['pending', 'in progress', 'awaiting_user', 'open'].includes(status);
-          if (t && tId && isActive) {
-            const ticketNumber = t.ticketNumber || `#${tId.slice(-6).toUpperCase()}`;
-            const msg: ChatMsg = {
-              role: 'assistant',
-              content: `I found an existing ticket for this device (${ticketNumber}) with status "${t.status || 'Pending'}". We can continue there if you like.`,
-              ts: Date.now() + 1,
-            };
-            setMessages((prev) => [...prev, msg]);
-          }
-        } catch {}
-
-        // Follow-up: suggest troubleshooting steps via callable
-        const okMsg: ChatMsg = { role: 'assistant', content: `Let me suggest some troubleshooting steps for ${verified.model}…`, ts: Date.now() + 2 };
-        setMessages((prev) => [...prev, okMsg]);
-        // Persist follow-up assistant message
-        if (uid && sessionId) {
-          try {
-            const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
-            await addDoc(msgsCol, { role: 'assistant', content: okMsg.content, ts: Date.now(), source: 'flow' });
-            await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
-          } catch (e) {}
-        }
-
-        const activeTid = providedTicketId || sessionActiveTicketId || (ticketData as any)?.ticketId || undefined;
-        if (activeTid) {
-          try {
-            const call = httpsCallable(functions, 'suggestTroubleshootingStep');
-            const res: any = await call({ ticketId: activeTid, device: { id: verified.id, model: verified.model, type: verified.type } });
-            const suggestion: string | undefined = res?.data?.suggestion || res?.data?.message;
-            if (suggestion) {
-              const assist: ChatMsg = { role: 'assistant', content: suggestion, ts: Date.now() + 1 };
-              setMessages((prev) => [...prev, assist]);
-              if (uid && sessionId) {
-                try {
-                  const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
-                  await addDoc(msgsCol, { role: 'assistant', content: suggestion, ts: Date.now() + 2, source: 'ai' });
-                  await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
-                } catch (_e) {}
-              }
-            }
-          } catch (error) {
-            const err = error as any;
-            console.error('suggestTroubleshootingStep failed:', err);
-            const code: string = String(err?.code || '');
-            let message = "I’m having trouble responding right now. Please try again.";
-            if (code.includes('resource-exhausted')) {
-              message = "You’re sending messages too quickly. Please wait a few seconds and try again.";
-            } else if (code.includes('unauthenticated')) {
-              message = "Please sign in to continue troubleshooting.";
-            }
-            setMessages((prev) => [
-              ...prev,
-              { role: 'assistant', content: message, ts: Date.now() },
-            ]);
-          }
-        }
-        // Ask user if they want to generate a support ticket if none exists for this device
-        try {
-          const existingForDevice = await getDocs(query(
-            collection(db, 'Support_Tickets'),
-            where('uid', '==', uid),
-            where('deviceId', '==', verified.id),
-            orderBy('createdAt', 'desc'),
-            limit(1)
-          ));
-          if (existingForDevice.empty) {
-            const askMsg: ChatMsg = { role: 'assistant', content: 'Would you like me to generate a support ticket for this device so our team can follow up?', ts: Date.now() + 3, showTicketCTA: true };
-            setMessages((prev) => [...prev, askMsg]);
-          }
-        } catch {}
-      } finally {
-        setIsSending(false);
-      }
-      return;
-    }
-
     // Auto-escalation: if the last assistant message suggested escalation and user consents ("yes", "ok", etc.),
     // automatically create a human support request and confirm in chat.
     try {
@@ -1009,25 +789,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       return;
     }
 
-    // If authenticated user, first detect device problem intent and prompt for model number
-    const problemIntent = /\b(not working|doesn't work|doesnt work|issue|problem|malfunction|broken|no power|no wifi|disconnect|blinking|beeping|overheating)\b/i.test(content);
-    const mentionsDevice = /\b(device|cctv|camera|cam|security cam|ip camera|smart cam|light|lamp|bulb|smart light|smart lamp|wifi bulb|door lock|smart lock|lock|door|keypad lock|digital lock|plug|socket|smart plug|power plug|adapter|fan|ceiling fan|smart fan|cooler|thermostat|temperature|ac control|climate control|switch|controller|remote switch|smart board|speaker|smart speaker|voice assistant|alexa|google home|doorbell|bell|video bell|smart bell|sensor|motion sensor|temp sensor|humidity sensor|gas sensor|tv|display|screen|smart tv|monitor|ac|air conditioner|hvac|curtain|blinds|shade|window cover|router|hub)\b/i.test(content);
-    if (!awaitingModel && problemIntent && mentionsDevice) {
-      const promptMsg: ChatMsg = { role: 'assistant', content: 'Sorry to hear that. Please provide the exact model number of the device so I can fetch its warranty details and give you the right steps.', ts: Date.now() };
-      setMessages((prev) => [...prev, { role: 'user', content, ts: Date.now() - 1 }, promptMsg]);
-      // Persist user message and assistant prompt for model request
-      if (uid && sessionId) {
-        try {
-          const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
-          await addDoc(msgsCol, { role: 'user', content, ts: Date.now() });
-          await addDoc(msgsCol, { role: 'assistant', content: promptMsg.content, ts: Date.now() + 1, source: 'system' });
-          await setDoc(doc(db, 'chat_sessions', sessionId!), { updatedAt: serverTimestamp() }, { merge: true });
-        } catch (e) {}
-      }
-      setAwaitingModel(true);
-      setIsSending(false);
-      return;
-    }
+    // Frontend no longer prompts for model; rely on backend to request serial number if needed
 
     // If authenticated user, call chatWithOpenAI and rely on backend to persist messages
     if (isAuthenticated) {
@@ -1134,8 +896,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     if (confirmed) {
       setWorkflowStep('troubleshooting');
       const userMsg: ChatMsg = { role: 'user', content: 'Yes, the ticket details are correct', ts: Date.now() };
-      setMessages(prev => [...prev, userMsg, { role: 'assistant', content: 'Please provide the model number of the device you need help with.', ts: Date.now() + 1 }]);
-      setAwaitingModel(true);
+      setMessages(prev => [...prev, userMsg]);
     } else {
       // User wants to update ticket
       const updateMsg: ChatMsg = {

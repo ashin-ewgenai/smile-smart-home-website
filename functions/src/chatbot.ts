@@ -28,7 +28,7 @@ const CONFIG = {
   OPENAI: {
     MODEL: "gpt-4o-mini",
     TEMPERATURE: 0.4,
-    MAX_TOKENS: 300
+    MAX_TOKENS: 310
   },
   COLLECTIONS: {
     DEVICES: "User_Devices",
@@ -86,7 +86,16 @@ async function applyRateLimit(uid: string): Promise<void> {
 // ===== Full chat with OpenAI including Firestore persistence =====
 // request.data: { messages: {role:'system'|'user'|'assistant', content:string}[], model?: string, sessionId?: string, ticketId?: string }
 // response: { reply: string, sessionId: string, requiresTicket?: boolean, ticketDetails?: any, deviceSelection?: any }
-export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, async (request: CallableRequest) => {
+export const chatWithOpenAI = onCall(
+  { secrets: [OPENAI_API_KEY], cors: true },
+  async (request: CallableRequest): Promise<{
+    reply: string;
+    sessionId: string;
+    requiresTicket?: boolean;
+    ticketDetails?: any;
+    deviceSelection?: any;
+    debugInfo?: any;
+  }> => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
 
@@ -107,6 +116,7 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
   if (!Array.isArray(msgs) || msgs.length === 0) {
     throw new HttpsError("invalid-argument", "messages array is required");
   }
+
 
   // Clean and bound context
   const clean = msgs
@@ -195,6 +205,21 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
     return v.length > 4 ? `***${last4}` : `***${last4}`;
   };
 
+  // Normalization helpers for robust serial matching (alphanumeric, ignore separators)
+  const normalize = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const last4Of = (s: any) => normalize(s).slice(-4);
+  const extractUserLast4Candidates = (text: string): Set<string> => {
+    const set = new Set<string>();
+    const tokens = String(text).match(/[a-z0-9]{4,}/gi) || [];
+    for (const tk of tokens) {
+      // Only consider tokens that contain at least one digit to avoid matching common words
+      if (!/[0-9]/.test(tk)) continue;
+      const n = normalize(tk);
+      if (n.length >= 4) set.add(n.slice(-4));
+    }
+    return set;
+  };
+
   // Summarize devices with useful fields commonly present in User_Devices
   const deviceSummaries = userDevices.map((d: any) => {
     const serialCandidates = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean);
@@ -247,6 +272,158 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
   // Detect warranty intent and try deterministic device match by model/name
   const lastUserMsg = [...clean].reverse().find((m) => m.role === "user")?.content || "";
   const isWarrantyQuestion = /\b(warranty|guarantee|coverage|warran|wty)\b/i.test(String(lastUserMsg));
+  // Detect device information requests (e.g., device info/details/status/specs)
+  const isDeviceInfoQuestion = /\b(device\s*(info|information|details|status)|show\s*(my\s*)?device\s*(info|details)|about\s*(this|the)\s*device|device\s*specs?)\b/i.test(String(lastUserMsg));
+  // Broader device-related intent detection (e.g., "show camera details", "what about my bulb")
+  const deviceTokenRe = /(light|bulb|camera|cctv|plug|switch|sensor|thermostat|router|device|smart\s+light|strip|lock)/i;
+  const intentTokenRe = /(info|information|details|status|spec|specs|manual|documentation|about|show|what|how|guide|help)/i;
+  const isDeviceRelatedQuestion = deviceTokenRe.test(String(lastUserMsg)) && intentTokenRe.test(String(lastUserMsg));
+  // Problem / not-working detection (expanded coverage)
+  const isProblemIssue = /(\bnot\s*working\b|doesn['’]?t\s*work|doesnt\s*work|\bproblem\b|\bissue\b|\bbroken\b|malfunction(ing)?|stopped\s*working|not\s*respond(ing)?|unresponsive|offline|disconnected|disconnect(ing)?|cannot\s*connect|can't\s*connect|won'?t\s*turn\s*on|no\s*power|error|fault|crash(ed)?|freeze|frozen|lag(gy)?|slow|overheat(ing)?) /i.test(String(lastUserMsg));
+
+  // Global serial detector: acknowledge serial presence and prompt next action when no explicit intent
+  let globalSerialMatchedDevice: any = null;
+  let globalSerialMatchedSerialRaw: string | null = null;
+  if (!isWarrantyQuestion && !isDeviceInfoQuestion && !isProblemIssue && userDevices.length > 0) {
+    const text = String(lastUserMsg || '');
+    const textNorm = normalize(text);
+    const userLast4 = extractUserLast4Candidates(text);
+    // Try full normalized include across all serial fields
+    for (const d of userDevices) {
+      const baseSerials = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean).map((s: any) => String(s).trim());
+      const arraySerials = Array.isArray(d.serials) ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean) : [];
+      const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
+      const hit = allSerials.find((s) => s && textNorm.includes(normalize(s)));
+      if (hit) { globalSerialMatchedDevice = d; globalSerialMatchedSerialRaw = hit; break; }
+    }
+    // If not found, try unique last-4
+    if (!globalSerialMatchedDevice && userLast4.size > 0) {
+      type Cand = { device: any; serial: string };
+      const matches: Cand[] = [];
+      for (const d of userDevices) {
+        const baseSerials = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean).map((s: any) => String(s).trim());
+        const arraySerials = Array.isArray(d.serials) ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean) : [];
+        const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
+        for (const s of allSerials) {
+          if (userLast4.has(last4Of(s))) matches.push({ device: d, serial: s });
+        }
+      }
+      if (matches.length === 1) {
+        globalSerialMatchedDevice = matches[0].device;
+        globalSerialMatchedSerialRaw = matches[0].serial;
+      }
+    }
+  }
+
+  // Match by serial for problem-related intents (independent of warranty flow)
+  let problemMatchedDevice: any = null;
+  let problemMatchedSerialRaw: string | null = null;
+  if ((isProblemIssue || isDeviceRelatedQuestion) && userDevices.length > 0) {
+    const text = String(lastUserMsg || '');
+    const textNorm = normalize(text);
+    const userLast4 = extractUserLast4Candidates(text);
+    // Try full normalized include
+    for (const d of userDevices) {
+      const baseSerials = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean).map((s: any) => String(s).trim());
+      const arraySerials = Array.isArray(d.serials) ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean) : [];
+      const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
+      const hit = allSerials.find((s) => s && textNorm.includes(normalize(s)));
+      if (hit) { problemMatchedDevice = d; problemMatchedSerialRaw = hit; break; }
+    }
+    // If not found, try unique last-4 resolution
+    if (!problemMatchedDevice && userLast4.size > 0) {
+      type Cand = { device: any; serial: string };
+      const matches: Cand[] = [];
+      for (const d of userDevices) {
+        const baseSerials = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean).map((s: any) => String(s).trim());
+        const arraySerials = Array.isArray(d.serials) ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean) : [];
+        const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
+        for (const s of allSerials) {
+          if (userLast4.has(last4Of(s))) matches.push({ device: d, serial: s });
+        }
+      }
+      if (matches.length === 1) {
+        problemMatchedDevice = matches[0].device;
+        problemMatchedSerialRaw = matches[0].serial;
+      }
+    }
+  }
+
+  // Determine device info match by serial (normalized full or unique last-4); handle ambiguity; otherwise ask for full serial
+  let deviceInfoMatched: any = null;
+  let deviceInfoMessage: string | null = null;
+  let multiDeviceInfoMessage: string | null = null;
+  if (isDeviceInfoQuestion && userDevices.length > 0) {
+    const text = String(lastUserMsg || '');
+    const textNorm = normalize(text);
+    const userLast4 = extractUserLast4Candidates(text);
+    // Full normalized include
+    for (const d of userDevices) {
+      const baseSerials = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean).map((s: any) => String(s).trim());
+      const arraySerials = Array.isArray(d.serials) ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean) : [];
+      const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
+      const hit = allSerials.find((s) => s && textNorm.includes(normalize(s)));
+      if (hit) { deviceInfoMatched = d; break; }
+    }
+    // Unique last-4
+    if (!deviceInfoMatched && userLast4.size > 0) {
+      type Cand = { device: any; serial: string };
+      const matches: Cand[] = [];
+      for (const d of userDevices) {
+        const baseSerials = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean).map((s: any) => String(s).trim());
+        const arraySerials = Array.isArray(d.serials) ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean) : [];
+        const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
+        for (const s of allSerials) {
+          if (userLast4.has(last4Of(s))) matches.push({ device: d, serial: s });
+        }
+      }
+      if (matches.length === 1) {
+        deviceInfoMatched = matches[0].device;
+      } else if (matches.length > 1) {
+        // Ambiguous last-4: list candidates and ask for full serial
+        const lines: string[] = [
+          'I found multiple devices that match the serial ending you provided:'
+        ];
+        for (const m of matches.slice(0, 5)) {
+          const dev = m.device;
+          const name = dev.deviceName || dev.name || 'Device';
+          const model = dev.deviceModel || dev.model || dev.modelNumber || '';
+          const snMasked = `***${String(m.serial).slice(-4)}`;
+          lines.push(`- ${name}${model ? ` (${model})` : ''}: ${snMasked}`);
+        }
+        lines.push('Please enter the full device serial number to view the exact device details.');
+        multiDeviceInfoMessage = lines.join('\n');
+      }
+    }
+    if (deviceInfoMatched) {
+      const mask = (s: any) => {
+        const v = typeof s === 'string' ? s : '';
+        if (!v) return '';
+        const last4 = v.slice(-4);
+        return v.length > 4 ? `***${last4}` : `***${last4}`;
+      };
+      const serialMasked = mask(deviceInfoMatched.deviceSerial || deviceInfoMatched.serial || deviceInfoMatched.serialNumber || '');
+      const name = deviceInfoMatched.deviceName || deviceInfoMatched.name || 'Device';
+      const type = deviceInfoMatched.deviceType || deviceInfoMatched.type || 'Device';
+      const model = deviceInfoMatched.deviceModel || deviceInfoMatched.model || deviceInfoMatched.modelNumber || '';
+      const brand = deviceInfoMatched.brand || deviceInfoMatched.manufacturer || deviceInfoMatched.vendor || deviceInfoMatched.make || '';
+      const isOnline = typeof deviceInfoMatched.isOnline === 'boolean' ? deviceInfoMatched.isOnline : undefined;
+      const warranty = deviceInfoMatched.warrantyExpiry || deviceInfoMatched.warrantyEnd || undefined;
+      const documentation = deviceInfoMatched.documentation || deviceInfoMatched.manualUrl || undefined;
+      const lines = [
+        `Here are the device details I found:`,
+        `- Name: ${name}`,
+        `- Type: ${type}`,
+        model ? `- Model: ${model}` : '',
+        brand ? `- Brand: ${brand}` : '',
+        serialMasked ? `- Serial: ${serialMasked} (masked)` : '',
+        typeof isOnline === 'boolean' ? `- Status: ${isOnline ? 'Online' : 'Offline'}` : '',
+        warranty ? `- Warranty expiry: ${warranty}` : '',
+        documentation ? `- Docs: ${documentation}` : '',
+      ].filter(Boolean);
+      deviceInfoMessage = lines.join('\n');
+    }
+  }
 
   // Build fast lookup for device matching using names, models, and types
   const matchedDeviceIndexList: number[] = [];
@@ -275,95 +452,116 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
   let warrantyContext = "";
   let deterministicWarrantyMessage: string | null = null;
   let multiWarrantyMessage: string | null = null;
-  const hasSingleMatch = matchedDeviceIndexList.length === 1;
-  if (isWarrantyQuestion && hasSingleMatch) {
-    const d = deviceSummaries[matchedDeviceIndexList[0]];
-    const deviceLabel = `${d.name}${d.model ? ` (${d.model})` : ''}`;
-    // Helper to format various date types
-    const pickWarrantyVal = (val: any): string => {
-      try {
-        if (!val) return '';
-        const anyVal: any = val as any;
-        if (typeof anyVal?.toDate === 'function') {
-          return anyVal.toDate().toLocaleDateString();
-        }
-        if (typeof anyVal === 'number') return new Date(anyVal).toLocaleDateString();
-        const parsed = Date.parse(String(anyVal));
-        if (!Number.isNaN(parsed)) return new Date(parsed).toLocaleDateString();
-        return String(anyVal);
-      } catch { return String(val); }
-    };
 
-    // If multiple devices share the same model, list warranties for all of them
-    const norm = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const modelKey = norm(d.model);
-    const sameModelIdx = modelKey
-      ? deviceSummaries
-          .map((x: any, idx: number) => ({ idx, key: norm(x.model) }))
-          .filter((o: any) => o.key && o.key === modelKey)
-          .map((o: any) => o.idx)
-      : [];
-    if (modelKey && sameModelIdx.length > 1) {
-      const lines: string[] = [];
-      const maxItems = 10;
-      for (const idx of sameModelIdx.slice(0, maxItems)) {
-        const dd = deviceSummaries[idx];
-        const lbl = `${dd.name}${dd.model ? ` (${dd.model})` : ''}`;
-        const serialWArr = Array.isArray(dd.serials) ? dd.serials : [];
-        const serialWarrantyVal = pickWarrantyVal(serialWArr.find((e: any) => e?.warrantyExpiry)?.warrantyExpiry);
-        const deviceWarrantyVal = pickWarrantyVal(dd.warrantyCombined || dd.warrantyExpiry);
-        const w = serialWarrantyVal || deviceWarrantyVal || '';
-        lines.push(`- ${lbl}: ${w || 'Warranty not available'}`);
+  // Track if user's message contains a serial belonging to their devices
+  let matchedSerialRaw: string | null = null;
+  let matchedBySerial: any = null;
+
+  // First, try to match warranty by explicit serial in the user's message
+  if (isWarrantyQuestion && userDevices.length > 0) {
+    const text = String(lastUserMsg || '');
+    const textNorm = normalize(text);
+    const userLast4 = extractUserLast4Candidates(text);
+    // First try full normalized include
+    for (const d of userDevices) {
+      const baseSerials = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean).map((s: any) => String(s).trim());
+      const arraySerials = Array.isArray(d.serials) ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean) : [];
+      const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
+      const hit = allSerials.find((s) => s && textNorm.includes(normalize(s)));
+      if (hit) { matchedBySerial = d; matchedSerialRaw = hit; break; }
+    }
+    // If not found, try unique last-4 resolution across all devices
+    if (!matchedBySerial && userLast4.size > 0) {
+      type Cand = { device: any; serial: string };
+      const matches: Cand[] = [];
+      for (const d of userDevices) {
+        const baseSerials = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean).map((s: any) => String(s).trim());
+        const arraySerials = Array.isArray(d.serials) ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean) : [];
+        const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
+        for (const s of allSerials) {
+          if (userLast4.has(last4Of(s))) matches.push({ device: d, serial: s });
+        }
       }
-      if (lines.length > 0) {
-        // Prefer multi list when multiple devices share same model
-        multiWarrantyMessage = `Found multiple devices with model ${d.model}. Warranties:\n${lines.join('\n')}`;
+      if (matches.length === 1) {
+        matchedBySerial = matches[0].device;
+        matchedSerialRaw = matches[0].serial;
+      } else if (matches.length > 1) {
+        // Ambiguous last-4: build an explicit message listing candidates and ask for full serial
+        const lines: string[] = [
+          'I found multiple devices that match the serial ending you provided:'
+        ];
+        for (const m of matches.slice(0, 5)) {
+          const dev = m.device;
+          const name = dev.deviceName || dev.name || 'Device';
+          const model = dev.deviceModel || dev.model || dev.modelNumber || '';
+          const snMasked = `***${String(m.serial).slice(-4)}`;
+          lines.push(`- ${name}${model ? ` (${model})` : ''}: ${snMasked}`);
+        }
+        lines.push('Please enter the full device serial number to fetch the exact warranty.');
+        multiWarrantyMessage = lines.join('\n');
       }
-    } else {
-      // Single device path: Prefer serial-based warranty if present
-      const serialWArr = Array.isArray(d.serials) ? d.serials : [];
-      const serialWarrantyVal = pickWarrantyVal(serialWArr.find((e: any) => e?.warrantyExpiry)?.warrantyExpiry);
-      const deviceWarrantyVal = pickWarrantyVal(d.warrantyCombined || d.warrantyExpiry);
-      const w = serialWarrantyVal || deviceWarrantyVal;
-      if (w) {
-        warrantyContext = `\nWARRANTY CONTEXT:\n- ${deviceLabel}: Warranty expiry: ${w}\n`;
-        deterministicWarrantyMessage = `Warranty expiry: ${w}`;
+    }
+    if (matchedBySerial) {
+      const pickWarrantyVal = (val: any): string => {
+        try {
+          if (!val) return '';
+          const anyVal: any = val as any;
+          if (typeof anyVal?.toDate === 'function') {
+            return anyVal.toDate().toLocaleDateString();
+          }
+          if (typeof anyVal === 'number') return new Date(anyVal).toLocaleDateString();
+          const parsed = Date.parse(String(anyVal));
+          if (!Number.isNaN(parsed)) return new Date(parsed).toLocaleDateString();
+          return String(anyVal);
+        } catch { return String(val); }
+      };
+      // Prefer exact serial-level warranty if serials[] holds entries
+      let warrantyVal: string | '' = '';
+      if (Array.isArray(matchedBySerial.serials) && matchedBySerial.serials.length > 0 && matchedSerialRaw) {
+        const entry = matchedBySerial.serials.find((e: any) => String(e?.serialNumber || '').trim().toLowerCase() === String(matchedSerialRaw).toLowerCase());
+        if (entry?.warrantyExpiry || entry?.warrantyEnd) {
+          warrantyVal = pickWarrantyVal(entry.warrantyExpiry || entry.warrantyEnd);
+        }
+      }
+      if (!warrantyVal) {
+        warrantyVal = pickWarrantyVal(matchedBySerial.warrantyExpiry || matchedBySerial.warrantyEnd || undefined);
+      }
+      const name = matchedBySerial.deviceName || matchedBySerial.name || 'Device';
+      const model = matchedBySerial.deviceModel || matchedBySerial.model || matchedBySerial.modelNumber || '';
+      const label = `${name}${model ? ` (${model})` : ''}`;
+      if (warrantyVal) {
+        const brand = matchedBySerial.brand || matchedBySerial.manufacturer || matchedBySerial.vendor || matchedBySerial.make || '';
+        const multiSerials = Array.isArray(matchedBySerial.serials) ? matchedBySerial.serials : [];
+        // If more than one warranty value present in serials[], list all
+        if (multiSerials.length > 1) {
+          const listLines: string[] = [`Warranties for ${label}:`];
+          for (const se of multiSerials) {
+            const snRaw = String(se?.serialNumber || '').trim();
+            const snMasked = snRaw ? `***${snRaw.slice(-4)}` : '(serial)';
+            const wv = pickWarrantyVal(se?.warrantyExpiry || se?.warrantyEnd) || 'Warranty not available';
+            listLines.push(`- ${snMasked}: ${wv}`);
+          }
+          deterministicWarrantyMessage = listLines.join('\n');
+          warrantyContext = `\nWARRANTY CONTEXT:\n${deterministicWarrantyMessage}\n`;
+        } else {
+          // Single serial/device-level path
+          const serialRaw = matchedBySerial.deviceSerial || matchedBySerial.serial || matchedBySerial.serialNumber || '';
+          const serialMasked = typeof serialRaw === 'string' && serialRaw ? `***${String(serialRaw).slice(-4)}` : '';
+          const lines: string[] = [
+            `Here are the device details based on the provided serial:`,
+            `- Name: ${name}`,
+            model ? `- Model: ${model}` : '',
+            brand ? `- Brand: ${brand}` : '',
+            serialMasked ? `- Serial: ${serialMasked} (masked)` : '',
+            `- Warranty expiry: ${warrantyVal}`,
+          ].filter(Boolean);
+          deterministicWarrantyMessage = lines.join('\n');
+          warrantyContext = `\nWARRANTY CONTEXT:\n- ${label}: Warranty expiry: ${warrantyVal}\n`;
+        }
       }
     }
   }
 
-  // If multiple matches, prepare a multi-device warranty summary
-  if (isWarrantyQuestion && matchedDeviceIndexList.length > 1) {
-    // Helper to format various date types
-    const pickWarrantyVal = (val: any): string => {
-      try {
-        if (!val) return '';
-        const anyVal: any = val as any;
-        if (typeof anyVal?.toDate === 'function') {
-          return anyVal.toDate().toLocaleDateString();
-        }
-        if (typeof anyVal === 'number') return new Date(anyVal).toLocaleDateString();
-        const parsed = Date.parse(String(anyVal));
-        if (!Number.isNaN(parsed)) return new Date(parsed).toLocaleDateString();
-        return String(anyVal);
-      } catch { return String(val); }
-    };
-
-    const lines: string[] = [];
-    const maxItems = 5;
-    for (const idx of matchedDeviceIndexList.slice(0, maxItems)) {
-      const d = deviceSummaries[idx];
-      const label = `${d.name}${d.model ? ` (${d.model})` : ''}`;
-      const serialWArr = Array.isArray(d.serials) ? d.serials : [];
-      const serialWarrantyVal = pickWarrantyVal(serialWArr.find((e: any) => e?.warrantyExpiry)?.warrantyExpiry);
-      const deviceWarrantyVal = pickWarrantyVal(d.warrantyCombined || d.warrantyExpiry);
-      const w = serialWarrantyVal || deviceWarrantyVal || '';
-      lines.push(`- ${label}: ${w || 'Warranty not available'}`);
-    }
-    if (lines.length > 0) {
-      multiWarrantyMessage = `Found multiple devices. Warranties:\n${lines.join('\n')}`;
-    }
-  }
 
   const profileContext = userProfile
     ? `USER PROFILE:\n- Name: ${userProfile.displayName || 'User'}\n` +
@@ -480,11 +678,13 @@ export const chatWithOpenAI = onCall({ secrets: [OPENAI_API_KEY], cors: true }, 
 
 IMPORTANT RULES:
 1. ONLY answer questions related to smart home devices, automation, IoT, home security, lighting, climate control, entertainment systems, and Smile Smart Homes products/services.
-2. Provide helpful, actionable guidance without asking for serial numbers.
+2. Provide helpful, actionable guidance without asking for serial numbers, EXCEPT for:
+   - Explicit device information requests (info/specs/status/details): you MUST ask for the full device serial to verify the exact device before showing its details.
+   - Warranty questions: you MUST ask for the full device serial to fetch the warranty for that specific device. If a serial appears in the message, use it to answer.
 3. Analyze each user message to determine if it's a COMPLAINT or GENERAL QUERY.
 4. If the message is unclear, ask ONE concise clarifying question (<=20 words).
 5. If no prior assistant message exists, begin with a brief greeting.
-6. If the user reports a device problem (e.g., "not working", "issue", "problem"), and the device cannot be confidently identified from DEVICES, ask specifically for the device model number (not the serial). Keep it to one concise question.
+6. For device problems/troubleshooting: you MUST ask for the full device serial number to verify the exact device before suggesting steps. If a serial appears in the message, use it.
 
 WORKFLOW RULES:
 - For NEW COMPLAINTS without active ticket: Suggest creating a support ticket and provide helpful guidance
@@ -510,7 +710,7 @@ ${ticketContext}
 ${warrantyContext}
 
 PRIVACY & SAFETY:
-- Never reveal full serial numbers. Only masked serials are available.
+- Never reveal full serial numbers. Only masked serials are available in the context and replies.
 - Use the provided device list and user profile to tailor answers.
 - If the user asks about a specific device, match by name or model from DEVICES and answer accordingly.`,
   };
@@ -553,13 +753,15 @@ PRIVACY & SAFETY:
       }
     } catch {}
 
+    let assistantMsgDocId: string | null = null;
     try {
-      await sessionsCol.doc(sessionId).collection("messages").add({
+      const added = await sessionsCol.doc(sessionId).collection("messages").add({
         role: "assistant",
         content: cleanedContent,
         ts: Date.now(),
         ...(deviceInfo && { deviceInfo })
       });
+      assistantMsgDocId = added.id;
       await sessionsCol.doc(sessionId).set({ updatedAt: Date.now(), status: "active" }, { merge: true });
     } catch {}
 
@@ -642,27 +844,114 @@ PRIVACY & SAFETY:
       }
     }
 
-    // If multiple matches, show warranties for each
-    if (isWarrantyQuestion && multiWarrantyMessage) {
-      enhancedReply = multiWarrantyMessage;
-    }
-    // Inject deterministic warranty into reply when available
-    if (isWarrantyQuestion && deterministicWarrantyMessage) {
-      const lower = (enhancedReply || '').toLowerCase();
-      if (!lower.includes('warranty')) {
-        enhancedReply = `${deterministicWarrantyMessage}\n\n${enhancedReply}`;
+    // Warranty flow finalization: override AI response deterministically
+    if (isWarrantyQuestion) {
+      if (multiWarrantyMessage) {
+        // Ambiguous last-4: show candidates and ask for full serial
+        enhancedReply = multiWarrantyMessage;
+      } else if (deterministicWarrantyMessage) {
+        // Deterministic serial match: replace with concise deterministic message
+        enhancedReply = deterministicWarrantyMessage;
+      } else {
+        // No deterministic match: ask for full serial with brief hint
+        const options = deviceSummaries
+          .slice(0, 3)
+          .map((d: any) => `${d.name}${d.model ? ` (${d.model})` : ''}`)
+          .filter(Boolean)
+          .join(', ');
+        const hint = options ? ` For reference, I see devices like: ${options}.` : '';
+        enhancedReply = `To fetch the exact warranty, please enter the full device serial number.${hint}`;
       }
     }
-    // If warranty was asked but we couldn't deterministically resolve a single device, ask for model number
-    if (isWarrantyQuestion && !deterministicWarrantyMessage && !multiWarrantyMessage) {
-      const options = deviceSummaries
-        .slice(0, 3)
-        .map((d: any) => `${d.name}${d.model ? ` (${d.model})` : ''}`)
-        .filter(Boolean)
-        .join(', ');
-      const hint = options ? ` For reference, I see: ${options}.` : '';
-      enhancedReply = `To fetch the warranty, please provide the device model number (not the serial).${hint}`;
+
+    // Global serial detection: if user provided a serial but no explicit intent, acknowledge and prompt next action
+    if (!isWarrantyQuestion && !isDeviceInfoQuestion && !isProblemIssue && globalSerialMatchedDevice) {
+      try {
+        const name = globalSerialMatchedDevice.deviceName || globalSerialMatchedDevice.name || 'Device';
+        const model = globalSerialMatchedDevice.deviceModel || globalSerialMatchedDevice.model || globalSerialMatchedDevice.modelNumber || '';
+        const brand = globalSerialMatchedDevice.brand || globalSerialMatchedDevice.manufacturer || globalSerialMatchedDevice.vendor || globalSerialMatchedDevice.make || '';
+        const masked = typeof globalSerialMatchedSerialRaw === 'string' && globalSerialMatchedSerialRaw ? `***${String(globalSerialMatchedSerialRaw).slice(-4)}` : '';
+        const parts = [
+          `I detected your device ${name}${model ? ` (${model})` : ''}${brand ? ` by ${brand}` : ''}${masked ? ` with serial ${masked}` : ''}.`,
+          `What would you like to do next?`,
+          `- Get warranty information`,
+          `- Show device details`,
+          `- Troubleshoot a problem`
+        ];
+        enhancedReply = parts.join('\n');
+      } catch {}
     }
+
+    // Device information flow: normalized serial match or unique last-4; ambiguity lists; otherwise ask for full serial
+    if (isDeviceInfoQuestion) {
+      if (multiDeviceInfoMessage) {
+        enhancedReply = multiDeviceInfoMessage;
+      } else if (deviceInfoMessage) {
+        enhancedReply = deviceInfoMessage;
+      } else {
+        enhancedReply = `To show the device details, please enter the full device serial number so I can verify the exact device.`;
+      }
+    }
+
+    // Problem / not working flow
+    if (isProblemIssue) {
+      if (problemMatchedDevice) {
+        try {
+          const name = problemMatchedDevice.deviceName || problemMatchedDevice.name || 'Device';
+          const type = problemMatchedDevice.deviceType || problemMatchedDevice.type || 'Device';
+          const model = problemMatchedDevice.deviceModel || problemMatchedDevice.model || problemMatchedDevice.modelNumber || '';
+          const maskedSerial = typeof problemMatchedSerialRaw === 'string' && problemMatchedSerialRaw
+            ? `***${String(problemMatchedSerialRaw).slice(-4)}`
+            : '';
+          const issueText = String(lastUserMsg || '').slice(0, 400);
+          const prompt = `You are a device troubleshooting assistant for Smile Smart Homes. The user reports a problem.\n\nDevice: ${type} ${model ? '(' + model + ')' : ''} ${name}\nSerial: ${maskedSerial} (masked)\n\nUser said: ${issueText}\n\nProvide ONE actionable troubleshooting step (<=80 words), specific to the device and issue. Keep it concise and user-friendly.`;
+          const resp2 = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({ model: CONFIG.OPENAI.MODEL, messages: [{ role: "user", content: prompt }], temperature: 0.3, max_tokens: 200 }),
+          } as any);
+          if (resp2.ok) {
+            const data2 = await resp2.json();
+            const suggestion = (data2?.choices?.[0]?.message?.content || '').trim();
+            if (suggestion) {
+              enhancedReply = suggestion;
+            }
+          }
+        } catch (e) {
+          console.warn('Troubleshooting generation failed:', e);
+        }
+      } else {
+        const lower = (enhancedReply || '').toLowerCase();
+        const alreadyAskingSerial = /serial/.test(lower);
+        if (!alreadyAskingSerial) {
+          enhancedReply = `To help with that problem, please enter the full device serial number so I can verify the exact device.`;
+        }
+      }
+    }
+
+    // General device-related questions (broader than explicit "device info"): ask for serial unless already resolved
+    if (!isWarrantyQuestion && isDeviceRelatedQuestion && !deviceInfoMessage) {
+      const lower = (enhancedReply || '').toLowerCase();
+      const alreadyAskingSerial = /serial/.test(lower);
+      if (!alreadyAskingSerial) {
+        enhancedReply = `To assist with that device, please enter the full device serial number so I can verify the exact device.`;
+      }
+    }
+
+    // Final guard: for problem/not-working intents, ensure we ask for serial if none matched
+    if (isProblemIssue && !problemMatchedDevice) {
+      const lower = (enhancedReply || '').toLowerCase();
+      if (!/serial/.test(lower)) {
+        enhancedReply = `To help with that problem, please enter the full device serial number so I can verify the exact device.`;
+      }
+    }
+
+    // Persist the enhanced reply back to the existing assistant message if it changed, so the UI sees the enforced serial request
+    try {
+      if (assistantMsgDocId && enhancedReply !== cleanedContent) {
+        await sessionsCol.doc(sessionId).collection("messages").doc(assistantMsgDocId).set({ content: enhancedReply }, { merge: true });
+      }
+    } catch {}
 
     return {
       reply: enhancedReply,
@@ -680,8 +969,8 @@ PRIVACY & SAFETY:
     } catch {}
     throw new HttpsError("internal", err?.message || "Chat call failed");
   }
+  return { reply: "Unable to process your request right now.", sessionId };
 });
-
 
 // Removed fetchLatestUnresolvedTicket – backend no longer falls back to implicit tickets
 
