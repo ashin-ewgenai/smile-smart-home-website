@@ -569,49 +569,51 @@ const TicketCenter: React.FC = () => {
           ) : (
             <ul className="divide-y divide-white/50 dark:divide-white/10 space-y-1">
               {sortedTickets.map((t, index) => (
-                <li 
-                  key={t.id} 
-                  className="py-3 transition-all duration-200 hover:bg-white/50 dark:hover:bg-gray-800/30 rounded-lg px-2 -mx-2"
+                <li
+                  key={t.id}
+                  className={`py-3 transition-all duration-200 hover:bg-white/50 dark:hover:bg-gray-800/30 rounded-lg px-2 -mx-2 ${expandedTicketId === t.id.toString() ? 'bg-white/50 dark:bg-gray-800/30' : ''}`}
                   style={{ animationDelay: `${index * 50}ms` }}
-                  onMouseEnter={() => setHoveredTicketId(t.id.toString())}
-                  onMouseLeave={() => setHoveredTicketId(null)}
                 >
                   <div className="flex items-start justify-between">
-                    <div className="min-w-0 pr-4 flex-1 cursor-pointer" onClick={() => setExpandedTicketId(expandedTicketId === t.id.toString() ? null : t.id.toString())}>
-                      <div className="flex items-center gap-2 mb-1 group">
-                        <span className={`px-2.5 py-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xs font-mono rounded-full font-semibold shadow-md transition-all duration-200 ${
-                          hoveredTicketId === t.id.toString() ? 'scale-105 shadow-lg' : ''
-                        }`}>
-                          {t.ticketNumber || `#${t.id.toString().slice(-6).toUpperCase()}`}
+                    <div className="min-w-0 pr-4 flex-1 cursor-pointer group">
+                      <div className="flex items-center gap-2 mb-1 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                        <span className="px-2.5 py-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xs font-mono rounded-full font-semibold shadow-md transition-all duration-200">
+                          #{t.ticketNumber || t.id.toString().slice(-6).toUpperCase()}
                         </span>
-                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">{t.subject}</p>
-                        <svg 
-                          className={`h-4 w-4 text-gray-400 transition-transform duration-200 ml-auto ${
-                            expandedTicketId === t.id.toString() ? 'rotate-180' : ''
-                          }`} 
-                          fill="none" 
-                          stroke="currentColor" 
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                          {t.subject}
+                        </p>
+                        <svg
+                          className={`h-4 w-4 text-gray-400 transition-transform duration-200 ml-auto ${expandedTicketId === t.id.toString() ? 'rotate-180' : ''}`}
+                          fill="none"
+                          stroke="currentColor"
                           viewBox="0 0 24 24"
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gradient-to-r from-gray-100 to-gray-50 text-gray-800 dark:from-gray-700 dark:to-gray-800 dark:text-gray-200 font-medium shadow-sm">
+                      <div className="mt-1 grid grid-cols-3 gap-2 w-full">
+                        <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-gradient-to-r from-gray-100 to-gray-50 text-gray-800 dark:from-gray-700 dark:to-gray-800 dark:text-gray-200 font-medium shadow-sm text-xs whitespace-nowrap">
                           {t.category}
                         </span>
-                        <span className={`${statusClasses(t.status)} shadow-sm transition-all duration-200 hover:scale-105`}>{t.status}</span>
-                        <span className="text-gray-500 flex items-center gap-1">
-                          <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          {formatDate(t.createdAt)}
-                        </span>
+                        <div className="flex justify-center">
+                          <span className={`inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-medium ${statusClasses(t.status).replace('shadow-sm', '')} shadow-sm transition-all duration-200 hover:scale-105 whitespace-nowrap`}>
+                            {t.status}
+                          </span>
+                        </div>
+                        <div className="flex justify-end">
+                          <span className="text-gray-500 bg-gray-100 dark:bg-gray-800/50 px-2 py-1 rounded-full inline-flex items-center gap-1 text-xs whitespace-nowrap">
+                            <svg className="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            {formatDate(t.createdAt)}
+                          </span>
+                        </div>
                       </div>
                       
                       {/* Expanded Details */}
                       {expandedTicketId === t.id.toString() && (
-                        <div className="mt-3 p-3 bg-gray-50/80 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 animate-slideDown">
+                        <div className="mt-3 p-3 bg-gray-50/80 dark:bg-gray-800/50 rounded-lg border border-white/50 dark:border-white/10 animate-slideDown">
                           <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{t.description}</p>
                         </div>
                       )}
