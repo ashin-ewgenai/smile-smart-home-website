@@ -811,76 +811,40 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-[12px] leading-tight text-gray-600 dark:text-gray-300">
                               {Array.isArray((device as any).warrantyList) && (device as any).warrantyList.length > 1 ? (
-                                <div className="space-y-1.5">
-                                  <div className="flex items-center gap-1.5 text-[11px]">
-                                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200 border border-blue-200/70 dark:border-blue-700/50">
-                                      {(device as any).warrantyList.length} units
-                                    </span>
-                                  </div>
-                                  <details>
-                                    <summary className="cursor-pointer text-[11px] text-teal-700 dark:text-teal-300 hover:underline select-none">View details</summary>
-                                    <div className="mt-1.5 space-y-1.5">
-                                      {(device as any).warrantyList.map((w: any, idx: number) => {
-                                        const start = w.warrantyStart ? new Date(w.warrantyStart) : null;
-                                        const end = w.warrantyEnd ? new Date(w.warrantyEnd) : null;
-                                        const daysLeft = end ? Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null;
-                                        const statusClass = daysLeft == null
-                                          ? 'bg-gray-100 text-gray-700 dark:bg-gray-900/40 dark:text-gray-300'
-                                          : daysLeft <= 0
-                                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
-                                            : daysLeft <= 30
-                                              ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
-                                        return (
-                                          <div key={w.serialNumber || idx} className="rounded-md bg-white/60 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 p-2">
-                                            <div className="flex items-center justify-between gap-2 mb-0.5">
-                                              <span className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700/70 text-gray-700 dark:text-gray-200 border border-gray-200/70 dark:border-gray-600/60">
-                                                #{w.serialNumber || idx + 1}
-                                              </span>
-                                              <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] ${statusClass}`}>
-                                                {end ? remainingText(end) : '—'}
-                                              </span>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-1.5 text-[10px] text-gray-500 dark:text-gray-400">
-                                              <div className="rounded bg-gray-50 dark:bg-gray-700/40 px-1.5 py-0.5">
-                                                <div className="opacity-70">Start</div>
-                                                <div className="font-medium text-gray-700 dark:text-gray-200">{start ? formatDate(start) : '—'}</div>
-                                              </div>
-                                              <div className="rounded bg-gray-50 dark:bg-gray-700/40 px-1.5 py-0.5">
-                                                <div className="opacity-70">End</div>
-                                                <div className="font-medium text-gray-700 dark:text-gray-200">{end ? formatDate(end) : '—'}</div>
-                                              </div>
-                                            </div>
+                                <div className="space-y-1">
+                                  {(device as any).warrantyList.map((w: any, idx: number) => {
+                                    const start = w.warrantyStart ? new Date(w.warrantyStart) : null;
+                                    const end = w.warrantyEnd ? new Date(w.warrantyEnd) : null;
+                                    return (
+                                      <div key={w.serialNumber || idx} className="text-[10px] text-gray-500 dark:text-gray-400 space-y-0.5">
+                                        <div className="font-mono text-gray-600 dark:text-gray-300 truncate">SN: {w.serialNumber || idx + 1}</div>
+                                        <div className="grid grid-cols-2 gap-1">
+                                          <div className="rounded bg-gray-50 dark:bg-gray-700/40 px-1.5 py-0.5">
+                                            <div className="opacity-70">Start</div>
+                                            <div className="font-medium text-gray-700 dark:text-gray-200">{start ? formatDate(start) : '—'}</div>
                                           </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </details>
+                                          <div className="rounded bg-gray-50 dark:bg-gray-700/40 px-1.5 py-0.5">
+                                            <div className="opacity-70">End</div>
+                                            <div className="font-medium text-gray-700 dark:text-gray-200">{end ? formatDate(end) : '—'}</div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               ) : device.warrantyEnd ? (
                                 (() => {
                                   const start = device.warrantyStart ? new Date(device.warrantyStart) : null;
                                   const end = new Date(device.warrantyEnd as any);
-                                  const daysLeft = Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-                                  const statusClass = daysLeft <= 0
-                                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300'
-                                    : daysLeft <= 30
-                                      ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-                                      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
                                   return (
-                                    <div className="space-y-1.5">
-                                      <div className="flex items-center gap-1.5 text-[11px]">
-                                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full ${statusClass}`}>{remainingText(end)}</span>
+                                    <div className="grid grid-cols-2 gap-1.5 text-[10px] text-gray-500 dark:text-gray-400">
+                                      <div className="rounded bg-gray-50 dark:bg-gray-700/40 px-1.5 py-0.5">
+                                        <div className="opacity-70">Start</div>
+                                        <div className="font-medium text-gray-700 dark:text-gray-200">{start ? formatDate(start) : '—'}</div>
                                       </div>
-                                      <div className="grid grid-cols-2 gap-1.5 text-[10px] text-gray-500 dark:text-gray-400">
-                                        <div className="rounded bg-gray-50 dark:bg-gray-700/40 px-1.5 py-0.5">
-                                          <div className="opacity-70">Start</div>
-                                          <div className="font-medium text-gray-700 dark:text-gray-200">{start ? formatDate(start) : '—'}</div>
-                                        </div>
-                                        <div className="rounded bg-gray-50 dark:bg-gray-700/40 px-1.5 py-0.5">
-                                          <div className="opacity-70">End</div>
-                                          <div className="font-medium text-gray-700 dark:text-gray-200">{formatDate(end)}</div>
-                                        </div>
+                                      <div className="rounded bg-gray-50 dark:bg-gray-700/40 px-1.5 py-0.5">
+                                        <div className="opacity-70">End</div>
+                                        <div className="font-medium text-gray-700 dark:text-gray-200">{formatDate(end)}</div>
                                       </div>
                                     </div>
                                   );
