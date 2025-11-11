@@ -514,7 +514,6 @@ export function userDevicePayloadFromDevice(device: Device & { id?: string }, ui
     name: device.name,
     type: device.type,
     status: 'pending',
-    serial: device.serial,
     modelNumber: device.modelNumber,
     imageUrl: device.imageUrl,
     price: device.price ?? null,

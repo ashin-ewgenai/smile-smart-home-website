@@ -291,7 +291,6 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
         addedAt: addedAtISO,
         updatedAt: addedAtISO,
         isOnline: false,
-        serial: serialList[0],
         numberOfDevices: qty,
         serials: serialList.map(s => ({ serialNumber: s, warrantyExpiry }))
       });
