@@ -567,24 +567,32 @@ const TicketCenter: React.FC = () => {
               <p className="text-sm text-gray-600 dark:text-gray-400">No tickets yet. Raise your first one above.</p>
             </div>
           ) : (
-            <ul className="divide-y divide-white/50 dark:divide-white/10 space-y-1">
+            <ul className="space-y-3">
               {sortedTickets.map((t, index) => (
                 <li
                   key={t.id}
-                  className={`py-3 transition-all duration-200 hover:bg-white/50 dark:hover:bg-gray-800/30 rounded-lg px-2 -mx-2 ${expandedTicketId === t.id.toString() ? 'bg-white/50 dark:bg-gray-800/30' : ''}`}
-                  style={{ animationDelay: `${index * 50}ms` }}
+                  className={`py-3 px-4 transition-colors duration-200 rounded-lg border ${
+                    expandedTicketId === t.id.toString() 
+                      ? 'bg-white/70 dark:bg-gray-800/50 border-teal-300 dark:border-teal-700' 
+                      : 'bg-white/50 dark:bg-gray-800/30 border-gray-200 dark:border-gray-700 hover:bg-white/60 dark:hover:bg-gray-800/40'
+                  }`}
                 >
                   <div className="flex items-start justify-between">
-                    <div className="min-w-0 pr-4 flex-1 cursor-pointer group">
-                      <div className="flex items-center gap-2 mb-1 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
-                        <span className="px-2.5 py-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-xs font-mono rounded-full font-semibold shadow-md transition-all duration-200">
+                    <div 
+                      className="min-w-0 pr-4 flex-1 cursor-pointer group"
+                      onClick={() => setExpandedTicketId(expandedTicketId === t.id.toString() ? null : t.id.toString())}
+                    >
+                      <div className="flex items-center gap-2 mb-2 group-hover:text-teal-600 dark:group-hover:text-teal-400 transition-colors">
+                        <span className="px-2.5 py-1 bg-blue-600 text-white text-xs font-mono rounded-full font-semibold">
                           #{t.ticketNumber || t.id.toString().slice(-6).toUpperCase()}
                         </span>
-                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate flex-1">
                           {t.subject}
                         </p>
                         <svg
-                          className={`h-4 w-4 text-gray-400 transition-transform duration-200 ml-auto ${expandedTicketId === t.id.toString() ? 'rotate-180' : ''}`}
+                          className={`h-4 w-4 text-gray-400 transition-transform duration-200 ml-auto flex-shrink-0 ${
+                            expandedTicketId === t.id.toString() ? 'rotate-180' : ''
+                          }`}
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -592,17 +600,17 @@ const TicketCenter: React.FC = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                         </svg>
                       </div>
-                      <div className="mt-1 grid grid-cols-3 gap-2 w-full">
-                        <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-gradient-to-r from-gray-100 to-gray-50 text-gray-800 dark:from-gray-700 dark:to-gray-800 dark:text-gray-200 font-medium shadow-sm text-xs whitespace-nowrap">
+                      <div className="mt-2 grid grid-cols-3 gap-2 w-full">
+                        <span className="inline-flex items-center justify-center px-2 py-1 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 font-medium text-xs whitespace-nowrap">
                           {t.category}
                         </span>
                         <div className="flex justify-center">
-                          <span className={`inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-medium ${statusClasses(t.status).replace('shadow-sm', '')} shadow-sm transition-all duration-200 hover:scale-105 whitespace-nowrap`}>
+                          <span className={`inline-flex items-center justify-center px-2 py-1 rounded-full text-xs font-medium ${statusClasses(t.status)} whitespace-nowrap`}>
                             {t.status}
                           </span>
                         </div>
                         <div className="flex justify-end">
-                          <span className="text-gray-500 bg-gray-100 dark:bg-gray-800/50 px-2 py-1 rounded-full inline-flex items-center gap-1 text-xs whitespace-nowrap">
+                          <span className="text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/50 px-2 py-1 rounded-full inline-flex items-center gap-1 text-xs whitespace-nowrap">
                             <svg className="h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
@@ -613,16 +621,16 @@ const TicketCenter: React.FC = () => {
                       
                       {/* Expanded Details */}
                       {expandedTicketId === t.id.toString() && (
-                        <div className="mt-3 p-3 bg-gray-50/80 dark:bg-gray-800/50 rounded-lg border border-white/50 dark:border-white/10 animate-slideDown">
+                        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
                           <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{t.description}</p>
                         </div>
                       )}
-                      {t.imageUrl && (
-                        <div className="mt-2">
+                      {t.imageUrl && expandedTicketId === t.id.toString() && (
+                        <div className="mt-3">
                           <img 
                             src={t.imageUrl} 
                             alt="attachment" 
-                            className="h-20 w-20 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700 shadow-md hover:scale-150 transition-transform duration-300 cursor-zoom-in" 
+                            className="h-24 w-24 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:scale-110 transition-transform duration-200 cursor-zoom-in" 
                           />
                         </div>
                       )}
@@ -636,7 +644,7 @@ const TicketCenter: React.FC = () => {
                               e.stopPropagation();
                               cancelTicket(t.id.toString());
                             }}
-                            className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-gradient-to-r from-red-100 to-red-50 text-red-800 hover:from-red-200 hover:to-red-100 dark:from-red-900/30 dark:to-red-900/20 dark:text-red-200 dark:hover:from-red-900/50 dark:hover:to-red-900/40 transition-all duration-200 shadow-sm hover:shadow-md transform hover:scale-105 active:scale-95"
+                            className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium bg-red-100 text-red-800 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-200 dark:hover:bg-red-900/50 transition-colors duration-200"
                           >
                             <svg className="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
