@@ -374,7 +374,7 @@ const Reports: React.FC = () => {
                 </div>
 
                 {/* Image preview with fallback */}
-                <div className="mt-2 rounded-md overflow-hidden border border-gray-800">
+                <div className="mt-2 rounded-md overflow-hidden">
                   <img
                     src={ticket.imageUrl || (isDark ? FALLBACK_IMG_DARK : FALLBACK_IMG_LIGHT)}
                     alt="Ticket attachment"
@@ -408,7 +408,7 @@ const Reports: React.FC = () => {
                 )}
 
                 {/* Status update */}
-                <div className="mt-3 pt-3 border-t border-gray-800">
+                <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-800">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Update Status</span>
                     <select
