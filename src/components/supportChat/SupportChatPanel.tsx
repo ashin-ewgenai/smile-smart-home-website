@@ -1550,7 +1550,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
       {/* Input Section at the bottom of the chat */}
       <div className="px-4 pb-4 sm:px-6">
-        {showResolveFooter && (
+        {showResolveFooter && providedTicketId && (
           <div className="mt-2 mb-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 text-sm text-amber-800 dark:text-amber-200 flex items-center justify-between gap-2">
             <span>{confirmInline ? 'Confirm mark this ticket as Resolved?' : 'Is your ticket issue resolved?'}</span>
             <div className="flex items-center gap-2">
