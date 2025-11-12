@@ -696,17 +696,17 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6">
               {/* Device Stats Card */}
-              <div className="bg-white dark:bg-gray-800 rounded-[24px] shadow-md p-6 border border-gray-200 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-800 rounded-[24px] shadow-md p-4 sm:p-6 border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Devices</h2>
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">My Devices</h2>
                   <Home className="h-6 w-6 text-teal-500" />
                 </div>
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-gray-600 dark:text-gray-400">type of devices</span>
-                    <span className="text-xl font-bold text-gray-900 dark:text-white">{displayedDeviceCount}</span>
+                    <span className="text-sm sm:text-base text-gray-600 dark:text-gray-400">type of devices</span>
+                    <span className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">{displayedDeviceCount}</span>
                   </div>
                   {/* View Service Requests Button */}
                   <div className="pt-3 border-t border-gray-200 dark:border-gray-700">
@@ -721,9 +721,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
               </div>
 
               {/* Quick Controls */}
-              <div className="bg-white dark:bg-gray-800 rounded-[24px] shadow-md p-6 border border-gray-200 dark:border-gray-700 col-span-1 md:col-span-2">
+              <div className="bg-white dark:bg-gray-800 rounded-[24px] shadow-md p-4 sm:p-6 border border-gray-200 dark:border-gray-700 col-span-1 md:col-span-2">
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Quick Controls</h2>
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">Quick Controls</h2>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 md:grid-cols-3 gap-3">
                   {/* Request Service */}
@@ -769,46 +769,46 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
               {/* My Devices */}
               <div ref={myDevicesRef} className="bg-white dark:bg-gray-800 rounded-[24px] shadow-lg border border-gray-200 dark:border-gray-700 lg:col-span-2 overflow-hidden">
-                <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">My Devices <Router className="inline-block h-5 w-5 ml-2 text-teal-500" /></h2>
+                <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                  <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">My Devices <Router className="inline-block h-5 w-5 ml-2 text-teal-500" /></h2>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="min-w-full table-auto divide-y divide-gray-200 dark:divide-gray-700">
                     <thead className="bg-slate-100/80 dark:bg-slate-700/80 backdrop-blur supports-backdrop-blur:backdrop-blur sticky top-0 z-10">
                       <tr>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Device Name</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Brand</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Model</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Type</th>
-                        <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Warranty</th>
+                        <th scope="col" className="px-4 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Device Name</th>
+                        <th scope="col" className="px-4 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide hidden sm:table-cell">Brand</th>
+                        <th scope="col" className="px-4 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide hidden sm:table-cell">Model</th>
+                        <th scope="col" className="px-4 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide hidden sm:table-cell">Type</th>
+                        <th scope="col" className="px-4 sm:px-6 py-3 text-left text-[10px] sm:text-xs font-semibold text-gray-600 dark:text-gray-200 uppercase tracking-wide">Warranty</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                       {userDevices.length > 0 ? (
                         userDevices.map((device) => (
                         <tr key={device.id} className="odd:bg-transparent even:bg-gray-50 dark:even:bg-gray-800/60 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900 dark:text-white">{device.name}</div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden sm:table-cell">
                             <div className="text-sm text-gray-500 dark:text-gray-400">
                               {device.brand || 'N/A'}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden sm:table-cell">
                             <div className="text-sm text-gray-500 dark:text-gray-400">
                               {device.modelNumber || 'N/A'}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden sm:table-cell">
                             <div className="text-sm text-gray-500 dark:text-gray-400">
                               {device.type || 'Unknown'}
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
                             <div className="text-[12px] leading-tight text-gray-600 dark:text-gray-300">
                               {Array.isArray((device as any).warrantyList) && (device as any).warrantyList.length > 1 ? (
                                 <div className="space-y-1">
@@ -858,7 +858,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={2} className="px-6 py-4 text-center text-sm text-gray-500">
+                          <td colSpan={5} className="px-4 sm:px-6 py-3 sm:py-4 text-center text-sm text-gray-500">
                             No devices found
                           </td>
                         </tr>

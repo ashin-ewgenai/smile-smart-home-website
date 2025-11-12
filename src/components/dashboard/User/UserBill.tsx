@@ -33,13 +33,13 @@ const UserBill: React.FC = () => {
   const pct = Math.min(100, Math.round((installment.paidCount / installment.total) * 100));
 
   return (
-    <section className="p-6 space-y-6">
+    <section className="p-4 sm:p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-extrabold tracking-tight text-white">Billing Details</h1>
+        <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Billing Details</h1>
       </div>
 
       {/* Current Package / Service */}
-      <div className="bg-gray-900/80 border border-gray-800 rounded-2xl shadow-lg p-5">
+      <div className="bg-gray-900/80 border border-gray-800 rounded-2xl shadow-lg p-4 sm:p-5">
         <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
           <span className="text-sky-400">▣</span>
           Current Package / Service
@@ -54,7 +54,7 @@ const UserBill: React.FC = () => {
       </div>
 
       {/* Due Bill Summary */}
-      <div className="bg-gray-900/80 border border-gray-800 rounded-2xl shadow-lg p-5">
+      <div className="bg-gray-900/80 border border-gray-800 rounded-2xl shadow-lg p-4 sm:p-5">
         <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
           <span className="text-teal-400">◴</span>
           Due Bill Summary
@@ -68,7 +68,7 @@ const UserBill: React.FC = () => {
       </div>
 
       {/* Other Packages / Services */}
-      <div className="bg-gray-900/80 border border-gray-800 rounded-2xl shadow-lg p-5">
+      <div className="bg-gray-900/80 border border-gray-800 rounded-2xl shadow-lg p-4 sm:p-5">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-white flex items-center gap-2">
             <span className="text-indigo-400">▦</span>
@@ -96,7 +96,7 @@ const UserBill: React.FC = () => {
       </div>
 
       {/* Installment Breakdown */}
-      <div className="bg-gray-900/80 border border-gray-800 rounded-2xl shadow-lg p-5">
+      <div className="bg-gray-900/80 border border-gray-800 rounded-2xl shadow-lg p-4 sm:p-5">
         <h2 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
           <span className="text-emerald-400">◎</span>
           Installment Breakdown

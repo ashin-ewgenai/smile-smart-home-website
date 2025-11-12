@@ -282,9 +282,9 @@ const NotificationsPage: React.FC = () => {
     <>
       <GlassCard className="p-0 overflow-hidden">
         <div className="px-4 py-4 sm:px-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white">
                 Notifications
                 <Bell className="inline-block ml-2 h-5 w-5 text-gray-500 dark:text-gray-400 align-middle" />
                 {unreadCount > 0 && (
@@ -300,7 +300,7 @@ const NotificationsPage: React.FC = () => {
                   // Mark all as read
                   notifications.filter(n => n.status === 'unread').forEach(n => markAsRead(n.id));
                 }}
-                className="text-sm text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-medium"
+                className="text-sm text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 font-medium w-full sm:w-auto text-center"
               >
                 Mark all as read
               </button>

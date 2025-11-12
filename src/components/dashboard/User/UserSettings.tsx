@@ -77,7 +77,7 @@ const UserSettings: React.FC = () => {
     <div>
       {/* Header */}
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center mb-2">
+        <h2 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-white flex items-center mb-2">
           <Settings className="mr-2 h-5 w-5 text-emerald-400" />
           User Settings
         </h2>
@@ -88,7 +88,7 @@ const UserSettings: React.FC = () => {
         
 
         {/* Security Settings */}
-        <div className="bg-gray-900/60 backdrop-blur rounded-2xl p-6 shadow-lg border border-gray-800">
+        <div className="bg-gray-900/60 backdrop-blur rounded-2xl p-4 sm:p-6 shadow-lg border border-gray-800">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center mb-4">
             <Shield className="mr-2 h-5 w-5 text-emerald-400" />
             Security
@@ -127,7 +127,7 @@ const UserSettings: React.FC = () => {
         </div>
 
         {/* Notification Settings */}
-        <div className="bg-gray-900/60 backdrop-blur rounded-2xl shadow-lg p-6 border border-gray-800">
+        <div className="bg-gray-900/60 backdrop-blur rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-800">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center mb-4">
             <Bell className="mr-2 h-5 w-5 text-emerald-400" />
             Notification Settings
@@ -149,7 +149,7 @@ const UserSettings: React.FC = () => {
         {/* Appearance Settings moved to navbar dark mode toggle */}
 
         {/* Language Settings */}
-        <div className="bg-gray-900/60 backdrop-blur rounded-2xl shadow-lg p-6 border border-gray-800">
+        <div className="bg-gray-900/60 backdrop-blur rounded-2xl shadow-lg p-4 sm:p-6 border border-gray-800">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white flex items-center mb-4">
             <Globe className="mr-2 h-5 w-5 text-emerald-400" />
             Language
@@ -181,7 +181,7 @@ const UserSettings: React.FC = () => {
           )}
           <button
             type="submit"
-            className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-full px-6 py-2 shadow-soft transition"
+            className="inline-flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-full px-6 py-2 shadow-soft transition w-full sm:w-auto justify-center"
           >
             <Save className="h-4 w-4" />
             Save Settings

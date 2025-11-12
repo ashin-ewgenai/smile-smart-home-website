@@ -318,13 +318,13 @@ const UserProfile: React.FC = () => {
   return (
     <div>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center">My Profile <User className="ml-2 h-6 w-6 text-teal-600" /></h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white flex items-center">My Profile <User className="ml-2 h-6 w-6 text-teal-600" /></h1>
         <p className="text-gray-600 dark:text-gray-400">Manage your personal information</p>
       </div>
       
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Profile Card */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 flex flex-col items-center">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 border border-gray-200 dark:border-gray-700 flex flex-col items-center">
           <div className="relative h-24 w-24 rounded-full overflow-hidden bg-blue-500 flex items-center justify-center mb-4">
             {profilePicUrl ? (
               <img src={profilePicUrl} alt="Profile" className="h-full w-full object-cover" />
@@ -396,7 +396,7 @@ const UserProfile: React.FC = () => {
         </div>
         
         {/* Edit Profile Form */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 border border-gray-200 dark:border-gray-700 lg:col-span-2">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 border border-gray-200 dark:border-gray-700 lg:col-span-2">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Edit Profile</h2>
           
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -507,7 +507,7 @@ const UserProfile: React.FC = () => {
               )}
               <button
                 type="submit"
-                className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg flex items-center justify-center"
+                className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg flex items-center justify-center w-full sm:w-auto"
               >
                 <Save className="mr-2 h-4 w-4" />
                 Save Changes

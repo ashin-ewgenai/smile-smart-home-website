@@ -130,7 +130,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
     <div className="flex flex-col min-h-screen pt-16 bg-gradient-to-br from-white via-soft-gray to-white dark:from-gray-950 dark:via-charcoal dark:to-gray-950">
       <DashboardNavbar userType={userType} userName={userName} />
       {/* Content area with optional sidebar */}
-      <div className="flex-1 flex max-w-full">
+      <div className="flex-1 flex w-full max-w-full min-w-0">
         {/* Sidebar (desktop only) */}
         <aside className={`hidden md:block ${collapsed ? 'w-20' : 'w-64'} flex-shrink-0 glass-surface border-r border-white/30 dark:border-white/10` }>
           <nav className="sticky top-16 p-4 space-y-2">
@@ -205,7 +205,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
           </nav>
         </aside>
         {/* Main content */}
-        <main className={`flex-1 ${isFullBleed ? 'min-h-0 p-0' : 'px-4 sm:px-6 lg:px-8 py-4 md:py-6'}`}>
+        <main className={`flex-1 min-w-0 w-full ${isFullBleed ? 'min-h-0 p-0' : 'px-4 sm:px-6 lg:px-8 py-4 md:py-6'} overflow-x-hidden`}>
           {children}
         </main>
       </div>
