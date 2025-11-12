@@ -658,7 +658,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
   };
 
   const [devices, setDevices] = useState<any[] | null>(null);
-  const [selectedDevice, setSelectedDevice] = useState<{id: string, userId: string} | null>(null);
+  const [selectedDevice, setSelectedDevice] = useState<{id: string, userId: string, userDeviceDocId?: string} | null>(null);
   const [showAddDeviceModal, setShowAddDeviceModal] = useState(false);
   const lists = useMemo(() => ({ 
     quotes: quotes || [], 
@@ -672,7 +672,8 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       // For devices, prefer opening the modal with the actual Devices/{id},
       // using sourceDeviceId when present on the user device row.
       const deviceIdToOpen = (data?.sourceDeviceId as string) || id;
-      setSelectedDevice({ id: deviceIdToOpen, userId: account.id });
+      // Pass the specific user device document id so details can scope to just that serial when needed
+      setSelectedDevice({ id: deviceIdToOpen, userId: account.id, userDeviceDocId: id });
       return;
     }
     setSelected({ type, id, data });
@@ -791,6 +792,17 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
       setServices((prev) => (prev || []).filter((s) => s.id !== serviceId));
     } catch (error) {
       console.error('Error deleting service:', error);
+    }
+  }
+
+  async function deleteDevice(userDeviceId: string) {
+    if (!userDeviceId) return;
+    try {
+      const ref = doc(db, 'User_Devices', userDeviceId);
+      await deleteDoc(ref);
+      setDevices((prev) => (prev || []).filter((d) => d.id !== userDeviceId));
+    } catch (error) {
+      console.error('Error removing device from user:', error);
     }
   }
 
@@ -1235,17 +1247,36 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                   <span className="text-sm font-medium text-gray-900 dark:text-white">
                                     {row.deviceName || 'Unnamed Device'}
                                   </span>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openDetails('devices', row.id, row);
-                                    }}
-                                    className="text-gray-900 dark:text-gray-400 hover:text-teal-500 dark:text-gray-500 dark:hover:text-teal-400"
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  </button>
+                                  <div className="flex items-center gap-2">
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openDetails('devices', row.id, row);
+                                      }}
+                                      className="text-gray-900 dark:text-gray-400 hover:text-teal-500 dark:text-gray-500 dark:hover:text-teal-400"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                      </svg>
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setConfirmDialog({
+                                          open: true,
+                                          message: 'Are you sure you want to remove this device from the user?',
+                                          onConfirm: () => deleteDevice(row.id)
+                                        });
+                                      }}
+                                      className="text-gray-900 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-500"
+                                      aria-label="Remove device"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+                                        <path d="M9 3a1 1 0 00-1 1v1H5.5a.75.75 0 000 1.5h13a.75.75 0 000-1.5H16V4a1 1 0 00-1-1H9z" />
+                                        <path fillRule="evenodd" d="M6.5 7h11l-.86 12.04A2.25 2.25 0 0114.4 21H9.6a2.25 2.25 0 01-2.24-1.96L6.5 7zm4.25 3.25a.75.75 0 10-1.5 0v7a.75.75 0 001.5 0v-7zm3 0a.75.75 0 10-1.5 0v7a.75.75 0 001.5 0v-7z" clipRule="evenodd" />
+                                      </svg>
+                                    </button>
+                                  </div>
                                 </div>
                                 <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                                   {row.type || 'Unknown'}
@@ -1264,17 +1295,36 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                 <span className="text-sm text-gray-700 dark:text-gray-300">
                                   {row.type || 'Unknown'}
                                 </span>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openDetails('devices', row.id, row);
-                                  }}
-                                  className="ml-2 text-gray-900 dark:text-gray-400 hover:text-teal-500 dark:text-gray-500 dark:hover:text-teal-400"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                </button>
+                                <div className="flex items-center gap-2 ml-2">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openDetails('devices', row.id, row);
+                                    }}
+                                    className="text-gray-900 dark:text-gray-400 hover:text-teal-500 dark:text-gray-500 dark:hover:text-teal-400"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                                    </svg>
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setConfirmDialog({
+                                        open: true,
+                                        message: 'Are you sure you want to remove this device from the user?',
+                                        onConfirm: () => deleteDevice(row.id)
+                                      });
+                                    }}
+                                    className="text-gray-900 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-500"
+                                    aria-label="Remove device"
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+                                      <path d="M9 3a1 1 0 00-1 1v1H5.5a.75.75 0 000 1.5h13a.75.75 0 000-1.5H16V4a1 1 0 00-1-1H9z" />
+                                      <path fillRule="evenodd" d="M6.5 7h11l-.86 12.04A2.25 2.25 0 0114.4 21H9.6a2.25 2.25 0 01-2.24-1.96L6.5 7zm4.25 3.25a.75.75 0 10-1.5 0v7a.75.75 0 001.5 0v-7zm3 0a.75.75 0 10-1.5 0v7a.75.75 0 001.5 0v-7z" clipRule="evenodd" />
+                                    </svg>
+                                  </button>
+                                </div>
                               </div>
                             </td>
                           </tr>
@@ -1392,7 +1442,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                   onClick={() => setShowAddDeviceModal(true)}
                   className="px-3 py-1.5 text-sm rounded-md bg-teal-600 hover:bg-teal-700 text-white"
                 >
-                  Add/Remove Devices
+                  Add Device
                 </button>
               </div>
             )}
@@ -1666,6 +1716,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
           onClose={() => setSelectedDevice(null)}
           deviceId={selectedDevice.id}
           userId={selectedDevice.userId}
+          userDeviceDocId={selectedDevice.userDeviceDocId}
         />
       )}
 

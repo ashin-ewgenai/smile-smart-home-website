@@ -7,6 +7,7 @@ interface DeviceDetailsModalProps {
   onClose: () => void;
   deviceId: string;
   userId: string;
+  userDeviceDocId?: string;
 }
 
 interface SerialData {
@@ -36,7 +37,7 @@ interface DeviceData {
   updatedAt?: string | Date;
 }
 
-const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose, deviceId, userId }) => {
+const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose, deviceId, userId, userDeviceDocId }) => {
   const [device, setDevice] = useState<DeviceData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -120,7 +121,44 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
           where('sourceDeviceId', '==', deviceId)
         );
         const userDevicesSnapshot = await getDocs(userDevicesQuery);
-        const userDeviceData = userDevicesSnapshot.empty ? {} : userDevicesSnapshot.docs[0].data();
+        // Legacy: also consider a User_Devices doc whose ID equals deviceId (older records without sourceDeviceId)
+        let legacyDoc: any | null = null;
+        try {
+          const allUserDocsSnap = await getDocs(query(collection(db, 'User_Devices'), where('uid', '==', userId)));
+          legacyDoc = allUserDocsSnap.docs.find(d => d.id === deviceId) || null;
+        } catch {}
+        // Use first doc for base userDeviceData (if exists), otherwise fallback to legacy
+        const userDeviceData = userDevicesSnapshot.empty
+          ? (legacyDoc ? legacyDoc.data() : {})
+          : userDevicesSnapshot.docs[0].data();
+        // Collect serials from all user-device docs (one per serial) including legacy
+        let combinedDocs: any[] = legacyDoc ? [...userDevicesSnapshot.docs, legacyDoc] : userDevicesSnapshot.docs;
+        // If a specific user device doc id is provided, restrict to that doc only
+        if (userDeviceDocId) {
+          const match = combinedDocs.find((d: any) => d.id === userDeviceDocId);
+          if (match) {
+            combinedDocs = [match];
+          } else {
+            try {
+              const specificRef = doc(db, 'User_Devices', userDeviceDocId);
+              const specificSnap = await getDoc(specificRef);
+              if (specificSnap.exists() && (specificSnap.data() as any)?.uid === userId) {
+                combinedDocs = [specificSnap as any];
+              } else {
+                combinedDocs = [];
+              }
+            } catch {
+              combinedDocs = [];
+            }
+          }
+        }
+        const allSerials: SerialData[] = combinedDocs.map((docSnap: any) => {
+          const d = docSnap.data() as any;
+          return {
+            serialNumber: d?.serialNumber || d?.serial || '',
+            warrantyExpiry: d?.warrantyExpiry || ''
+          };
+        }).filter(s => s.serialNumber || s.warrantyExpiry);
         
         // Format the device data for display
         const baseDeviceData = {
@@ -133,19 +171,23 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
           ...baseDeviceData,
           ...userDeviceData,
           // Ensure serials is always an array
-          serials: userDeviceData.serials || []
+          serials: (allSerials && allSerials.length > 0)
+            ? allSerials
+            : (userDeviceData.serials || [])
         };
         
-        // We now treat each User_Devices doc as a single-serial entry
-        const numDevices = 1;
+        // Number of devices equals number of serial entries from user docs (fallback to 1)
+        const numDevices = Math.max(1, allSerials.length || (Array.isArray(userDeviceData.serials) ? userDeviceData.serials.length : 0) || 0);
         
         // Initialize serials array from top-level fields if present; fallback to legacy array
-        const deviceSerials: SerialData[] = Array.isArray(userDeviceData.serials) && userDeviceData.serials.length > 0
-          ? [...userDeviceData.serials]
-          : [{
-              serialNumber: (userDeviceData as any).serialNumber || (userDeviceData as any).serial || '',
-              warrantyExpiry: (userDeviceData as any).warrantyExpiry || ''
-            }];
+        const deviceSerials: SerialData[] = (allSerials && allSerials.length > 0)
+          ? allSerials
+          : (Array.isArray(userDeviceData.serials) && userDeviceData.serials.length > 0
+            ? [...userDeviceData.serials]
+            : [{
+                serialNumber: (userDeviceData as any).serialNumber || (userDeviceData as any).serial || '',
+                warrantyExpiry: (userDeviceData as any).warrantyExpiry || ''
+              }]);
         
         // Update state with the fetched data
         setDevice(mergedDeviceData);
@@ -394,53 +436,6 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
               <div className="mt-6">
                 <h4 className="text-gray-700 dark:text-gray-300 font-medium mb-4">Editable Fields</h4>
                 <div className="grid grid-cols-3 gap-4">
-                  <div className="text-gray-600 dark:text-gray-400">Number of Devices</div>
-                  <div className="col-span-2 flex items-center">
-                    {editingField === 'numberOfDevices' ? (
-                      <div className="space-y-3">
-                        <input
-                          type="number"
-                          value={numberOfDevices}
-                          onChange={(e) => setNumberOfDevices(Math.max(1, parseInt(e.target.value) || 1))}
-                          min="1"
-                          className="block w-full rounded-md border-gray-300 bg-white text-gray-900 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                        />
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleSaveField('numberOfDevices', numberOfDevices)}
-                            className="px-3 py-1 bg-teal-600 hover:bg-teal-700 rounded text-xs text-white"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={handleCancelEdit}
-                            className="px-3 py-1 bg-gray-200 hover:bg-gray-300 text-gray-900 rounded text-xs dark:bg-gray-600 dark:hover:bg-gray-700 dark:text-white"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="text-gray-900 dark:text-gray-100">{numberOfDevices}</span>
-                        <button
-                          onClick={() => handleEditField('numberOfDevices', numberOfDevices.toString())}
-                          className="text-gray-600 hover:text-teal-600 dark:text-gray-400 dark:hover:text-teal-400"
-                          title="Edit"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-4 w-4"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                          </svg>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
                   <div className="text-gray-600 dark:text-gray-400">Serial Numbers</div>
                   <div className="col-span-2 space-y-3">
                     {editingField === 'serials' ? (
