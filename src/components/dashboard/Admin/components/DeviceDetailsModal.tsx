@@ -136,16 +136,16 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
           serials: userDeviceData.serials || []
         };
         
-        // Set number of devices from user's device data or default to 1
-        const numDevices = userDeviceData.numberOfDevices || 1;
+        // We now treat each User_Devices doc as a single-serial entry
+        const numDevices = 1;
         
-        // Initialize serials array with existing data or default values
-        const deviceSerials: SerialData[] = userDeviceData.serials?.length > 0 
+        // Initialize serials array from top-level fields if present; fallback to legacy array
+        const deviceSerials: SerialData[] = Array.isArray(userDeviceData.serials) && userDeviceData.serials.length > 0
           ? [...userDeviceData.serials]
-          : Array(numDevices).fill(null).map(() => ({
-              serialNumber: '',
-              warrantyExpiry: ''
-            }));
+          : [{
+              serialNumber: (userDeviceData as any).serialNumber || (userDeviceData as any).serial || '',
+              warrantyExpiry: (userDeviceData as any).warrantyExpiry || ''
+            }];
         
         // Update state with the fetched data
         setDevice(mergedDeviceData);
@@ -226,35 +226,29 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
         };
         
         if (field === 'serial') {
-          updateData.serial = value;
+          updateData.serialNumber = value;
         } else if (field === 'numberOfDevices') {
-          const numValue = Math.max(1, parseInt(value) || 1);
-          updateData.numberOfDevices = numValue;
-          
-          // Initialize serials array
-          const newSerials = Array(numValue).fill(null).map(() => ({
-            serialNumber: '',
-            warrantyExpiry: ''
-          }));
-          updateData.serials = newSerials;
+          // Single-serial docs; initialize empty serialNumber
+          updateData.serialNumber = '';
         } else if (field === 'serials') {
-          const num = Array.isArray(value) ? value.length : 1;
-          updateData.serials = value;
-          updateData.numberOfDevices = num;
+          const first = Array.isArray(value) && value.length ? value[0] : { serialNumber: '', warrantyExpiry: '' };
+          updateData.serialNumber = first.serialNumber || '';
+          updateData.warrantyExpiry = first.warrantyExpiry || '';
         }
         
         await setDoc(newUserDeviceRef, updateData);
         
         // Update local state
         if (field === 'serial') {
-          setDevice(prev => ({ ...prev!, serial: value }));
+          setDevice(prev => ({ ...prev!, serial: value, serials: [{ serialNumber: value, warrantyExpiry: '' }] }));
         } else if (field === 'numberOfDevices') {
-          setNumberOfDevices(updateData.numberOfDevices);
-          setDevice(prev => prev ? { ...prev, serials: updateData.serials } : null);
-          setEditingSerials([...updateData.serials]);
+          setNumberOfDevices(1);
+          setDevice(prev => prev ? { ...prev, serials: [{ serialNumber: '', warrantyExpiry: '' }] } : null);
+          setEditingSerials([{ serialNumber: '', warrantyExpiry: '' }]);
         } else if (field === 'serials') {
-          setNumberOfDevices(updateData.numberOfDevices);
-          setDevice(prev => prev ? { ...prev, serials: [...value] } : null);
+          const first = Array.isArray(value) && value.length ? value[0] : { serialNumber: '', warrantyExpiry: '' };
+          setNumberOfDevices(1);
+          setDevice(prev => prev ? { ...prev, serials: [first] } : null);
         }
         
         setEditingField(null);
@@ -269,34 +263,19 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
       };
       
       if (field === 'serial') {
-        updateData.serial = value;
+        // Update top-level serialNumber for single-entry docs
+        updateData.serialNumber = value;
       } else if (field === 'numberOfDevices') {
-        const numValue = Math.max(1, parseInt(value) || 1);
-        updateData.numberOfDevices = numValue;
-        
-        // Update serials array when number of devices changes
-        const currentSerials = device?.serials || [];
-        const newSerials = [...currentSerials];
-        
-        // Add empty objects if increasing count, or remove if decreasing
-        while (newSerials.length < numValue) {
-          newSerials.push({ serialNumber: '', warrantyExpiry: '' });
-        }
-        while (newSerials.length > numValue) {
-          newSerials.pop();
-        }
-        
-        updateData.serials = newSerials;
-        
-        setNumberOfDevices(numValue);
-        setDevice(prev => prev ? { ...prev, serials: newSerials } : null);
-        setEditingSerials([...newSerials]);
+        // Always 1 for single-serial docs; ignore changes but sync local state/UI
+        setNumberOfDevices(1);
+        setDevice(prev => prev ? { ...prev, serials: prev.serials?.length ? prev.serials.slice(0, 1) : [{ serialNumber: '', warrantyExpiry: '' }] } : null);
       } else if (field === 'serials') {
-        const num = Array.isArray(value) ? value.length : 1;
-        updateData.serials = value;
-        updateData.numberOfDevices = num;
-        setNumberOfDevices(num);
-        setDevice(prev => prev ? { ...prev, serials: [...value] } : null);
+        // Write first serial object into top-level fields
+        const first = Array.isArray(value) && value.length ? value[0] : { serialNumber: '', warrantyExpiry: '' };
+        updateData.serialNumber = first.serialNumber || '';
+        updateData.warrantyExpiry = first.warrantyExpiry || '';
+        setNumberOfDevices(1);
+        setDevice(prev => prev ? { ...prev, serials: [first] } : null);
       }
       
       // Update the document
@@ -304,10 +283,8 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
       
       // Update local state for serial field
       if (field === 'serial') {
-        setDevice(prev => ({
-          ...prev!,
-          serial: value
-        }));
+        const serialObj = { serialNumber: value, warrantyExpiry: (device?.serials?.[0]?.warrantyExpiry || '') };
+        setDevice(prev => prev ? { ...prev, serials: [serialObj], serial: value } : null);
       }
       
       setEditingField(null);

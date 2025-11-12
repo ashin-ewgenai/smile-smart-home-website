@@ -278,22 +278,26 @@ export default function AddDeviceModal({ isOpen, onClose, userId, onDeviceAdded 
       setSaving(true);
       const addedAtISO = new Date(`${addDate}T00:00:00`).toISOString();
       const warrantyExpiry = computeWarrantyExpiry(addedAtISO, pendingDevice.warranty);
-      const deviceRef = doc(collection(db, 'User_Devices'));
-      await setDoc(deviceRef, {
-        uid: userId,
-        sourceDeviceId: pendingDevice.id,
-        brand: pendingDevice?.brand ?? '',
-        description: pendingDevice?.description ?? '',
-        deviceName: pendingDevice?.deviceName ?? '',
-        documentation: (pendingDevice as any)?.documentation ?? '',
-        modelNumber: pendingDevice?.modelNumber ?? '',
-        type: pendingDevice?.type ?? '',
-        addedAt: addedAtISO,
-        updatedAt: addedAtISO,
-        isOnline: false,
-        numberOfDevices: qty,
-        serials: serialList.map(s => ({ serialNumber: s, warrantyExpiry }))
-      });
+      // Create one User_Devices document per serial number
+      for (const s of serialList) {
+        const deviceRef = doc(collection(db, 'User_Devices'));
+        await setDoc(deviceRef, {
+          uid: userId,
+          sourceDeviceId: pendingDevice.id,
+          brand: pendingDevice?.brand ?? '',
+          description: pendingDevice?.description ?? '',
+          deviceName: pendingDevice?.deviceName ?? '',
+          documentation: (pendingDevice as any)?.documentation ?? '',
+          modelNumber: pendingDevice?.modelNumber ?? '',
+          type: pendingDevice?.type ?? '',
+          addedAt: addedAtISO,
+          updatedAt: addedAtISO,
+          isOnline: false,
+          numberOfDevices: 1,
+          serialNumber: s,
+          warrantyExpiry: warrantyExpiry
+        });
+      }
       await cleanOrphanedUserDevices();
       onDeviceAdded();
       setAddedIds(prev => (prev.includes(pendingDevice.id) ? prev : [...prev, pendingDevice.id]));

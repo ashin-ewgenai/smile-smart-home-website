@@ -313,6 +313,15 @@ export const chatWithOpenAI = onCall(
         globalSerialMatchedSerialRaw = matches[0].serial;
       }
     }
+    if (globalSerialMatchedDevice && globalSerialMatchedSerialRaw) {
+      try {
+        await sessionsCol.doc(sessionId).set({
+          lastMatchedDeviceId: globalSerialMatchedDevice.id,
+          lastMatchedSerial: globalSerialMatchedSerialRaw,
+          lastMatchedAt: Date.now()
+        }, { merge: true });
+      } catch {}
+    }
   }
 
   // Match by serial for problem-related intents (independent of warranty flow)
@@ -349,51 +358,25 @@ export const chatWithOpenAI = onCall(
     }
   }
 
-  // Determine device info match by serial (normalized full or unique last-4); handle ambiguity; otherwise ask for full serial
+  // Determine device info match ONLY by full serial equality (case-insensitive, ignoring non-alphanumerics).
+  // If no exact serial is present in the user's message, ask for full serial.
   let deviceInfoMatched: any = null;
   let deviceInfoMessage: string | null = null;
-  let multiDeviceInfoMessage: string | null = null;
+  let multiDeviceInfoMessage: string | null = null; // kept for API compatibility; unused now
   if (isDeviceInfoQuestion && userDevices.length > 0) {
-    const text = String(lastUserMsg || '');
-    const textNorm = normalize(text);
-    const userLast4 = extractUserLast4Candidates(text);
-    // Full normalized include
+    const textRaw = String(lastUserMsg || '');
+    const textTokens = (textRaw.match(/[A-Za-z0-9\-]{6,}/g) || []).map((t) => normalize(t));
+    const userSerialSet = new Set(textTokens);
     for (const d of userDevices) {
-      const baseSerials = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean).map((s: any) => String(s).trim());
-      const arraySerials = Array.isArray(d.serials) ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean) : [];
+      const baseSerials = [d.deviceSerial, d.serial, d.serialNumber]
+        .filter(Boolean)
+        .map((s: any) => normalize(String(s).trim()));
+      const arraySerials = Array.isArray(d.serials)
+        ? d.serials.map((e: any) => normalize(String(e?.serialNumber || '').trim())).filter(Boolean)
+        : [];
       const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
-      const hit = allSerials.find((s) => s && textNorm.includes(normalize(s)));
+      const hit = allSerials.find((s) => s && userSerialSet.has(s));
       if (hit) { deviceInfoMatched = d; break; }
-    }
-    // Unique last-4
-    if (!deviceInfoMatched && userLast4.size > 0) {
-      type Cand = { device: any; serial: string };
-      const matches: Cand[] = [];
-      for (const d of userDevices) {
-        const baseSerials = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean).map((s: any) => String(s).trim());
-        const arraySerials = Array.isArray(d.serials) ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean) : [];
-        const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
-        for (const s of allSerials) {
-          if (userLast4.has(last4Of(s))) matches.push({ device: d, serial: s });
-        }
-      }
-      if (matches.length === 1) {
-        deviceInfoMatched = matches[0].device;
-      } else if (matches.length > 1) {
-        // Ambiguous last-4: list candidates and ask for full serial
-        const lines: string[] = [
-          'I found multiple devices that match the serial ending you provided:'
-        ];
-        for (const m of matches.slice(0, 5)) {
-          const dev = m.device;
-          const name = dev.deviceName || dev.name || 'Device';
-          const model = dev.deviceModel || dev.model || dev.modelNumber || '';
-          const snMasked = `***${String(m.serial).slice(-4)}`;
-          lines.push(`- ${name}${model ? ` (${model})` : ''}: ${snMasked}`);
-        }
-        lines.push('Please enter the full device serial number to view the exact device details.');
-        multiDeviceInfoMessage = lines.join('\n');
-      }
     }
     if (deviceInfoMatched) {
       const mask = (s: any) => {
@@ -501,6 +484,32 @@ export const chatWithOpenAI = onCall(
         multiWarrantyMessage = lines.join('\n');
       }
     }
+    if (!matchedBySerial) {
+      try {
+        const sSnap = await sessionsCol.doc(sessionId).get();
+        const sData = sSnap.data();
+        const lastId = (sData as any)?.lastMatchedDeviceId;
+        const lastSerial = (sData as any)?.lastMatchedSerial;
+        if (lastId || lastSerial) {
+          for (const d of userDevices) {
+            const base = [d.deviceSerial, d.serial, d.serialNumber]
+              .filter(Boolean)
+              .map((x: any) => String(x).trim().toLowerCase());
+            const arr = Array.isArray(d.serials)
+              ? d.serials.map((e: any) => String(e?.serialNumber || '').trim().toLowerCase()).filter(Boolean)
+              : [];
+            const all = [...base, ...arr];
+            const idHit = lastId && d.id === lastId;
+            const serialHit = lastSerial && all.includes(String(lastSerial).trim().toLowerCase());
+            if (idHit || serialHit) {
+              matchedBySerial = d;
+              matchedSerialRaw = lastSerial || (d.serialNumber || d.serial || d.deviceSerial) || null;
+              break;
+            }
+          }
+        }
+      } catch {}
+    }
     if (matchedBySerial) {
       const pickWarrantyVal = (val: any): string => {
         try {
@@ -515,16 +524,14 @@ export const chatWithOpenAI = onCall(
           return String(anyVal);
         } catch { return String(val); }
       };
-      // Prefer exact serial-level warranty if serials[] holds entries
-      let warrantyVal: string | '' = '';
-      if (Array.isArray(matchedBySerial.serials) && matchedBySerial.serials.length > 0 && matchedSerialRaw) {
+      // Prefer top-level warrantyExpiry on the User_Devices doc (new schema)
+      let warrantyVal: string | '' = pickWarrantyVal(matchedBySerial.warrantyExpiry || matchedBySerial.warrantyEnd || undefined);
+      // Fallback: if not available, try legacy serials[] matching the provided serial
+      if (!warrantyVal && Array.isArray(matchedBySerial.serials) && matchedBySerial.serials.length > 0 && matchedSerialRaw) {
         const entry = matchedBySerial.serials.find((e: any) => String(e?.serialNumber || '').trim().toLowerCase() === String(matchedSerialRaw).toLowerCase());
         if (entry?.warrantyExpiry || entry?.warrantyEnd) {
           warrantyVal = pickWarrantyVal(entry.warrantyExpiry || entry.warrantyEnd);
         }
-      }
-      if (!warrantyVal) {
-        warrantyVal = pickWarrantyVal(matchedBySerial.warrantyExpiry || matchedBySerial.warrantyEnd || undefined);
       }
       const name = matchedBySerial.deviceName || matchedBySerial.name || 'Device';
       const model = matchedBySerial.deviceModel || matchedBySerial.model || matchedBySerial.modelNumber || '';
@@ -532,7 +539,7 @@ export const chatWithOpenAI = onCall(
       if (warrantyVal) {
         const brand = matchedBySerial.brand || matchedBySerial.manufacturer || matchedBySerial.vendor || matchedBySerial.make || '';
         const multiSerials = Array.isArray(matchedBySerial.serials) ? matchedBySerial.serials : [];
-        // If more than one warranty value present in serials[], list all
+        // If legacy docs contain more than one serial, list all for clarity
         if (multiSerials.length > 1) {
           const listLines: string[] = [`Warranties for ${label}:`];
           for (const se of multiSerials) {

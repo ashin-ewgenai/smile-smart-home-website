@@ -54,6 +54,10 @@ const AboutDevices: React.FC = () => {
   const [selectedDeviceCount, setSelectedDeviceCount] = useState<number | null>(null);
   const [selectedDeviceCountLoading, setSelectedDeviceCountLoading] = useState(false);
   const [userTotalDevices, setUserTotalDevices] = useState<number | null>(null);
+  const [unitSiblings, setUnitSiblings] = useState<any[] | null>(null);
+  const [unitSiblingsLoading, setUnitSiblingsLoading] = useState<boolean>(false);
+  const [sameModelCount, setSameModelCount] = useState<number | null>(null);
+
   const modalRef = React.useRef<HTMLDivElement>(null);
   // Non-blocking wheel handler to ensure scrolling always works inside modal content
   const onContentWheel = React.useCallback((e: React.WheelEvent<HTMLDivElement>) => {
@@ -191,9 +195,12 @@ const AboutDevices: React.FC = () => {
     setSelectedDevice(device);
     setSelectedDeviceCount(null);
     setUserTotalDevices(null);
+    setUnitSiblings(null);
+    setSameModelCount(null);
     if (!uid) return;
     try {
       setSelectedDeviceCountLoading(true);
+      setUnitSiblingsLoading(true);
       // Query flat collection for this user's device
       const userDevicesCol = collection(db, 'User_Devices');
       let qSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid), where('sourceDeviceId', '==', device.id)));
@@ -226,10 +233,37 @@ const AboutDevices: React.FC = () => {
         setUserTotalDevices(totalCount);
       } catch (e) {
       }
+
+      // Fetch unit-level siblings directly (Option A)
+      try {
+        let unitsSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid), where('sourceDeviceId', '==', device.id)));
+        if (unitsSnap.empty) {
+          // Legacy fallback key
+          unitsSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid), where('deviceId', '==', device.id)));
+        }
+        const units = unitsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+        setUnitSiblings(units);
+      } catch {
+        setUnitSiblings([]);
+      }
+
+      // Compute same-model count for this user by modelNumber (fallback to unit count if model missing)
+      try {
+        const modelVal = (device as any)?.modelNumber || '';
+        if (modelVal) {
+          const sameModelSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid), where('modelNumber', '==', modelVal)));
+          setSameModelCount(sameModelSnap.docs.length);
+        } else {
+          setSameModelCount(Array.isArray(unitSiblings) ? unitSiblings.length : null);
+        }
+      } catch {
+        setSameModelCount(Array.isArray(unitSiblings) ? unitSiblings.length : null);
+      }
     } catch (e) {
       setSelectedDeviceCount(null);
     } finally {
       setSelectedDeviceCountLoading(false);
+      setUnitSiblingsLoading(false);
     }
   };
 
@@ -455,7 +489,7 @@ const AboutDevices: React.FC = () => {
                         {selectedDeviceCountLoading ? (
                           <span className="inline-block w-2 h-2 rounded-full bg-blue-700 dark:bg-blue-300 animate-pulse" />
                         ) : (
-                          (selectedDeviceCount ?? (Array.isArray(selectedDevice.serials) ? selectedDevice.serials.length : (selectedDevice.quantity ?? 1)))
+                          (sameModelCount ?? (Array.isArray(unitSiblings) ? unitSiblings.length : (selectedDeviceCount ?? (Array.isArray(selectedDevice.serials) ? selectedDevice.serials.length : (selectedDevice.quantity ?? 1)))))
                         )}
                       </span>
                     </div>
@@ -498,19 +532,46 @@ const AboutDevices: React.FC = () => {
                 </div>
               )}
 
+              {/* Note: Removed separate unit-level section; integrate units into Serial Numbers & Warranty below */}
+
               {/* Serial Numbers Card */}
-              {((selectedDevice.serialNumbers && selectedDevice.serialNumbers.length > 0) || (selectedDevice.serials && selectedDevice.serials.length > 0)) && (
+              {(() => {
+                // Build serial items from unitSiblings when available; else use selectedDevice serials
+                const fromUnits = Array.isArray(unitSiblings) && unitSiblings.length > 0
+                  ? unitSiblings.flatMap((dev: any) => {
+                      const arr = Array.isArray(dev.serials)
+                        ? dev.serials
+                        : (Array.isArray(dev.serialNumbers) ? dev.serialNumbers : []);
+                      if (arr.length > 0) {
+                        return arr.map((sn: any) => ({
+                          serialNumber: sn?.serialNumber || sn?.serial,
+                          warrantyExpiry: sn?.warrantyExpiry ?? sn?.warrantyexpiry ?? sn?.warrantyEnd,
+                        }));
+                      }
+                      // Fallback to new top-level fields
+                      const tlSerial = dev?.serialNumber || dev?.serial;
+                      const tlExpiry = dev?.warrantyExpiry ?? dev?.warrantyexpiry ?? dev?.warrantyEnd;
+                      return tlSerial ? [{ serialNumber: tlSerial, warrantyExpiry: tlExpiry }] : [];
+                    })
+                  : [];
+                const own = (selectedDevice.serialNumbers || selectedDevice.serials || []).map((sn: any) => ({
+                  serialNumber: sn?.serialNumber || sn?.serial,
+                  warrantyExpiry: sn?.warrantyExpiry ?? sn?.warrantyexpiry ?? sn?.warrantyEnd,
+                }));
+                const serialItems = (fromUnits.length > 0 ? fromUnits : own).filter((i: any) => i.serialNumber);
+                if (serialItems.length === 0) return null;
+                return (
                 <div className="bg-white dark:bg-gray-800/80 p-6 rounded-xl border border-gray-100 dark:border-gray-700/50 shadow-sm hover:shadow-md transition-shadow duration-300">
                   <div className="flex items-center space-x-2 mb-4">
                     <div className="p-2 rounded-lg bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400">
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
                     </div>
                     <h4 className="text-base font-semibold text-gray-900 dark:text-white">Serial Numbers & Warranty</h4>
                   </div>
                   <div className="space-y-3">
-                    {(selectedDevice.serialNumbers || selectedDevice.serials || []).map((sn: any, index: number) => (
+                    {serialItems.map((sn: any, index: number) => (
                       <div 
                         key={index} 
                         className="p-4 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-gray-700/50 hover:border-blue-200 dark:hover:border-blue-900/50 transition-colors duration-200"
@@ -519,7 +580,7 @@ const AboutDevices: React.FC = () => {
                           <div className="space-y-1">
                             <div className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Serial Number</div>
                             <div className="font-mono text-sm bg-gray-100 dark:bg-gray-800/50 px-3 py-1.5 rounded-md text-gray-800 dark:text-gray-200">
-                              {sn.serialNumber || sn.serial}
+                              {sn.serialNumber}
                             </div>
                           </div>
                           <div className="space-y-1">
@@ -546,13 +607,14 @@ const AboutDevices: React.FC = () => {
                     ))}
                   </div>
                 </div>
-              )}
+                );
+              })()}
             </div>
           </div>
         </div>
       )}
     </section>
-  );
+    );
 }
 
 export default AboutDevices;
