@@ -38,7 +38,7 @@ const TicketCenter: React.FC = () => {
   // Form state
   const [subject, setSubject] = useState('');
   const [category, setCategory] = useState<'Device Issue' | 'Connectivity' | 'App/Portal Issue' | 'Feature Request' | 'Installation/Setup' | 'Other'>('Device Issue');
-  const [devices, setDevices] = useState<{ id: string; name: string; type?: string }[]>([]);
+  const [devices, setDevices] = useState<{ id: string; name: string; type?: string; serial?: string }[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [description, setDescription] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -203,11 +203,16 @@ const TicketCenter: React.FC = () => {
         try {
           const q = query(collection(db, 'User_Devices'), where('uid', '==', userUid));
           const snap = await getDocs(q);
-          const devs = snap.docs.map(d => ({
-            id: d.id,
-            name: (d.data() as any).deviceName || (d.data() as any).name || 'Unnamed Device',
-            type: (d.data() as any).deviceType || (d.data() as any).type || ''
-          }));
+          const devs = snap.docs.map(d => {
+            const data = d.data() as any;
+            const serial = data?.serialNumber || data?.serial || '';
+            return {
+              id: d.id,
+              name: data.deviceName || data.name || 'Unnamed Device',
+              type: data.deviceType || data.type || '',
+              serial,
+            };
+          });
           setDevices(devs);
         } catch {
           setDevices([]);
@@ -473,7 +478,11 @@ const TicketCenter: React.FC = () => {
                       >
                         <option value="" disabled>Select your device</option>
                         {devices.map(device => (
-                          <option key={device.id} value={device.id}>{device.name}{device.type ? ` (${device.type})` : ''}</option>
+                          <option key={device.id} value={device.id}>
+                            {device.name}
+                            {device.type ? ` (${device.type})` : ''}
+                            {device.serial ? ` - ${device.serial}` : ''}
+                          </option>
                         ))}
                       </select>
                     </div>
