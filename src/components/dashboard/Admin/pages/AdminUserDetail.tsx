@@ -1285,12 +1285,12 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             </td>
 
                             {/* Desktop View - Side by Side */}
-                            <td className="py-3 px-4 hidden md:table-cell">
+                            <td className="py-3 pr-4 hidden md:table-cell">
                               <span className="text-sm font-medium text-gray-900 dark:text-white">
                                 {row.deviceName || 'Unnamed Device'}
                               </span>
                             </td>
-                            <td className="py-3 px-4 hidden md:table-cell">
+                            <td className="py-3 pr-4 hidden md:table-cell">
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-gray-700 dark:text-gray-300">
                                   {row.type || 'Unknown'}
