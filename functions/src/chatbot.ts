@@ -378,7 +378,42 @@ export const chatWithOpenAI = onCall(
       const hit = allSerials.find((s) => s && userSerialSet.has(s));
       if (hit) { deviceInfoMatched = d; break; }
     }
+    // If user didn't include a serial in this message, try session-persisted last match
+    if (!deviceInfoMatched) {
+      try {
+        const sSnap = await sessionsCol.doc(sessionId).get();
+        const sData = sSnap.data();
+        const lastId = (sData as any)?.lastMatchedDeviceId;
+        const lastSerial = (sData as any)?.lastMatchedSerial;
+        if (lastId || lastSerial) {
+          for (const d of userDevices) {
+            const base = [d.deviceSerial, d.serial, d.serialNumber]
+              .filter(Boolean)
+              .map((x: any) => String(x).trim().toLowerCase());
+            const arr = Array.isArray(d.serials)
+              ? d.serials.map((e: any) => String(e?.serialNumber || '').trim().toLowerCase()).filter(Boolean)
+              : [];
+            const all = [...base, ...arr];
+            const idHit = lastId && d.id === lastId;
+            const serialHit = lastSerial && all.includes(String(lastSerial).trim().toLowerCase());
+            if (idHit || serialHit) {
+              deviceInfoMatched = d;
+              break;
+            }
+          }
+        }
+      } catch {}
+    }
     if (deviceInfoMatched) {
+      // Persist matched device and serial for session continuity in device-info flow
+      try {
+        const rawSerial = (deviceInfoMatched.deviceSerial || deviceInfoMatched.serial || deviceInfoMatched.serialNumber || '').toString();
+        await sessionsCol.doc(sessionId).set({
+          lastMatchedDeviceId: deviceInfoMatched.id,
+          lastMatchedSerial: rawSerial || null,
+          lastMatchedAt: Date.now()
+        }, { merge: true });
+      } catch {}
       const mask = (s: any) => {
         const v = typeof s === 'string' ? s : '';
         if (!v) return '';
@@ -440,18 +475,31 @@ export const chatWithOpenAI = onCall(
   let matchedSerialRaw: string | null = null;
   let matchedBySerial: any = null;
 
-  // First, try to match warranty by explicit serial in the user's message
+  // First, try to match warranty by explicit serial in the user's message (exact normalized equality)
   if (isWarrantyQuestion && userDevices.length > 0) {
     const text = String(lastUserMsg || '');
-    const textNorm = normalize(text);
+    const userTokens = (text.match(/[A-Za-z0-9\-]{6,}/g) || []).map((t) => normalize(t));
+    const userSerialSet = new Set(userTokens);
     const userLast4 = extractUserLast4Candidates(text);
-    // First try full normalized include
+    // Prefer exact equality against top-level serialNumber
     for (const d of userDevices) {
-      const baseSerials = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean).map((s: any) => String(s).trim());
-      const arraySerials = Array.isArray(d.serials) ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean) : [];
-      const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
-      const hit = allSerials.find((s) => s && textNorm.includes(normalize(s)));
-      if (hit) { matchedBySerial = d; matchedSerialRaw = hit; break; }
+      const top = (d.serialNumber || d.serial || d.deviceSerial || '').toString().trim();
+      const topN = normalize(top);
+      if (topN && userSerialSet.has(topN)) { matchedBySerial = d; matchedSerialRaw = top || null; break; }
+    }
+    // If not matched by top-level, try any serial fields equality (including legacy array)
+    if (!matchedBySerial) {
+      for (const d of userDevices) {
+        const baseSerials = [d.deviceSerial, d.serial, d.serialNumber]
+          .filter(Boolean)
+          .map((s: any) => String(s).trim());
+        const arraySerials = Array.isArray(d.serials)
+          ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean)
+          : [];
+        const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
+        const hit = allSerials.find((s) => s && userSerialSet.has(normalize(s)));
+        if (hit) { matchedBySerial = d; matchedSerialRaw = hit; break; }
+      }
     }
     // If not found, try unique last-4 resolution across all devices
     if (!matchedBySerial && userLast4.size > 0) {
@@ -490,27 +538,42 @@ export const chatWithOpenAI = onCall(
         const sData = sSnap.data();
         const lastId = (sData as any)?.lastMatchedDeviceId;
         const lastSerial = (sData as any)?.lastMatchedSerial;
+        const lastN = lastSerial ? normalize(String(lastSerial)) : '';
         if (lastId || lastSerial) {
+          // Prefer top-level serialNumber equality first
           for (const d of userDevices) {
-            const base = [d.deviceSerial, d.serial, d.serialNumber]
-              .filter(Boolean)
-              .map((x: any) => String(x).trim().toLowerCase());
-            const arr = Array.isArray(d.serials)
-              ? d.serials.map((e: any) => String(e?.serialNumber || '').trim().toLowerCase()).filter(Boolean)
-              : [];
-            const all = [...base, ...arr];
+            const top = (d.serialNumber || d.serial || d.deviceSerial || '').toString().trim();
+            const topN = normalize(top);
             const idHit = lastId && d.id === lastId;
-            const serialHit = lastSerial && all.includes(String(lastSerial).trim().toLowerCase());
-            if (idHit || serialHit) {
-              matchedBySerial = d;
-              matchedSerialRaw = lastSerial || (d.serialNumber || d.serial || d.deviceSerial) || null;
-              break;
+            if ((lastN && topN === lastN) || idHit) { matchedBySerial = d; matchedSerialRaw = lastSerial || top || null; break; }
+          }
+          // If still not found, try any serial fields equality
+          if (!matchedBySerial) {
+            for (const d of userDevices) {
+              const base = [d.deviceSerial, d.serial, d.serialNumber]
+                .filter(Boolean)
+                .map((x: any) => String(x).trim());
+              const arr = Array.isArray(d.serials)
+                ? d.serials.map((e: any) => String(e?.serialNumber || '').trim()).filter(Boolean)
+                : [];
+              const all = [...base, ...arr];
+              const serialHit = lastN && all.some((s) => normalize(s) === lastN);
+              if (serialHit) { matchedBySerial = d; matchedSerialRaw = lastSerial || (d.serialNumber || d.serial || d.deviceSerial) || null; break; }
             }
           }
         }
       } catch {}
     }
     if (matchedBySerial) {
+      // Persist matched device and serial for session continuity in warranty flow
+      try {
+        const rawSerial = (matchedSerialRaw || matchedBySerial.deviceSerial || matchedBySerial.serial || matchedBySerial.serialNumber || '').toString();
+        await sessionsCol.doc(sessionId).set({
+          lastMatchedDeviceId: matchedBySerial.id,
+          lastMatchedSerial: rawSerial || null,
+          lastMatchedAt: Date.now()
+        }, { merge: true });
+      } catch {}
       const pickWarrantyVal = (val: any): string => {
         try {
           if (!val) return '';

@@ -119,9 +119,9 @@ export default function User_Admin_List() {
         return;
       }
       try { await user.getIdToken(true); } catch {}
-      // Try Cloud Function to delete both Auth user and Firestore doc
+      // Use Cloud Function that deletes Auth user and all related data (including chats)
       try {
-        const fn = httpsCallable(functions, 'superAdminDeleteUser');
+        const fn = httpsCallable(functions, 'adminDeleteUserAndData');
         await fn({ uid });
         // Function succeeded: update UI
         setUsers(prev => prev.filter(u => u.uid !== uid));
