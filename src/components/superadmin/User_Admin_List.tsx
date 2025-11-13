@@ -397,7 +397,7 @@ export default function User_Admin_List() {
                       rows.map((u) => (
                         <tr
                           key={u.uid}
-                          className="group hover:bg-gray-50/70 dark:hover:bg-gray-800/50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500/30"
+                          className="group transition-colors duration-200 ease-out hover:bg-gray-50/70 dark:hover:bg-gray-800/50 cursor-pointer focus:outline-none focus:ring-2 focus:ring-teal-500/30"
                           onClick={() => {
                             const qs = seg ? `?seg=${encodeURIComponent(seg)}` : '';
                             navigate(`${SUPER_ADMIN_BASE_PATH}/user/${encodeURIComponent(u.uid)}${qs}`);
@@ -407,7 +407,7 @@ export default function User_Admin_List() {
                           title="View user details"
                         >
                           <td className="px-4 py-2">
-                            <div className="relative flex items-center">
+                            <div className="relative flex items-center pl-9">
                               <button
                                 onClick={(e) => { e.stopPropagation(); openConfirm(u.uid); }}
                                 className="absolute left-0 inline-flex items-center justify-center h-7 w-7 rounded-md text-gray-400 dark:text-gray-500 opacity-0 -translate-x-3 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 ease-out hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-900/20 focus:outline-none focus:ring-2 focus:ring-red-400/50"
@@ -416,7 +416,7 @@ export default function User_Admin_List() {
                               >
                                 <Trash2 className="h-4 w-4" />
                               </button>
-                              <div className="font-medium text-gray-900 dark:text-gray-100 truncate whitespace-nowrap transition-all duration-200 group-hover:pl-9" title={u.displayName || '—'}>
+                              <div className="font-medium text-gray-900 dark:text-gray-100 truncate whitespace-nowrap transition-colors duration-200" title={u.displayName || '—'}>
                                 {truncateEnd(u.displayName || '—', 15)}
                               </div>
                             </div>
