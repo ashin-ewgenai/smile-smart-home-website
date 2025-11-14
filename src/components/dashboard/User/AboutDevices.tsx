@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '../../../lib/firebase';
 import { useDevices } from '../../../contexts/DevicesContext';
 
@@ -59,6 +59,8 @@ const AboutDevices: React.FC = () => {
   const [sameModelCount, setSameModelCount] = useState<number | null>(null);
 
   const modalRef = React.useRef<HTMLDivElement>(null);
+  const unitsUnsubRef = React.useRef<(() => void) | null>(null);
+  const allUserDevicesUnsubRef = React.useRef<(() => void) | null>(null);
   // Non-blocking wheel handler to ensure scrolling always works inside modal content
   const onContentWheel = React.useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
@@ -190,7 +192,7 @@ const AboutDevices: React.FC = () => {
 
   // Devices list is provided by DevicesContext; no fetching here.
 
-  // Open details modal and fetch this device's count from userdevices/{uid}/devices/{deviceId}
+  // Open details modal and subscribe live to this device's units under User_Devices
   const openDetails = async (device: DeviceDoc) => {
     setSelectedDevice(device);
     setSelectedDeviceCount(null);
@@ -201,29 +203,64 @@ const AboutDevices: React.FC = () => {
     try {
       setSelectedDeviceCountLoading(true);
       setUnitSiblingsLoading(true);
-      // Query flat collection for this user's device
-      const userDevicesCol = collection(db, 'User_Devices');
-      let qSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid), where('sourceDeviceId', '==', device.id)));
-      if (qSnap.empty) {
-        qSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid), where('deviceId', '==', device.id)));
-      }
-      const snap = qSnap.docs[0];
-      if (snap.exists()) {
-        const data: any = snap.data();
-        // Try multiple possible fields incl. common aliases; fall back to serials length
-        const countAliases = ['deviceCount','DeviceCount','deviceCount1','DeviceCount1','count','Count','quantity','Quantity','qty','Qty'];
-        const parsed = coerceNumberFromKeys(data, countAliases);
-        const count = parsed ?? (Array.isArray(data.serials) ? data.serials.length : null);
-        setSelectedDeviceCount(count ?? null);
-      } else {
-        setSelectedDeviceCount(null);
-      }
+      // Clean previous listeners if any
+      if (unitsUnsubRef.current) { unitsUnsubRef.current(); unitsUnsubRef.current = null; }
+      if (allUserDevicesUnsubRef.current) { allUserDevicesUnsubRef.current(); allUserDevicesUnsubRef.current = null; }
 
-      // Calculate total device count from flat collection
-      try {
-        const allUserDevicesSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid)));
+      // Queries
+      const userDevicesCol = collection(db, 'User_Devices');
+      const qBySource = query(userDevicesCol, where('uid', '==', uid), where('sourceDeviceId', '==', device.id));
+      const qByLegacy = query(userDevicesCol, where('uid', '==', uid), where('deviceId', '==', device.id));
+
+      // Helper to normalize warranty values to ISO string so Date parsing is stable
+      const normalizeToISO = (v: any): any => {
+        try {
+          if (v && typeof v === 'object' && typeof v.toDate === 'function') return (v as Timestamp).toDate().toISOString();
+          if (typeof v === 'number') { const ms = v < 1e12 ? v * 1000 : v; return new Date(ms).toISOString(); }
+          return v;
+        } catch { return v; }
+      };
+
+      // Subscribe to unit-level siblings (try sourceDeviceId first, fallback to deviceId on empty)
+      unitsUnsubRef.current = onSnapshot(qBySource, (snap) => {
+        if (!snap.empty) {
+          const units = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+          setUnitSiblings(units);
+          // Derive selectedDeviceCount from first doc or serials length
+          const data: any = snap.docs[0].data();
+          const countAliases = ['deviceCount','DeviceCount','deviceCount1','DeviceCount1','count','Count','quantity','Quantity','qty','Qty'];
+          const parsed = coerceNumberFromKeys(data, countAliases);
+          const count = parsed ?? (Array.isArray(data?.serials) ? data.serials.length : null);
+          setSelectedDeviceCount(count ?? null);
+        } else {
+          // Try legacy key
+          if (unitsUnsubRef.current) { unitsUnsubRef.current(); unitsUnsubRef.current = null; }
+          unitsUnsubRef.current = onSnapshot(qByLegacy, (snap2) => {
+            const units = snap2.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+            setUnitSiblings(units);
+            const data: any = snap2.docs[0]?.data?.() ? (snap2.docs[0] as any).data() : undefined;
+            if (data) {
+              const countAliases = ['deviceCount','DeviceCount','deviceCount1','DeviceCount1','count','Count','quantity','Quantity','qty','Qty'];
+              const parsed = coerceNumberFromKeys(data, countAliases);
+              const count = parsed ?? (Array.isArray(data?.serials) ? data.serials.length : null);
+              setSelectedDeviceCount(count ?? null);
+            } else {
+              setSelectedDeviceCount(null);
+            }
+          }, () => setUnitSiblings([]));
+        }
+        setSelectedDeviceCountLoading(false);
+        setUnitSiblingsLoading(false);
+      }, () => {
+        setUnitSiblings([]);
+        setSelectedDeviceCountLoading(false);
+        setUnitSiblingsLoading(false);
+      });
+
+      // Live total count for this user's devices
+      allUserDevicesUnsubRef.current = onSnapshot(query(userDevicesCol, where('uid', '==', uid)), (allSnap) => {
         let totalCount = 0;
-        allUserDevicesSnap.docs.forEach(doc => {
+        allSnap.docs.forEach(doc => {
           const data = doc.data();
           const countAliases = ['deviceCount','DeviceCount','deviceCount1','DeviceCount1','count','Count','quantity','Quantity','qty','Qty'];
           const parsed = coerceNumberFromKeys(data, countAliases);
@@ -231,21 +268,7 @@ const AboutDevices: React.FC = () => {
           totalCount += count;
         });
         setUserTotalDevices(totalCount);
-      } catch (e) {
-      }
-
-      // Fetch unit-level siblings directly (Option A)
-      try {
-        let unitsSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid), where('sourceDeviceId', '==', device.id)));
-        if (unitsSnap.empty) {
-          // Legacy fallback key
-          unitsSnap = await getDocs(query(userDevicesCol, where('uid', '==', uid), where('deviceId', '==', device.id)));
-        }
-        const units = unitsSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
-        setUnitSiblings(units);
-      } catch {
-        setUnitSiblings([]);
-      }
+      });
 
       // Compute same-model count for this user by modelNumber (fallback to unit count if model missing)
       try {
@@ -262,8 +285,7 @@ const AboutDevices: React.FC = () => {
     } catch (e) {
       setSelectedDeviceCount(null);
     } finally {
-      setSelectedDeviceCountLoading(false);
-      setUnitSiblingsLoading(false);
+      // loading states will be finalized by snapshots
     }
   };
 
@@ -421,7 +443,12 @@ const AboutDevices: React.FC = () => {
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto transition-all duration-300"
           role="dialog"
           aria-modal="true"
-          onClick={() => { setSelectedDevice(null); setSelectedDeviceCount(null); setUserTotalDevices(null); }}
+          onClick={() => {
+            // cleanup subscriptions when closing
+            if (unitsUnsubRef.current) { unitsUnsubRef.current(); unitsUnsubRef.current = null; }
+            if (allUserDevicesUnsubRef.current) { allUserDevicesUnsubRef.current(); allUserDevicesUnsubRef.current = null; }
+            setSelectedDevice(null); setSelectedDeviceCount(null); setUserTotalDevices(null);
+          }}
         >
           <div
             ref={modalRef}
@@ -437,7 +464,11 @@ const AboutDevices: React.FC = () => {
               </div>
               <button
                 className="px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 text-sm font-medium shadow-sm"
-                onClick={() => { setSelectedDevice(null); setSelectedDeviceCount(null); setUserTotalDevices(null); }}
+                onClick={() => {
+                  if (unitsUnsubRef.current) { unitsUnsubRef.current(); unitsUnsubRef.current = null; }
+                  if (allUserDevicesUnsubRef.current) { allUserDevicesUnsubRef.current(); allUserDevicesUnsubRef.current = null; }
+                  setSelectedDevice(null); setSelectedDeviceCount(null); setUserTotalDevices(null);
+                }}
                 aria-label="Close modal"
               >
                 Close
@@ -537,6 +568,14 @@ const AboutDevices: React.FC = () => {
               {/* Serial Numbers Card */}
               {(() => {
                 // Build serial items from unitSiblings when available; else use selectedDevice serials
+                const normalizeToISO = (v: any): any => {
+                  try {
+                    if (v && typeof v === 'object' && typeof v.toDate === 'function') return (v as Timestamp).toDate().toISOString();
+                    if (typeof v === 'number') { const ms = v < 1e12 ? v * 1000 : v; return new Date(ms).toISOString(); }
+                    return v;
+                  } catch { return v; }
+                };
+
                 const fromUnits = Array.isArray(unitSiblings) && unitSiblings.length > 0
                   ? unitSiblings.flatMap((dev: any) => {
                       const arr = Array.isArray(dev.serials)
@@ -545,18 +584,18 @@ const AboutDevices: React.FC = () => {
                       if (arr.length > 0) {
                         return arr.map((sn: any) => ({
                           serialNumber: sn?.serialNumber || sn?.serial,
-                          warrantyExpiry: sn?.warrantyExpiry ?? sn?.warrantyexpiry ?? sn?.warrantyEnd,
+                          warrantyExpiry: normalizeToISO(sn?.warrantyExpiry ?? sn?.warrantyexpiry ?? sn?.warrantyEnd),
                         }));
                       }
                       // Fallback to new top-level fields
                       const tlSerial = dev?.serialNumber || dev?.serial;
-                      const tlExpiry = dev?.warrantyExpiry ?? dev?.warrantyexpiry ?? dev?.warrantyEnd;
+                      const tlExpiry = normalizeToISO(dev?.warrantyExpiry ?? dev?.warrantyexpiry ?? dev?.warrantyEnd);
                       return tlSerial ? [{ serialNumber: tlSerial, warrantyExpiry: tlExpiry }] : [];
                     })
                   : [];
                 const own = (selectedDevice.serialNumbers || selectedDevice.serials || []).map((sn: any) => ({
                   serialNumber: sn?.serialNumber || sn?.serial,
-                  warrantyExpiry: sn?.warrantyExpiry ?? sn?.warrantyexpiry ?? sn?.warrantyEnd,
+                  warrantyExpiry: normalizeToISO(sn?.warrantyExpiry ?? sn?.warrantyexpiry ?? sn?.warrantyEnd),
                 }));
                 const serialItems = (fromUnits.length > 0 ? fromUnits : own).filter((i: any) => i.serialNumber);
                 if (serialItems.length === 0) return null;
