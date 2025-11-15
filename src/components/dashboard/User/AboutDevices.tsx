@@ -349,7 +349,26 @@ const AboutDevices: React.FC = () => {
       `}</style>
       <div className="flex flex-col gap-4 mb-6">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">My Devices</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <span>My Devices</span>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              className="h-6 w-6 text-teal-500 dark:text-teal-400"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="4" width="18" height="14" rx="2" />
+              <path d="M8 20h8" />
+              <path d="M12 16v4" />
+              <circle cx="9" cy="9" r="1" />
+              <circle cx="12" cy="9" r="1" />
+              <circle cx="15" cy="9" r="1" />
+            </svg>
+          </h1>
           <p className="text-xs text-gray-600 dark:text-gray-400 m-0">{devices.length} total • {filtered.length} shown</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 w-full min-w-0">
@@ -377,7 +396,7 @@ const AboutDevices: React.FC = () => {
           </select>
         </div>
       </div>
-      
+
       {filtered.length === 0 ? (
         <div className="mt-8 text-center py-14 bg-gray-50 rounded-2xl border border-gray-200 dark:bg-gray-900/50 dark:border-gray-800">
           <svg className="mx-auto h-12 w-12 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">

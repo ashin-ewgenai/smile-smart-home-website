@@ -587,13 +587,13 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
                           onClick={() => setEditingField('serials')}
                           className="mt-2 text-sm text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 flex items-center gap-1"
                         >
-                          <span>Edit Serial Numbers</span>
+                          <span>Edit Serial and Warranty</span>
                         </button>
                       </div>
                     )}
                   </div>
                 </div>
-                
+
                 {/* Added On Section */}
                 <div className="grid grid-cols-3 gap-4 mt-4">
                   <div className="text-gray-600 dark:text-gray-400">Added On</div>

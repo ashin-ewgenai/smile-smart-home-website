@@ -861,7 +861,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                       const isOpen = !!openIds[id];
                       const createdAt = r.createdAt ? (r.createdAt.toDate ? r.createdAt.toDate() : new Date(r.createdAt.seconds * 1000)) : null;
                       return (
-                        <div key={id} className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all hover:border-teal-500/50 hover:bg-gray-50 dark:bg-white/50 dark:bg-gray-800/50 dark:border-gray-700">
+                        <div key={id} className="bg-white rounded-lg border border-gray-200 overflow-hidden transition-all hover:border-teal-500/50 hover:bg-gray-50 dark:bg-gray-800/50 dark:border-gray-700">
                           <button
                             type="button"
                             className="w-full text-left p-4 flex justify-between items-center hover:bg-gray-50 transition-colors dark:hover:bg-gray-700/50"
@@ -870,7 +870,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             onClick={() => toggleOpen(id)}
                           >
                             <div className="flex-1 min-w-0">
-                              <h3 className="font-medium truncate text-gray-900 dark:text-gray-900 dark:text-gray-200">{r.email || 'No Email'}</h3>
+                              <h3 className="font-medium truncate text-gray-900 dark:text-gray-200">{r.email || 'No Email'}</h3>
                               {createdAt && (
                                 <p className="text-xs text-gray-500 mt-1">
                                   {createdAt.toLocaleDateString()} • {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -884,7 +884,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                             </span>
                           </button>
                           {isOpen && (
-                            <div id={`contact-panel-${id}`} className="text-sm text-gray-700 p-4 bg-gray-50 dark:text-gray-600 dark:text-gray-300 dark:bg-gray-800/30">
+                            <div id={`contact-panel-${id}`} className="text-sm text-gray-700 p-4 bg-gray-50 dark:text-gray-300 dark:bg-gray-800/30">
                               <div className="space-y-3">
                                 <div>
                                   <div className="text-gray-500">Full Name</div>
@@ -1196,6 +1196,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                         <>
                           <th className="py-2 pr-4 hidden md:table-cell">Device Name</th>
                           <th className="py-2 pr-4 hidden md:table-cell">Type</th>
+                          <th className="py-2 pr-4 hidden md:table-cell">Serial</th>
                           <th className="py-2 px-4 md:hidden">Device Details</th>
                         </>
                       ) : activeTab === 'tickets' ? (
@@ -1253,7 +1254,7 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                                         e.stopPropagation();
                                         openDetails('devices', row.id, row);
                                       }}
-                                      className="text-gray-900 dark:text-gray-400 hover:text-teal-500 dark:text-gray-500 dark:hover:text-teal-400"
+                                      className="text-gray-900 dark:text-gray-400 hover:text-teal-500 dark:hover:text-teal-400"
                                     >
                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                         <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
@@ -1291,40 +1292,32 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                               </span>
                             </td>
                             <td className="py-3 pr-4 hidden md:table-cell">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-gray-700 dark:text-gray-300">
-                                  {row.type || 'Unknown'}
+                              <span className="text-sm text-gray-700 dark:text-gray-300">
+                                {row.type || 'Unknown'}
+                              </span>
+                            </td>
+                            <td className="py-3 pr-4 hidden md:table-cell">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="text-xs font-mono text-gray-700 dark:text-gray-300">
+                                  {row.serialNumber || row.serial || row.id}
                                 </span>
-                                <div className="flex items-center gap-2 ml-2">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      openDetails('devices', row.id, row);
-                                    }}
-                                    className="text-gray-900 dark:text-gray-400 hover:text-teal-500 dark:text-gray-500 dark:hover:text-teal-400"
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                                    </svg>
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setConfirmDialog({
-                                        open: true,
-                                        message: 'Are you sure you want to remove this device from the user?',
-                                        onConfirm: () => deleteDevice(row.id)
-                                      });
-                                    }}
-                                    className="text-gray-900 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-500"
-                                    aria-label="Remove device"
-                                  >
-                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
-                                      <path d="M9 3a1 1 0 00-1 1v1H5.5a.75.75 0 000 1.5h13a.75.75 0 000-1.5H16V4a1 1 0 00-1-1H9z" />
-                                      <path fillRule="evenodd" d="M6.5 7h11l-.86 12.04A2.25 2.25 0 0114.4 21H9.6a2.25 2.25 0 01-2.24-1.96L6.5 7zm4.25 3.25a.75.75 0 10-1.5 0v7a.75.75 0 001.5 0v-7zm3 0a.75.75 0 10-1.5 0v7a.75.75 0 001.5 0v-7z" clipRule="evenodd" />
-                                    </svg>
-                                  </button>
-                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConfirmDialog({
+                                      open: true,
+                                      message: 'Are you sure you want to remove this device from the user?',
+                                      onConfirm: () => deleteDevice(row.id)
+                                    });
+                                  }}
+                                  className="text-gray-900 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-500"
+                                  aria-label="Remove device"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-5 w-5">
+                                    <path d="M9 3a1 1 0 00-1 1v1H5.5a.75.75 0 000 1.5h13a.75.75 0 000-1.5H16V4a1 1 0 00-1-1H9z" />
+                                    <path fillRule="evenodd" d="M6.5 7h11l-.86 12.04A2.25 2.25 0 0114.4 21H9.6a2.25 2.25 0 01-2.24-1.96L6.5 7zm4.25 3.25a.75.75 0 10-1.5 0v7a.75.75 0 001.5 0v-7zm3 0a.75.75 0 10-1.5 0v7a.75.75 0 001.5 0v-7z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
                               </div>
                             </td>
                           </tr>

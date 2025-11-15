@@ -732,7 +732,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                     className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
                     aria-label="Open Request Service"
                   >
-                    <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mb-2">
+                    <div className="h-10 w-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mb-2 transition-transform duration-300 hover:-rotate-12">
                       <Wrench className="h-5 w-5 text-green-600 dark:text-green-300" />
                     </div>
                     {!billingCompact && (
@@ -742,10 +742,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                   {/* About Device */}
                   <Link
                     to="/about-device"
-                    className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
+                    className={`group flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
                     aria-label="Open About Device"
                   >
-                    <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center mb-2">
+                    <div className="h-10 w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center mb-2 transition-transform duration-300 group-hover:-rotate-12">
                       <Home className="h-5 w-5 text-indigo-600 dark:text-indigo-300" />
                     </div>
                     {!billingCompact && (
@@ -755,11 +755,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                   {/* Quote Portal */}
                   <Link
                     to="/quote-portal"
-                    className={`flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
+                    className={`group flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-700 rounded-full hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors`}
                     aria-label="Open Quote Portal"
                   >
                     <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center mb-2">
-                      <Calendar className="h-5 w-5 text-amber-600 dark:text-amber-300" />
+                      <Calendar className="h-5 w-5 text-amber-600 dark:text-amber-300 transition-transform duration-300 group-hover:-rotate-12" />
                     </div>
                     {!billingCompact && (
                       <span className="text-sm font-medium text-gray-900 dark:text-white">Quote Portal</span>
