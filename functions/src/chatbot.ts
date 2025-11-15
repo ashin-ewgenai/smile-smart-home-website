@@ -283,13 +283,15 @@ export const chatWithOpenAI = onCall(
   const lastUserMsg = [...clean].reverse().find((m) => m.role === "user")?.content || "";
   const isWarrantyQuestion = /\b(warranty|guarantee|coverage|warran|wty)\b/i.test(String(lastUserMsg));
   // Detect device information requests (e.g., device info/details/status/specs)
-  const isDeviceInfoQuestion = /\b(device\s*(info|information|details|status)|show\s*(my\s*)?device\s*(info|details)|about\s*(this|the)\s*device|device\s*specs?|brand|model|manufacturer)\b/i.test(String(lastUserMsg));
+  const isDeviceInfoQuestion = /\b(device\s*(info|information|details|status)|show\s*(my\s*)?device\s*(info|details)|about\s*(this|the)\s*device|device\s*specs?|brand|model|manufacturer|give\s*me\s*(the\s*)?details\s*of|show\s*me\s*(the\s*)?details\s*of|what\s*are\s*the\s*details\s*of)\b/i.test(String(lastUserMsg));
   // Broader device-related intent detection (e.g., "show camera details", "what about my bulb")
   const deviceTokenRe = /(light|bulb|camera|cctv|plug|switch|sensor|thermostat|router|device|smart\s+light|strip|lock)/i;
   const intentTokenRe = /(info|information|details|status|spec|specs|manual|documentation|about|show|what|how|guide|help)/i;
   const isDeviceRelatedQuestion = deviceTokenRe.test(String(lastUserMsg)) && intentTokenRe.test(String(lastUserMsg));
   // Problem / not-working detection (expanded coverage)
-  const isProblemIssue = /(\bnot\s*working\b|doesn['’]?t\s*work|doesnt\s*work|\bproblem\b|\bissue\b|\bbroken\b|malfunction(ing)?|stopped\s*working|not\s*respond(ing)?|unresponsive|offline|disconnected|disconnect(ing)?|cannot\s*connect|can't\s*connect|won'?t\s*turn\s*on|no\s*power|error|fault|crash(ed)?|freeze|frozen|lag(gy)?|slow|overheat(ing)?) /i.test(String(lastUserMsg));
+  // But exclude messages that are just serial numbers
+  const isJustSerialNumber = /^[A-Za-z0-9\-]{6,}$/.test(String(lastUserMsg).trim());
+  const isProblemIssue = !isJustSerialNumber && /(\bnot\s*working\b|doesn['’]?t\s*work|doesnt\s*work|\bproblem\b|\bissue\b|\bbroken\b|malfunction(ing)?|stopped\s*working|not\s*respond(ing)?|unresponsive|offline|disconnected|disconnect(ing)?|cannot\s*connect|can't\s*connect|won'?t\s*turn\s*on|no\s*power|error|fault|crash(ed)?|freeze|frozen|lag(gy)?|slow|overheat(ing)?) /i.test(String(lastUserMsg));
 
   // Global serial detector: acknowledge serial presence and prompt next action when no explicit intent
   let globalSerialMatchedDevice: any = null;
@@ -1004,12 +1006,31 @@ PRIVACY & SAFETY:
     }
 
     // Global serial detection: if user provided a serial but no explicit intent, acknowledge and prompt next action
-    // BUT check if user was previously asking for troubleshooting help
+    // BUT check if user was previously asking for troubleshooting help OR if they're responding to a menu
     if (!isWarrantyQuestion && !isDeviceInfoQuestion && !isProblemIssue && globalSerialMatchedDevice) {
+      console.log("=== GLOBAL SERIAL DETECTION ===");
+      console.log("Last user message:", lastUserMsg);
+      console.log("isWarrantyQuestion:", isWarrantyQuestion);
+      console.log("isDeviceInfoQuestion:", isDeviceInfoQuestion);
+      console.log("isProblemIssue:", isProblemIssue);
+      console.log("globalSerialMatchedDevice:", globalSerialMatchedDevice?.deviceName || globalSerialMatchedDevice?.name);
       try {
+        // Check if the bot recently showed a menu with device options
+        const recentlyShowedMenu = clean.slice(-2).some((msg: any) => {
+          const content = String(msg.content || '').toLowerCase();
+          return msg.role === 'assistant' && 
+                 content.includes('what would you like to do next') &&
+                 content.includes('show device details');
+        });
+
         // Check if user was previously asking for troubleshooting by looking at recent conversation
+        // Exclude device info requests from troubleshooting detection
         const wasPreviouslyTroubleshooting = clean.slice(-3).some((msg: any) => {
           const content = String(msg.content || '').toLowerCase();
+          // Don't treat device info requests as troubleshooting
+          const isDeviceInfoRequest = /\b(device\s*(info|information|details|status)|show\s*(my\s*)?device\s*(info|details)|about\s*(this|the)\s*device|device\s*specs?|give\s*me\s*(the\s*)?details\s*of)\b/i.test(content);
+          if (isDeviceInfoRequest) return false;
+          
           return content.includes('troubleshoot') || 
                  content.includes('not working') || 
                  content.includes('not turning on') ||
@@ -1020,7 +1041,58 @@ PRIVACY & SAFETY:
                  content.includes('fix');
         });
 
-        if (wasPreviouslyTroubleshooting) {
+        // Check if bot recently gave troubleshooting advice to avoid repetition
+        const recentlyGaveTroubleshooting = clean.slice(-2).some((msg: any) => {
+          const content = String(msg.content || '').toLowerCase();
+          return msg.role === 'assistant' && 
+                 (content.includes('check the battery') || 
+                  content.includes('reset the device') ||
+                  content.includes('restart the') ||
+                  content.includes('troubleshoot') ||
+                  content.includes('try the following'));
+        });
+
+        // Check if bot recently asked for serial number for device info purposes
+        const recentlyAskedForDeviceInfoSerial = clean.slice(-2).some((msg: any) => {
+          const content = String(msg.content || '').toLowerCase();
+          return msg.role === 'assistant' && 
+                 content.includes('serial number') &&
+                 (content.includes('details') || 
+                  content.includes('information') ||
+                  content.includes('fetch') ||
+                  content.includes('verify') ||
+                  content.includes('show'));
+        });
+
+        console.log("recentlyShowedMenu:", recentlyShowedMenu);
+        console.log("wasPreviouslyTroubleshooting:", wasPreviouslyTroubleshooting);
+        console.log("recentlyGaveTroubleshooting:", recentlyGaveTroubleshooting);
+        console.log("recentlyAskedForDeviceInfoSerial:", recentlyAskedForDeviceInfoSerial);
+
+        if (recentlyShowedMenu || recentlyGaveTroubleshooting || recentlyAskedForDeviceInfoSerial) {
+          // User is responding to the menu with a serial number OR bot recently gave troubleshooting OR bot asked for serial for device info - show device details by default
+          const name = globalSerialMatchedDevice.deviceName || globalSerialMatchedDevice.name || 'Device';
+          const type = globalSerialMatchedDevice.deviceType || globalSerialMatchedDevice.type || 'Device';
+          const model = globalSerialMatchedDevice.deviceModel || globalSerialMatchedDevice.model || globalSerialMatchedDevice.modelNumber || '';
+          const brand = globalSerialMatchedDevice.brand || globalSerialMatchedDevice.manufacturer || globalSerialMatchedDevice.vendor || globalSerialMatchedDevice.make || '';
+          const serialMasked = typeof globalSerialMatchedSerialRaw === 'string' && globalSerialMatchedSerialRaw
+            ? `***${String(globalSerialMatchedSerialRaw).slice(-4)}`
+            : '';
+          const warranty = globalSerialMatchedDevice.warrantyExpiry || globalSerialMatchedDevice.warrantyEnd || undefined;
+          const documentation = globalSerialMatchedDevice.documentation || globalSerialMatchedDevice.manualUrl || undefined;
+          
+          const lines = [
+            `Here are the device details I found:`,
+            `- Name: ${name}`,
+            `- Type: ${type}`,
+            model ? `- Model: ${model}` : '',
+            brand ? `- Brand: ${brand}` : '',
+            serialMasked ? `- Serial: ${serialMasked} (masked)` : '',
+            warranty ? `- Warranty expiry: ${warranty}` : '',
+            documentation ? `- Docs: ${documentation}` : '',
+          ].filter(Boolean);
+          enhancedReply = lines.join('\n');
+        } else if (wasPreviouslyTroubleshooting) {
           // Continue with troubleshooting instead of showing menu
           const name = globalSerialMatchedDevice.deviceName || globalSerialMatchedDevice.name || 'Device';
           const type = globalSerialMatchedDevice.deviceType || globalSerialMatchedDevice.type || 'Device';
@@ -1096,7 +1168,19 @@ PRIVACY & SAFETY:
     }
 
     // Problem / not working flow
-    if (isProblemIssue) {
+    // But skip if bot recently asked for device info serial (to prevent showing troubleshooting instead of device details)
+    const botRecentlyAskedForDeviceInfo = clean.slice(-2).some((msg: any) => {
+      const content = String(msg.content || '').toLowerCase();
+      return msg.role === 'assistant' && 
+             content.includes('serial number') &&
+             (content.includes('details') || 
+              content.includes('information') ||
+              content.includes('fetch') ||
+              content.includes('verify') ||
+              content.includes('show'));
+    });
+    
+    if (isProblemIssue && !botRecentlyAskedForDeviceInfo) {
       if (problemMatchedDevice) {
         try {
           const name = problemMatchedDevice.deviceName || problemMatchedDevice.name || 'Device';
