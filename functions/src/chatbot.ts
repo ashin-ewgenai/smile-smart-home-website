@@ -44,7 +44,7 @@ const CONFIG = {
 
 const ENABLE_SERIAL_PARSING = false;
 
-const DEVICE_DETAILS_PROMPT_TEMPLATE = (
+export const DEVICE_DETAILS_PROMPT_TEMPLATE = (
   devices: any,
   userMessage: string
 ) => `
