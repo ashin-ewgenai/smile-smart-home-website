@@ -259,6 +259,31 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
       
       if (userDevicesSnapshot.empty) {
         // Create new user device document if it doesn't exist
+        if (field === 'serials') {
+          const serialArray: SerialData[] = Array.isArray(value) && value.length
+            ? value
+            : [{ serialNumber: '', warrantyExpiry: '' }];
+
+          for (const serial of serialArray) {
+            const newUserDeviceRef = doc(collection(db, 'User_Devices'));
+            const updateData: any = {
+              uid: userId,
+              sourceDeviceId: deviceId,
+              addedAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              serialNumber: serial.serialNumber || '',
+              warrantyExpiry: serial.warrantyExpiry || ''
+            };
+            await setDoc(newUserDeviceRef, updateData);
+          }
+
+          setNumberOfDevices(serialArray.length || 1);
+          setDevice(prev => prev ? { ...prev, serials: serialArray } : null);
+          setEditingSerials(serialArray);
+          setEditingField(null);
+          return;
+        }
+
         const newUserDeviceRef = doc(collection(db, 'User_Devices'));
         const updateData: any = {
           uid: userId,
@@ -272,10 +297,6 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
         } else if (field === 'numberOfDevices') {
           // Single-serial docs; initialize empty serialNumber
           updateData.serialNumber = '';
-        } else if (field === 'serials') {
-          const first = Array.isArray(value) && value.length ? value[0] : { serialNumber: '', warrantyExpiry: '' };
-          updateData.serialNumber = first.serialNumber || '';
-          updateData.warrantyExpiry = first.warrantyExpiry || '';
         }
         
         await setDoc(newUserDeviceRef, updateData);
@@ -287,46 +308,53 @@ const DeviceDetailsModal: React.FC<DeviceDetailsModalProps> = ({ isOpen, onClose
           setNumberOfDevices(1);
           setDevice(prev => prev ? { ...prev, serials: [{ serialNumber: '', warrantyExpiry: '' }] } : null);
           setEditingSerials([{ serialNumber: '', warrantyExpiry: '' }]);
-        } else if (field === 'serials') {
-          const first = Array.isArray(value) && value.length ? value[0] : { serialNumber: '', warrantyExpiry: '' };
-          setNumberOfDevices(1);
-          setDevice(prev => prev ? { ...prev, serials: [first] } : null);
         }
         
         setEditingField(null);
         return;
       }
       
-      const userDeviceRef = userDevicesSnapshot.docs[0].ref;
-      
-      // Prepare update data based on field
       const updateData: any = {
         updatedAt: new Date().toISOString()
       };
       
       if (field === 'serial') {
-        // Update top-level serialNumber for single-entry docs
+        const userDeviceRef = userDevicesSnapshot.docs[0].ref;
         updateData.serialNumber = value;
+        await setDoc(userDeviceRef, updateData, { merge: true });
+        const serialObj = { serialNumber: value, warrantyExpiry: (device?.serials?.[0]?.warrantyExpiry || '') };
+        setDevice(prev => prev ? { ...prev, serials: [serialObj], serial: value } : null);
       } else if (field === 'numberOfDevices') {
         // Always 1 for single-serial docs; ignore changes but sync local state/UI
         setNumberOfDevices(1);
         setDevice(prev => prev ? { ...prev, serials: prev.serials?.length ? prev.serials.slice(0, 1) : [{ serialNumber: '', warrantyExpiry: '' }] } : null);
       } else if (field === 'serials') {
-        // Write first serial object into top-level fields
-        const first = Array.isArray(value) && value.length ? value[0] : { serialNumber: '', warrantyExpiry: '' };
-        updateData.serialNumber = first.serialNumber || '';
-        updateData.warrantyExpiry = first.warrantyExpiry || '';
-        setNumberOfDevices(1);
-        setDevice(prev => prev ? { ...prev, serials: [first] } : null);
-      }
-      
-      // Update the document
-      await setDoc(userDeviceRef, updateData, { merge: true });
-      
-      // Update local state for serial field
-      if (field === 'serial') {
-        const serialObj = { serialNumber: value, warrantyExpiry: (device?.serials?.[0]?.warrantyExpiry || '') };
-        setDevice(prev => prev ? { ...prev, serials: [serialObj], serial: value } : null);
+        const serialArray: SerialData[] = Array.isArray(value) && value.length
+          ? value
+          : [{ serialNumber: '', warrantyExpiry: '' }];
+
+        const docs = userDevicesSnapshot.docs;
+        for (let i = 0; i < serialArray.length; i++) {
+          const serial = serialArray[i];
+          const ref = i < docs.length ? docs[i].ref : doc(collection(db, 'User_Devices'));
+          const perSerialUpdate: any = {
+            uid: userId,
+            sourceDeviceId: deviceId,
+            updatedAt: new Date().toISOString(),
+            serialNumber: serial.serialNumber || '',
+            warrantyExpiry: serial.warrantyExpiry || ''
+          };
+          if (i >= docs.length) {
+            perSerialUpdate.addedAt = new Date().toISOString();
+          }
+          await setDoc(ref, perSerialUpdate, { merge: true });
+        }
+
+        // If there are more docs than serials, we leave them untouched for now.
+
+        setNumberOfDevices(serialArray.length || 1);
+        setDevice(prev => prev ? { ...prev, serials: serialArray } : null);
+        setEditingSerials(serialArray);
       }
       
       setEditingField(null);

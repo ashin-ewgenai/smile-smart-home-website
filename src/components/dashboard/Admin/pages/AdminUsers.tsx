@@ -198,6 +198,18 @@ const AdminUsers: React.FC = () => {
     setAddError('');
     
     try {
+      const pwd = addPassword || '';
+      const hasMinLength = pwd.length >= 8;
+      const hasUpper = /[A-Z]/.test(pwd);
+      const hasLower = /[a-z]/.test(pwd);
+      const hasDigit = /[0-9]/.test(pwd);
+
+      if (!hasMinLength || !hasUpper || !hasLower || !hasDigit) {
+        setAddError('Password must be at least 8 characters and include uppercase, lowercase letters and numbers.');
+        setAdding(false);
+        return;
+      }
+
       // Create a secondary app to avoid switching the current admin session
       const secondaryName = 'admin-secondary';
       const secondaryApp = getApps().find(a => a.name === secondaryName) || initializeApp((firebaseApp as any).options, secondaryName);

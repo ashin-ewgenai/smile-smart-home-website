@@ -1032,9 +1032,9 @@ const AdminUserDetail: React.FC<Props> = ({ email: emailProp, onBack }) => {
                     {/* Right: UID & Role */}
                     <div className="grid grid-cols-2 gap-3 sm:gap-4 text-center md:text-left">
                       <div className="text-gray-900 dark:text-gray-400 font-medium">UID</div>
-                      <div className="text-gray-900 dark:text-gray-200 truncate" title={account.Uid}>
-                        <div className="group/uid inline-flex items-center gap-1 flex-wrap">
-                          <span className="font-mono text-xs sm:text-sm tracking-wider px-2 py-1 rounded bg-gray-100 dark:bg-gray-800/60 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200">
+                      <div className="text-gray-900 dark:text-gray-200 min-w-0" title={account.Uid}>
+                        <div className="group/uid inline-flex items-center gap-1 flex-wrap max-w-full">
+                          <span className="font-mono text-xs sm:text-sm tracking-wider px-2 py-1 rounded bg-gray-100 dark:bg-gray-800/60 border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 break-all">
                             {showUid ? (account.Uid || '—') : maskUid(account.Uid)}
                           </span>
                           <div className="opacity-100 md:opacity-0 group-hover/uid:opacity-100 transition-opacity flex gap-1">
