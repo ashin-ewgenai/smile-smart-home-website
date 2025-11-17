@@ -26,7 +26,7 @@ const CONFIG = {
     MAX_PER_WINDOW: 15
   },
   OPENAI: {
-    MODEL: "gpt-4o-mini",
+    MODEL: "gpt-4.1",
     TEMPERATURE: 0.4,
     MAX_TOKENS: 310
   },
@@ -43,6 +43,90 @@ const CONFIG = {
 };
 
 const ENABLE_SERIAL_PARSING = false;
+
+const DEVICE_DETAILS_PROMPT_TEMPLATE = (
+  devices: any,
+  userMessage: string
+) => `
+You are a support AI. The user owns these devices:
+
+${JSON.stringify(devices, null, 2)}
+
+When the user asks for device details, find the matching device by name.
+If no device matches, say: "I couldn’t find that device in your purchases."
+User question: ${userMessage}
+`;
+
+const STRICT_SYSTEM_PROMPT = `
+You are the Smart Smile Home Support Bot.
+You are NOT allowed to answer free text questions.
+
+RULES:
+- ONLY respond when the backend sends a structured request with:
+  { action: "...", deviceData: {...} }
+- If the user types anything manually, reply ONLY with:
+  "Please use the options provided."
+
+Never generate troubleshooting steps unless the backend explicitly includes them in your input.
+Never guess device information.
+Never reply directly to user free-text.
+`;
+
+// Helper: fetch all devices for a user and build device summaries
+async function loadUserDevicesAndSummaries(uid: string) {
+  const devicesQuery = await db.collection(CONFIG.COLLECTIONS.DEVICES).where("uid", "==", uid).get();
+  const userDevices = devicesQuery.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) })) as Array<any>;
+
+  // Debug: Log all device serials to diagnose matching issues
+  console.log("=== DEBUG USER DEVICES & SERIALS ===");
+  console.log("Devices collection:", CONFIG.COLLECTIONS.DEVICES);
+  console.log("User devices count:", userDevices.length);
+  userDevices.forEach((d: any) => {
+    console.log("USER_DEVICE DOC:", d.id, d.deviceName || d.name || "unnamed");
+    console.log(
+      "USER_DEVICE serials[]:",
+      Array.isArray(d.serials) ? d.serials.map((s: any) => s?.serialNumber || s?.serial) : []
+    );
+    console.log("USER_DEVICE deviceSerial:", d.deviceSerial, "serial:", d.serial, "serialNumber:", d.serialNumber);
+  });
+  console.log("=== END DEBUG USER DEVICES & SERIALS ===");
+
+  const maskSerial = (s: any) => {
+    const v = typeof s === "string" ? s : "";
+    if (!v) return "";
+    const last4 = v.slice(-4);
+    return v.length > 4 ? `***${last4}` : `***${last4}`;
+  };
+
+  const deviceSummaries = userDevices.map((d: any) => {
+    const serialCandidates = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean);
+    const serialMasked = serialCandidates.length > 0 ? maskSerial(serialCandidates[0]) : "";
+    const serialArray = Array.isArray(d.serials) ? d.serials : [];
+    const serialsMasked = serialArray
+      .map((e: any) => ({
+        serialNumber: maskSerial(e?.serialNumber),
+        warrantyExpiry: e?.warrantyExpiry || e?.warrantyEnd || undefined,
+      }))
+      .filter((e: any) => e.serialNumber);
+    const serialWarranty = (serialsMasked.find((e: any) => e?.warrantyExpiry)?.warrantyExpiry) || undefined;
+    const warrantyCombined = d.warrantyExpiry || d.warrantyEnd || serialWarranty || undefined;
+    return {
+      id: d.id,
+      name: d.deviceName || d.name || "Unknown Device",
+      type: d.deviceType || d.type || "Device",
+      model: d.deviceModel || d.model || d.modelNumber || "",
+      serial: serialMasked,
+      lastSeen: d.lastSeen || d.lastActive || undefined,
+      room: d.room || d.location || undefined,
+      installedAt: d.installedAt || d.addedAt || undefined,
+      warrantyExpiry: d.warrantyExpiry || d.warrantyEnd || undefined,
+      warrantyCombined,
+      serials: serialsMasked,
+    };
+  });
+
+  return { userDevices, deviceSummaries };
+}
 
 // ===== UTILITY FUNCTIONS =====
 
@@ -100,7 +184,7 @@ export const chatWithOpenAI = onCall(
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
 
   const msgs = request.data?.messages as Array<{ role: string; content: string }> | undefined;
-  const model = (request.data?.model as string | undefined) || "gpt-4o-mini";
+  const model = (request.data?.model as string | undefined) || CONFIG.OPENAI.MODEL;
   const providedTicketId = (request.data?.ticketId as string | undefined)?.trim();
   const noTicket: boolean = Boolean(request.data?.noTicket);
   const skipTicketId = (request.data?.skipTicketId as string | undefined)?.trim();
@@ -175,19 +259,7 @@ export const chatWithOpenAI = onCall(
   } catch {}
 
   // Device and profile context for better answers
-  const devicesQuery = await db.collection(CONFIG.COLLECTIONS.DEVICES).where("uid", "==", uid).get();
-  const userDevices = devicesQuery.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, unknown>) })) as Array<any>;
-
-  // Debug: Log all device serials to diagnose matching issues
-  console.log("=== DEBUG USER DEVICES & SERIALS ===");
-  console.log("Devices collection:", CONFIG.COLLECTIONS.DEVICES);
-  console.log("User devices count:", userDevices.length);
-  userDevices.forEach((d: any) => {
-    console.log("USER_DEVICE DOC:", d.id, d.deviceName || d.name || 'unnamed');
-    console.log("USER_DEVICE serials[]:", Array.isArray(d.serials) ? d.serials.map((s: any) => s?.serialNumber || s?.serial) : []);
-    console.log("USER_DEVICE deviceSerial:", d.deviceSerial, "serial:", d.serial, "serialNumber:", d.serialNumber);
-  });
-  console.log("=== END DEBUG USER DEVICES & SERIALS ===");
+  const { userDevices, deviceSummaries } = await loadUserDevicesAndSummaries(uid);
 
   // Fetch basic user profile (non-sensitive)
   let userProfile: any = null;
@@ -208,14 +280,6 @@ export const chatWithOpenAI = onCall(
     console.warn("Failed to fetch user profile:", e);
   }
 
-  // Mask serial number for safety: keep last 4 characters
-  const maskSerial = (s: any) => {
-    const v = typeof s === 'string' ? s : '';
-    if (!v) return '';
-    const last4 = v.slice(-4);
-    return v.length > 4 ? `***${last4}` : `***${last4}`;
-  };
-
   // Normalization helpers for robust serial matching (alphanumeric, ignore separators)
   const normalize = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const last4Of = (s: any) => normalize(s).slice(-4);
@@ -230,35 +294,6 @@ export const chatWithOpenAI = onCall(
     }
     return set;
   };
-
-  // Summarize devices with useful fields commonly present in User_Devices
-  const deviceSummaries = userDevices.map((d: any) => {
-    const serialCandidates = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean);
-    const serialMasked = serialCandidates.length > 0 ? maskSerial(serialCandidates[0]) : '';
-    const serialArray = Array.isArray(d.serials) ? d.serials : [];
-    const serialsMasked = serialArray
-      .map((e: any) => ({
-        serialNumber: maskSerial(e?.serialNumber),
-        warrantyExpiry: e?.warrantyExpiry || e?.warrantyEnd || undefined,
-      }))
-      .filter((e: any) => e.serialNumber);
-    // Compute combined warranty: prefer device-level, else first available from serials[]
-    const serialWarranty = (serialsMasked.find((e: any) => e?.warrantyExpiry)?.warrantyExpiry) || undefined;
-    const warrantyCombined = d.warrantyExpiry || d.warrantyEnd || serialWarranty || undefined;
-    return {
-      id: d.id,
-      name: d.deviceName || d.name || 'Unknown Device',
-      type: d.deviceType || d.type || 'Device',
-      model: d.deviceModel || d.model || d.modelNumber || '',
-      serial: serialMasked,
-      lastSeen: d.lastSeen || d.lastActive || undefined,
-      room: d.room || d.location || undefined,
-      installedAt: d.installedAt || d.addedAt || undefined,
-      warrantyExpiry: d.warrantyExpiry || d.warrantyEnd || undefined,
-      warrantyCombined,
-      serials: serialsMasked,
-    };
-  });
 
   // Build lightweight debug info for client-side verification (kept)
   const debugInfo = debug
@@ -416,32 +451,6 @@ export const chatWithOpenAI = onCall(
       const allSerials = [...baseSerials, ...arraySerials].filter(Boolean);
       const hit = allSerials.find((s) => s && userSerialSet.has(s));
       if (hit) { deviceInfoMatched = d; break; }
-    }
-    // If user didn't include a serial in this message, try session-persisted last match
-    if (!deviceInfoMatched) {
-      try {
-        const sSnap = await sessionsCol.doc(sessionId).get();
-        const sData = sSnap.data();
-        const lastId = (sData as any)?.lastMatchedDeviceId;
-        const lastSerial = (sData as any)?.lastMatchedSerial;
-        if (lastId || lastSerial) {
-          for (const d of userDevices) {
-            const base = [d.deviceSerial, d.serial, d.serialNumber]
-              .filter(Boolean)
-              .map((x: any) => String(x).trim().toLowerCase());
-            const arr = Array.isArray(d.serials)
-              ? d.serials.map((e: any) => String(e?.serialNumber || '').trim().toLowerCase()).filter(Boolean)
-              : [];
-            const all = [...base, ...arr];
-            const idHit = lastId && d.id === lastId;
-            const serialHit = lastSerial && all.includes(String(lastSerial).trim().toLowerCase());
-            if (idHit || serialHit) {
-              deviceInfoMatched = d;
-              break;
-            }
-          }
-        }
-      } catch {}
     }
     if (deviceInfoMatched) {
       // Persist matched device and serial for session continuity in device-info flow
@@ -807,45 +816,95 @@ export const chatWithOpenAI = onCall(
 
   const systemPrompt = {
     role: "system",
-    content: `You are a support assistant for Smile Smart Homes, verifying customer devices and helping troubleshoot their issues.
+    content: `You are the SmartSmile Home Support AI Assistant.
 
-IMPORTANT RULES:
-1. ONLY answer questions related to smart home devices, automation, IoT, home security, lighting, climate control, entertainment systems, and Smile Smart Homes products/services.
-2. Provide helpful, actionable guidance without asking for serial numbers, EXCEPT for:
-   - Explicit device information requests (info/specs/status/details): you MUST ask for the full device serial to verify the exact device before showing its details.
-   - Warranty questions: you MUST ask for the full device serial to fetch the warranty for that specific device. If a serial appears in the message, use it to answer.
-3. Analyze each user message to determine if it's a COMPLAINT or GENERAL QUERY.
-4. If the message is unclear, ask ONE concise clarifying question (<=20 words).
-5. If no prior assistant message exists, begin with a brief greeting.
-6. For device problems/troubleshooting: you MUST ask for the full device serial number to verify the exact device before suggesting steps. If a serial appears in the message, use it.
+The user is authenticated inside the SmartSmile Home platform. 
+You MUST follow all rules below without exception.
 
-WORKFLOW RULES:
-- For NEW COMPLAINTS without active ticket: Suggest creating a support ticket and provide helpful guidance
-- For users WITH active ticket: Acknowledge the existing ticket and offer to help with troubleshooting
-- For GENERAL QUERIES: Provide helpful answers
-- NEVER ask for ticket numbers - always automatically fetch unresolved tickets
-- If active ticket context is provided, ALWAYS acknowledge the existing ticket first
-- Consider troubleshooting history to avoid repeating failed solutions
-- If troubleshooting attempts are at 3/3, suggest escalation to human support
+────────────────────────────────────────
+USER CONTEXT (Dynamic – provided by backend)
+- User ID: ${uid}
+- User Name: ${userProfile?.displayName || 'Unknown'}
+- Purchased Products: ${deviceSummaries && deviceSummaries.length ? deviceSummaries.map((d: any) => `${d.name}${d.model ? ` (${d.model})` : ''}`).slice(0, 10).join(', ') : 'None'}
+- Product Specifications / Knowledge Base: ${'N/A'}
+- Conversation History: ${clean.map((m: any) => `${m.role}: ${typeof m.content === 'string' ? m.content.slice(0, 160) : ''}`).slice(-6).join(' | ')}
 
-RESPONSE FORMAT:
-- Provide natural, conversational responses without technical prefixes
-- For complaints needing ticket: Explain that they should create a support ticket for better assistance
-- For ticket verification: Acknowledge their existing ticket and confirm you can help
-- For device selection: Ask them to specify which device needs help
-- Keep responses concise and professional (under 150 words)
-- NEVER start responses with technical codes like "REQUIRES_TICKET:" or "DEVICE_SELECTION:"
+You must use this data to personalize answers.
+────────────────────────────────────────
 
-USER CONTEXT:
+PRIMARY ROLE:
+Your job is to provide first-line support for ONLY the products the user owns.
+
+────────────────────────────────────────
+RULES FOR SUPPORT:
+1. You may ONLY help with products inside ${deviceSummaries && deviceSummaries.length ? 'the user\'s purchased products' : 'the user\'s purchased products'}.
+   If a user asks about something else, reply:
+   “I can help only with SmartSmile Home products linked to your account.”
+
+2. Provide step-by-step troubleshooting.
+   - Be simple  
+   - Clear  
+   - One step at a time  
+
+3. If the issue is unclear:
+   ASK a clarifying question before giving a solution.
+
+4. NEVER escalate yourself.
+   You must ALWAYS attempt to resolve the problem first.
+
+5. NEVER mention the evaluator model or internal system logic.
+
+6. ALWAYS answer as “assistant”, NOT “system”, NOT “developer”.
+
+7. If images are included, use them to diagnose the issue.
+
+────────────────────────────────────────
+STRUCTURE OF EVERY RESPONSE:
+Your output must ONLY be one of the following:
+A) A troubleshooting answer  
+B) A clarifying question  
+
+NEVER output:
+- “I will escalate this.”
+- “I will create a ticket.”
+- “A human will help you.”
+
+These actions are done by the EVALUATOR model, NOT by you.
+
+────────────────────────────────────────
+IF USER ASKS FOR HUMAN SUPPORT:
+Still attempt help first.  
+Example:
+“I understand you want help. Let me guide you through a few steps first.”
+
+────────────────────────────────────────
+IMPORTANT LOGIC FOR BACKEND:
+After you generate a response, another model (Evaluator AI) will read:
+
+- Last user message
+- Your response
+
+and determine:
+SOLVED or NOT_SOLVED
+
+You DO NOT make this decision.
+
+────────────────────────────────────────
+WRITING STYLE:
+- Friendly  
+- Warm  
+- Supportive  
+- Professional  
+- No unnecessary long paragraphs  
+- Use numbered steps when giving instructions  
+────────────────────────────────────────
+
 ${profileContext}
 ${deviceContext}
 ${ticketContext}
 ${warrantyContext}
 
-PRIVACY & SAFETY:
-- Never reveal full serial numbers. Only masked serials are available in the context and replies.
-- Use the provided device list and user profile to tailor answers.
-- If the user asks about a specific device, match by name or model from DEVICES and answer accordingly.`,
+BEGIN ASSISTANT RESPONSE NOW.`,
   };
   console.log("System prompt content:", systemPrompt.content);
 
@@ -1069,7 +1128,32 @@ PRIVACY & SAFETY:
         console.log("recentlyGaveTroubleshooting:", recentlyGaveTroubleshooting);
         console.log("recentlyAskedForDeviceInfoSerial:", recentlyAskedForDeviceInfoSerial);
 
-        if (recentlyShowedMenu || recentlyGaveTroubleshooting || recentlyAskedForDeviceInfoSerial) {
+        const isSerialOnlyMessage = isJustSerialNumber;
+
+        if (isSerialOnlyMessage) {
+          // When the user only sends a serial that matches their device, always show device details.
+          const name = globalSerialMatchedDevice.deviceName || globalSerialMatchedDevice.name || 'Device';
+          const type = globalSerialMatchedDevice.deviceType || globalSerialMatchedDevice.type || 'Device';
+          const model = globalSerialMatchedDevice.deviceModel || globalSerialMatchedDevice.model || globalSerialMatchedDevice.modelNumber || '';
+          const brand = globalSerialMatchedDevice.brand || globalSerialMatchedDevice.manufacturer || globalSerialMatchedDevice.vendor || globalSerialMatchedDevice.make || '';
+          const serialMasked = typeof globalSerialMatchedSerialRaw === 'string' && globalSerialMatchedSerialRaw
+            ? `***${String(globalSerialMatchedSerialRaw).slice(-4)}`
+            : '';
+          const warranty = globalSerialMatchedDevice.warrantyExpiry || globalSerialMatchedDevice.warrantyEnd || undefined;
+          const documentation = globalSerialMatchedDevice.documentation || globalSerialMatchedDevice.manualUrl || undefined;
+
+          const lines = [
+            `Here are the device details I found:`,
+            `- Name: ${name}`,
+            `- Type: ${type}`,
+            model ? `- Model: ${model}` : '',
+            brand ? `- Brand: ${brand}` : '',
+            serialMasked ? `- Serial: ${serialMasked} (masked)` : '',
+            warranty ? `- Warranty expiry: ${warranty}` : '',
+            documentation ? `- Docs: ${documentation}` : '',
+          ].filter(Boolean);
+          enhancedReply = lines.join('\n');
+        } else if (recentlyShowedMenu || recentlyGaveTroubleshooting || recentlyAskedForDeviceInfoSerial) {
           // User is responding to the menu with a serial number OR bot recently gave troubleshooting OR bot asked for serial for device info - show device details by default
           const name = globalSerialMatchedDevice.deviceName || globalSerialMatchedDevice.name || 'Device';
           const type = globalSerialMatchedDevice.deviceType || globalSerialMatchedDevice.type || 'Device';
@@ -1302,7 +1386,7 @@ Provide ONE actionable troubleshooting step (under 80 words). Be specific to the
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {"Content-Type": "application/json", Authorization: `Bearer ${apiKey}`},
-    body: JSON.stringify({model: "gpt-4o-mini", messages: [{role: "user", content: prompt}], temperature: 0.2, max_tokens: 180}),
+    body: JSON.stringify({model: CONFIG.OPENAI.MODEL, messages: [{role: "user", content: prompt}], temperature: 0.2, max_tokens: 180}),
   } as any);
   if (!resp.ok) throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
   const data = await resp.json();
@@ -1538,3 +1622,63 @@ Important guidance:
     ...(deviceDetails ? { deviceInfo: deviceDetails } : {}),
   };
 });
+
+// ===== Structured strict support endpoint (uses STRICT_SYSTEM_PROMPT) =====
+export const structuredSupportAction = onCall({ secrets: [OPENAI_API_KEY], cors: true }, async (request: CallableRequest) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+
+  const data = request.data as any;
+  const action = typeof data?.action === "string" ? data.action.trim() : "";
+  const deviceData = data?.deviceData;
+  const context = data?.context ?? null;
+
+  if (!action) {
+    throw new HttpsError("invalid-argument", "'action' (string) is required.");
+  }
+  if (!deviceData || typeof deviceData !== "object" || Array.isArray(deviceData)) {
+    throw new HttpsError("invalid-argument", "'deviceData' (object) is required.");
+  }
+
+  const apiKey = OPENAI_API_KEY.value();
+  if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY is not configured");
+
+  const payload = {
+    action,
+    deviceData,
+    context,
+    userId: authCtx.uid,
+  };
+
+  const messages = [
+    { role: "system", content: STRICT_SYSTEM_PROMPT },
+    {
+      role: "user",
+      content: `Structured support request:\n${JSON.stringify(payload, null, 2)}`,
+    },
+  ];
+
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+    body: JSON.stringify({
+      model: CONFIG.OPENAI.MODEL,
+      messages,
+      temperature: CONFIG.OPENAI.TEMPERATURE,
+      max_tokens: CONFIG.OPENAI.MAX_TOKENS,
+    }),
+  } as any);
+
+  if (!resp.ok) {
+    throw new HttpsError("unavailable", `OpenAI error: ${resp.status}`);
+  }
+
+  const body = await resp.json();
+  const reply: string = (body?.choices?.[0]?.message?.content || "").trim();
+
+  return {
+    action,
+    reply,
+  };
+});
+

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.onSupportTicketCreatedGen1 = exports.getUserDeviceDetails = exports.checkExpiredWarranties = exports.onUserDeviceWriteWarrantyNotify = void 0;
+exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.onSupportTicketCreatedGen1 = exports.checkExpiredWarranties = exports.onUserDeviceWriteWarrantyNotify = void 0;
 /**
  * Warranty notifications
  * - Firestore trigger: on write to User_Devices, evaluate warranty and create/update
@@ -197,109 +197,6 @@ exports.checkExpiredWarranties = functions.pubsub
     }
     catch { }
     return null;
-});
-exports.getUserDeviceDetails = functions.https.onCall(async (data, context) => {
-    try {
-        if (!context.auth) {
-            throw new functions.https.HttpsError("unauthenticated", "Authentication required");
-        }
-        const uid = context.auth.uid;
-        const deviceId = (data?.deviceId || "").toString().trim();
-        const modelRaw = (data?.model || "").toString().trim();
-        const nameRaw = (data?.name || "").toString().trim();
-        const toLower = (s) => s.toLowerCase();
-        const normalizeWarranty = (v) => {
-            const ms = toMillisFlexible(v);
-            return ms != null ? new Date(ms).toISOString() : null;
-        };
-        let docData = null;
-        let docId = null;
-        if (deviceId) {
-            const snap = await db.collection("User_Devices").doc(deviceId).get();
-            if (snap.exists) {
-                const d = snap.data();
-                if (!d?.uid || d.uid === uid) {
-                    docData = d;
-                    docId = snap.id;
-                }
-            }
-        }
-        else {
-            const qSnap = await db.collection("User_Devices").where("uid", "==", uid).get();
-            const candidates = qSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
-            const model = toLower(modelRaw);
-            const name = toLower(nameRaw);
-            let filtered = candidates;
-            if (model) {
-                filtered = candidates.filter((d) => {
-                    const models = [d.deviceModel, d.model, d.modelNumber]
-                        .filter(Boolean)
-                        .map((x) => toLower(String(x)));
-                    return models.includes(model);
-                });
-            }
-            else if (name) {
-                filtered = candidates.filter((d) => {
-                    const names = [d.deviceName, d.name]
-                        .filter(Boolean)
-                        .map((x) => toLower(String(x)));
-                    return names.includes(name);
-                });
-            }
-            if (filtered.length === 1) {
-                docData = filtered[0];
-                docId = filtered[0].id;
-            }
-            else if (!model && !name && candidates.length === 1) {
-                docData = candidates[0];
-                docId = candidates[0].id;
-            }
-            else {
-                throw new functions.https.HttpsError("not-found", filtered.length === 0
-                    ? "No matching device found for the user"
-                    : "Multiple devices match the query; please specify deviceId or exact model/name");
-            }
-        }
-        if (!docData || !docId) {
-            throw new functions.https.HttpsError("not-found", "Device not found");
-        }
-        const d = docData;
-        const serialCandidates = [d.deviceSerial, d.serial, d.serialNumber].filter(Boolean);
-        const serial = serialCandidates.length > 0 ? String(serialCandidates[0]) : null;
-        const serialsArray = Array.isArray(d.serials) ? d.serials : [];
-        const serials = serialsArray
-            .map((e) => ({
-            serialNumber: e?.serialNumber ? String(e.serialNumber) : null,
-            warrantyExpiry: normalizeWarranty(e?.warrantyExpiry) || normalizeWarranty(e?.warrantyEnd),
-        }))
-            .filter((e) => e.serialNumber);
-        const warranty = normalizeWarranty(d.warrantyExpiry) ||
-            normalizeWarranty(d.warrantyEnd) ||
-            normalizeWarranty(d.warrantyExpiryDate) ||
-            normalizeWarranty(d.warrantyEndDate);
-        const documentation = d.documentation || d.manualUrl || null;
-        return {
-            device: {
-                id: docId,
-                name: d.deviceName || d.name || null,
-                type: d.deviceType || d.type || null,
-                model: d.deviceModel || d.model || d.modelNumber || null,
-                brand: d.brand || null,
-                serial,
-                serials,
-                warrantyExpiry: warranty,
-                documentation,
-            },
-            message: warranty || serial || documentation
-                ? "Device details fetched"
-                : "No warranty/serial/documentation info found for this device",
-        };
-    }
-    catch (e) {
-        if (e instanceof functions.https.HttpsError)
-            throw e;
-        throw new functions.https.HttpsError("internal", e?.message || "Failed to fetch device details");
-    }
 });
 /**
  * Gen 1 Firestore trigger: When a support ticket is created by a user,
