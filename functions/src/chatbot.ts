@@ -320,7 +320,7 @@ export const chatWithOpenAI = onCall(
   // Detect device information requests (e.g., device info/details/status/specs)
   const isDeviceInfoQuestion = /\b(device\s*(info|information|details|status)|show\s*(my\s*)?device\s*(info|details)|about\s*(this|the)\s*device|device\s*specs?|brand|model|manufacturer|give\s*me\s*(the\s*)?details\s*of|show\s*me\s*(the\s*)?details\s*of|what\s*are\s*the\s*details\s*of)\b/i.test(String(lastUserMsg));
   // Broader device-related intent detection (e.g., "show camera details", "what about my bulb")
-  const deviceTokenRe = /(light|bulb|camera|cctv|plug|switch|sensor|thermostat|router|device|smart\s+light|strip|lock)/i;
+  const deviceTokenRe = /(light|bulb|camera|cctv|plug|switch|sensor|thermostat|router|device|smart\s+light|strip|lock|curtain|blind|shade|drape|shutter|alarm|doorbell|tv)/i;
   const intentTokenRe = /(info|information|details|status|spec|specs|manual|documentation|about|show|what|how|guide|help)/i;
   const isDeviceRelatedQuestion = deviceTokenRe.test(String(lastUserMsg)) && intentTokenRe.test(String(lastUserMsg));
   // Problem / not-working detection (expanded coverage)
@@ -437,6 +437,9 @@ export const chatWithOpenAI = onCall(
   let deviceInfoMatched: any = null;
   let deviceInfoMessage: string | null = null;
   let multiDeviceInfoMessage: string | null = null; // kept for API compatibility; unused now
+  // New: fallback matches by name/type/model keywords when no serial is provided but intent is for device details
+  let deviceInfoMessageByName: string | null = null;
+  let deviceSelectionByName: { devices: Array<{ id: string; name: string; type: string; model: string; serial?: string }> } | null = null;
   if (isDeviceInfoQuestion && userDevices.length > 0) {
     const textRaw = String(lastUserMsg || '');
     const textTokens = (textRaw.match(/[A-Za-z0-9\-]{6,}/g) || []).map((t) => normalize(t));
@@ -486,6 +489,60 @@ export const chatWithOpenAI = onCall(
         documentation ? `- Docs: ${documentation}` : '',
       ].filter(Boolean);
       deviceInfoMessage = lines.join('\n');
+    }
+    // If not matched by serial, try deterministic name/type/model keyword matching
+    if (!deviceInfoMatched) {
+      try {
+        const lower = String(lastUserMsg || '').toLowerCase();
+        const keywordCandidates = ['curtain','blind','shade','drape','shutter','camera','cctv','plug','switch','sensor','thermostat','router','light','bulb','strip','lock'];
+        const mentioned = keywordCandidates.filter(k => lower.includes(k));
+        if (mentioned.length > 0) {
+          const candidates: any[] = [];
+          for (const d of userDevices as any[]) {
+            const name = String(d.deviceName || d.name || '').toLowerCase();
+            const type = String(d.deviceType || d.type || '').toLowerCase();
+            const model = String(d.deviceModel || d.model || d.modelNumber || '').toLowerCase();
+            const hay = `${name} ${type} ${model}`;
+            if (mentioned.some(k => hay.includes(k))) candidates.push(d);
+          }
+          if (candidates.length === 1) {
+            const dev = candidates[0];
+            const mask = (s: any) => {
+              const v = typeof s === 'string' ? s : '';
+              if (!v) return '';
+              const last4 = v.slice(-4);
+              return v.length > 4 ? `***${last4}` : `***${last4}`;
+            };
+            const serialMasked = mask(dev.deviceSerial || dev.serial || dev.serialNumber || '');
+            const name = dev.deviceName || dev.name || 'Device';
+            const type = dev.deviceType || dev.type || 'Device';
+            const model = dev.deviceModel || dev.model || dev.modelNumber || '';
+            const brand = dev.brand || dev.manufacturer || dev.vendor || dev.make || '';
+            const warranty = dev.warrantyExpiry || dev.warrantyEnd || undefined;
+            const documentation = dev.documentation || dev.manualUrl || undefined;
+            const lines = [
+              `Here are the device details I found:`,
+              `- Name: ${name}`,
+              `- Type: ${type}`,
+              model ? `- Model: ${model}` : '',
+              brand ? `- Brand: ${brand}` : '',
+              serialMasked ? `- Serial: ${serialMasked} (masked)` : '',
+              warranty ? `- Warranty expiry: ${warranty}` : '',
+              documentation ? `- Docs: ${documentation}` : '',
+            ].filter(Boolean);
+            deviceInfoMessageByName = lines.join('\n');
+          } else if (candidates.length > 1) {
+            const mapped = candidates.map((doc: any) => ({
+              id: String(doc.id),
+              name: doc.deviceName || doc.name || 'Unknown Device',
+              type: doc.deviceType || doc.type || 'Unknown Type',
+              model: doc.deviceModel || doc.model || '',
+              serial: doc.deviceSerial || doc.serial || ''
+            }));
+            deviceSelectionByName = { devices: mapped };
+          }
+        }
+      } catch {}
     }
   }
 
@@ -579,6 +636,81 @@ export const chatWithOpenAI = onCall(
       }
     }
     if (!matchedBySerial) {
+      // Try name/type/model keywords from current message before using session fallback
+      const lower = String(lastUserMsg || '').toLowerCase();
+      const keywords = ['alarm','doorbell','curtain','blind','shade','shutter','camera','cctv','plug','switch','sensor','thermostat','router','light','bulb','strip','lock','tv'];
+      const mentioned = keywords.filter(k => lower.includes(k));
+      if (mentioned.length > 0) {
+        const candidates: any[] = [];
+        for (const d of userDevices as any[]) {
+          const name = String(d.deviceName || d.name || '').toLowerCase();
+          const type = String(d.deviceType || d.type || '').toLowerCase();
+          const model = String(d.deviceModel || d.model || d.modelNumber || '').toLowerCase();
+          const hay = `${name} ${type} ${model}`;
+          if (mentioned.some(k => hay.includes(k))) candidates.push(d);
+        }
+        if (candidates.length === 1) {
+          matchedBySerial = candidates[0];
+          matchedSerialRaw = null; // device-level match only
+        } else if (candidates.length > 1) {
+          const lines: string[] = [
+            'I found multiple devices related to your request:'
+          ];
+          for (const dev of candidates.slice(0, 5)) {
+            const nm = dev.deviceName || dev.name || 'Device';
+            const mdl = dev.deviceModel || dev.model || dev.modelNumber || '';
+            const sn = String(dev.serialNumber || dev.serial || dev.deviceSerial || '').trim();
+            const masked = sn ? `***${sn.slice(-4)}` : '';
+            lines.push(`- ${nm}${mdl ? ` (${mdl})` : ''}${masked ? `: ${masked}` : ''}`);
+          }
+          lines.push('Please enter the full device serial number to fetch the exact warranty.');
+          multiWarrantyMessage = lines.join('\n');
+        }
+      }
+    }
+
+    if (!matchedBySerial && !multiWarrantyMessage) {
+      // Also try the last assistant message (which often echoes the user's device name)
+      try {
+        const lastAssistantRaw = [...clean].reverse().find((m) => m.role === 'assistant')?.content ?? '';
+        const la = String(lastAssistantRaw || '').toLowerCase();
+        const keywords = ['alarm','doorbell','curtain','blind','shade','shutter','camera','cctv','plug','switch','sensor','thermostat','router','light','bulb','strip','lock','tv'];
+        const mentioned = keywords.filter(k => la.includes(k));
+        if (mentioned.length > 0) {
+          const candidates: any[] = [];
+          for (const d of userDevices as any[]) {
+            const name = String(d.deviceName || d.name || '').toLowerCase();
+            const type = String(d.deviceType || d.type || '').toLowerCase();
+            const model = String(d.deviceModel || d.model || d.modelNumber || '').toLowerCase();
+            const hay = `${name} ${type} ${model}`;
+            if (mentioned.some(k => hay.includes(k))) candidates.push(d);
+          }
+          if (candidates.length === 1) {
+            matchedBySerial = candidates[0];
+            matchedSerialRaw = null;
+            try {
+              await sessionsCol.doc(sessionId).set({ lastMatchedDeviceId: matchedBySerial.id, lastMatchedSerial: null, lastMatchedAt: Date.now() }, { merge: true });
+            } catch {}
+          } else if (candidates.length > 1) {
+            const lines: string[] = [
+              'I found multiple devices related to your request:'
+            ];
+            for (const dev of candidates.slice(0, 5)) {
+              const nm = dev.deviceName || dev.name || 'Device';
+              const mdl = dev.deviceModel || dev.model || dev.modelNumber || '';
+              const sn = String(dev.serialNumber || dev.serial || dev.deviceSerial || '').trim();
+              const masked = sn ? `***${sn.slice(-4)}` : '';
+              lines.push(`- ${nm}${mdl ? ` (${mdl})` : ''}${masked ? `: ${masked}` : ''}`);
+            }
+            lines.push('Please enter the full device serial number to fetch the exact warranty.');
+            multiWarrantyMessage = lines.join('\n');
+          }
+        }
+      } catch {}
+    }
+
+    if (!matchedBySerial && !multiWarrantyMessage) {
+      // Session fallback only when no explicit device mention resolved the target
       try {
         const sSnap = await sessionsCol.doc(sessionId).get();
         const sData = sSnap.data();
@@ -1246,6 +1378,13 @@ BEGIN ASSISTANT RESPONSE NOW.`,
         enhancedReply = multiDeviceInfoMessage;
       } else if (deviceInfoMessage) {
         enhancedReply = deviceInfoMessage;
+      } else if (deviceInfoMessageByName) {
+        // Deterministic single match by name/type/model
+        enhancedReply = deviceInfoMessageByName;
+      } else if (deviceSelectionByName) {
+        // Multiple candidates: return device selection list
+        deviceSelection = deviceSelectionByName;
+        enhancedReply = 'Please select your device from the list below:';
       } else {
         enhancedReply = `To show the device details, please enter the full device serial number so I can verify the exact device.`;
       }
@@ -1323,6 +1462,73 @@ BEGIN ASSISTANT RESPONSE NOW.`,
       }
     } catch {}
 
+    // Escalation/troubleshooting step logic
+    let troubleshootingStepCount = 0;
+    let escalate = false;
+    let allowTroubleshooting = false;
+    let stepIndex = 0;
+    let lastTroubleshootingIdx = -1;
+    let lastEscalationIdx = -1;
+
+    // Count troubleshooting steps in this session
+    for (let i = 0; i < clean.length; ++i) {
+      const m = clean[i];
+      if (m.role === 'assistant' && typeof m.content === 'string') {
+        try {
+          const data = JSON.parse(m.content.trim());
+          if (data && data.mode === 'troubleshooting' && data.allowTroubleshooting) {
+            troubleshootingStepCount++;
+            lastTroubleshootingIdx = i;
+            if (data.escalate) lastEscalationIdx = i;
+          }
+        } catch {}
+      }
+    }
+    // Detect frustration in last user message
+    const frustrationPattern = /(still (not working|unsolved|same issue|problem|broken|no)|not working|no|same issue|i'm tired|frustrat|useless|doesn't work|doesnt work|again|does not work|stop|enough|help|can't fix|cant fix|waste|give up)/i;
+    const userFrustrated = frustrationPattern.test(String(lastUserMsg));
+    // If escalated already, always escalate
+    if (lastEscalationIdx >= 0) escalate = true;
+    // Escalate if 4 or more steps, or if user is frustrated
+    if (troubleshootingStepCount >= 4 || userFrustrated) escalate = true;
+    allowTroubleshooting = !escalate;
+    stepIndex = troubleshootingStepCount;
+
+    // If escalation is triggered, emit escalation message and JSON
+    if (escalate) {
+      return {
+        reply: JSON.stringify({
+          mode: 'troubleshooting',
+          allowTroubleshooting: false,
+          escalate: true,
+          stopAI: true,
+          message: "It looks like this needs deeper investigation. I’m transferring this chat to a human support agent now."
+        }),
+        sessionId,
+        ...(requiresTicket && { requiresTicket: true }),
+        ...(ticketDetails && { ticketDetails }),
+        ...(deviceSelection && { deviceSelection }),
+        ...(debugInfo && { debugInfo })
+      };
+    }
+    // If troubleshooting step, emit structured JSON
+    if (isProblemIssue && problemMatchedDevice && enhancedReply && !enhancedReply.includes('serial number')) {
+      return {
+        reply: JSON.stringify({
+          mode: 'troubleshooting',
+          allowTroubleshooting: true,
+          escalate: false,
+          stepIndex,
+          message: enhancedReply
+        }),
+        sessionId,
+        ...(requiresTicket && { requiresTicket: true }),
+        ...(ticketDetails && { ticketDetails }),
+        ...(deviceSelection && { deviceSelection }),
+        ...(debugInfo && { debugInfo })
+      };
+    }
+    // Otherwise, fallback to default
     return {
       reply: enhancedReply,
       sessionId,
@@ -1331,6 +1537,7 @@ BEGIN ASSISTANT RESPONSE NOW.`,
       ...(deviceSelection && { deviceSelection }),
       ...(debugInfo && { debugInfo })
     };
+
   } catch (e) {
     const err = e as { message?: string };
     try {

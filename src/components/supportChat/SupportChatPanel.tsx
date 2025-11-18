@@ -67,6 +67,9 @@ type ChatMsg = {
     type?: string;
     deviceName?: string;
   };
+  // Local flags for troubleshooting and escalation handling
+  isTroubleshootingStep?: boolean;
+  escalate?: boolean;
   ts: number;
   uploading?: boolean;
 };
@@ -99,6 +102,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const [confirmInline, setConfirmInline] = useState(false);
   const [showResolveFooter, setShowResolveFooter] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
+  const hasEscalatedRef = useRef(false);
   
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -664,6 +668,109 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         seenUnresolved[tid] = true;
         return true;
       });
+     try {
+        const transformed: ChatMsg[] = [];
+        for (const m of list) {
+          let handled = false;
+          if (m && m.role === 'assistant' && typeof m.content === 'string') {
+            if (m.showTicketCTA || m.showUnresolvedPrompt || m.showTicketVerification || m.showDeviceSelection) {
+              transformed.push(m as any);
+              handled = true;
+            } else {
+              const raw = (m.content || '').trim();
+              if (raw.startsWith('{') && raw.endsWith('}')) {
+                try {
+                  const data = JSON.parse(raw);
+                  if (data && typeof data === 'object') {
+                    const escalate = data.escalate === true;
+                    if (data.stopAI === true) {
+                      if (escalate) {
+                        hasEscalatedRef.current = true;
+                      }
+                      handled = true;
+                    } else if (data.no_device_found === true) {
+                      transformed.push({ ...(m as any), content: 'Can you confirm your serial number or device name?' });
+                      handled = true;
+                    } else if (data.type === 'device_info' && data.device) {
+                      const dvc = data.device || {};
+                      const name = dvc.deviceName || dvc.name || '';
+                      const model = dvc.modelNumber || dvc.model || '';
+                      const statusBool = typeof dvc.isOnline === 'boolean' ? dvc.isOnline : undefined;
+                      const brand = dvc.brand || undefined;
+                      const serial = dvc.serialNumber || dvc.serial || undefined;
+                      const warr = dvc.warrantyExpiry || dvc.warrantyEnd || dvc.warranty || undefined;
+                      const docUrl = dvc.documentation || dvc.manualUrl || undefined;
+                      const parts: string[] = [];
+                      if (name || model) parts.push(`${name || 'Device'}${model ? ` (${model})` : ''}`);
+                      if (typeof statusBool === 'boolean') parts.push(statusBool ? 'Online' : 'Offline');
+                      if (warr) {
+                        let w = '' as string;
+                        try {
+                          const dt = new Date(warr);
+                          w = isNaN(dt.getTime()) ? String(warr) : dt.toLocaleDateString();
+                        } catch { w = String(warr); }
+                        parts.push(`Warranty: ${w}`);
+                      }
+                      const contentText = parts.join(' • ') || 'Device information available.';
+                      const deviceInfo = {
+                        deviceName: name || undefined,
+                        modelNumber: model || undefined,
+                        brand,
+                        serialNumber: serial,
+                        warrantyExpiry: warr,
+                        documentation: docUrl,
+                        isOnline: statusBool,
+                        type: dvc.type || undefined,
+                        description: dvc.description || undefined,
+                      } as ChatMsg['deviceInfo'];
+                      transformed.push({ ...(m as any), content: contentText, deviceInfo });
+                      handled = true;
+                    } else if (data.mode === 'troubleshooting' && data.allowTroubleshooting === true) {
+                      const text = (data.message || (Array.isArray(data.steps) ? data.steps.join('\n') : '') || data.step || '').toString().trim();
+                      if (text) {
+                        const msg: any = { ...(m as any), content: text };
+                        if (escalate) {
+                          hasEscalatedRef.current = true;
+                          msg.escalate = true;
+                        } else if (!hasEscalatedRef.current) {
+                          msg.isTroubleshootingStep = true;
+                          if (typeof (data as any).stepIndex === 'number') {
+                            (msg as any).stepIndex = (data as any).stepIndex;
+                          }
+                        } else {
+                          handled = true;
+                        }
+                        if (!handled) {
+                          transformed.push(msg as ChatMsg);
+                        }
+                      }
+                      handled = true;
+                    } else if (data.redirect === 'device_scope_only') {
+                      transformed.push({ ...(m as any), content: 'I can only assist with device information, setup, warranty, or troubleshooting for Smart Smile Home products.' });
+                      handled = true;
+                    }
+                  }
+                } catch {}
+              } else {}
+            }
+          }
+          if (!handled) transformed.push(m as any);
+        }
+        list = transformed;
+        // Deduplicate adjacent identical messages (e.g., optimistic + persisted)
+        try {
+          const norm = (s: any) => String(s || '').trim();
+          const deduped: ChatMsg[] = [];
+          for (const item of list) {
+            const prev = deduped[deduped.length - 1];
+            if (prev && prev.role === item.role && norm(prev.content) === norm(item.content)) {
+              continue;
+            }
+            deduped.push(item as any);
+          }
+          list = deduped;
+        } catch {}
+      } catch {}
       setMessages(list);
 
       // Restore chat context based on loaded messages
@@ -844,15 +951,9 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         }
 
         // Handle device info from backend response
-        if (resData?.deviceInfo) {
-          const deviceMsg: ChatMsg = {
-            role: 'assistant',
-            content: reply || '',
-            deviceInfo: resData.deviceInfo,
-            ts: Date.now(),
-          };
-          // Backend already persisted the message, but we need to add it locally for immediate display
-          // Since backend handles persistence, we'll add it locally for immediate UI update
+        if (resData?.deviceInfo || reply) {
+          // Clear sending placeholders; rely on Firestore snapshot for final assistant message
+          setMessages((prev) => prev.filter((m) => !m.uploading));
         }
 
         // Do not write messages on the client in AI mode; backend persists both
@@ -875,7 +976,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         try { console.error('chatWithOpenAI failed:', err); } catch {}
         setMessages((prev) => [
           ...prev,
-          { role: 'assistant', content: message, ts: Date.now() },
+          { role: 'agent', content: message, ts: Date.now() },
         ]);
       } finally {
         setIsSending(false);
