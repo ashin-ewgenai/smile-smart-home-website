@@ -252,4 +252,21 @@
   .animate-slideDown {
     animation: slideDown 0.3s ease-out forwards;
   }
+
+  .lucide-house {
+    transition: transform 0.2s ease;
+    will-change: transform;
+  }
+
+  .lucide-house:hover {
+    transform: translateY(-2px) scale(1.05);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lucide-house,
+    .lucide-house:hover {
+      transition: none;
+      transform: none;
+    }
+  }
 }
