@@ -361,7 +361,7 @@ const AdminDashboard: React.FC = () => {
   
   
   return (
-    <div>
+    <div className="w-full max-w-full overflow-x-hidden">
       <div className="mb-6 glass-surface rounded-[24px] px-4 py-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white inline-flex items-center gap-2">Admin Dashboard
           <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
@@ -466,13 +466,13 @@ const AdminDashboard: React.FC = () => {
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {recentUsers.map((user) => (
                       <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white">{user.FullName}</div>
+                        <td className="px-6 py-4 whitespace-normal sm:whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white break-words">{user.FullName}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-500 dark:text-gray-400">{user.Email}</div>
+                        <td className="px-6 py-4 whitespace-normal sm:whitespace-nowrap">
+                          <div className="text-sm text-gray-500 dark:text-gray-400 break-all">{user.Email}</div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                        <td className="px-6 py-4 whitespace-normal sm:whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {user.CreatedAt?.toDate().toLocaleDateString() || 'N/A'}
                         </td>
                       </tr>

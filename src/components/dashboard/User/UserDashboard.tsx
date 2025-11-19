@@ -681,7 +681,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   };
   return (
     <>
-      <div>
+      <div className="w-full max-w-full overflow-x-hidden">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Welcome&nbsp;&nbsp;&nbsp;{actualUserName} <Smile className={`inline-block h-6 w-6 ml-2 text-teal-500 transition-all duration-700 ease-out ${iconOn ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 -translate-y-1 scale-75'}`} aria-hidden="true" /></h1>
@@ -790,7 +790,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                       {userDevices.length > 0 ? (
                         userDevices.map((device) => (
                         <tr key={device.id} className="odd:bg-transparent even:bg-gray-50 dark:even:bg-gray-800/60 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors">
-                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-normal sm:whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900 dark:text-white">{device.name}</div>
                           </td>
                           <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap hidden sm:table-cell">
@@ -808,7 +808,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                               {device.type || 'Unknown'}
                             </div>
                           </td>
-                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-nowrap">
+                          <td className="px-4 sm:px-6 py-3 sm:py-4 whitespace-normal sm:whitespace-nowrap">
                             <div className="text-[12px] leading-tight text-gray-600 dark:text-gray-300">
                               {Array.isArray((device as any).warrantyList) && (device as any).warrantyList.length > 1 ? (
                                 <div className="space-y-1">

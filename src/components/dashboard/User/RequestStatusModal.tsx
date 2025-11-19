@@ -166,45 +166,47 @@ const RequestStatusModal: React.FC<Props> = ({ open, onClose, myRequests, reqLis
                 <p className="text-sm text-gray-600 dark:text-gray-300">No service requests yet.</p>
               </div>
             ) : (
-              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Created</th>
-                    <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Service</th>
-                    <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Priority</th>
-                    <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Details</th>
-                    <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-                  {myRequests.map((r) => {
-                    const created = (r as any).createdAt?.toDate ? (r as any).createdAt.toDate() as Date : undefined;
-                    const createdText = created ? created.toLocaleString() : '-';
-                    return (
-                      <tr key={r.id} className="odd:bg-white even:bg-gray-50/60 dark:odd:bg-gray-800 dark:even:bg-gray-800/60 hover:bg-teal-50/60 dark:hover:bg-gray-700/60 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-200">{createdText}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-100 capitalize">{r.service}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-100 capitalize">{r.priority}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedReq(r)}
-                            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-                          >
-                            View Details
-                          </button>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${r.status==='open' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'}`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${r.status==='open' ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
-                            {r.status}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <div className="overflow-x-auto -mx-4 sm:mx-0">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Created</th>
+                      <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Service</th>
+                      <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Priority</th>
+                      <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Details</th>
+                      <th className="px-6 py-3 text-left text-[11px] font-semibold tracking-wider text-gray-500 dark:text-gray-300 uppercase">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                    {myRequests.map((r) => {
+                      const created = (r as any).createdAt?.toDate ? (r as any).createdAt.toDate() as Date : undefined;
+                      const createdText = created ? created.toLocaleString() : '-';
+                      return (
+                        <tr key={r.id} className="odd:bg-white even:bg-gray-50/60 dark:odd:bg-gray-800 dark:even:bg-gray-800/60 hover:bg-teal-50/60 dark:hover:bg-gray-700/60 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-200">{createdText}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-100 capitalize">{r.service}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800 dark:text-gray-100 capitalize">{r.priority}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedReq(r)}
+                              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                              View Details
+                            </button>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium ${r.status==='open' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'}`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${r.status==='open' ? 'bg-amber-500' : 'bg-emerald-500'}`}></span>
+                              {r.status}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
             </div>
           </div>
