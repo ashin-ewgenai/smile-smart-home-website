@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Link } from 'react-router-dom';
 import { auth, db, functions, storage } from '../../lib/firebase';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit, updateDoc, deleteField, where, deleteDoc, writeBatch } from 'firebase/firestore';
+import { supportTicketsCollection, type SupportTicket } from '../../models/Collections';
 import { httpsCallable } from 'firebase/functions';
 import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 // Removed unused triageChat import - functionality integrated into chatWithOpenAI
@@ -70,6 +71,7 @@ type ChatMsg = {
   // Local flags for troubleshooting and escalation handling
   isTroubleshootingStep?: boolean;
   escalate?: boolean;
+  isBackendEscalation?: boolean;
   ts: number;
   uploading?: boolean;
 };
@@ -104,6 +106,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const [isResetting, setIsResetting] = useState(false);
   const hasEscalatedRef = useRef(false);
   const troubleshootingAttemptsRef = useRef(0);
+  const [existingTicketForDevice, setExistingTicketForDevice] = useState<SupportTicket | null>(null);
   
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -116,14 +119,144 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Check for existing support tickets for a specific device
+  const checkExistingTicketForDevice = async (deviceInfo: ChatMsg['deviceInfo']): Promise<SupportTicket | null> => {
+    if (!uid || !deviceInfo) return null;
+    
+    try {
+      // Query for pending/open tickets for this user that match the device
+      const ticketsQuery = query(
+        supportTicketsCollection(db),
+        where('uid', '==', uid),
+        where('status', 'in', ['Pending', 'In Progress', 'open', 'pending']),
+        orderBy('createdAt', 'desc'),
+        limit(10)
+      );
+      
+      const ticketsSnap = await getDocs(ticketsQuery);
+      
+      // Check if any ticket matches the current device
+      for (const ticketDoc of ticketsSnap.docs) {
+        const ticketData = ticketDoc.data() as SupportTicket;
+        
+        // Match by serial number (most specific)
+        if (deviceInfo.serialNumber && ticketData.deviceInfo?.serial === deviceInfo.serialNumber) {
+          return { id: ticketDoc.id, ...ticketData } as SupportTicket & { id: string };
+        }
+        
+        // Match by device name and model
+        if (deviceInfo.deviceName && deviceInfo.modelNumber) {
+          const ticketDeviceName = ticketData.deviceInfo?.name || ticketData.deviceInfo?.deviceName;
+          const ticketModelNumber = ticketData.deviceInfo?.model || ticketData.deviceInfo?.modelNumber;
+          
+          if (ticketDeviceName === deviceInfo.deviceName && ticketModelNumber === deviceInfo.modelNumber) {
+            return { id: ticketDoc.id, ...ticketData } as SupportTicket & { id: string };
+          }
+        }
+        
+        // Match by device type and name (less specific)
+        if (deviceInfo.deviceName && deviceInfo.type) {
+          const ticketDeviceName = ticketData.deviceInfo?.name || ticketData.deviceInfo?.deviceName;
+          const ticketDeviceType = ticketData.deviceInfo?.type;
+          
+          if (ticketDeviceName === deviceInfo.deviceName && ticketDeviceType === deviceInfo.type) {
+            return { id: ticketDoc.id, ...ticketData } as SupportTicket & { id: string };
+          }
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('Error checking existing tickets:', error);
+      return null;
+    }
+  };
   
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
 
-  const botNeedsTicket = !claimed && !providedTicketId;
-
   const sessionId = useMemo(() => (uid ? `live_${uid}` : null), [uid]);
+
+  // Effect to handle backend escalation messages and check for existing tickets
+  useEffect(() => {
+    const handleBackendEscalations = async () => {
+      // Find backend escalation messages that haven't been processed yet
+      const backendEscalations = messages.filter(m => 
+        m.role === 'assistant' && 
+        (m as any).isBackendEscalation && 
+        m.showTicketCTA === true
+      );
+      
+      if (backendEscalations.length === 0) return;
+      
+      // Get the latest backend escalation
+      const latestEscalation = backendEscalations[backendEscalations.length - 1];
+      
+      // Find recent device info from messages
+      const recentMessagesWithDevice = messages.slice(-10).filter(m => m.deviceInfo);
+      const latestDeviceInfo = recentMessagesWithDevice.length > 0 ? recentMessagesWithDevice[recentMessagesWithDevice.length - 1].deviceInfo : null;
+      
+      if (latestDeviceInfo) {
+        const existingTicket = await checkExistingTicketForDevice(latestDeviceInfo);
+        
+        if (existingTicket) {
+          const ticketNumber = existingTicket.ticketNumber || `#${existingTicket.id?.slice(-6).toUpperCase()}`;
+          const modifiedMessage = `You have an existing support ticket (${ticketNumber}) for this device. Our support team is already working on it. Please check your support tickets for updates or wait for our team to contact you.`;
+          
+          // Update the message in place
+          setMessages(prevMessages => 
+            prevMessages.map(msg => 
+              msg === latestEscalation 
+                ? { ...msg, content: modifiedMessage, showTicketCTA: false, isBackendEscalation: false }
+                : msg
+            )
+          );
+          
+          setExistingTicketForDevice(existingTicket);
+          
+          // Also update in Firestore if we have session info
+          if (uid && sessionId && latestEscalation.id) {
+            try {
+              const msgRef = doc(db, 'chat_sessions', sessionId, 'messages', latestEscalation.id);
+              await updateDoc(msgRef, {
+                content: modifiedMessage,
+                showTicketCTA: false,
+                isBackendEscalation: false
+              });
+            } catch (e) {
+              console.error('Error updating escalation message in Firestore:', e);
+            }
+          }
+        } else {
+          // No existing ticket, just mark as processed
+          setMessages(prevMessages => 
+            prevMessages.map(msg => 
+              msg === latestEscalation 
+                ? { ...msg, isBackendEscalation: false }
+                : msg
+            )
+          );
+          setExistingTicketForDevice(null);
+        }
+      } else {
+        // No device info, just mark as processed
+        setMessages(prevMessages => 
+          prevMessages.map(msg => 
+            msg === latestEscalation 
+              ? { ...msg, isBackendEscalation: false }
+              : msg
+          )
+        );
+        setExistingTicketForDevice(null);
+      }
+    };
+    
+    handleBackendEscalations().catch(console.error);
+  }, [messages, uid, sessionId, checkExistingTicketForDevice]);
+
+  const botNeedsTicket = !claimed && !providedTicketId;
   const unresolvedPromptTicket = useMemo(() => {
     const m = messages.find((x) => x.showUnresolvedPrompt && x.unresolvedTicket);
     return m?.unresolvedTicket || null;
@@ -691,6 +824,10 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                     if (data.stopAI === true) {
                       if (escalate) {
                         hasEscalatedRef.current = true;
+                        // For backend escalation, show the original message with CTA for now
+                        // The existing ticket check will be handled by a separate effect
+                        const originalMessage = data.message || "It looks like this needs deeper investigation. I'm transferring this chat to a human support agent now.";
+                        transformed.push({ ...(m as any), content: originalMessage, showTicketCTA: true, isBackendEscalation: true });
                       }
                       handled = true;
                     } else if (data.no_device_found === true) {
@@ -872,21 +1009,41 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       // On or after the 3rd negative reply, stop sending more AI troubleshooting steps
       if (attempts >= 3) {
         const ts = Date.now();
-        const escalationText = "It looks like this issue needs deeper investigation. Let's raise a support ticket or connect you to a human support agent.";
+        
+        // Check if there's device information in recent messages to check for existing tickets
+        const recentMessagesWithDevice = messages.slice(-10).filter(m => m.deviceInfo);
+        const latestDeviceInfo = recentMessagesWithDevice.length > 0 ? recentMessagesWithDevice[recentMessagesWithDevice.length - 1].deviceInfo : null;
+        
+        // Check for existing tickets for this device
+        const existingTicket = latestDeviceInfo ? await checkExistingTicketForDevice(latestDeviceInfo) : null;
+        
+        let escalationText: string;
+        let showTicketCTA: boolean;
+        
+        if (existingTicket) {
+          const ticketNumber = existingTicket.ticketNumber || `#${existingTicket.id?.slice(-6).toUpperCase()}`;
+          escalationText = `You have an existing support ticket (${ticketNumber}) for this device. Our support team is already working on it. Please check your support tickets for updates or wait for our team to contact you.`;
+          showTicketCTA = false;
+          setExistingTicketForDevice(existingTicket);
+        } else {
+          escalationText = "It looks like this issue needs deeper investigation. Let's raise a support ticket or connect you to a human support agent.";
+          showTicketCTA = true;
+          setExistingTicketForDevice(null);
+        }
 
         hasEscalatedRef.current = true;
 
         setMessages((prev) => [
           ...prev,
           { role: 'user', content, ts },
-          { role: 'agent', content: escalationText, ts: ts + 1, showTicketCTA: true },
+          { role: 'agent', content: escalationText, ts: ts + 1, showTicketCTA },
         ]);
 
         if (uid && sessionId) {
           try {
             const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
             await addDoc(msgsCol, { role: 'user', content, ts });
-            await addDoc(msgsCol, { role: 'assistant', content: escalationText, ts: ts + 1, showTicketCTA: true, source: 'system' });
+            await addDoc(msgsCol, { role: 'assistant', content: escalationText, ts: ts + 1, showTicketCTA, source: 'system' });
             await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'ai_escalated' }, { merge: true });
           } catch (e) {}
         }
