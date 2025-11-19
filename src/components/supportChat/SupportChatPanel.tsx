@@ -103,6 +103,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const [showResolveFooter, setShowResolveFooter] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const hasEscalatedRef = useRef(false);
+  const troubleshootingAttemptsRef = useRef(0);
   
   // Ref for auto-scrolling to bottom
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -152,6 +153,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     setTicketLoading(false);
     setWorkflowStep('initial');
     hasInitialized.current = false; // Reset initialization flag
+    hasEscalatedRef.current = false;
+    troubleshootingAttemptsRef.current = 0;
   };
 
   // Start a brand new chat without touching any ticket statuses
@@ -193,6 +196,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       // Show generic welcome path with Raise a Ticket CTA
       setNoTicketMode(true);
       hasInitialized.current = false;
+      hasEscalatedRef.current = false;
+      troubleshootingAttemptsRef.current = 0;
       // Seed welcome with Raise Ticket CTA so it appears immediately
       const welcome = {
         role: 'assistant' as const,
@@ -854,6 +859,43 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     setInput('');
     setIsSending(true);
 
+    // Track user rejections of troubleshooting steps ("no", "still not working", etc.)
+    // After 3 such replies in the current chat, stop AI troubleshooting and surface escalation options instead.
+    const negativePhrases = /(still\s+not\s+working|still\s+not\s+fixed|still\s+same\s+issue|same\s+issue|not\s+solved|didn['’]?t\s+work|doesn['’]?t\s+work|not\s+working|nothing\s+changed|no\s+change)/i;
+    const isShortNo = /^\s*(no|not really)\b/i.test(content);
+    const isNegativeReply = isShortNo || negativePhrases.test(content);
+
+    if (!claimed && isNegativeReply) {
+      const attempts = troubleshootingAttemptsRef.current + 1;
+      troubleshootingAttemptsRef.current = attempts;
+
+      // On or after the 3rd negative reply, stop sending more AI troubleshooting steps
+      if (attempts >= 3) {
+        const ts = Date.now();
+        const escalationText = "It looks like this issue needs deeper investigation. Let's raise a support ticket or connect you to a human support agent.";
+
+        hasEscalatedRef.current = true;
+
+        setMessages((prev) => [
+          ...prev,
+          { role: 'user', content, ts },
+          { role: 'agent', content: escalationText, ts: ts + 1, showTicketCTA: true },
+        ]);
+
+        if (uid && sessionId) {
+          try {
+            const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+            await addDoc(msgsCol, { role: 'user', content, ts });
+            await addDoc(msgsCol, { role: 'assistant', content: escalationText, ts: ts + 1, showTicketCTA: true, source: 'system' });
+            await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'ai_escalated' }, { merge: true });
+          } catch (e) {}
+        }
+
+        setIsSending(false);
+        return;
+      }
+    }
+
     // Auto-escalation: if the last assistant message suggested escalation and user consents ("yes", "ok", etc.),
     // automatically create a human support request and confirm in chat.
     try {
@@ -1195,6 +1237,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setSessionActiveTicketId(null);
       setTicketData(null);
       setNoTicketMode(true);
+      hasEscalatedRef.current = false;
+      troubleshootingAttemptsRef.current = 0;
       // Mark any unresolved prompt as resolved to hide it
       await dismissUnresolvedPrompt(ticketIdToCancel);
       const note = ticketIdToCancel ? 'Previous ticket has been marked as resolved. Starting a new conversation.' : 'Starting a new conversation not linked to your previous ticket.';
@@ -1244,6 +1288,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setSessionActiveTicketId(null);
       setTicketData(null);
       setNoTicketMode(true);
+      hasEscalatedRef.current = false;
+      troubleshootingAttemptsRef.current = 0;
       // System message
       setMessages(prev => [...prev, { role: 'agent', content: 'Starting a new conversation. Your previous ticket has been marked as resolved.', ts: Date.now() }]);
     } catch (e) {
