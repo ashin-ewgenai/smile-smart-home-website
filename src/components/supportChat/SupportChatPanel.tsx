@@ -163,6 +163,11 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     hasInitialized.current = false; // Reset initialization flag
     hasEscalatedRef.current = false;
     troubleshootingAttemptsRef.current = 0;
+    setConfirmInline(false);
+    setShowResolveFooter(false);
+    setSelectedDevice(null);
+    setHasDevicePendingTicket(false);
+    setDevicePendingTicket(null);
   };
 
   // Start a brand new chat without touching any ticket statuses
@@ -170,6 +175,9 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     if (!isAuthenticated || !uid || !sessionId || isResetting) return;
     setIsResetting(true);
     try {
+      // Clear local UI state immediately so the user sees a fresh chat while we update Firestore
+      resetChat();
+
       // Resolve (hide) existing messages in batches to avoid delete permission issues
       const msgsColRef = collection(db, 'chat_sessions', sessionId, 'messages');
       const allMsgsSnap = await getDocs(msgsColRef);
@@ -251,6 +259,15 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   // Check if user has any support request or active support
   const [hasSupportDocument, setHasSupportDocument] = useState(false);
   const [hasSupportRequest, setHasSupportRequest] = useState(false);
+  const [userTickets, setUserTickets] = useState<Array<{
+    id: string;
+    ticketNumber: string;
+    subject: string;
+    status: string;
+    updatedAt?: string;
+    shortDescription?: string;
+  }>>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
 
   // Read per-user claim. If claimed, AI must be disabled and messages go to Firestore live chat
   useEffect(() => {
@@ -258,6 +275,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setClaimed(false);
       setHasSupportDocument(false);
       setHasSupportRequest(false);
+      setUserTickets([]);
       return;
     }
 
@@ -295,6 +313,57 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     return () => {
       claimsUnsub();
       requestsUnsub();
+    };
+  }, [uid]);
+
+  useEffect(() => {
+    if (!uid) {
+      setUserTickets([]);
+      return;
+    }
+    let cancelled = false;
+    const loadTickets = async () => {
+      setTicketsLoading(true);
+      try {
+        const snap = await getDocs(query(
+          collection(db, 'Support_Tickets'),
+          where('uid', '==', uid),
+          orderBy('updatedAt', 'desc'),
+          limit(10)
+        ));
+        if (cancelled) return;
+        const list = snap.docs.map((d) => {
+          const data = d.data() as any;
+          const tsVal = data.updatedAt || data.createdAt;
+          const updatedAt = tsVal && typeof tsVal.toDate === 'function' ? tsVal.toDate().toLocaleString() : undefined;
+          const ticketNumber = data.ticketNumber || `#${String(d.id).slice(-6).toUpperCase()}`;
+          const subject = data.subject || 'Ticket';
+          const rawDescription = String(data.description || data.initialSolution || '').trim();
+          const shortDescription = rawDescription
+            ? rawDescription.length > 120
+              ? `${rawDescription.slice(0, 120)}…`
+              : rawDescription
+            : undefined;
+          const status = String(data.status || 'Pending');
+          return {
+            id: d.id,
+            ticketNumber,
+            subject,
+            status,
+            updatedAt,
+            shortDescription,
+          };
+        });
+        setUserTickets(list);
+      } catch {
+        if (!cancelled) setUserTickets([]);
+      } finally {
+        if (!cancelled) setTicketsLoading(false);
+      }
+    };
+    loadTickets();
+    return () => {
+      cancelled = true;
     };
   }, [uid]);
 
