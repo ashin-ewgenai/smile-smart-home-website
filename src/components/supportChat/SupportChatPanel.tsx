@@ -966,11 +966,94 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
   const [isSending, setIsSending] = useState(false);
 
+  const shouldEscalateToHuman = (text: string): boolean => {
+    const lowered = text.toLowerCase();
+    const phrases = [
+      'i need human assistance',
+      'i need a human',
+      'connect me to an agent',
+      'connect me to a human',
+      'i want to talk to a person',
+      'talk to a person',
+      'talk to a human',
+      'please call me',
+      'customer care',
+      'support team',
+      'call me',
+    ];
+    if (phrases.some((phrase) => lowered.includes(phrase))) {
+      return true;
+    }
+    const explicitPatterns = /(human (help|support|agent|assistance|person))|(talk to (a )?(human|person|agent))|(connect me (with|to) (a )?(human|person|agent))/i;
+    return explicitPatterns.test(text);
+  };
+
   const send: () => Promise<void> = async () => {
     const content = input.trim();
     if (!content || isSending) return;
     setInput('');
     setIsSending(true);
+
+    const wantsHuman = shouldEscalateToHuman(content);
+
+    if (wantsHuman && !claimed) {
+      const ts = Date.now();
+      const escalationMessage = "Thank you for your patience. I'm connecting you to our support team. One of our agents will call you within a few minutes.";
+
+      try {
+        await requestHuman();
+      } catch (e) {}
+
+      setHasSupportRequest(true);
+
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', content, ts },
+        { role: 'agent', content: escalationMessage, ts: ts + 1 },
+      ]);
+
+      if (uid && sessionId) {
+        try {
+          const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+          await addDoc(msgsCol, { role: 'user', content, ts });
+          await addDoc(msgsCol, { role: 'assistant', content: escalationMessage, ts: ts + 1, source: 'system' });
+          await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human_requested' }, { merge: true });
+        } catch (e) {}
+      }
+
+      setIsSending(false);
+      return;
+    }
+
+    // Auto-escalation: if the last assistant message suggested escalation and user consents ("yes", "ok", etc.),
+    // automatically create a human support request and confirm in chat.
+    try {
+      const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && (m.content || '').length > 0);
+      const affirmative = /^(yes|yep|yeah|ok|okay|sure|please|do it|go ahead|proceed|confirm)\b/i.test(content);
+      const escalationSuggested = !!(lastAssistant && /escalat/i.test(lastAssistant.content || ''));
+      if (affirmative && escalationSuggested) {
+        await requestHuman();
+        setHasSupportRequest(true);
+        const confirmMsg: ChatMsg = {
+          role: 'agent',
+          content: '✅ I\'ve notified our human support. Someone will reach out to you shortly.',
+          ts: Date.now(),
+        };
+        setMessages((prev) => [...prev, { role: 'user', content, ts: Date.now() - 1 }, confirmMsg]);
+
+        // Persist confirmation into chat_sessions if possible
+        if (uid && sessionId) {
+          try {
+            const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+            await addDoc(msgsCol, { role: 'user', content, ts: Date.now() });
+            await addDoc(msgsCol, { role: 'assistant', content: confirmMsg.content, ts: Date.now() + 1, source: 'system' });
+            await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human_requested' }, { merge: true });
+          } catch (e) {}
+        }
+        setIsSending(false);
+        return;
+      }
+    } catch {}
 
     // Track user rejections of troubleshooting steps ("no", "still not working", etc.)
     // After 2 such replies in the current chat, stop AI troubleshooting and surface escalation options instead.
@@ -1008,38 +1091,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         return;
       }
     }
-
-    // Auto-escalation: if the last assistant message suggested escalation and user consents ("yes", "ok", etc.),
-    // automatically create a human support request and confirm in chat.
-    try {
-      const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && (m.content || '').length > 0);
-      const affirmative = /^(yes|yep|yeah|ok|okay|sure|please|do it|go ahead|proceed|confirm)\b/i.test(content);
-      const escalationSuggested = !!(lastAssistant && /escalat/i.test(lastAssistant.content || ''));
-      if (affirmative && escalationSuggested) {
-        await requestHuman();
-        const confirmMsg: ChatMsg = {
-          role: 'agent',
-          content: '✅ I\'ve notified our human support. Someone will reach out to you shortly.',
-          ts: Date.now(),
-        };
-        setMessages((prev) => [...prev, { role: 'user', content, ts: Date.now() - 1 }, confirmMsg]);
-
-        // Persist confirmation into chat_sessions if possible
-        if (uid && sessionId) {
-          try {
-            const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
-            await addDoc(msgsCol, { role: 'user', content, ts: Date.now() });
-            await addDoc(msgsCol, { role: 'assistant', content: confirmMsg.content, ts: Date.now() + 1, source: 'system' });
-            await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human_requested' }, { merge: true });
-          } catch (e) {}
-        }
-        setIsSending(false);
-        return;
-      }
-    } catch {}
-
-    // Previously we blocked sending during ticket verification or device selection.
-    // Allow sending in all steps to avoid the UI getting stuck if user doesn't click the buttons.
 
     if (claimed) {
       // Human online: send to Firestore live chat
