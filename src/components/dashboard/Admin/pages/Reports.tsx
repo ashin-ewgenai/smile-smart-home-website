@@ -57,11 +57,17 @@ const Reports: React.FC = () => {
           };
         });
         setTickets(arr);
-        // (no image URL debug logging in production)
-        // seed reply inputs with existing replies
-        const seed: Record<string, string> = {};
-        arr.forEach(t => { if (t.adminReply) seed[t.id] = t.adminReply; });
-        setReplyMap(seed);
+        // Seed reply inputs with existing replies ONLY for tickets that don't already have an entry in replyMap.
+        // This avoids repopulating the textarea after we've intentionally cleared it on send.
+        setReplyMap((prev) => {
+          const next = { ...prev } as Record<string, string>;
+          for (const t of arr) {
+            if (t.adminReply && prev[t.id] === undefined) {
+              next[t.id] = t.adminReply;
+            }
+          }
+          return next;
+        });
         setLoading(false);
       }, (err) => {
         console.error(err);
@@ -406,6 +412,48 @@ const Reports: React.FC = () => {
                     )}
                   </div>
                 )}
+
+                {/* Admin reply input */}
+                <div className="mt-3 space-y-2">
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                    Reply to user
+                  </label>
+                  <textarea
+                    className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-gray-100 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 resize-y min-h-[60px]"
+                    placeholder="Type your response to the user here..."
+                    value={replyMap[ticket.id] || ''}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setReplyMap((prev) => ({ ...prev, [ticket.id]: value }));
+                    }}
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                      This message will be visible to the user in their ticket view.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const text = (replyMap[ticket.id] || '').trim();
+                        if (!text) return;
+                        try {
+                          await updateDoc(doc(db, 'Support_Tickets', ticket.id), {
+                            adminReply: text,
+                            adminRepliedAt: serverTimestamp(),
+                            status: ticket.status === 'Pending' ? 'In Progress' : ticket.status,
+                          });
+                          setReplyMap((prev) => ({ ...prev, [ticket.id]: '' }));
+                        } catch (e) {
+                          console.error('Error saving admin reply:', e);
+                          setError('Failed to save admin reply.');
+                        }
+                      }}
+                      className="inline-flex items-center px-3 py-1.5 rounded-md bg-teal-600 text-white text-xs font-medium shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-teal-500"
+                    >
+                      Send reply
+                    </button>
+                  </div>
+                </div>
 
                 {/* Status update */}
                 <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-800">

@@ -32,6 +32,8 @@ type Ticket = {
   imageUrl?: string;
   ticketNumber?: string;
   aiPromptPending?: boolean;
+  adminReply?: string;
+  adminRepliedAt?: string;
 };
 
 const TicketCenter: React.FC = () => {
@@ -158,6 +160,14 @@ const TicketCenter: React.FC = () => {
             ? (rawStatus as TicketStatus)
             : (rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)) as TicketStatus;
 
+          let adminRepliedAtISO: string | undefined;
+          const rawAdminRepliedAt = data.adminRepliedAt;
+          if (rawAdminRepliedAt && typeof rawAdminRepliedAt.toDate === 'function') {
+            adminRepliedAtISO = rawAdminRepliedAt.toDate().toISOString();
+          } else if (typeof rawAdminRepliedAt === 'number') {
+            adminRepliedAtISO = new Date(rawAdminRepliedAt).toISOString();
+          }
+
           return {
             id: d.id,
             subject: data.subject,
@@ -167,6 +177,8 @@ const TicketCenter: React.FC = () => {
             createdAt: createdAtISO,
             imageUrl: data.imageUrl,
             aiPromptPending: Boolean(data.aiPromptPending),
+            adminReply: data.adminReply,
+            adminRepliedAt: adminRepliedAtISO,
           } as Ticket;
         });
         setTickets(list);
@@ -641,11 +653,30 @@ const TicketCenter: React.FC = () => {
                           </span>
                         </div>
                       </div>
-                      
+                      {t.adminReply && (
+                        <div className="mt-2 p-2 rounded-md border border-teal-100 bg-teal-50/80 dark:border-teal-800/70 dark:bg-teal-900/20">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold uppercase tracking-wide text-teal-800 dark:text-teal-200">
+                              Admin response
+                            </span>
+                            {t.adminRepliedAt && (
+                              <span className="text-[10px] text-teal-700/80 dark:text-teal-300/80">
+                                {formatDate(t.adminRepliedAt)}
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-xs text-gray-800 dark:text-gray-100 whitespace-pre-wrap line-clamp-2">
+                            {t.adminReply}
+                          </p>
+                        </div>
+                      )}
+
                       {/* Expanded Details */}
                       {expandedTicketId === t.id.toString() && (
-                        <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
-                          <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{t.description}</p>
+                        <div className="mt-3 space-y-3">
+                          <div className="p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{t.description}</p>
+                          </div>
                         </div>
                       )}
                       {t.imageUrl && expandedTicketId === t.id.toString() && (
