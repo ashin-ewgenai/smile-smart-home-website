@@ -211,16 +211,16 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       setSessionActiveTicketId(null);
       setTicketData(null);
       setWorkflowStep('initial');
-      // Show generic welcome path with Raise a Ticket CTA
+      // Show generic welcome path in no-ticket mode
       setNoTicketMode(true);
       hasInitialized.current = false;
       hasEscalatedRef.current = false;
       troubleshootingAttemptsRef.current = 0;
-      // Seed welcome with Raise Ticket CTA so it appears immediately
+      // Seed welcome message focused on troubleshooting and human escalation
       const welcome = {
         role: 'assistant' as const,
-        content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Or raise a new support ticket using the button below',
-        showTicketCTA: true,
+        content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• If needed, I can connect you to our human support team after a few troubleshooting steps.',
+        showTicketCTA: false,
         ts: Date.now(),
         source: 'system'
       };
@@ -413,8 +413,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           // Render welcome only in no-ticket mode
           const combined: ChatMsg = {
             role: 'assistant',
-            content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Or raise a new support ticket using the button below',
-            showTicketCTA: true,
+            content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• If needed, I can connect you to our human support team after a few troubleshooting steps.',
+            showTicketCTA: false,
             ts: Date.now(),
           };
           setMessages([combined]);
@@ -438,8 +438,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             setSessionActiveTicketId(null);
             const combined: ChatMsg = {
               role: 'assistant',
-              content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Or raise a new support ticket using the button below',
-              showTicketCTA: true,
+              content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• If needed, I can connect you to our human support team after a few troubleshooting steps.',
+              showTicketCTA: false,
               ts: Date.now(),
             };
             setMessages([combined]);
@@ -467,8 +467,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             setTicketData(null);
             const combined: ChatMsg = {
               role: 'assistant',
-              content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Or raise a new support ticket using the button below',
-              showTicketCTA: true,
+              content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• If needed, I can connect you to our human support team after a few troubleshooting steps.',
+              showTicketCTA: false,
               ts: Date.now(),
             };
             setMessages([combined]);
@@ -611,8 +611,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           // No unresolved tickets: show welcome
           const combined: ChatMsg = {
             role: 'assistant',
-            content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Or raise a new support ticket using the button below',
-            showTicketCTA: true,
+            content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• If needed, I can connect you to our human support team after a few troubleshooting steps.',
+            showTicketCTA: false,
             ts: Date.now(),
           };
 
@@ -631,7 +631,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
               const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
               const existsSnap = await getDocs(query(msgsCol, limit(1)));
               if (existsSnap.empty) {
-                await addDoc(msgsCol, { role: 'assistant', content: combined.content, ts: Date.now(), source: 'system', showTicketCTA: true });
+                await addDoc(msgsCol, { role: 'assistant', content: combined.content, ts: Date.now(), source: 'system', showTicketCTA: false });
               }
             } catch (e) {}
           } else {
@@ -653,7 +653,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         
         const errorMsg: ChatMsg = {
           role: 'assistant',
-          content: '⚠️ I\'m having trouble accessing your ticket information right now, but I can still help you!\n\n💬 How can I assist you today? You can:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Create a new support ticket if needed\n\nJust type your question and I\'ll be happy to help!',
+          content: '⚠️ I\'m having trouble accessing your ticket information right now, but I can still help you!\n\n💬 How can I assist you today? You can:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• If needed, I can connect you to our human support team after a few troubleshooting steps.\n\nJust type your question and I\'ll be happy to help!',
           showTicketCTA: false,
           ts: Date.now() + 500,
         };
@@ -1153,18 +1153,21 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           return;
         } else {
           const ts = Date.now();
-          const ctaText = "It looks like this issue needs deeper investigation. You can raise a support ticket and our team will follow up.";
+          const finalMsg = "Thanks for your patience. I'm connecting you to our support team. One of our agents will call you shortly.";
+          try { await requestHuman(); } catch (e) {}
+          setHasSupportRequest(true);
+          hasEscalatedRef.current = true;
           setMessages((prev) => [
             ...prev,
             { role: 'user', content, ts },
-            { role: 'agent', content: ctaText, ts: ts + 1, showTicketCTA: true },
+            { role: 'agent', content: finalMsg, ts: ts + 1 },
           ]);
           if (uid && sessionId) {
             try {
               const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
               await addDoc(msgsCol, { role: 'user', content, ts });
-              await addDoc(msgsCol, { role: 'assistant', content: ctaText, ts: ts + 1, showTicketCTA: true, source: 'system' });
-              await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'ai_escalated' }, { merge: true });
+              await addDoc(msgsCol, { role: 'assistant', content: finalMsg, ts: ts + 1, source: 'system' });
+              await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human_requested' }, { merge: true });
             } catch (e) {}
           }
           setIsSending(false);
@@ -1205,18 +1208,21 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             } catch (e) {}
           }
         } else {
-          const ctaText = "It looks like this issue needs deeper investigation. You can raise a support ticket and our team will follow up.";
+          const finalMsg = "Thanks for your patience. I'm connecting you to our support team. One of our agents will call you shortly.";
+          hasEscalatedRef.current = true;
+          try { await requestHuman(); } catch (e) {}
+          setHasSupportRequest(true);
           setMessages((prev) => [
             ...prev,
             { role: 'user', content, ts },
-            { role: 'agent', content: ctaText, ts: ts + 1, showTicketCTA: true },
+            { role: 'agent', content: finalMsg, ts: ts + 1 },
           ]);
           if (uid && sessionId) {
             try {
               const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
               await addDoc(msgsCol, { role: 'user', content, ts });
-              await addDoc(msgsCol, { role: 'assistant', content: ctaText, ts: ts + 1, showTicketCTA: true, source: 'system' });
-              await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'ai_escalated' }, { merge: true });
+              await addDoc(msgsCol, { role: 'assistant', content: finalMsg, ts: ts + 1, source: 'system' });
+              await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human_requested' }, { merge: true });
             } catch (e) {}
           }
         }

@@ -2,7 +2,7 @@
 import QuoteDetails from '@/components/dashboard/User/QuoteDetails';
 import Layout from '@/layouts/Layout.astro';
 
-const id = Astro.params.id as string;
+const { id } = Astro.params as { id?: string };
 export async function getStaticPaths() { return []; }
 ---
 
