@@ -18,6 +18,7 @@
     "functions:logs": "npm run -w functions logs"
   },
   "dependencies": {
+    "@astrojs/check": "^0.9.5",
     "@astrojs/react": "^4.3.0",
     "@astrojs/tailwind": "^6.0.2",
     "@react-pdf/renderer": "^4.3.0",
@@ -36,7 +37,8 @@
     "react-phone-input-2": "^2.15.1",
     "react-router-dom": "^7.8.2",
     "recharts": "^3.1.2",
-    "tailwindcss": "^3.4.3"
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@astrojs/node": "^9.0.0",

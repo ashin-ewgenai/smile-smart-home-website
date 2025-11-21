@@ -4,7 +4,7 @@ import { Ticket } from 'lucide-react';
 
 // Firebase
 import { auth, db, storage, functions } from '../../../lib/firebase';
-import { addDoc, serverTimestamp, query, orderBy, onSnapshot, Timestamp, getDocs, where, updateDoc, doc, collection } from 'firebase/firestore';
+import { addDoc, serverTimestamp, query, onSnapshot, Timestamp, getDocs, where, updateDoc, doc, collection } from 'firebase/firestore';
 import { supportTicketsCollection, supportTicketDoc } from '../../../models/Collections';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -136,21 +136,35 @@ const TicketCenter: React.FC = () => {
     }
 
     const ticketsCol = supportTicketsCollection(db);
-    const q = query(ticketsCol, where('uid', '==', userUid), orderBy('createdAt', 'desc'));
+    const q = query(ticketsCol, where('uid', '==', userUid));
 
     const unsub = onSnapshot(
       q,
       (snap) => {
         const list: Ticket[] = snap.docs.map((d) => {
           const data = d.data() as any;
-          const ts = data.createdAt as Timestamp | undefined;
+          const rawCreated = data.createdAt;
+          let createdAtISO: string;
+          if (rawCreated && typeof rawCreated.toDate === 'function') {
+            createdAtISO = rawCreated.toDate().toISOString();
+          } else if (typeof rawCreated === 'number') {
+            createdAtISO = new Date(rawCreated).toISOString();
+          } else {
+            createdAtISO = new Date().toISOString();
+          }
+
+          const rawStatus = String(data.status || 'Pending');
+          const status = (rawStatus === 'Resolved' || rawStatus === 'In Progress' || rawStatus === 'Pending' || rawStatus === 'Cancelled')
+            ? (rawStatus as TicketStatus)
+            : (rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1)) as TicketStatus;
+
           return {
             id: d.id,
             subject: data.subject,
             category: data.category,
             description: data.description,
-            status: (data.status as TicketStatus) ?? 'Pending',
-            createdAt: ts ? ts.toDate().toISOString() : new Date().toISOString(),
+            status,
+            createdAt: createdAtISO,
             imageUrl: data.imageUrl,
             aiPromptPending: Boolean(data.aiPromptPending),
           } as Ticket;

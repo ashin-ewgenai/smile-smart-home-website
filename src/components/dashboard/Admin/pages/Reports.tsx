@@ -143,8 +143,8 @@ const Reports: React.FC = () => {
         );
       })
       .sort((a, b) => {
-        const dateA = a.createdAt?.getTime() || 0;
-        const dateB = b.createdAt?.getTime() || 0;
+        const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : Number(new Date(a.createdAt as any).getTime()) || 0;
+        const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : Number(new Date(b.createdAt as any).getTime()) || 0;
         return sortOrder === 'newest' ? dateB - dateA : dateA - dateB;
       });
   }, [tickets, sortOrder, searchTerm, userCache]);

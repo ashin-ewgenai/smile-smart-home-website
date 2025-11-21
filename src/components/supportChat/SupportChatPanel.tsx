@@ -104,6 +104,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const [isResetting, setIsResetting] = useState(false);
   const hasEscalatedRef = useRef(false);
   const troubleshootingAttemptsRef = useRef(0);
+  const wantsHumanIntentRef = useRef(false);
   const [hasDevicePendingTicket, setHasDevicePendingTicket] = useState(false);
   const [devicePendingTicket, setDevicePendingTicket] = useState<{
     id: string;
@@ -163,6 +164,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     hasInitialized.current = false; // Reset initialization flag
     hasEscalatedRef.current = false;
     troubleshootingAttemptsRef.current = 0;
+    wantsHumanIntentRef.current = false;
     setConfirmInline(false);
     setShowResolveFooter(false);
     setSelectedDevice(null);
@@ -424,27 +426,24 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           
           if (!ticketDoc.exists()) {
             setTicketData(null);
-            const errorMsg: ChatMsg = {
-              role: 'agent',
-              content: 'Ticket not found. Please check the ticket ID or create a new support ticket.',
-              showTicketCTA: true,
-              ts: Date.now(),
-            };
-            setMessages([errorMsg]);
-            hasInitialized.current = true; // Set after messages are added
+            try { if (sessionId) await updateDoc(doc(db, 'chat_sessions', sessionId), { activeTicketId: deleteField(), updatedAt: serverTimestamp() }); } catch {}
+            setSessionActiveTicketId(null);
             return;
           }
           
           const ticketData = ticketDoc.data();
           if (ticketData?.uid !== uid) {
             setTicketData(null);
-            const errorMsg: ChatMsg = {
-              role: 'agent',
-              content: 'Access denied. This ticket does not belong to your account.',
+            try { if (sessionId) await updateDoc(doc(db, 'chat_sessions', sessionId), { activeTicketId: deleteField(), updatedAt: serverTimestamp() }); } catch {}
+            setSessionActiveTicketId(null);
+            const combined: ChatMsg = {
+              role: 'assistant',
+              content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Or raise a new support ticket using the button below',
+              showTicketCTA: true,
               ts: Date.now(),
             };
-            setMessages([errorMsg]);
-            hasInitialized.current = true; // Set after messages are added
+            setMessages([combined]);
+            hasInitialized.current = true;
             return;
           }
 
@@ -460,6 +459,22 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           });
 
           const ticketNumber = ticketData.ticketNumber || `#${effectiveTicketId.slice(-6).toUpperCase()}`;
+          const statusLower = String(ticketData.status || '').toLowerCase();
+          const unresolved = ['pending','in progress','awaiting_user','open'].includes(statusLower);
+          if (!unresolved) {
+            try { if (sessionId) await updateDoc(doc(db, 'chat_sessions', sessionId), { activeTicketId: deleteField(), updatedAt: serverTimestamp() }); } catch {}
+            setSessionActiveTicketId(null);
+            setTicketData(null);
+            const combined: ChatMsg = {
+              role: 'assistant',
+              content: '👋 Hello! I\'m your Smart Home Support Assistant.\n\nHere\'s how I can help:\n• Ask questions about your smart home devices\n• Get troubleshooting help\n• Or raise a new support ticket using the button below',
+              showTicketCTA: true,
+              ts: Date.now(),
+            };
+            setMessages([combined]);
+            hasInitialized.current = true;
+            return;
+          }
           // Persist active ticket binding on the session for future openings
           try {
             if (uid && sessionId) {
@@ -836,11 +851,26 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
         type: 'ai',
       }, { merge: true });
     }
-    // Load any previously bound active ticket
+    // Load any previously bound active ticket and validate
     try {
       const sdata = (await getDoc(sessionRef)).data();
-      setSessionActiveTicketId((sdata?.activeTicketId as string) || null);
-      if (!sdata?.activeTicketId) setNoTicketMode(false);
+      const activeId = (sdata?.activeTicketId as string) || null;
+      setSessionActiveTicketId(activeId);
+      setNoTicketMode(!activeId);
+      if (activeId) {
+        try {
+          const tSnap = await getDoc(doc(db, 'Support_Tickets', activeId));
+          const tData: any = tSnap.exists() ? tSnap.data() : null;
+          const belongs = tData && tData.uid === uid;
+          const status = String(tData?.status || '').toLowerCase();
+          const unresolved = ['pending','in progress','awaiting_user','open'].includes(status);
+          if (!tSnap.exists() || !belongs || !unresolved) {
+            try { await updateDoc(sessionRef, { activeTicketId: deleteField(), updatedAt: serverTimestamp() }); } catch {}
+            setSessionActiveTicketId(null);
+            setNoTicketMode(true);
+          }
+        } catch {}
+      }
     } catch {}
     const msgsCol = collection(db, 'chat_sessions', sessionId!, 'messages');
     msgsUnsubRef.current = onSnapshot(query(msgsCol, orderBy('ts', 'asc')), (qSnap) => {
@@ -1067,26 +1097,24 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
     if (wantsHuman && !claimed) {
       const ts = Date.now();
-      const escalationMessage = "Thank you for your patience. I'm connecting you to our support team. One of our agents will call you within a few minutes.";
+      const promptMsg = "I can help with that. First, please describe the issue you're facing. I'll share troubleshooting steps, and if it's still not resolved after two tries, I'll connect you to our support team.";
 
-      try {
-        await requestHuman();
-      } catch (e) {}
-
-      setHasSupportRequest(true);
+      try { setWorkflowStep('troubleshooting'); } catch {}
+      troubleshootingAttemptsRef.current = 0;
+      wantsHumanIntentRef.current = true;
 
       setMessages((prev) => [
         ...prev,
         { role: 'user', content, ts },
-        { role: 'agent', content: escalationMessage, ts: ts + 1 },
+        { role: 'agent', content: promptMsg, ts: ts + 1 },
       ]);
 
       if (uid && sessionId) {
         try {
           const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
           await addDoc(msgsCol, { role: 'user', content, ts });
-          await addDoc(msgsCol, { role: 'assistant', content: escalationMessage, ts: ts + 1, source: 'system' });
-          await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human_requested' }, { merge: true });
+          await addDoc(msgsCol, { role: 'assistant', content: promptMsg, ts: ts + 1, source: 'system' });
+          await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'ai' }, { merge: true });
         } catch (e) {}
       }
 
@@ -1100,27 +1128,48 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       const lastAssistant = [...messages].reverse().find((m) => m.role === 'assistant' && (m.content || '').length > 0);
       const affirmative = /^(yes|yep|yeah|ok|okay|sure|please|do it|go ahead|proceed|confirm)\b/i.test(content);
       const escalationSuggested = !!(lastAssistant && /escalat/i.test(lastAssistant.content || ''));
-      if (affirmative && escalationSuggested) {
-        await requestHuman();
-        setHasSupportRequest(true);
-        const confirmMsg: ChatMsg = {
-          role: 'agent',
-          content: '✅ I\'ve notified our human support. Someone will reach out to you shortly.',
-          ts: Date.now(),
-        };
-        setMessages((prev) => [...prev, { role: 'user', content, ts: Date.now() - 1 }, confirmMsg]);
+      const attemptsSoFar = troubleshootingAttemptsRef.current;
+      if (affirmative && escalationSuggested && attemptsSoFar >= 2) {
+        if (wantsHumanIntentRef.current) {
+          await requestHuman();
+          setHasSupportRequest(true);
+          const finalMsg = "Thanks for your patience. I'm connecting you to our support team. One of our agents will call you shortly.";
+          const nowTs = Date.now();
+          setMessages((prev) => [
+            ...prev,
+            { role: 'user', content, ts: nowTs - 1 },
+            { role: 'agent', content: finalMsg, ts: nowTs },
+          ]);
 
-        // Persist confirmation into chat_sessions if possible
-        if (uid && sessionId) {
-          try {
-            const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
-            await addDoc(msgsCol, { role: 'user', content, ts: Date.now() });
-            await addDoc(msgsCol, { role: 'assistant', content: confirmMsg.content, ts: Date.now() + 1, source: 'system' });
-            await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human_requested' }, { merge: true });
-          } catch (e) {}
+          if (uid && sessionId) {
+            try {
+              const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+              await addDoc(msgsCol, { role: 'user', content, ts: nowTs - 1 });
+              await addDoc(msgsCol, { role: 'assistant', content: finalMsg, ts: nowTs, source: 'system' });
+              await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human_requested' }, { merge: true });
+            } catch (e) {}
+          }
+          setIsSending(false);
+          return;
+        } else {
+          const ts = Date.now();
+          const ctaText = "It looks like this issue needs deeper investigation. You can raise a support ticket and our team will follow up.";
+          setMessages((prev) => [
+            ...prev,
+            { role: 'user', content, ts },
+            { role: 'agent', content: ctaText, ts: ts + 1, showTicketCTA: true },
+          ]);
+          if (uid && sessionId) {
+            try {
+              const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+              await addDoc(msgsCol, { role: 'user', content, ts });
+              await addDoc(msgsCol, { role: 'assistant', content: ctaText, ts: ts + 1, showTicketCTA: true, source: 'system' });
+              await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'ai_escalated' }, { merge: true });
+            } catch (e) {}
+          }
+          setIsSending(false);
+          return;
         }
-        setIsSending(false);
-        return;
       }
     } catch {}
 
@@ -1134,26 +1183,42 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       const attempts = troubleshootingAttemptsRef.current + 1;
       troubleshootingAttemptsRef.current = attempts;
 
-      // On or after the 2nd negative reply, stop sending more AI troubleshooting steps
+      // On or after the 2nd negative reply
       if (attempts >= 2) {
         const ts = Date.now();
-        const escalationText = "It looks like this issue needs deeper investigation. Let's raise a support ticket or connect you to a human support agent.";
-
-        hasEscalatedRef.current = true;
-
-        setMessages((prev) => [
-          ...prev,
-          { role: 'user', content, ts },
-          { role: 'agent', content: escalationText, ts: ts + 1, showTicketCTA: true },
-        ]);
-
-        if (uid && sessionId) {
-          try {
-            const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
-            await addDoc(msgsCol, { role: 'user', content, ts });
-            await addDoc(msgsCol, { role: 'assistant', content: escalationText, ts: ts + 1, showTicketCTA: true, source: 'system' });
-            await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'ai_escalated' }, { merge: true });
-          } catch (e) {}
+        if (wantsHumanIntentRef.current) {
+          const finalMsg = "Thanks for your patience. I'm connecting you to our support team. One of our agents will call you shortly.";
+          hasEscalatedRef.current = true;
+          try { await requestHuman(); } catch (e) {}
+          setHasSupportRequest(true);
+          setMessages((prev) => [
+            ...prev,
+            { role: 'user', content, ts },
+            { role: 'agent', content: finalMsg, ts: ts + 1 },
+          ]);
+          if (uid && sessionId) {
+            try {
+              const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+              await addDoc(msgsCol, { role: 'user', content, ts });
+              await addDoc(msgsCol, { role: 'assistant', content: finalMsg, ts: ts + 1, source: 'system' });
+              await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'human_requested' }, { merge: true });
+            } catch (e) {}
+          }
+        } else {
+          const ctaText = "It looks like this issue needs deeper investigation. You can raise a support ticket and our team will follow up.";
+          setMessages((prev) => [
+            ...prev,
+            { role: 'user', content, ts },
+            { role: 'agent', content: ctaText, ts: ts + 1, showTicketCTA: true },
+          ]);
+          if (uid && sessionId) {
+            try {
+              const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+              await addDoc(msgsCol, { role: 'user', content, ts });
+              await addDoc(msgsCol, { role: 'assistant', content: ctaText, ts: ts + 1, showTicketCTA: true, source: 'system' });
+              await setDoc(doc(db, 'chat_sessions', sessionId), { updatedAt: serverTimestamp(), status: 'ai_escalated' }, { merge: true });
+            } catch (e) {}
+          }
         }
 
         setIsSending(false);

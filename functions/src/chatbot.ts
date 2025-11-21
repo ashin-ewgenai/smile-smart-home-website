@@ -1,4 +1,5 @@
-import { onCall, CallableRequest } from "firebase-functions/v2/https";
+import { onCall } from "firebase-functions/v2/https";
+import type { CallableRequest } from "firebase-functions/v2/https";
 import { HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { initializeApp, getApps } from "firebase-admin/app";
@@ -165,7 +166,74 @@ async function applyRateLimit(uid: string): Promise<void> {
   }
 }
 
+/**
+ * Ensure there is an open support ticket for this issue / device.
+ * - If an open ticket already exists for this uid (and optional deviceId), return it.
+ * - Otherwise, create a new ticket with a generated ticket number.
+ */
+async function ensureSupportTicketForIssue(params: {
+  uid: string;
+  subject: string;
+  description: string;
+  deviceId?: string;
+  category?: string;
+  priority?: string;
+  imageUrl?: string;
+}): Promise<{
+  ticketId: string;
+  ticketNumber: string;
+  status: string;
+  alreadyExists: boolean;
+}> {
+  const { uid, subject, description, deviceId, category, priority, imageUrl } = params;
+  const ticketsCol = db.collection(CONFIG.COLLECTIONS.TICKETS);
 
+  // Look for an existing open ticket for this user (and device, if provided)
+  let q = ticketsCol.where("uid", "==", uid).where("status", "in", [
+    "Pending",
+    "In Progress",
+    "pending",
+    "open",
+    "awaiting_user",
+  ]);
+  if (deviceId) {
+    q = q.where("deviceId", "==", deviceId);
+  }
+  const existingSnap = await q.limit(1).get();
+  if (!existingSnap.empty) {
+    const docSnap = existingSnap.docs[0];
+    const data = docSnap.data() as any;
+    const ticketId = docSnap.id;
+    const ticketNumber = data.ticketNumber || `#${ticketId.slice(-6).toUpperCase()}`;
+    const status = String(data.status || "Pending");
+    return { ticketId, ticketNumber, status, alreadyExists: true };
+  }
+
+  // No open ticket found – create a new one
+  const now = Date.now();
+  const currentYear = new Date(now).getFullYear();
+  const timestampPart = String(now).slice(-3);
+  const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
+  const ticketNumber = `SMH-${currentYear}-${timestampPart}${randomSuffix.slice(-2)}`;
+
+  const payload: any = {
+    uid,
+    ticketNumber,
+    subject: subject.trim(),
+    description: description.trim(),
+    status: "Pending",
+    priority: priority || "medium",
+    createdAt: now,
+    updatedAt: now,
+  };
+  if (category) payload.category = category;
+  if (deviceId) payload.deviceId = deviceId;
+  if (imageUrl) payload.imageUrl = imageUrl;
+
+  const ticketRef = await ticketsCol.add(payload);
+  const ticketId = ticketRef.id;
+  return { ticketId, ticketNumber, status: payload.status, alreadyExists: false };
+}
 
 // ===== Full chat with OpenAI including Firestore persistence =====
 // request.data: { messages: {role:'system'|'user'|'assistant', content:string}[], model?: string, sessionId?: string, ticketId?: string }
@@ -1465,9 +1533,7 @@ BEGIN ASSISTANT RESPONSE NOW.`,
     // Escalation/troubleshooting step logic
     let troubleshootingStepCount = 0;
     let escalate = false;
-    let allowTroubleshooting = false;
     let stepIndex = 0;
-    let lastTroubleshootingIdx = -1;
     let lastEscalationIdx = -1;
 
     // Count troubleshooting steps in this session
@@ -1478,7 +1544,6 @@ BEGIN ASSISTANT RESPONSE NOW.`,
           const data = JSON.parse(m.content.trim());
           if (data && data.mode === 'troubleshooting' && data.allowTroubleshooting) {
             troubleshootingStepCount++;
-            lastTroubleshootingIdx = i;
             if (data.escalate) lastEscalationIdx = i;
           }
         } catch {}
@@ -1491,11 +1556,35 @@ BEGIN ASSISTANT RESPONSE NOW.`,
     if (lastEscalationIdx >= 0) escalate = true;
     // Escalate if 4 or more steps, or if user is frustrated
     if (troubleshootingStepCount >= 4 || userFrustrated) escalate = true;
-    allowTroubleshooting = !escalate;
     stepIndex = troubleshootingStepCount;
 
-    // If escalation is triggered, emit escalation message and JSON
+    // If escalation is triggered, ensure a ticket exists and emit escalation message and JSON
     if (escalate) {
+      try {
+        const deviceIdForTicket = (problemMatchedDevice?.id || globalSerialMatchedDevice?.id) ? String((problemMatchedDevice?.id || globalSerialMatchedDevice?.id)) : undefined;
+        const subjectForTicket = 'Support needed for device issue';
+        const descriptionForTicket = String(lastUserMsg || '').slice(0, 500) || 'Issue reported via chat';
+        const ticket = await ensureSupportTicketForIssue({
+          uid,
+          subject: subjectForTicket,
+          description: descriptionForTicket,
+          deviceId: deviceIdForTicket,
+          category: 'Chat Escalation',
+          priority: 'medium',
+        });
+        requiresTicket = true;
+        ticketDetails = {
+          ticketId: ticket.ticketId,
+          ticketNumber: ticket.ticketNumber,
+          status: ticket.status,
+          alreadyExists: ticket.alreadyExists,
+        };
+        try {
+          await sessionsCol.doc(sessionId).set({ activeTicketId: ticket.ticketId, updatedAt: Date.now() }, { merge: true });
+        } catch {}
+      } catch (err) {
+        // If ticket creation/check fails, still proceed with escalation without ticket details
+      }
       return {
         reply: JSON.stringify({
           mode: 'troubleshooting',

@@ -9,9 +9,14 @@ import AdminApp from '../../../components/dashboard/Admin/AdminApp';
 
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const userEmail = localStorage.getItem('userEmail');
-    const userRole = localStorage.getItem('userRole');
-    const isAdmin = userRole === 'admin';
-    if (!userEmail || !isAdmin) window.location.href = '/admin_login';
+    try {
+      const userEmail = localStorage.getItem('userEmail');
+      const raw = localStorage.getItem('userRole') || '';
+      const role = raw.toLowerCase().replace(/[_-]+/g, ' ').trim();
+      const allowed = !!userEmail && (role === 'admin' || role === 'super admin');
+      if (!allowed) window.location.href = '/admin_login';
+    } catch (e) {
+      window.location.href = '/admin_login';
+    }
   });
 </script>
