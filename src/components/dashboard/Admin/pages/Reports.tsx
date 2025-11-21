@@ -57,14 +57,12 @@ const Reports: React.FC = () => {
           };
         });
         setTickets(arr);
-        // Seed reply inputs with existing replies ONLY for tickets that don't already have an entry in replyMap.
-        // This avoids repopulating the textarea after we've intentionally cleared it on send.
+        // Initialize reply inputs as empty for tickets that don't have an entry.
+        // Do NOT seed with adminReply so the textarea stays empty even after refresh.
         setReplyMap((prev) => {
           const next = { ...prev } as Record<string, string>;
           for (const t of arr) {
-            if (t.adminReply && prev[t.id] === undefined) {
-              next[t.id] = t.adminReply;
-            }
+            if (next[t.id] === undefined) next[t.id] = '';
           }
           return next;
         });
