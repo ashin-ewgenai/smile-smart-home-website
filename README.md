@@ -113,23 +113,48 @@ Contains older Firebase Functions for backward compatibility. New development sh
 
 **Usage Example**:
 ```typescript
+// Custom hook usage in React components
 const { devices, controlDevice, addDevice } = useDevices();
 await controlDevice(deviceId, { power: true, brightness: 80 });
 ```
+
+### React Components Architecture
+
+The project includes extensive React component structures for both Admin and User dashboards:
+
+#### Admin Dashboard Components (`src/components/dashboard/Admin/`)
+- **Core Layout**: `AdminDashboard.tsx`, `DashboardLayout.tsx`, `AdminSidebar.tsx`
+- **Pages**: `Devices.tsx`, `AdminUsers.tsx`, `Estimates.tsx`, `Reports.tsx`, `Alerts.tsx`
+- **Forms**: `DeviceForm.tsx`, `EstimationTool.tsx`
+- **Modals**: `AddDeviceModal.tsx`, `DeviceDetailsModal.tsx`
+
+#### User Dashboard Components (`src/components/dashboard/User/`)
+- **Core Layout**: `DashboardApp.tsx`, `DashboardLayout.tsx`
+- **Pages**: `AboutDevices.tsx`, `MyQuotes.tsx`, `NotificationsPage.tsx`
+- **Account**: `ChangePassword.tsx`, `PaymentHistoryModal.tsx`
+
+#### Common Components (`src/components/common/`)
+- **Authentication**: `AuthNavClient.tsx`
+- **Notifications**: `NotificationBadge.tsx`, `TicketNotificationButton.tsx`
+- **UI**: `LocationSelector.tsx`, `ContactForm.tsx`
 
 ### Custom React Hooks
 
 #### `src/hooks/useTicketNotifications.ts`
 **Purpose**: Real-time support ticket notifications for administrators
-**Features**: Monitors new support tickets and provides toast notifications
+**Features**: Custom hook that monitors new support tickets and provides toast notifications
 
 #### `src/hooks/useUnclosedServiceRequestsCount.ts`
 **Purpose**: Tracks pending service requests for dashboard metrics
-**Features**: Real-time count of unresolved service requests
+**Features**: Custom hook providing real-time count of unresolved service requests
 
 #### `src/hooks/useUnconfirmedQuotesCount.ts`
 **Purpose**: Manages quote confirmation workflow
-**Features**: Tracks quotes awaiting customer approval
+**Features**: Custom hook that tracks quotes awaiting customer approval
+
+#### Additional Custom Hooks
+- `src/hooks/useAuth.ts`: Custom authentication state management hook
+- Various dashboard-specific hooks for admin and user interfaces
 
 ## 🛠️ Utility Libraries
 
@@ -159,9 +184,9 @@ await controlDevice(deviceId, { power: true, brightness: 80 });
 ## 🚦 Middleware
 
 ### `src/middleware.ts`
-**Purpose**: Request processing middleware for SSR routes
-**Current State**: Minimal implementation passing through all requests
-**Intended Use**: Authentication, route protection, and request preprocessing
+**Purpose**: Request processing middleware for SSR routes (currently placeholder implementation)
+**Current State**: Minimal implementation passing through all requests - serves as a placeholder for future authentication and route protection logic
+**Intended Use**: Will handle authentication, route protection, and request preprocessing when fully implemented
 
 ### `src/_middleware.disabled.ts`
 **Purpose**: Disabled middleware for static hosting builds
@@ -291,7 +316,7 @@ npm run functions:deploy
 
 - This project uses Astro Node adapter in standalone mode for SSR.
 - Config: see `astro.config.mjs` (`output: 'server'`, `adapter: node({ mode: 'standalone' })`).
-- Server-side auth middleware: `src/middleware.ts` protects routes under `/super_admin-a1b2c3`.
+- **Note**: Route protection for `/super_admin-a1b2c3` is currently handled at the component level, not via middleware (middleware.ts is placeholder).
 
 Dynamic Super Admin user page:
 
