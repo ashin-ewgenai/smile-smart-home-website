@@ -43,6 +43,8 @@ interface DevicesContextValue {
   filteredReports: SupportTicket[];
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  filterCriteria: { dateRange: string; itemType: string };
+  setFilterCriteria: (criteria: { dateRange: string; itemType: string }) => void;
   loading: boolean;
   adminLoading: boolean;
   error: string | null;
@@ -105,6 +107,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [contactSubmissions, setContactSubmissions] = useState<ContactRequest[]>([]);
   const [reports, setReports] = useState<SupportTicket[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterCriteria, setFilterCriteria] = useState({ dateRange: 'all', itemType: 'all' });
   const [loading, setLoading] = useState<boolean>(true);
   const [adminLoading, setAdminLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -166,34 +169,79 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
            (item.message || '').startsWith('[Floorplan Request');
   }, []);
 
+  const passesDate = (timestamp: any, range: string) => {
+    if (range === 'all') return true;
+    if (!timestamp) return false;
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp.seconds * 1000);
+    const now = new Date();
+    if (range === 'today') return date.toDateString() === now.toDateString();
+    if (range === 'week') return (now.getTime() - date.getTime()) < 7 * 24 * 60 * 60 * 1000;
+    if (range === 'month') return (now.getTime() - date.getTime()) < 30 * 24 * 60 * 60 * 1000;
+    return true;
+  };
+
   const filteredPlanLeads = useMemo(() => {
-    if (!searchQuery) return planLeads;
-    const lower = searchQuery.toLowerCase();
-    return planLeads.filter(p => (
-      (p.email || '').toLowerCase().includes(lower) || 
-      ((p.formData?.email as string) || '').toLowerCase().includes(lower)
-    ));
-  }, [planLeads, searchQuery]);
+    let list = planLeads;
+    if (searchQuery) {
+      const lower = searchQuery.toLowerCase();
+      list = list.filter(p => (
+        (p.email || '').toLowerCase().includes(lower) || 
+        ((p.formData?.email as string) || '').toLowerCase().includes(lower) ||
+        (p.name || '').toLowerCase().includes(lower)
+      ));
+    }
+    if (filterCriteria.dateRange !== 'all') {
+      list = list.filter(p => passesDate(p.updatedAt || p.createdAt, filterCriteria.dateRange));
+    }
+    if (filterCriteria.itemType === 'floorplan') {
+      list = list.filter(p => isFloorplanItem(p));
+    } else if (filterCriteria.itemType === 'standard') {
+      list = list.filter(p => !isFloorplanItem(p));
+    }
+    return list;
+  }, [planLeads, searchQuery, filterCriteria, isFloorplanItem]);
 
   const filteredContactSubmissions = useMemo(() => {
-    if (!searchQuery) return contactSubmissions;
-    const lower = searchQuery.toLowerCase();
-    return contactSubmissions.filter(c => (
-      (c.email || '').toLowerCase().includes(lower) || 
-      (c.fullName || '').toLowerCase().includes(lower) || 
-      (c.message || '').toLowerCase().includes(lower)
-    ));
-  }, [contactSubmissions, searchQuery]);
+    let list = contactSubmissions;
+    if (searchQuery) {
+      const lower = searchQuery.toLowerCase();
+      list = list.filter(c => (
+        (c.email || '').toLowerCase().includes(lower) || 
+        (c.fullName || '').toLowerCase().includes(lower) || 
+        (c.message || '').toLowerCase().includes(lower)
+      ));
+    }
+    if (filterCriteria.dateRange !== 'all') {
+      list = list.filter(c => passesDate(c.createdAt, filterCriteria.dateRange));
+    }
+    if (filterCriteria.itemType === 'floorplan') {
+      list = list.filter(c => isFloorplanItem(c));
+    } else if (filterCriteria.itemType === 'standard') {
+      list = list.filter(c => !isFloorplanItem(c));
+    }
+    return list;
+  }, [contactSubmissions, searchQuery, filterCriteria, isFloorplanItem]);
 
   const filteredReports = useMemo(() => {
-    if (!searchQuery) return reports;
-    const lower = searchQuery.toLowerCase();
-    return reports.filter(r => (
-      (r.subject || '').toLowerCase().includes(lower) || 
-      (r.title || '').toLowerCase().includes(lower) || 
-      (r.description || '').toLowerCase().includes(lower)
-    ));
-  }, [reports, searchQuery]);
+    let list = reports;
+    if (searchQuery) {
+      const lower = searchQuery.toLowerCase();
+      list = list.filter(r => (
+        (r.subject || '').toLowerCase().includes(lower) || 
+        (r.title || '').toLowerCase().includes(lower) || 
+        (r.description || '').toLowerCase().includes(lower)
+      ));
+    }
+    if (filterCriteria.dateRange !== 'all') {
+      list = list.filter(r => passesDate(r.createdAt, filterCriteria.dateRange));
+    }
+    if (filterCriteria.itemType === 'floorplan') {
+      list = list.filter(r => isFloorplanItem(r));
+    } else if (filterCriteria.itemType === 'standard') {
+      list = list.filter(r => !isFloorplanItem(r));
+    }
+    return list;
+  }, [reports, searchQuery, filterCriteria, isFloorplanItem]);
 
   const fetchDevices = useCallback(async () => {
     if (!uid) {
@@ -465,8 +513,8 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     devices, loading, adminLoading, error, refresh: fetchDevices, uid,
     planLeads, contactSubmissions, reports, isFloorplanItem,
     filteredPlanLeads, filteredContactSubmissions, filteredReports,
-    searchQuery, setSearchQuery
-  }), [devices, loading, adminLoading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, filteredContactSubmissions, filteredReports, searchQuery]);
+    searchQuery, setSearchQuery, filterCriteria, setFilterCriteria
+  }), [devices, loading, adminLoading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, filteredContactSubmissions, filteredReports, searchQuery, filterCriteria]);
 
   return (
     <DevicesContext.Provider value={value}>

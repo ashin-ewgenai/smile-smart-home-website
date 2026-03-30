@@ -4,7 +4,10 @@ import { collection, doc, onSnapshot, query, updateDoc, serverTimestamp, getDoc,
 import { supportTicketsCollection } from '../../../../models/Collections';
 import { useDevices } from '../../../../contexts/DevicesContext';
 import { useTicketNotifications } from '../../../../hooks/useTicketNotifications';
-import { TicketIcon, Search, GripVertical, Trash2, AlertTriangle, ChevronDown, Send } from 'lucide-react';
+import { 
+  Search, Ticket as TicketIcon, Filter, Calendar, GripVertical, Trash2, 
+  ChevronDown, AlertTriangle, Send 
+} from 'lucide-react';
 
 type Ticket = {
   id: string;
@@ -44,7 +47,11 @@ function formatDate(v: any): string {
 const FALLBACK_IMG = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="80"><rect width="100%" height="100%" fill="%23e5e7eb"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="%236b7280" font-family="Arial" font-size="14">No image</text></svg>';
 
 const Reports: React.FC = () => {
-  const { filteredReports, searchQuery, setSearchQuery, adminLoading: contextLoading } = useDevices();
+  const { 
+    filteredReports, searchQuery, setSearchQuery, 
+    filterCriteria, setFilterCriteria,
+    isFloorplanItem, adminLoading: contextLoading 
+  } = useDevices();
   const { updateTicketStatus } = useTicketNotifications(null);
 
   const tickets = filteredReports as unknown as Ticket[];
@@ -134,16 +141,48 @@ const Reports: React.FC = () => {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{tickets.length} tickets across {COLUMNS.length} stages</p>
         </div>
-        <div className="relative max-w-xs w-full">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <input
-            id="reports-search"
-            type="text"
-            placeholder="Search tickets…"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-          />
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          {/* Search */}
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            <input
+              id="reports-search"
+              type="text"
+              placeholder="Search tickets…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+          </div>
+
+          {/* Date Filter */}
+          <div className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-1.5 min-w-[140px]">
+            <Calendar className="h-4 w-4 text-gray-400" />
+            <select
+              value={filterCriteria.dateRange}
+              onChange={e => setFilterCriteria({ ...filterCriteria, dateRange: e.target.value })}
+              className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none w-full"
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">This Month</option>
+            </select>
+          </div>
+
+          {/* Type Filter */}
+          <div className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-1.5 min-w-[140px]">
+            <Filter className="h-4 w-4 text-gray-400" />
+            <select
+              value={filterCriteria.itemType}
+              onChange={e => setFilterCriteria({ ...filterCriteria, itemType: e.target.value })}
+              className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none w-full"
+            >
+              <option value="all">All Tickets</option>
+              <option value="floorplan">Floorplan Related</option>
+              <option value="standard">Standard Issues</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -153,35 +192,36 @@ const Reports: React.FC = () => {
       {!contextLoading && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {COLUMNS.map(col => {
-            const cards = byColumn(col.id);
-            const isOver = dragOver === col.id;
-            return (
-              <div
-                key={col.id}
-                onDragOver={e => { e.preventDefault(); setDragOver(col.id); }}
-                onDragLeave={() => setDragOver(null)}
-                onDrop={e => handleDrop(e, col.id)}
-                className={`rounded-2xl border-t-4 ${col.topColor} bg-white dark:bg-gray-900 shadow-sm transition-all duration-150 ${isOver ? 'ring-2 ring-teal-400' : ''}`}
-              >
-                {/* Column header */}
-                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-full ${col.dot}`} />
-                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{col.label}</span>
-                  </div>
-                  <span className="text-xs font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">{cards.length}</span>
-                </div>
-
-                <div className="p-3 space-y-3 min-h-[120px]">
-                  {cards.length === 0 && (
-                    <div className="text-center text-xs text-gray-400 dark:text-gray-600 py-8 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
-                      Drop ticket here
-                    </div>
-                  )}
-                  {cards.map(ticket => {
-                    const user = ticket.userUid ? userCache[ticket.userUid] : null;
-                    const isOpen = openId === ticket.id;
+                    const cards = byColumn(col.id);
+                    const isOver = dragOver === col.id;
                     return (
+                      <div
+                        key={col.id}
+                        onDragOver={e => { e.preventDefault(); setDragOver(col.id); }}
+                        onDragLeave={() => setDragOver(null)}
+                        onDrop={e => handleDrop(e, col.id)}
+                        className={`rounded-2xl border-t-4 ${col.topColor} bg-white dark:bg-gray-900 shadow-sm transition-all duration-150 ${isOver ? 'ring-2 ring-teal-400' : ''}`}
+                      >
+                        {/* Column header */}
+                        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-2.5 h-2.5 rounded-full ${col.dot}`} />
+                            <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{col.label}</span>
+                          </div>
+                          <span className="text-xs font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">{cards.length}</span>
+                        </div>
+
+                        <div className="p-3 space-y-3 min-h-[120px]">
+                          {cards.length === 0 && (
+                            <div className="text-center text-xs text-gray-400 dark:text-gray-600 py-8 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
+                              Drop ticket here
+                            </div>
+                          )}
+                          {cards.map(ticket => {
+                            const user = ticket.userUid ? userCache[ticket.userUid] : null;
+                            const isOpen = openId === ticket.id;
+                            const isFloorplan = isFloorplanItem(ticket);
+                            return (
                       <div
                         key={ticket.id}
                         draggable
@@ -195,6 +235,9 @@ const Reports: React.FC = () => {
                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{ticket.subject || 'No subject'}</p>
                             <div className="flex items-center gap-2 mt-1 flex-wrap">
                               {ticket.category && <span className="text-[10px] px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded-full text-gray-600 dark:text-gray-300">{ticket.category}</span>}
+                              {isFloorplan && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 rounded-full font-semibold">Floorplan</span>
+                              )}
                               {user?.displayName && <span className="text-[10px] text-gray-500 truncate">{user.displayName}</span>}
                               <span className="text-[10px] text-gray-400">{formatDate(ticket.createdAt)}</span>
                             </div>

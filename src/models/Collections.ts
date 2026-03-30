@@ -121,7 +121,7 @@ export interface ContactRequest {
   message?: string;
   createdAt?: Timestamp | null;
   adminRead?: boolean;
-  status?: 'new' | 'review' | 'replied' | 'closed'; // Kanban stage
+  status?: 'new' | 'in_review' | 'follow_up' | 'resolved' | string; // Kanban stage for contactRequests
   [key: string]: any;
 }
 
@@ -340,7 +340,7 @@ export function userDoc(db: Firestore, uid: string): DocumentReference<UserProfi
 export interface PlannerLead {
   updatedAt?: Timestamp | null;
   createdAt?: Timestamp | null;
-  status?: 'new' | 'contacted' | 'quoted' | 'install'; // Kanban stage
+  status?: 'new' | 'contacted' | 'qualified' | 'closed' | string; // Kanban stage for Planner_Leads
   [key: string]: any;
 }
 
@@ -412,7 +412,7 @@ export interface SupportTicket {
   imageUrl?: string;
   createdAt?: Timestamp | null;
   // Normalize to TicketCenter statuses while preserving legacy values used elsewhere
-  status?: 'Pending' | 'In Progress' | 'Resolved' | 'open' | 'closed' | 'pending' | string;
+  status?: 'open' | 'in_progress' | 'resolved' | 'closed' | string; // Kanban stage for Support_Tickets
   [key: string]: any;
 }
 

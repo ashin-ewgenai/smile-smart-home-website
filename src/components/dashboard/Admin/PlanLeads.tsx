@@ -3,7 +3,7 @@ import { db } from '../../../lib/firebase';
 import { collection, onSnapshot, updateDoc, deleteDoc, doc, orderBy, query } from 'firebase/firestore';
 import { plannerLeadsCollection, plannerLeadDoc } from '../../../models/Collections';
 import { useDevices } from '../../../contexts/DevicesContext';
-import { Trash2, FilePlus, AlertTriangle, Search, GripVertical, X, ChevronDown } from 'lucide-react';
+import { Trash2, FilePlus, AlertTriangle, Search, GripVertical, X, ChevronDown, Calendar, Filter } from 'lucide-react';
 
 type FormData = {
   budget: string;
@@ -53,7 +53,11 @@ function formatDate(v: any): string {
 }
 
 const PlanLeads: React.FC = () => {
-  const { filteredPlanLeads, searchQuery, setSearchQuery, isFloorplanItem, adminLoading: contextLoading } = useDevices();
+  const { 
+    filteredPlanLeads, searchQuery, setSearchQuery, 
+    filterCriteria, setFilterCriteria,
+    isFloorplanItem, adminLoading: contextLoading 
+  } = useDevices();
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -99,16 +103,48 @@ const PlanLeads: React.FC = () => {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{leads.length} leads across {COLUMNS.length} stages</p>
         </div>
-        <div className="relative max-w-xs w-full">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-          <input
-            id="plan-leads-search"
-            type="text"
-            placeholder="Search by email…"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
-          />
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          {/* Search */}
+          <div className="relative flex-1 sm:w-64">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+            <input
+              id="plan-leads-search"
+              type="text"
+              placeholder="Search by email…"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+            />
+          </div>
+
+          {/* Date Filter */}
+          <div className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-1.5 min-w-[140px]">
+            <Calendar className="h-4 w-4 text-gray-400" />
+            <select
+              value={filterCriteria.dateRange}
+              onChange={e => setFilterCriteria({ ...filterCriteria, dateRange: e.target.value })}
+              className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none w-full"
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">This Month</option>
+            </select>
+          </div>
+
+          {/* Type Filter */}
+          <div className="flex items-center gap-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-xl px-3 py-1.5 min-w-[140px]">
+            <Filter className="h-4 w-4 text-gray-400" />
+            <select
+              value={filterCriteria.itemType}
+              onChange={e => setFilterCriteria({ ...filterCriteria, itemType: e.target.value })}
+              className="bg-transparent text-sm text-gray-700 dark:text-gray-200 focus:outline-none w-full"
+            >
+              <option value="all">All Leads</option>
+              <option value="floorplan">Floorplan Only</option>
+              <option value="standard">Standard Only</option>
+            </select>
+          </div>
         </div>
       </div>
 
