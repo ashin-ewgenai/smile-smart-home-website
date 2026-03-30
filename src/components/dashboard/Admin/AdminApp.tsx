@@ -17,6 +17,7 @@ import Alerts from './pages/Alerts';
 import PlanLeads from './PlanLeads';
 import AdminSupportApp from './AdminSupportApp';
 import AdminContactSubmissions from './pages/AdminContactSubmissions';
+import { DevicesProvider } from '../../../contexts/DevicesContext';
 
 const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [ready, setReady] = useState(false);
@@ -83,29 +84,30 @@ const AdminApp: React.FC = () => {
   return (
     <BrowserRouter basename="/dashboard/admin">
       <RequireAdmin>
-        <DashboardLayout userType="admin" userName="Admin">
-          <Routes>
-            <Route path="/" element={<AdminDashboard />} />
-            <Route path="/settings" element={<AdminSettings />} />
-            <Route path="/profile" element={<AdminProfile />} />
+        <DevicesProvider>
+          <DashboardLayout userType="admin" userName="Admin">
+            <Routes>
+              <Route path="/" element={<AdminDashboard />} />
+              <Route path="/settings" element={<AdminSettings />} />
+              <Route path="/profile" element={<AdminProfile />} />
 
-            {/* Concrete React pages for admin routes */}
-            <Route path="/estimates" element={<Estimates />} />
-            <Route path="/devices" element={<Devices />} />
-            <Route path="/devices/add" element={<AddDevice />} />
-            <Route path="/users" element={<AdminUsers />} />
-            <Route path="/contact-submissions" element={<AdminContactSubmissions />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/notifications" element={<Notifications />} />
-            <Route path="/alerts" element={<Alerts />} />
-            <Route path="/plan-leads" element={<PlanLeads />} />
-            <Route path="/bill" element={<Bill />} />
-            <Route path="/about-device" element={<AboutDevice />} />
-            <Route path="/support" element={<AdminSupportApp />} />
-
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </DashboardLayout>
+              {/* Concrete React pages for admin routes */}
+              <Route path="/estimates" element={<Estimates />} />
+              <Route path="/devices" element={<Devices />} />
+              <Route path="/devices/add" element={<AddDevice />} />
+              <Route path="/users" element={<AdminUsers />} />
+              <Route path="/contact-submissions" element={<AdminContactSubmissions />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/notifications" element={<Notifications />} />
+              <Route path="/alerts" element={<Alerts />} />
+              <Route path="/bill" element={<Bill />} />
+              <Route path="/about/:id" element={<AboutDevice />} />
+              <Route path="/plan-leads" element={<PlanLeads />} />
+              <Route path="/support/*" element={<AdminSupportApp />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </DashboardLayout>
+        </DevicesProvider>
       </RequireAdmin>
     </BrowserRouter>
   );

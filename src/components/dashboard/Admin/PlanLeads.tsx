@@ -1,52 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { db } from '../../../lib/firebase';
-import { getDocs, orderBy, query, deleteDoc } from 'firebase/firestore';
+import { collection, onSnapshot, updateDoc, deleteDoc, doc, orderBy, query } from 'firebase/firestore';
 import { plannerLeadsCollection, plannerLeadDoc } from '../../../models/Collections';
-import { Trash2, FilePlus, AlertTriangle } from 'lucide-react';
-// Custom modal component for delete confirmation
-const DeleteConfirmationModal = ({
-  isOpen,
-  onConfirm,
-  onCancel
-}: {
-  isOpen: boolean;
-  onConfirm: () => void;
-  onCancel: () => void
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0" />
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Delete Lead
-          </h3>
-        </div>
-
-        <p className="text-gray-600 dark:text-gray-300 mb-6">
-          Are you sure you want to delete this lead? This action cannot be undone.
-        </p>
-
-        <div className="flex flex-col sm:flex-row justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
+import { useDevices } from '../../../contexts/DevicesContext';
+import { Trash2, FilePlus, AlertTriangle, Search, GripVertical, X, ChevronDown } from 'lucide-react';
 
 type FormData = {
   budget: string;
@@ -56,6 +13,8 @@ type FormData = {
   goals: string[];
   roomCount: string;
   spaceType: string;
+  roomTitle?: string;
+  source?: string;
 };
 
 type Lead = {
@@ -65,380 +24,230 @@ type Lead = {
   formData: FormData;
   planText: string;
   recommendedAreas: string[];
+  status?: string;
   updatedAt: { toDate: () => Date } | Date | string;
 };
 
+type ColumnId = 'new' | 'contacted' | 'quoted' | 'install';
+
+const COLUMNS: { id: ColumnId; label: string; color: string; dot: string }[] = [
+  { id: 'new',       label: 'New Leads',        color: 'border-t-blue-500',   dot: 'bg-blue-500' },
+  { id: 'contacted', label: 'Contacted',         color: 'border-t-amber-500',  dot: 'bg-amber-500' },
+  { id: 'quoted',    label: 'Quote Sent',         color: 'border-t-purple-500', dot: 'bg-purple-500' },
+  { id: 'install',   label: 'Install Scheduled', color: 'border-t-teal-500',   dot: 'bg-teal-500' },
+];
+
+function getStatus(lead: Lead): ColumnId {
+  const s = (lead.status || 'new').toLowerCase();
+  if (s === 'contacted') return 'contacted';
+  if (s === 'quoted' || s === 'quote sent') return 'quoted';
+  if (s === 'install' || s === 'install scheduled') return 'install';
+  return 'new';
+}
+
+function formatDate(v: any): string {
+  try {
+    const d = v?.toDate?.() ?? (v?.seconds ? new Date(v.seconds * 1000) : new Date(v));
+    return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch { return '—'; }
+}
+
 const PlanLeads: React.FC = () => {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { filteredPlanLeads, searchQuery, setSearchQuery, isFloorplanItem, adminLoading: contextLoading } = useDevices();
   const [error, setError] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
-  const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const itemRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState<ColumnId | null>(null);
 
-  const setItemRef = (id: string) => (el: HTMLDivElement | null) => {
-    const map = itemRefs.current;
-    if (el) {
-      map.set(id, el);
-    } else {
-      map.delete(id);
-    }
-  };
+  // Derived state mimicking original sorting
+  const leads = [...(filteredPlanLeads as unknown as Lead[])].sort((a, b) => {
+    const getTime = (v: any) => v?.toDate?.()?.getTime?.() ?? (v?.seconds ? v.seconds * 1000 : 0);
+    return getTime(b.updatedAt) - getTime(a.updatedAt);
+  });
 
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
+  const byColumn = (col: ColumnId) => leads.filter(l => getStatus(l) === col);
 
-    const styles = window.getComputedStyle(container);
-    const autoRows = parseFloat(styles.getPropertyValue('grid-auto-rows')) || 8;
-    const rowGap = parseFloat(styles.getPropertyValue('row-gap')) || 16;
-
-    const computeFor = (el: HTMLElement) => {
-      const h = el.getBoundingClientRect().height;
-      // Include the row gap in the calculation to avoid visible gaps
-      const span = Math.ceil((h + rowGap) / (autoRows + rowGap));
-      el.style.gridRowEnd = `span ${Math.max(span, 1)}`;
-    };
-
-    // Initial compute for all items
-    itemRefs.current.forEach((el) => computeFor(el));
-
-    // Recompute on window resize
-    const onResize = () => itemRefs.current.forEach((el) => computeFor(el));
-    window.addEventListener('resize', onResize);
-
-    // Observe each item's size for dynamic recompute
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const el = entry.target as HTMLElement;
-        computeFor(el);
-      }
-    });
-    itemRefs.current.forEach((el) => ro.observe(el));
-
-    return () => {
-      window.removeEventListener('resize', onResize);
-      ro.disconnect();
-    };
-  }, [leads, searchTerm, openId]);
-
-  const filteredLeads: Lead[] = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
-    if (!term) return leads;
-    return leads.filter(lead => (lead.email || '').toLowerCase().includes(term));
-  }, [leads, searchTerm]);
-
-  const handleLeadClick = (lead: Lead) => {
-    setOpenId(openId === lead.id ? null : lead.id);
-  };
-
-  const handleDeleteClick = (leadId: string) => {
-    setLeadToDelete(leadId);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!leadToDelete) return;
-
+  const moveCard = async (leadId: string, newStatus: ColumnId) => {
     try {
-      await deleteDoc(plannerLeadDoc(db, leadToDelete));
-      setLeads(prev => prev.filter(l => l.id !== leadToDelete));
-      setLeadToDelete(null);
-    } catch (e) {
-      setError('Failed to delete lead');
-      setLeadToDelete(null);
-    }
+      await updateDoc(plannerLeadDoc(db, leadId), { status: newStatus });
+    } catch { setError('Failed to update status.'); }
   };
 
-  const handleDeleteCancel = () => {
-    setLeadToDelete(null);
+  const handleDrop = (e: React.DragEvent, col: ColumnId) => {
+    e.preventDefault();
+    setDragOver(null);
+    if (dragging) moveCard(dragging, col);
+    setDragging(null);
   };
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const q = query(plannerLeadsCollection(db), orderBy('updatedAt', 'desc'));
-        const snap = await getDocs(q);
-        if (cancelled) return;
-        const list: Lead[] = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
-        setLeads(list);
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load plan leads');
-      } finally {
-        setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const renderPlan = (lead: Lead) => {
-    const { formData } = lead;
-
-    if (!formData) {
-      return <div className="text-gray-400 text-sm italic">No plan details available</div>;
-    }
-
-    return (
-      <div className="space-y-3">
-        <div>
-          <h4 className="font-medium text-gray-900 dark:text-white">Plan Details</h4>
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            <span className="font-medium">Space Type:</span> {formData.spaceType || 'N/A'}
-          </p>
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            <span className="font-medium">Rooms:</span> {formData.roomCount || 'N/A'}
-          </p>
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            <span className="font-medium">Budget:</span> {formData.budget || 'N/A'}
-          </p>
-        </div>
-
-        {formData.goals?.length > 0 && (
-          <div>
-            <h4 className="font-medium text-gray-900 dark:text-white">Goals</h4>
-            <ul className="list-disc pl-5 text-sm text-gray-600 dark:text-gray-300">
-              {formData.goals.map((goal, i) => (
-                <li key={i}>{goal}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {formData.existingDevices && (
-          <div>
-            <h4 className="font-medium text-gray-900 dark:text-white">Existing Devices</h4>
-            <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line">
-              {formData.existingDevices}
-            </p>
-          </div>
-        )}
-
-        {formData.deviceDetails && (
-          <div>
-            <h4 className="font-medium text-gray-900 dark:text-white">Device Details</h4>
-            <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line">
-              {formData.deviceDetails}
-            </p>
-          </div>
-        )}
-
-        {lead.planText && (
-          <div>
-            <h4 className="font-medium text-gray-900 dark:text-white">Recommendations</h4>
-            <p className="text-sm text-gray-600 dark:text-gray-300 whitespace-pre-line">
-              {lead.planText}
-            </p>
-          </div>
-        )}
-      </div>
-    );
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteDoc(plannerLeadDoc(db, deleteTarget));
+      setDeleteTarget(null);
+    } catch { setError('Failed to delete lead.'); }
   };
-
-  if (loading) {
-    return (
-      <section className="p-6">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Plan Leads</h1>
-        <div className="rounded-xl border border-gray-800 bg-gray-900/50 p-6 text-gray-300">Loading…</div>
-      </section>
-    );
-  }
-
-  if (error) {
-    return (
-      <section className="p-6">
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-4">Plan Leads</h1>
-        <div className="rounded-xl border border-red-800 bg-red-900/30 p-6 text-red-200">{error}</div>
-      </section>
-    );
-  }
 
   return (
-    <>
-      <section className="p-4 sm:p-6">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-          <div className="inline-flex items-center gap-2">
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Plan Leads</h1>
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-file-plus h-5 w-5" aria-hidden="true">
-              <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path>
-              <path d="M14 2v4a2 2 0 0 0 2 2h4"></path>
-              <path d="M9 15h6"></path>
-              <path d="M12 18v-6"></path>
-            </svg>
-          </div>
-          <div className="w-full sm:w-auto sm:ml-auto">
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search by email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full sm:w-80 pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-              <svg
-                className="absolute left-3 top-2.5 h-5 w-5 text-gray-400"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                aria-hidden="true"
+    <div className="p-6 min-h-screen bg-gray-50 dark:bg-gray-950">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <FilePlus className="h-6 w-6 text-teal-500" /> Plan Leads
+          </h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{leads.length} leads across {COLUMNS.length} stages</p>
+        </div>
+        <div className="relative max-w-xs w-full">
+          <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+          <input
+            id="plan-leads-search"
+            type="text"
+            placeholder="Search by email…"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-teal-500"
+          />
+        </div>
+      </div>
+
+      {error && <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2 rounded-lg">{error}</div>}
+      {contextLoading && <div className="text-gray-400 text-sm py-12 text-center">Loading leads…</div>}
+
+      {!contextLoading && (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          {COLUMNS.map(col => {
+            const cards = byColumn(col.id);
+            const isOver = dragOver === col.id;
+            return (
+              <div
+                key={col.id}
+                onDragOver={e => { e.preventDefault(); setDragOver(col.id); }}
+                onDragLeave={() => setDragOver(null)}
+                onDrop={e => handleDrop(e, col.id)}
+                className={`rounded-2xl border-t-4 ${col.color} bg-white dark:bg-gray-900 shadow-sm transition-all duration-150 ${isOver ? 'ring-2 ring-teal-400 shadow-teal-100' : ''}`}
               >
-                <path
-                  fillRule="evenodd"
-                  d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z"
-                  clipRule="evenodd"
-                />
-              </svg>
-              {searchTerm && (
-                <button
-                  onClick={() => setSearchTerm('')}
-                  className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                  aria-label="Clear search"
-                >
-                  <svg
-                    className="h-5 w-5"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </button>
-              )}
+                {/* Column header */}
+                <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full ${col.dot}`} />
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{col.label}</span>
+                  </div>
+                  <span className="text-xs font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-full">{cards.length}</span>
+                </div>
+
+                {/* Cards */}
+                <div className="p-3 space-y-3 min-h-[120px]">
+                  {cards.length === 0 && (
+                    <div className="text-center text-xs text-gray-400 dark:text-gray-600 py-8 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
+                      Drop a lead here
+                    </div>
+                  )}
+                  {cards.map(lead => {
+                    const isFloorplan = isFloorplanItem(lead);
+                    const isOpen = openId === lead.id;
+                    return (
+                      <div
+                        key={lead.id}
+                        draggable
+                        onDragStart={() => setDragging(lead.id)}
+                        onDragEnd={() => setDragging(null)}
+                        className={`group bg-gray-50 dark:bg-gray-800/80 rounded-xl border border-gray-200 dark:border-gray-700 p-3 cursor-grab active:cursor-grabbing transition-all duration-150 ${dragging === lead.id ? 'opacity-40 scale-95' : 'hover:shadow-md hover:-translate-y-0.5'}`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <GripVertical className="h-4 w-4 text-gray-300 dark:text-gray-600 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{lead.email}</p>
+                              {isFloorplan && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 rounded-full font-semibold">Floorplan</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              {lead.complexity && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-gray-200 dark:bg-gray-700 rounded-full text-gray-600 dark:text-gray-300">{lead.complexity}</span>
+                              )}
+                              <span className="text-[10px] text-gray-400">{formatDate(lead.updatedAt)}</span>
+                            </div>
+                          </div>
+                          <button
+                            id={`delete-lead-${lead.id}`}
+                            onClick={e => { e.stopPropagation(); setDeleteTarget(lead.id); }}
+                            className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all"
+                            aria-label="Delete lead"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Expand toggle */}
+                        <button
+                          onClick={() => setOpenId(isOpen ? null : lead.id)}
+                          className="mt-2 text-xs text-teal-600 dark:text-teal-400 flex items-center gap-1 hover:underline"
+                        >
+                          {isOpen ? 'Hide details' : 'View details'}
+                          <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                        </button>
+
+                        {isOpen && (
+                          <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300 space-y-2">
+                            {lead.formData?.spaceType && <div><span className="text-gray-400">Space: </span>{lead.formData.spaceType}</div>}
+                            {lead.formData?.roomTitle && <div><span className="text-gray-400">Room: </span>{lead.formData.roomTitle}</div>}
+                            {lead.formData?.budget && <div><span className="text-gray-400">Budget: </span>{lead.formData.budget}</div>}
+                            {lead.formData?.roomCount && <div><span className="text-gray-400">Rooms: </span>{lead.formData.roomCount}</div>}
+                            {lead.recommendedAreas?.length > 0 && (
+                              <div><span className="text-gray-400">Areas: </span>{lead.recommendedAreas.join(', ')}</div>
+                            )}
+                            {lead.formData?.goals?.length > 0 && (
+                              <div><span className="text-gray-400">Goals: </span>{lead.formData.goals.join(', ')}</div>
+                            )}
+                            {lead.planText && (
+                              <div><span className="text-gray-400 block mb-0.5">Plan:</span>
+                                <p className="line-clamp-3 text-gray-700 dark:text-gray-300">{lead.planText}</p>
+                              </div>
+                            )}
+                            {/* Move buttons */}
+                            <div className="pt-2 flex flex-wrap gap-1">
+                              {COLUMNS.filter(c => c.id !== col.id).map(c => (
+                                <button
+                                  key={c.id}
+                                  onClick={() => moveCard(lead.id, c.id)}
+                                  className={`text-[10px] px-2 py-1 rounded-full border font-medium transition-colors hover:opacity-90 ${c.dot.replace('bg-', 'border-')} text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700`}
+                                >
+                                  → {c.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
+            <div className="flex items-center gap-3 mb-3">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Delete Lead?</h3>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">This action cannot be undone.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDeleteTarget(null)} className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800">Cancel</button>
+              <button onClick={handleDelete} className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700">Delete</button>
             </div>
           </div>
         </div>
-        {leads.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
-            <FilePlus className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No plan leads yet</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Plan leads will appear here once users submit their smart home planning forms.
-            </p>
-          </div>
-        ) : searchTerm && filteredLeads.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
-            <svg
-              className="mx-auto h-12 w-12 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1}
-                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No matching leads found</h3>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              No plan leads match your search for "{searchTerm}"
-            </p>
-            <button
-              onClick={() => setSearchTerm('')}
-              className="mt-4 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              Clear search
-            </button>
-          </div>
-        ) : (
-          <div ref={containerRef} className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 grid-flow-dense auto-rows-[1px] items-start">
-            {filteredLeads.map((lead: Lead) => (
-              <div
-                key={lead.id}
-                onClick={() => handleLeadClick(lead)}
-                ref={setItemRef(lead.id)}
-                className={`group relative rounded-lg border p-4 transition-colors duration-200 shadow-sm w-full flex flex-col
-                ${openId === lead.id
-                    ? 'bg-gray-50 border-blue-600/40 dark:bg-gray-950 dark:border-blue-600/50'
-                    : 'bg-white hover:bg-gray-50 border-gray-200 dark:bg-gray-950 dark:hover:bg-gray-900 dark:border-gray-900'}`}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => e.key === 'Enter' && handleLeadClick(lead)}
-                aria-expanded={openId === lead.id}
-                aria-controls={`lead-panel-${lead.id}`}
-              >
-                <div className="absolute top-2 right-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDeleteClick(lead.id);
-                    }}
-                    className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-red-500 transition-colors"
-                    title="Delete lead"
-                    aria-label="Delete lead"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="flex flex-col gap-2 min-w-0 pr-6">
-                  <div className="min-w-0 pr-2">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                        {lead.email || 'Unknown Email'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-300 truncate mt-0.5">
-                      {lead.complexity} Plan • {lead.formData?.spaceType || 'N/A'}
-                    </p>
-                    <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      {lead.updatedAt
-                        ? new Date(
-                          typeof lead.updatedAt === 'object' && 'toDate' in lead.updatedAt
-                            ? lead.updatedAt.toDate()
-                            : lead.updatedAt
-                        ).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'numeric',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
-                        : 'No date'}
-                    </span>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
-                      {lead.formData?.goals?.join(', ') || 'No goals specified'}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                    {openId === lead.id ? 'Hide details' : 'View details'}
-                  </span>
-                </div>
-                {openId === lead.id && (
-                  <div
-                    id={`lead-panel-${lead.id}`}
-                    className="pt-3 mt-3 border-t border-gray-200 dark:border-gray-800"
-                  >
-                    <div className="text-sm text-gray-700 dark:text-gray-300 space-y-3">
-                      {renderPlan(lead)}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <DeleteConfirmationModal
-        isOpen={!!leadToDelete}
-        onConfirm={handleDeleteConfirm}
-        onCancel={handleDeleteCancel}
-      />
-    </>
+      )}
+    </div>
   );
 };
 
