@@ -5,6 +5,9 @@ import { collection, getDocs, getDoc, query, where, getCountFromServer } from 'f
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, db } from '../../../lib/firebase';
 import { COLLECTION_ACCOUNTS, accountsCollection, accountDoc, registerUserWithProfile, type Account, contactRequestsCollection, supportTicketsCollection } from '../../../models/Collections';
+import { useAdminQuotesStats } from '../../../hooks/useUnconfirmedQuotesCount';
+import { useAdminServiceRequestsStats } from '../../../hooks/useUnclosedServiceRequestsCount';
+import { useActiveUsersCount } from '../../../hooks/useActiveUsersCount';
 
 interface User {
   id: string;
@@ -36,16 +39,16 @@ const Sparkline: React.FC<{ data: number[]; width?: number; height?: number; str
   stroke = '#14b8a6',
 }) => {
   if (!data || data.length === 0) return null;
-  
+
   // Filter out invalid data points
   const validData = data.filter(d => typeof d === 'number' && !isNaN(d) && isFinite(d));
   if (validData.length === 0) return null;
-  
+
   const max = Math.max(...validData);
   const min = Math.min(...validData);
   const range = max - min || 1;
   const step = validData.length > 1 ? width / (validData.length - 1) : 0;
-  
+
   const points = validData
     .map((d, i) => {
       const x = i * step;
@@ -58,9 +61,9 @@ const Sparkline: React.FC<{ data: number[]; width?: number; height?: number; str
     })
     .filter(Boolean)
     .join(' ');
-    
+
   if (!points) return null;
-  
+
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} className="overflow-visible">
       <polyline
@@ -81,15 +84,13 @@ const AdminDashboard: React.FC = () => {
     activeUsers: 0,
     newUsers: 0
   });
-  const [contactCount, setContactCount] = useState(0);
-  const [pendingTicketCount, setPendingTicketCount] = useState(0);
-  
+
   const [systemStats, setSystemStats] = useState<SystemStats>({
     totalDevices: 0,
     activeDevices: 0,
     alertsToday: 0
   });
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [recentUsers, setRecentUsers] = useState<User[]>([]);
   const [isQuickActionsOpen, setIsQuickActionsOpen] = useState(false);
@@ -198,47 +199,10 @@ const AdminDashboard: React.FC = () => {
     return () => { if (unsub) unsub(); };
   }, []);
 
-  // Track loading state for KPIs
-  const [isKpiLoading, setIsKpiLoading] = useState(true);
-
-  // Fetch counts for Contact Submissions and Pending Support Tickets
-  useEffect(() => {
-    let mounted = true;
-    const load = async () => {
-      try {
-        setIsKpiLoading(true);
-        // Contact submissions count
-        const contactsCountSnap = await getCountFromServer(contactRequestsCollection(db));
-
-        // Pending tickets = total tickets - resolved/cancelled tickets
-        const [totalTicketsCountSnap, resolvedCancelledCountSnap] = await Promise.all([
-          getCountFromServer(supportTicketsCollection(db)),
-          getCountFromServer(query(
-            supportTicketsCollection(db),
-            where('status', 'in', ['Resolved', 'resolved', 'closed', 'Closed', 'cancelled', 'Canceled', 'Cancelled'])
-          ))
-        ]);
-
-        if (!mounted) return;
-        
-        const totalTickets = totalTicketsCountSnap.data().count || 0;
-        const resolvedCancelled = resolvedCancelledCountSnap.data().count || 0;
-        const pending = Math.max(0, totalTickets - resolvedCancelled);
-        
-        setContactCount(contactsCountSnap.data().count || 0);
-        setPendingTicketCount(pending);
-      } catch (e) {
-        if (!mounted) return;
-        console.error('Error loading KPI data:', e);
-        setContactCount(0);
-        setPendingTicketCount(0);
-      } finally {
-        if (mounted) setIsKpiLoading(false);
-      }
-    };
-    load();
-    return () => { mounted = false; };
-  }, []);
+  // Real-time metric hooks
+  const { activeUsers, loading: usersLoading } = useActiveUsersCount();
+  const { totalCount: totalQuotes, loading: quotesLoading } = useAdminQuotesStats();
+  const { unclosedCount: pendingTickets, loading: ticketsLoading } = useAdminServiceRequestsStats();
 
   const [kpis, setKpis] = useState<Array<{
     key: string;
@@ -257,7 +221,7 @@ const AdminDashboard: React.FC = () => {
     color: 'text-teal-500',
     data: [],
   }]);
- 
+
   // Animated count for the Users KPI
   const [animatedUsersCount, setAnimatedUsersCount] = useState(0);
   const animationRef = useRef<number | null>(null);
@@ -313,43 +277,42 @@ const AdminDashboard: React.FC = () => {
 
   // Recompute KPI cards when counts change
   useEffect(() => {
-    const loadingValue = isKpiLoading ? '...' : 0;
-    const usersKpi = { 
-      key: 'users', 
-      label: 'Total Users', 
-      value: userStats.totalUsers, 
-      delta: 0, 
-      icon: Users, 
-      color: 'text-teal-500', 
-      data: [userStats.totalUsers],
-      isLoading: false
+    const activeUsersKpi = {
+      key: 'users',
+      label: 'Active Users',
+      value: usersLoading ? '...' : activeUsers,
+      delta: 0,
+      icon: Users,
+      color: 'text-teal-500',
+      data: [activeUsers],
+      isLoading: usersLoading
     } as const;
-    
-    const contactsKpi = { 
-      key: 'contacts', 
-      label: 'Contact Submissions', 
-      value: isKpiLoading ? loadingValue : contactCount, 
-      delta: 0, 
-      icon: FileText, 
-      color: 'text-indigo-500', 
-      data: [contactCount],
-      isLoading: isKpiLoading
+
+    const quotesKpi = {
+      key: 'quotes',
+      label: 'Total Quotes',
+      value: quotesLoading ? '...' : totalQuotes,
+      delta: 0,
+      icon: FileText,
+      color: 'text-indigo-500',
+      data: [totalQuotes],
+      isLoading: quotesLoading
     } as const;
-    
-    const ticketsKpi = { 
-      key: 'tickets', 
-      label: 'Pending Tickets', 
-      value: isKpiLoading ? loadingValue : pendingTicketCount, 
-      delta: 0, 
-      icon: HelpCircle, 
-      color: 'text-amber-500', 
-      data: [pendingTicketCount],
-      isLoading: isKpiLoading
+
+    const ticketsKpi = {
+      key: 'tickets',
+      label: 'Pending Tickets',
+      value: ticketsLoading ? '...' : pendingTickets,
+      delta: 0,
+      icon: HelpCircle,
+      color: 'text-amber-500',
+      data: [pendingTickets],
+      isLoading: ticketsLoading
     } as const;
-    
-    setKpis([usersKpi as any, contactsKpi as any, ticketsKpi as any]);
-  }, [userStats.totalUsers, contactCount, pendingTicketCount, isKpiLoading]);
-  
+
+    setKpis([activeUsersKpi as any, quotesKpi as any, ticketsKpi as any]);
+  }, [activeUsers, totalQuotes, pendingTickets, usersLoading, quotesLoading, ticketsLoading]);
+
   const recentAlerts = [
     { id: 1, device: 'Living Room Camera', type: 'Motion Detected', time: '10:23 AM', date: 'Today' },
     { id: 2, device: 'Front Door Lock', type: 'Multiple Failed Attempts', time: '09:45 AM', date: 'Today' },
@@ -357,11 +320,14 @@ const AdminDashboard: React.FC = () => {
     { id: 4, device: 'Kitchen Smoke Detector', type: 'Low Battery', time: '07:15 AM', date: 'Today' },
     { id: 5, device: 'Basement Water Sensor', type: 'Water Detected', time: '11:50 PM', date: 'Yesterday' },
   ];
-  
-  
-  
+
+
+
   return (
-    <div className="w-full max-w-full overflow-x-hidden">
+    <div className="w-full max-w-full overflow-x-hidden relative z-0">
+      {/* Ambient glassmorphism background orbs */}
+      <div className="fixed top-[-10%] right-[-5%] w-96 h-96 bg-teal-500/10 rounded-full mix-blend-screen filter blur-[100px] opacity-60 z-[-1] pointer-events-none"></div>
+      <div className="fixed bottom-[-10%] left-[-5%] w-96 h-96 bg-indigo-500/10 rounded-full mix-blend-screen filter blur-[100px] opacity-60 z-[-1] pointer-events-none"></div>
       <div className="mb-6 glass-surface rounded-[24px] px-4 py-4">
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white inline-flex items-center gap-2">Admin Dashboard
           <LayoutDashboard className="h-4 w-4" aria-hidden="true" />
@@ -404,43 +370,48 @@ const AdminDashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* KPI Summary moved inside header glass section */}
-        {!isLoading && (
-          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-fr gap-4">
-            {kpis.map((kpi) => {
-              const Icon = kpi.icon as any;
-              const isUp = kpi.delta >= 0;
-              return (
-                <div key={kpi.key} className="h-full">
-                  <div className="bg-white/95 dark:bg-gray-800 rounded-xl shadow-sm hover:shadow-md transition-shadow p-6 border border-gray-200 dark:border-gray-700 h-full flex flex-col">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <span className="text-base text-gray-600 dark:text-gray-400">{kpi.label}</span>
-                        <div className="mt-2 flex items-end gap-3">
+        {/* KPI Summary - always visible, shows skeleton while loading */}
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-fr gap-4">
+          {kpis.map((kpi) => {
+            const Icon = kpi.icon as any;
+            const isUp = kpi.delta >= 0;
+            const kpiLoading = (kpi as any).isLoading;
+            const kpiHref = kpi.key === 'users' ? '/dashboard/admin/users' : kpi.key === 'quotes' ? '/dashboard/admin/estimates' : '/dashboard/admin/alerts';
+            return (
+              <a href={kpiHref} key={kpi.key} className="h-full block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded-xl relative group">
+                <div className="absolute inset-0 bg-gradient-to-r from-teal-500/0 to-emerald-500/0 group-hover:from-teal-500/5 group-hover:to-emerald-500/5 transition-colors rounded-xl pointer-events-none"></div>
+                <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 p-6 border border-gray-200/50 dark:border-gray-700/50 hover:border-teal-500/30 dark:hover:border-teal-500/30 h-full flex flex-col transform-gpu group-hover:-translate-y-1">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <span className="text-base text-gray-600 dark:text-gray-400">{kpi.label}</span>
+                      <div className="mt-2 flex items-end gap-3">
+                        {kpiLoading ? (
+                          <div className="h-10 w-16 bg-gray-200 dark:bg-gray-700 rounded-lg animate-pulse"></div>
+                        ) : (
                           <span className="text-4xl font-bold text-gray-900 dark:text-white">
                             {kpi.key === 'users' ? animatedUsersCount.toLocaleString() : kpi.value}
                           </span>
-                          <span className={`text-sm font-medium flex items-center ${isUp ? 'text-emerald-600' : 'text-red-500'}`}>
-                            {isUp ? <TrendingUp className="h-5 w-5 mr-1" /> : <TrendingDown className="h-5 w-5 mr-1" />}
-                            {isUp ? '+' : ''}{kpi.delta}
-                          </span>
-                        </div>
-                      </div>
-                      <div className={`p-3 rounded-md ${kpi.color.replace('text-', 'bg-').replace('-500', '-100')} dark:bg-gray-700`}>
-                        <Icon className={`h-6 w-6 ${kpi.color}`} />
+                        )}
+                        <span className={`text-sm font-medium flex items-center px-2 py-0.5 rounded-full ${isUp ? 'bg-emerald-500/10 text-emerald-500' : 'bg-red-500/10 text-red-500'}`}>
+                          {isUp ? <TrendingUp className="h-4 w-4 mr-1" /> : <TrendingDown className="h-4 w-4 mr-1" />}
+                          {isUp ? '+' : ''}{kpi.delta}
+                        </span>
                       </div>
                     </div>
-                    <div className="mt-4">
-                      <Sparkline data={kpi.data} />
+                    <div className={`p-3 rounded-md ${kpi.color.replace('text-', 'bg-').replace('-500', '-100')} dark:bg-gray-700`}>
+                      <Icon className={`h-6 w-6 ${kpi.color}`} />
                     </div>
                   </div>
+                  <div className="mt-4">
+                    <Sparkline data={kpi.data} />
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </a>
+            );
+          })}
+        </div>
       </div>
-      
+
       {isLoading ? (
         <div className="flex justify-center items-center h-64">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
@@ -458,22 +429,38 @@ const AdminDashboard: React.FC = () => {
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                   <thead className="bg-gray-50 dark:bg-gray-700">
                     <tr>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
-                      <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Join Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Email</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Join Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                     {recentUsers.map((user) => (
-                      <tr key={user.id}>
+                      <tr key={user.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
                         <td className="px-6 py-4 whitespace-normal sm:whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white break-words">{user.FullName}</div>
+                          <div className="flex items-center gap-3">
+                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 text-white flex items-center justify-center font-bold text-sm shadow-sm flex-shrink-0">
+                              {user.FullName ? user.FullName.charAt(0).toUpperCase() : '?'}
+                            </div>
+                            <div className="text-sm font-medium text-gray-900 dark:text-white break-words">{user.FullName}</div>
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-normal sm:whitespace-nowrap">
                           <div className="text-sm text-gray-500 dark:text-gray-400 break-all">{user.Email}</div>
                         </td>
                         <td className="px-6 py-4 whitespace-normal sm:whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                           {user.CreatedAt?.toDate().toLocaleDateString() || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-normal sm:whitespace-nowrap">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                            user.Status === 'online'
+                              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                              : 'bg-gray-500/10 text-gray-500 dark:text-gray-400 border-gray-500/20'
+                          }`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${user.Status === 'online' ? 'bg-emerald-500' : 'bg-gray-400'}`}></span>
+                            {user.Status === 'online' ? 'Online' : 'Offline'}
+                          </span>
                         </td>
                       </tr>
                     ))}
