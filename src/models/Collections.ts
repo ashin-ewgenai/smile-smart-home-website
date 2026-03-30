@@ -121,7 +121,7 @@ export interface ContactRequest {
   message?: string;
   createdAt?: Timestamp | null;
   adminRead?: boolean;
-  status?: 'new' | 'review' | 'replied' | 'closed' | string; // Kanban stage
+  status?: 'new' | 'review' | 'replied' | 'closed'; // Kanban stage
   [key: string]: any;
 }
 
@@ -340,7 +340,7 @@ export function userDoc(db: Firestore, uid: string): DocumentReference<UserProfi
 export interface PlannerLead {
   updatedAt?: Timestamp | null;
   createdAt?: Timestamp | null;
-  status?: 'new' | 'contacted' | 'quoted' | 'install' | string; // Kanban stage
+  status?: 'new' | 'contacted' | 'quoted' | 'install'; // Kanban stage
   [key: string]: any;
 }
 

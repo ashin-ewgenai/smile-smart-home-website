@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, getDocs, onSnapshot, query, where, Timestamp } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import type { ContactRequest, PlannerLead, SupportTicket } from '../models/Collections';
 
 // Types aligned with AboutDevices.tsx to minimize refactor
 interface SerialItem {
@@ -38,9 +39,14 @@ interface DevicesContextValue {
   error: string | null;
   refresh: () => Promise<void>;
   uid: string | null;
-  planLeads: any[];
-  contactSubmissions: any[];
-  reports: any[];
+  planLeads: PlannerLead[];
+  contactSubmissions: ContactRequest[];
+  reports: SupportTicket[];
+  filteredPlanLeads: PlannerLead[];
+  filteredContactSubmissions: ContactRequest[];
+  filteredReports: SupportTicket[];
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
   isFloorplanItem: (item: any) => boolean;
 }
 
@@ -94,9 +100,10 @@ function getUserWarranty(userData: any, serialHint?: string): any {
 export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
   const [devices, setDevices] = useState<DeviceDoc[]>([]);
-  const [planLeads, setPlanLeads] = useState<any[]>([]);
-  const [contactSubmissions, setContactSubmissions] = useState<any[]>([]);
-  const [reports, setReports] = useState<any[]>([]);
+  const [planLeads, setPlanLeads] = useState<PlannerLead[]>([]);
+  const [contactSubmissions, setContactSubmissions] = useState<ContactRequest[]>([]);
+  const [reports, setReports] = useState<SupportTicket[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const unsubRef = useRef<(() => void) | null>(null);
@@ -111,16 +118,18 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (uid) {
       try {
         const u1 = onSnapshot(collection(db, 'Planner_Leads'), snap => {
-          setPlanLeads(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        }, () => {}); // Catch lack of admin permission quietly
+          setPlanLeads(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as PlannerLead)));
+        }, (err) => { console.error('Planner_Leads snapshot failed:', err); }); 
         const u2 = onSnapshot(collection(db, 'contactRequests'), snap => {
-          setContactSubmissions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        }, () => {});
+          setContactSubmissions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as ContactRequest)));
+        }, (err) => { console.error('contactRequests snapshot failed:', err); });
         const u3 = onSnapshot(collection(db, 'Support_Tickets'), snap => {
-          setReports(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-        }, () => {});
+          setReports(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as SupportTicket)));
+        }, (err) => { console.error('Support_Tickets snapshot failed:', err); });
         unsubs = [u1, u2, u3];
-      } catch (e) { }
+      } catch (e) {
+        console.error('Failed to initialize admin listeners:', e);
+      }
     } else {
       setPlanLeads([]);
       setContactSubmissions([]);
@@ -136,6 +145,24 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
            item.relatedToFloorplan === true ||
            (item.message || '').startsWith('[Floorplan Request');
   }, []);
+
+  const filteredPlanLeads = useMemo(() => {
+    if (!searchQuery) return planLeads;
+    const lower = searchQuery.toLowerCase();
+    return planLeads.filter(p => (p.email?.toLowerCase().includes(lower) || p.name?.toLowerCase().includes(lower)));
+  }, [planLeads, searchQuery]);
+
+  const filteredContactSubmissions = useMemo(() => {
+    if (!searchQuery) return contactSubmissions;
+    const lower = searchQuery.toLowerCase();
+    return contactSubmissions.filter(c => (c.email?.toLowerCase().includes(lower) || c.name?.toLowerCase().includes(lower) || c.message?.toLowerCase().includes(lower)));
+  }, [contactSubmissions, searchQuery]);
+
+  const filteredReports = useMemo(() => {
+    if (!searchQuery) return reports;
+    const lower = searchQuery.toLowerCase();
+    return reports.filter(r => (r.subject?.toLowerCase().includes(lower) || r.title?.toLowerCase().includes(lower) || r.description?.toLowerCase().includes(lower)));
+  }, [reports, searchQuery]);
 
   const fetchDevices = useCallback(async () => {
     if (!uid) {
@@ -405,8 +432,10 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const value = useMemo<DevicesContextValue>(() => ({ 
     devices, loading, error, refresh: fetchDevices, uid,
-    planLeads, contactSubmissions, reports, isFloorplanItem
-  }), [devices, loading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem]);
+    planLeads, contactSubmissions, reports, isFloorplanItem,
+    filteredPlanLeads, filteredContactSubmissions, filteredReports,
+    searchQuery, setSearchQuery
+  }), [devices, loading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, filteredContactSubmissions, filteredReports, searchQuery]);
 
   return (
     <DevicesContext.Provider value={value}>

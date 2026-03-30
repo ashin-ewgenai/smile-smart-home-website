@@ -37,9 +37,16 @@ export function useTicketNotifications(userId: string | null) {
   }, [userId]);
 
   const updateTicketStatus = async (ticketId: string, newStatus: string) => {
-    const db = getFirestore();
-    const ticketRef = doc(db, 'Support_Tickets', ticketId);
-    await updateDoc(ticketRef, { status: newStatus });
+    try {
+      const db = getFirestore();
+      const ticketRef = doc(db, 'Support_Tickets', ticketId);
+      await updateDoc(ticketRef, { status: newStatus });
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error(`Failed to update ticket ${ticketId} status:`, error);
+      }
+      throw error;
+    }
   };
 
   return { unresolvedCount, updateTicketStatus };
