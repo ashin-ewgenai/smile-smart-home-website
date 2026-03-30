@@ -4,14 +4,14 @@ import { getDocs, orderBy, query, deleteDoc } from 'firebase/firestore';
 import { plannerLeadsCollection, plannerLeadDoc } from '../../../models/Collections';
 import { Trash2, FilePlus, AlertTriangle } from 'lucide-react';
 // Custom modal component for delete confirmation
-const DeleteConfirmationModal = ({ 
-  isOpen, 
-  onConfirm, 
-  onCancel 
-}: { 
-  isOpen: boolean; 
-  onConfirm: () => void; 
-  onCancel: () => void 
+const DeleteConfirmationModal = ({
+  isOpen,
+  onConfirm,
+  onCancel
+}: {
+  isOpen: boolean;
+  onConfirm: () => void;
+  onCancel: () => void
 }) => {
   if (!isOpen) return null;
 
@@ -24,11 +24,11 @@ const DeleteConfirmationModal = ({
             Delete Lead
           </h3>
         </div>
-        
+
         <p className="text-gray-600 dark:text-gray-300 mb-6">
           Are you sure you want to delete this lead? This action cannot be undone.
         </p>
-        
+
         <div className="flex flex-col sm:flex-row justify-end gap-3">
           <button
             onClick={onCancel}
@@ -140,7 +140,7 @@ const PlanLeads: React.FC = () => {
 
   const handleDeleteConfirm = async () => {
     if (!leadToDelete) return;
-    
+
     try {
       await deleteDoc(plannerLeadDoc(db, leadToDelete));
       setLeads(prev => prev.filter(l => l.id !== leadToDelete));
@@ -177,7 +177,7 @@ const PlanLeads: React.FC = () => {
 
   const renderPlan = (lead: Lead) => {
     const { formData } = lead;
-    
+
     if (!formData) {
       return <div className="text-gray-400 text-sm italic">No plan details available</div>;
     }
@@ -196,7 +196,7 @@ const PlanLeads: React.FC = () => {
             <span className="font-medium">Budget:</span> {formData.budget || 'N/A'}
           </p>
         </div>
-        
+
         {formData.goals?.length > 0 && (
           <div>
             <h4 className="font-medium text-gray-900 dark:text-white">Goals</h4>
@@ -315,84 +315,84 @@ const PlanLeads: React.FC = () => {
           </div>
         </div>
         {leads.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
-          <FilePlus className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No plan leads yet</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Plan leads will appear here once users submit their smart home planning forms.
-          </p>
-        </div>
-      ) : searchTerm && filteredLeads.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
-          <svg
-            className="mx-auto h-12 w-12 text-gray-400"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1}
-              d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
-          <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No matching leads found</h3>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            No plan leads match your search for "{searchTerm}"
-          </p>
-          <button
-            onClick={() => setSearchTerm('')}
-            className="mt-4 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-          >
-            Clear search
-          </button>
-        </div>
-      ) : (
-        <div ref={containerRef} className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 grid-flow-dense auto-rows-[1px] items-start">
-          {filteredLeads.map((lead: Lead) => (
-            <div
-              key={lead.id}
-              onClick={() => handleLeadClick(lead)}
-              ref={setItemRef(lead.id)}
-              className={`group relative rounded-lg border p-4 transition-colors duration-200 shadow-sm w-full flex flex-col
-                ${openId === lead.id 
-                  ? 'bg-gray-50 border-blue-600/40 dark:bg-gray-950 dark:border-blue-600/50' 
-                  : 'bg-white hover:bg-gray-50 border-gray-200 dark:bg-gray-950 dark:hover:bg-gray-900 dark:border-gray-900'}`}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && handleLeadClick(lead)}
-              aria-expanded={openId === lead.id}
-              aria-controls={`lead-panel-${lead.id}`}
+          <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
+            <FilePlus className="mx-auto h-12 w-12 text-gray-400" />
+            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No plan leads yet</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Plan leads will appear here once users submit their smart home planning forms.
+            </p>
+          </div>
+        ) : searchTerm && filteredLeads.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-12 text-center">
+            <svg
+              className="mx-auto h-12 w-12 text-gray-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
             >
-              <div className="absolute top-2 right-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteClick(lead.id);
-                  }}
-                  className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-red-500 transition-colors"
-                  title="Delete lead"
-                  aria-label="Delete lead"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="flex flex-col gap-2 min-w-0 pr-6">
-                <div className="min-w-0 pr-2">
-                  <div className="flex items-center gap-2 overflow-hidden">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {lead.email || 'Unknown Email'}
-                    </span>
-                  </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-300 truncate mt-0.5">
-                    {lead.complexity} Plan • {lead.formData?.spaceType || 'N/A'}
-                  </p>
-                  <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    {lead.updatedAt 
-                      ? new Date(
-                          typeof lead.updatedAt === 'object' && 'toDate' in lead.updatedAt 
-                            ? lead.updatedAt.toDate() 
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1}
+                d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No matching leads found</h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              No plan leads match your search for "{searchTerm}"
+            </p>
+            <button
+              onClick={() => setSearchTerm('')}
+              className="mt-4 px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+            >
+              Clear search
+            </button>
+          </div>
+        ) : (
+          <div ref={containerRef} className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3 grid-flow-dense auto-rows-[1px] items-start">
+            {filteredLeads.map((lead: Lead) => (
+              <div
+                key={lead.id}
+                onClick={() => handleLeadClick(lead)}
+                ref={setItemRef(lead.id)}
+                className={`group relative rounded-lg border p-4 transition-colors duration-200 shadow-sm w-full flex flex-col
+                ${openId === lead.id
+                    ? 'bg-gray-50 border-blue-600/40 dark:bg-gray-950 dark:border-blue-600/50'
+                    : 'bg-white hover:bg-gray-50 border-gray-200 dark:bg-gray-950 dark:hover:bg-gray-900 dark:border-gray-900'}`}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => e.key === 'Enter' && handleLeadClick(lead)}
+                aria-expanded={openId === lead.id}
+                aria-controls={`lead-panel-${lead.id}`}
+              >
+                <div className="absolute top-2 right-2">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(lead.id);
+                    }}
+                    className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-red-500 transition-colors"
+                    title="Delete lead"
+                    aria-label="Delete lead"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="flex flex-col gap-2 min-w-0 pr-6">
+                  <div className="min-w-0 pr-2">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                        {lead.email || 'Unknown Email'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-600 dark:text-gray-300 truncate mt-0.5">
+                      {lead.complexity} Plan • {lead.formData?.spaceType || 'N/A'}
+                    </p>
+                    <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      {lead.updatedAt
+                        ? new Date(
+                          typeof lead.updatedAt === 'object' && 'toDate' in lead.updatedAt
+                            ? lead.updatedAt.toDate()
                             : lead.updatedAt
                         ).toLocaleDateString('en-US', {
                           year: 'numeric',
@@ -401,38 +401,38 @@ const PlanLeads: React.FC = () => {
                           hour: '2-digit',
                           minute: '2-digit'
                         })
-                      : 'No date'}
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
-                    {lead.formData?.goals?.join(', ') || 'No goals specified'}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
-                  {openId === lead.id ? 'Hide details' : 'View details'}
-                </span>
-              </div>
-              {openId === lead.id && (
-                <div 
-                  id={`lead-panel-${lead.id}`}
-                  className="pt-3 mt-3 border-t border-gray-200 dark:border-gray-800"
-                >
-                  <div className="text-sm text-gray-700 dark:text-gray-300 space-y-3">
-                    {renderPlan(lead)}
+                        : 'No date'}
+                    </span>
                   </div>
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
+                      {lead.formData?.goals?.join(', ') || 'No goals specified'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400">
+                    {openId === lead.id ? 'Hide details' : 'View details'}
+                  </span>
+                </div>
+                {openId === lead.id && (
+                  <div
+                    id={`lead-panel-${lead.id}`}
+                    className="pt-3 mt-3 border-t border-gray-200 dark:border-gray-800"
+                  >
+                    <div className="text-sm text-gray-700 dark:text-gray-300 space-y-3">
+                      {renderPlan(lead)}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
-      
+
       <DeleteConfirmationModal
         isOpen={!!leadToDelete}
         onConfirm={handleDeleteConfirm}

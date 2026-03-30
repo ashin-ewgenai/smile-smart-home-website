@@ -43,13 +43,13 @@ const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => 
     if (!isAtAdminRoot) return;
 
     // Push a state to start a new history entry, so first back hits our handler
-    try { window.history.pushState(null, '', window.location.href); } catch {}
+    try { window.history.pushState(null, '', window.location.href); } catch { }
 
     const onPopState = (e: PopStateEvent) => {
       const stillAtRoot = normalize(window.location.pathname) === '/dashboard/admin';
       if (stillAtRoot) {
         // Cancel the back navigation by pushing the same state again
-        try { window.history.pushState(null, '', window.location.href); } catch {}
+        try { window.history.pushState(null, '', window.location.href); } catch { }
       }
     };
     window.addEventListener('popstate', onPopState);

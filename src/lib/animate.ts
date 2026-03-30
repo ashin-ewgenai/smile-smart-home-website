@@ -173,3 +173,37 @@ export function magneticButton(button: HTMLElement, maxOffset: number = 6) {
     button.removeEventListener('mouseleave', handleMouseLeave);
   };
 }
+
+/**
+ * hotspotReveal — animates an info panel sliding in from the right.
+ * Used by the InteractiveFloorplan component when a hotspot is activated.
+ * Respects prefers-reduced-motion.
+ */
+export function hotspotReveal(panel: HTMLElement, options: { duration?: number; translateX?: number } = {}) {
+  const { duration = 350, translateX = 20 } = options;
+
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    panel.style.opacity = '1';
+    panel.style.transform = 'translateX(0)';
+    return;
+  }
+
+  // Start hidden
+  panel.style.opacity = '0';
+  panel.style.transform = `translateX(${translateX}px)`;
+
+  // Force reflow
+  panel.getBoundingClientRect();
+
+  // Animate in
+  panel.style.transition = `opacity ${duration}ms ease-out, transform ${duration}ms ease-out`;
+  panel.style.opacity = '1';
+  panel.style.transform = 'translateX(0)';
+
+  // Cleanup transition after animation to avoid interfering with future style changes
+  const cleanup = () => {
+    panel.style.transition = '';
+    panel.removeEventListener('transitionend', cleanup);
+  };
+  panel.addEventListener('transitionend', cleanup, { once: true });
+}

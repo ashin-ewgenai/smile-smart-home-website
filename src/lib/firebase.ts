@@ -8,15 +8,14 @@ import { getFunctions } from 'firebase/functions';
 import { getStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: import.meta.env.PUBLIC_FIREBASE_API_KEY,
-  authDomain: import.meta.env.PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.PUBLIC_FIREBASE_PROJECT_ID,
-  appId: import.meta.env.PUBLIC_FIREBASE_APP_ID,
-  databaseURL: import.meta.env.PUBLIC_FIREBASE_DATABASE_URL,
-  measurementId: import.meta.env.PUBLIC_FIREBASE_MEASUREMENT_ID,
-  // Optional, add if you configure them
-  storageBucket: import.meta.env.PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  apiKey: "AIzaSyAabRQ7qLfA252KzafCLYhb5yO43jrJ1Nw",
+  authDomain: "smile-smart-homes.firebaseapp.com",
+  databaseURL: "https://smile-smart-homes-default-rtdb.firebaseio.com",
+  projectId: "smile-smart-homes",
+  storageBucket: "smile-smart-homes.firebasestorage.app",
+  messagingSenderId: "963327038910",
+  appId: "1:963327038910:web:ea9be712f31d0f4d4895ef",
+  measurementId: "G-4TFERPBXFT"
 };
 
 // Initialize only once in the browser

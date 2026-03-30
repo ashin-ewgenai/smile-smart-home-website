@@ -1,11 +1,11 @@
-import { 
-  collection, 
-  doc, 
-  serverTimestamp, 
-  Timestamp, 
-  type CollectionReference, 
-  type DocumentReference, 
-  type FieldValue, 
+import {
+  collection,
+  doc,
+  serverTimestamp,
+  Timestamp,
+  type CollectionReference,
+  type DocumentReference,
+  type FieldValue,
   type Firestore,
   getDocs,
   getDoc,
@@ -162,7 +162,7 @@ export async function createAccountProfile(db: Firestore, params: {
     ...(params.phoneNumber && { phoneNumber: params.phoneNumber }),
     ...(params.address && { address: params.address })
   };
-  
+
   await setDoc(
     accountDoc(db, uid),
     accountWithContact
@@ -179,14 +179,14 @@ export async function createAccountProfileWithLookup(db: Firestore, params: {
 }): Promise<void> {
   const { uid, email, fullName, role, phoneNumber, address } = params;
   const consultationId = email ? await findConsultationIdByEmail(db, email) : null;
-  await createAccountProfile(db, { 
-    uid, 
-    email, 
-    fullName, 
-    role, 
-    phoneNumber, 
-    address, 
-    consultationId 
+  await createAccountProfile(db, {
+    uid,
+    email,
+    fullName,
+    role,
+    phoneNumber,
+    address,
+    consultationId
   });
 }
 
@@ -194,10 +194,10 @@ export async function createAccountProfileWithLookup(db: Firestore, params: {
 export async function registerUserWithProfile(
   auth: Auth,
   db: Firestore,
-  params: { 
-    email: string; 
-    password: string; 
-    fullName: string; 
+  params: {
+    email: string;
+    password: string;
+    fullName: string;
     role: Account['Role'];
     phoneNumber?: string;
     address?: string;
@@ -206,7 +206,7 @@ export async function registerUserWithProfile(
   const { email, password, fullName, role, phoneNumber, address } = params;
   const cred = await createUserWithEmailAndPassword(auth, email, password);
   if (fullName) {
-    try { await updateProfile(cred.user, { displayName: fullName }); } catch {}
+    try { await updateProfile(cred.user, { displayName: fullName }); } catch { }
   }
   try {
     await createAccountProfileWithLookup(db, {
@@ -217,7 +217,7 @@ export async function registerUserWithProfile(
       phoneNumber,
       address
     });
-  } catch {}
+  } catch { }
   return cred;
 }
 
@@ -465,7 +465,7 @@ export function userNotificationDoc(db: Firestore, id: string): DocumentReferenc
   return doc(db, COLLECTION_USER_NOTIFICATIONS, id) as DocumentReference<UserNotification>;
 }
 
-export async function createWarrantyExpiryNotification(db: Firestore, params: { uid: string; message: string; title?: string; [key: string]: any; }): Promise<void> {
+export async function createWarrantyExpiryNotification(db: Firestore, params: { uid: string; message: string; title?: string;[key: string]: any; }): Promise<void> {
   const { uid, message, title = 'Warranty Expiry', ...rest } = params;
   const payload = {
     uid,
@@ -610,7 +610,7 @@ export function estimationQuotePayload(data: Partial<EstimationQuote>): Estimati
 export async function getQuoteWithEstimation(db: Firestore, quoteId: string) {
   const quoteDoc = await getDoc(doc(db, 'quotes', quoteId));
   const quote = quoteDoc.data();
-  
+
   if (quote?.estimationQuoteId) {
     const estimationDoc = await getDoc(estimationQuoteDoc(db, quote.estimationQuoteId));
     return {
@@ -618,14 +618,14 @@ export async function getQuoteWithEstimation(db: Firestore, quoteId: string) {
       estimation: estimationDoc.data()
     };
   }
-  
+
   return { quote, estimation: null };
 }
 
 export async function getCustomerQuotesAndEstimations(db: Firestore, customerEmail: string) {
   const [quotesSnap, estimationsSnap] = await Promise.all([
     getDocs(query(
-      collection(db, 'quotes'), 
+      collection(db, 'quotes'),
       where('customerEmail', '==', customerEmail)
     )),
     getDocs(query(
@@ -633,9 +633,9 @@ export async function getCustomerQuotesAndEstimations(db: Firestore, customerEma
       where('customerEmail', '==', customerEmail)
     ))
   ]);
-  
+
   return {
-    quotes: quotesSnap.docs.map(d => ({id: d.id, ...d.data()})),
-    estimations: estimationsSnap.docs.map(d => ({id: d.id, ...d.data()}))
+    quotes: quotesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
+    estimations: estimationsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
   };
 }

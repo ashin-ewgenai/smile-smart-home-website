@@ -8,6 +8,7 @@ import Testimonial from '../components/common/Testimonial.astro';
 import Footer from './Footer.astro';
 import { StaggerContainer, StaggerItem } from '../components/ui/MotionIsland';
 import SmartHomePlannerSection from '../components/home/SmartHomePlannerSection.astro';
+import InteractiveFloorplan from '../components/home/InteractiveFloorplan';
 ---
 
 <Layout title="Smile Smart Homes - Professional Smart Home Installation">
@@ -55,7 +56,10 @@ import SmartHomePlannerSection from '../components/home/SmartHomePlannerSection.
         </StaggerContainer>
       </div>
     </section>
-    
+
+    <!-- Interactive Smart Home Tour -->
+    <InteractiveFloorplan client:load />
+
     <!-- Process Section -->
     <section class="section-padding bg-soft-gray dark:bg-gray-800">
       <div class="container">
