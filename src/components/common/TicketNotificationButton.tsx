@@ -33,7 +33,7 @@ export const TicketNotificationButton = ({
   const [requests, setRequests] = useState<RequestItem[]>([]);
   const dropdownRef = useRef<HTMLDivElement>(null);
   
-  const unresolvedTickets = useTicketNotifications(userId);
+  const { unresolvedCount: unresolvedTickets } = useTicketNotifications(userId);
   const unconfirmedQuotes = useUnconfirmedQuotesCount(userId);
   const unclosedServiceRequests = useUnclosedServiceRequestsCount(userId);
   const calculatedTotalAlerts = unresolvedTickets + unconfirmedQuotes + unclosedServiceRequests;

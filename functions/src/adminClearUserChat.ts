@@ -152,3 +152,51 @@ export const adminClearUserChat = onCall({
     throw new HttpsError("internal", `Failed to clear chat sessions: ${error?.message || error}`);
   }
 });
+
+/**
+ * Callable: Admin bulk updates statuses (Kanban boards)
+ */
+export const adminUpdateStatuses = onCall({
+  cors: true,
+}, async (request) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+  
+  const callerSnap = await db.collection("Accounts").doc(authCtx.uid).get();
+  const role = callerSnap.exists ? (callerSnap.data()?.Role as string | undefined) : undefined;
+  const normalizedRole = role?.toLowerCase();
+  
+  if (normalizedRole !== "super admin" && normalizedRole !== "admin") {
+    throw new HttpsError("permission-denied", "Only admins can update remote statuses.");
+  }
+
+  const updates = request.data?.updates as Array<{ collection: string; id: string; status: string }>;
+  if (!updates || !Array.isArray(updates)) {
+    throw new HttpsError("invalid-argument", "Updates array is required");
+  }
+
+  try {
+    const batches = [];
+    let currentBatch = db.batch();
+    let count = 0;
+
+    for (const update of updates) {
+      if (count >= 450) {
+        batches.push(currentBatch);
+        currentBatch = db.batch();
+        count = 0;
+      }
+      const ref = db.collection(update.collection).doc(update.id);
+      currentBatch.update(ref, { status: update.status });
+      count++;
+    }
+    
+    if (count > 0) batches.push(currentBatch);
+    for (const b of batches) await b.commit();
+
+    return { status: "ok", updatedCount: updates.length };
+  } catch (error: any) {
+    console.error("Error bulk updating statuses:", error);
+    throw new HttpsError("internal", `Failed to bulk update statuses: ${error?.message || error}`);
+  }
+});

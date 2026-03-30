@@ -38,6 +38,10 @@ interface DevicesContextValue {
   error: string | null;
   refresh: () => Promise<void>;
   uid: string | null;
+  planLeads: any[];
+  contactSubmissions: any[];
+  reports: any[];
+  isFloorplanItem: (item: any) => boolean;
 }
 
 const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -90,6 +94,9 @@ function getUserWarranty(userData: any, serialHint?: string): any {
 export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
   const [devices, setDevices] = useState<DeviceDoc[]>([]);
+  const [planLeads, setPlanLeads] = useState<any[]>([]);
+  const [contactSubmissions, setContactSubmissions] = useState<any[]>([]);
+  const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const unsubRef = useRef<(() => void) | null>(null);
@@ -97,6 +104,37 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null));
     return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    let unsubs: (() => void)[] = [];
+    if (uid) {
+      try {
+        const u1 = onSnapshot(collection(db, 'Planner_Leads'), snap => {
+          setPlanLeads(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }, () => {}); // Catch lack of admin permission quietly
+        const u2 = onSnapshot(collection(db, 'contactRequests'), snap => {
+          setContactSubmissions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }, () => {});
+        const u3 = onSnapshot(collection(db, 'Support_Tickets'), snap => {
+          setReports(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        }, () => {});
+        unsubs = [u1, u2, u3];
+      } catch (e) { }
+    } else {
+      setPlanLeads([]);
+      setContactSubmissions([]);
+      setReports([]);
+    }
+    return () => unsubs.forEach(u => u());
+  }, [uid]);
+
+  const isFloorplanItem = useCallback((item: any): boolean => {
+    if (!item) return false;
+    return item.type === 'floorplan' || 
+           item.source === 'interactive_floorplan' || 
+           item.relatedToFloorplan === true ||
+           (item.message || '').startsWith('[Floorplan Request');
   }, []);
 
   const fetchDevices = useCallback(async () => {
@@ -365,7 +403,10 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [uid, fetchDevices]);
 
-  const value = useMemo<DevicesContextValue>(() => ({ devices, loading, error, refresh: fetchDevices, uid }), [devices, loading, error, fetchDevices, uid]);
+  const value = useMemo<DevicesContextValue>(() => ({ 
+    devices, loading, error, refresh: fetchDevices, uid,
+    planLeads, contactSubmissions, reports, isFloorplanItem
+  }), [devices, loading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem]);
 
   return (
     <DevicesContext.Provider value={value}>

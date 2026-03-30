@@ -130,6 +130,8 @@ export const adminDeleteUserAndData = onCall({ region: "us-central1", cors: true
       ["Request_service", "uid"],
       ["Support_Tickets", "uid"],
       ["User_Devices", "uid"],
+      ["Planner_Leads", "uid"],
+      ["contactRequests", "uid"],
     ] as const) {
       summary[name] = await deleteByQuery(name, field, targetUid);
     }

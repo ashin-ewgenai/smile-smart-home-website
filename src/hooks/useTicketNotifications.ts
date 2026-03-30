@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, getFirestore } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, getFirestore, doc, updateDoc } from 'firebase/firestore';
 
 export function useTicketNotifications(userId: string | null) {
   const [unresolvedCount, setUnresolvedCount] = useState(0);
@@ -36,5 +36,11 @@ export function useTicketNotifications(userId: string | null) {
     return () => unsubscribe();
   }, [userId]);
 
-  return unresolvedCount;
+  const updateTicketStatus = async (ticketId: string, newStatus: string) => {
+    const db = getFirestore();
+    const ticketRef = doc(db, 'Support_Tickets', ticketId);
+    await updateDoc(ticketRef, { status: newStatus });
+  };
+
+  return { unresolvedCount, updateTicketStatus };
 }
