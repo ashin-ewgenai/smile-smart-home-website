@@ -247,9 +247,79 @@ export const chatWithOpenAI = onCall(
     ticketDetails?: any;
     deviceSelection?: any;
     debugInfo?: any;
+    recommendations?: any[];
   }> => {
   const authCtx = request.auth;
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+
+  // AI Device Recommendation Mode
+  if (request.data?.recommendations) {
+    const { houseSize, priority, budget } = request.data.recommendations;
+    const apiKey = OPENAI_API_KEY.value();
+    if (!apiKey) throw new HttpsError("failed-precondition", "OPENAI_API_KEY is not configured");
+
+    const systemPrompt = `
+      You are a professional Smart Home Consultant for "Smile Smart Homes".
+      Your goal is to recommend a tailored set of smart home devices based on:
+      - House Size: ${houseSize}
+      - Security Priority: ${priority}
+      - Estimated Budget: ${budget}
+
+      Guidelines:
+      - Small homes/apartments should focus on essentials.
+      - Larger homes should include mesh networking and more sensors.
+      - High Security: Advanced CCTV, Motion Sensors, Smart Locks, Alarm System.
+      - Low Budget: High-impact, low-cost devices (Smart Bulbs, Multi-plugs).
+
+      Return ONLY a JSON object with a "recommendations" key containing an array of objects with the following schema:
+      {
+        "recommendations": [
+          {
+            "name": "Device Name",
+            "category": "Lighting/Security/Convenience/etc",
+            "reason": "Why this is recommended for them in 1 short sentence",
+            "estimatedPrice": 120
+          }
+        ]
+      }
+      Limit to 3-6 of the most relevant devices.
+    `;
+
+    try {
+      const response = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: "Generate my recommendations." }
+          ],
+          temperature: 0.5,
+          response_format: { type: "json_object" }
+        }),
+      });
+
+      if (!response.ok) {
+        throw new HttpsError("internal", "Failed to get recommendations from AI.");
+      }
+
+      const result = await response.json();
+      const content = result.choices[0].message.content;
+      const parsed = JSON.parse(content);
+      
+      return {
+        reply: "Here are your custom smart home recommendations.",
+        sessionId: "recommendation",
+        recommendations: parsed.recommendations || []
+      };
+    } catch (e: any) {
+      throw new HttpsError("internal", e.message || "Error generating recommendations");
+    }
+  }
 
   const msgs = request.data?.messages as Array<{ role: string; content: string }> | undefined;
   const model = (request.data?.model as string | undefined) || CONFIG.OPENAI.MODEL;

@@ -1,8 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, getDocs, onSnapshot, query, where, Timestamp } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
-import type { ContactRequest, PlannerLead, SupportTicket } from '../models/Collections';
+import { collection, getDocs, onSnapshot, query, where, Timestamp, addDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db, functions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import type { ContactRequest, PlannerLead, SupportTicket, QuoteItem } from '../models/Collections';
+import { quotesCollection } from '../models/Collections';
+import type { DeviceRecommendation, RecommendationRequest } from '../models';
 
 // Types aligned with AboutDevices.tsx to minimize refactor
 interface SerialItem {
@@ -51,6 +54,10 @@ interface DevicesContextValue {
   refresh: () => Promise<void>;
   uid: string | null;
   isFloorplanItem: (item: any) => boolean;
+  recommendations: DeviceRecommendation[];
+  recommendationLoading: boolean;
+  fetchRecommendations: (params: RecommendationRequest) => Promise<void>;
+  saveRecommendationToQuote: (recommendation: DeviceRecommendation) => Promise<void>;
 }
 
 const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -111,6 +118,8 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [loading, setLoading] = useState<boolean>(true);
   const [adminLoading, setAdminLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<DeviceRecommendation[]>([]);
+  const [recommendationLoading, setRecommendationLoading] = useState<boolean>(false);
   const unsubRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -509,12 +518,69 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
   }, [uid, fetchDevices]);
 
+  const fetchRecommendations = useCallback(async (params: RecommendationRequest) => {
+    setRecommendationLoading(true);
+    try {
+      const getRecommendations = httpsCallable<any, { recommendations: DeviceRecommendation[] }>(
+        functions,
+        'chatWithOpenAI'
+      );
+      
+      const response = await getRecommendations({ 
+        recommendations: {
+          houseSize: params.houseSize,
+          priority: params.securityNeeds,
+          budget: params.budget
+        }
+      });
+      
+      setRecommendations(response.data.recommendations);
+    } catch (err: any) {
+      console.error('Failed to fetch recommendations:', err);
+      setError(err.message || 'Failed to get recommendations');
+    } finally {
+      setRecommendationLoading(false);
+    }
+  }, []);
+
+  const saveRecommendationToQuote = useCallback(async (recommendation: DeviceRecommendation) => {
+    if (!uid) throw new Error('You must be logged in to save a plan.');
+    
+    try {
+      const qCol = collection(db, 'quotes');
+      const payload = {
+        userUid: uid,
+        customerId: auth.currentUser?.email || null,
+        customerEmail: auth.currentUser?.email || null,
+        status: 'Pending',
+        createdAt: serverTimestamp(),
+        quoteType: 'AI Recommendation',
+        location: {
+          country: 'India',
+          state: '',
+          district: ''
+        },
+        details: `AI Recommended: ${recommendation.name}\nCategory: ${recommendation.category}\nPrice: $${recommendation.estimatedPrice}\nReason: ${recommendation.reason}`,
+        deviceName: recommendation.name,
+        category: recommendation.category,
+        estimatedPrice: recommendation.estimatedPrice
+      };
+      
+      await addDoc(qCol, payload);
+    } catch (err: any) {
+      console.error('Failed to save recommendation:', err);
+      throw err;
+    }
+  }, [uid]);
+
   const value = useMemo<DevicesContextValue>(() => ({ 
     devices, loading, adminLoading, error, refresh: fetchDevices, uid,
     planLeads, contactSubmissions, reports, isFloorplanItem,
     filteredPlanLeads, filteredContactSubmissions, filteredReports,
-    searchQuery, setSearchQuery, filterCriteria, setFilterCriteria
-  }), [devices, loading, adminLoading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, filteredContactSubmissions, filteredReports, searchQuery, filterCriteria]);
+    searchQuery, setSearchQuery, filterCriteria, setFilterCriteria,
+    recommendations, recommendationLoading, fetchRecommendations,
+    saveRecommendationToQuote
+  }), [devices, loading, adminLoading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, filteredContactSubmissions, filteredReports, searchQuery, filterCriteria, recommendations, recommendationLoading, fetchRecommendations, saveRecommendationToQuote]);
 
   return (
     <DevicesContext.Provider value={value}>
