@@ -5,7 +5,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
-import { getStorage } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAabRQ7qLfA252KzafCLYhb5yO43jrJ1Nw",
@@ -45,4 +45,19 @@ try {
     }
   }
 } catch {}
+
+/**
+ * uploadReviewMedia
+ * Uploads a file to Firebase Storage under user_uploads/{uid}/reviews/
+ * Returns the public download URL.
+ */
+export async function uploadReviewMedia(file: File, uid: string): Promise<string> {
+  const timestamp = Date.now();
+  const safeName = file.name.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
+  const storagePath = `user_uploads/${uid}/reviews/${timestamp}_${safeName}`;
+  const storageRef = ref(storage, storagePath);
+  
+  const snapshot = await uploadBytes(storageRef, file);
+  return getDownloadURL(snapshot.ref);
+}
 

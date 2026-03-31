@@ -14,7 +14,8 @@ import {
   increment,
   limit,
   setDoc,
-  addDoc
+  addDoc,
+  orderBy
 } from 'firebase/firestore';
 import { type Auth, type UserCredential, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 
@@ -640,4 +641,29 @@ export async function getCustomerQuotesAndEstimations(db: Firestore, customerEma
     quotes: quotesSnap.docs.map(d => ({ id: d.id, ...d.data() })),
     estimations: estimationsSnap.docs.map(d => ({ id: d.id, ...d.data() }))
   };
+}
+
+// Reviews Collection
+export interface Review {
+  id?: string;
+  uid: string;
+  userName: string;
+  rating: number; // 1-5
+  comment: string;
+  media: Array<{
+    url: string;
+    type: 'image' | 'video';
+  }>;
+  createdAt: Timestamp | FieldValue | null;
+  status?: 'pending' | 'approved' | string;
+}
+
+export const COLLECTION_REVIEWS = 'Reviews';
+
+export function reviewsCollection(db: Firestore): CollectionReference<Review> {
+  return collection(db, COLLECTION_REVIEWS) as CollectionReference<Review>;
+}
+
+export function reviewDoc(db: Firestore, id: string): DocumentReference<Review> {
+  return doc(db, COLLECTION_REVIEWS, id) as DocumentReference<Review>;
 }
