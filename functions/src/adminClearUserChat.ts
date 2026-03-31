@@ -11,7 +11,10 @@ if (!getApps().length) {
 const db = getFirestore();
 const storage = getStorage();
 
-/**
+/** 
+ * Callable: Admin bulk updates statuses (Kanban boards)
+ * Centrally handles atomic status updates for Kanban pipelines 
+ * 
  * Callable: Admin clears all chat_sessions and messages for a given userId (uid)
  * Only Super Admin or Admin can invoke this.
  * request.data: { uid: string }

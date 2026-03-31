@@ -136,6 +136,7 @@ export const adminDeleteUserAndData = onCall({ region: "us-central1", cors: true
       ["Contact_Submissions", "uid"],
       ["Reviews", "uid"],
     ] as const) {
+      // Deletes all matching docs in the specified collection using batching
       summary[name] = await deleteByQuery(name, field, targetUid);
     }
 

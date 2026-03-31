@@ -130,6 +130,7 @@ export interface ContactRequest {
    * NOTE: Requires a composite index for (status, createdAt) if querying both.
    */
   status?: ContactSubmissionStage | string; 
+  /** Unified tracking for admin dashboard */
   [key: string]: any;
 }
 

@@ -575,6 +575,28 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [uid]);
 
   const updateItemStatus = useCallback(async (collectionName: string, id: string, newStatus: string) => {
+    // 1. Identify local state and capture current for rollback
+    let rollbackState: any[] = [];
+    let setStateFn: React.Dispatch<React.SetStateAction<any[]>> | null = null;
+
+    if (collectionName === 'Planner_Leads') {
+      rollbackState = [...planLeads];
+      setStateFn = setPlanLeads;
+    } else if (collectionName === 'contactRequests') {
+      rollbackState = [...contactSubmissions];
+      setStateFn = setContactSubmissions;
+    } else if (collectionName === 'Support_Tickets') {
+      rollbackState = [...reports];
+      setStateFn = setReports;
+    }
+
+    // 2. Optimistic Update
+    if (setStateFn) {
+      setStateFn(prev => prev.map(item => 
+        item.id === id ? { ...item, status: newStatus } : item
+      ));
+    }
+
     try {
       const updateFn = httpsCallable<any, { status: string }>(functions, 'adminUpdateStatuses');
       await updateFn({
@@ -582,9 +604,11 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
     } catch (err: any) {
       console.error(`Failed to update status for ${id} in ${collectionName}:`, err);
+      // 3. Rollback on failure
+      if (setStateFn) setStateFn(rollbackState);
       throw err;
     }
-  }, []);
+  }, [planLeads, contactSubmissions, reports]);
 
   const value = useMemo<DevicesContextValue>(() => ({ 
     devices, loading, adminLoading, error, refresh: fetchDevices, uid,
