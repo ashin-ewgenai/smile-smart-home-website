@@ -9,6 +9,7 @@ import Footer from './Footer.astro';
 import { StaggerContainer, StaggerItem } from '../components/ui/MotionIsland';
 import SmartHomePlannerSection from '../components/home/SmartHomePlannerSection.astro';
 import InteractiveFloorplan from '../components/home/InteractiveFloorplan';
+import { RecommendationsWrapper } from '../components/RecommendationsWrapper';
 ---
 
 <Layout title="Smile Smart Homes - Professional Smart Home Installation">
@@ -149,6 +150,13 @@ import InteractiveFloorplan from '../components/home/InteractiveFloorplan';
       </div>
     </section>
     
+    <!-- AI Recommendations Section -->
+    <section class="section-padding bg-slate-50 dark:bg-slate-900/50">
+      <div class="container">
+        <RecommendationsWrapper client:visible />
+      </div>
+    </section>
+
     <!-- Smart Home Planner Section -->
     <SmartHomePlannerSection />
     
