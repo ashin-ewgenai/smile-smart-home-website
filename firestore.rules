@@ -278,5 +278,11 @@ service cloud.firestore {
     match /Alerts/{docId} {
       allow read, create, update, delete: if isAdmin();
     }
+    // ================= Reviews =================
+    match /Reviews/{docId} {
+      allow read: if true; // Everyone can see public reviews
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
   }
 }

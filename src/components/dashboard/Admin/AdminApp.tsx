@@ -17,6 +17,7 @@ import Alerts from './pages/Alerts';
 import PlanLeads from './PlanLeads';
 import AdminSupportApp from './AdminSupportApp';
 import AdminContactSubmissions from './pages/AdminContactSubmissions';
+import AdminReviews from './pages/AdminReviews';
 import { DevicesProvider } from '../../../contexts/DevicesContext';
 
 const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -104,6 +105,7 @@ const AdminApp: React.FC = () => {
               <Route path="/about/:id" element={<AboutDevice />} />
               <Route path="/plan-leads" element={<PlanLeads />} />
               <Route path="/support/*" element={<AdminSupportApp />} />
+              <Route path="/reviews" element={<AdminReviews />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </DashboardLayout>

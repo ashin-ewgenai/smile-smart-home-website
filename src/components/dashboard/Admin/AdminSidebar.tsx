@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Users, LayoutDashboard, FilePlus, Cpu, UserCircle2, BarChart2, MessageCircle } from 'lucide-react';
+import { Settings, Users, LayoutDashboard, FilePlus, Cpu, UserCircle2, BarChart2, MessageCircle, Star } from 'lucide-react';
 import { Link, useInRouterContext, useLocation } from 'react-router-dom';
 
 const linkBase = 'block px-3 py-2 rounded-full text-sm font-medium text-gray-800 dark:text-white hover:bg-gray-100/70 dark:hover:bg-gray-800/60';
@@ -73,6 +73,12 @@ const AdminSidebar: React.FC = () => {
         <span className="inline-flex items-center gap-2">
           <MessageCircle className="h-4 w-4" />
           Support Center
+        </span>
+      </Item>
+      <Item href="/dashboard/admin/reviews">
+        <span className="inline-flex items-center gap-2">
+          <Star className="h-4 w-4" />
+          Reviews
         </span>
       </Item>
     </nav>

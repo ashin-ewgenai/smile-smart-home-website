@@ -1,3 +1,4 @@
+import * as functionsV1 from "firebase-functions";
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {setGlobalOptions} from "firebase-functions/v2/options";
 import {initializeApp, getApps} from "firebase-admin/app";
@@ -12,6 +13,8 @@ setGlobalOptions({region: "us-central1", maxInstances: 10});
 export * from "./chatbot";
 export * from "./adminClearUserChat";
 export * from "./adminDeleteUserAndData";
+export * from "./deviceRecommendations";
+export * from "./reviews";
 
 // Initialize Admin SDK once
 if (!getApps().length) {
@@ -265,4 +268,47 @@ export const adminCloseTicket = onCall({ cors: true }, async (request) => {
   }
   await db.collection("Support_Tickets").doc(ticketId).set({status: "closed", updatedAt: Date.now()}, {merge: true});
   return {status: "closed"};
+});
+
+/**
+ * submitReview (Gen 1)
+ * Using Gen 1 to avoid IAM policy errors on new Gen 2 functions.
+ */
+export const submitReview = functionsV1.https.onCall(async (data, context) => {
+  const authCtx = context.auth;
+  if (!authCtx) {
+    throw new functionsV1.https.HttpsError("unauthenticated", "Must be authenticated.");
+  }
+
+  const { rating, comment, media, userName } = data || {};
+
+  if (!rating || typeof rating !== 'number' || rating < 1 || rating > 5) {
+    throw new functionsV1.https.HttpsError("invalid-argument", "Rating must be between 1 and 5.");
+  }
+
+  if (!comment || typeof comment !== 'string' || comment.trim().length === 0) {
+    throw new functionsV1.https.HttpsError("invalid-argument", "Comment is required.");
+  }
+
+  try {
+    const reviewData = {
+      uid: authCtx.uid,
+      userName: userName || "Anonymous",
+      rating,
+      comment: comment.trim(),
+      media: Array.isArray(media) ? media : [],
+      createdAt: Date.now(),
+      status: 'approved'
+    };
+
+    console.log("Submitting review data (Gen 1):", JSON.stringify(reviewData));
+    const docRef = await db.collection("Reviews").add(reviewData);
+    return { status: "ok", id: docRef.id };
+  } catch (e: any) {
+    console.error("FATAL ERROR in submitReview:", e);
+    return { 
+      status: "error", 
+      message: e?.message || "Unknown Firestore Error"
+    };
+  }
 });
