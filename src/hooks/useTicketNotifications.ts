@@ -1,24 +1,38 @@
 import { useState, useEffect } from 'react';
 import { collection, query, where, onSnapshot, getFirestore, doc, updateDoc } from 'firebase/firestore';
 
-export function useTicketNotifications(userId: string | null) {
+export function useTicketNotifications(userIdOrParams?: string | null | { userId?: string | null, isAdmin?: boolean }) {
   const [unresolvedCount, setUnresolvedCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Parse arguments for backward compatibility
+  let userId: string | null = null;
+  let isAdmin = false;
+  if (typeof userIdOrParams === 'string' || userIdOrParams === null) {
+    userId = userIdOrParams;
+  } else if (userIdOrParams) {
+    userId = userIdOrParams.userId ?? null;
+    isAdmin = userIdOrParams.isAdmin ?? false;
+  }
 
   useEffect(() => {
-    if (!userId) {
+    // If not admin and no userId, nothing to listen to
+    if (!isAdmin && !userId) {
       setUnresolvedCount(0);
       return;
     }
 
+    setLoading(true);
     const db = getFirestore();
-    // Listen to all tickets for this user
-    const q = query(
-      collection(db, 'Support_Tickets'),
-      where('uid', '==', userId)
-    );
+    const ticketsRef = collection(db, 'Support_Tickets');
+    
+    // Admin listens to all, User listens to their own
+    const q = isAdmin 
+      ? query(ticketsRef) 
+      : query(ticketsRef, where('uid', '==', userId));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      // Manually filter out resolved tickets on the client side
       const unresolved = querySnapshot.docs.filter(doc => {
         const data = doc.data();
         const status = data.status?.toString().toLowerCase();
@@ -26,28 +40,30 @@ export function useTicketNotifications(userId: string | null) {
       });
       
       setUnresolvedCount(unresolved.length);
-    }, (error) => {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error listening to ticket updates:', error);
-      }
+      setLoading(false);
+      setError(null);
+    }, (err) => {
+      console.error('Error listening to ticket updates:', err);
+      setError(err.message || 'Failed to listen to tickets');
+      setLoading(false);
     });
 
-    // Clean up the listener when the component unmounts
     return () => unsubscribe();
-  }, [userId]);
+  }, [userId, isAdmin]);
 
   const updateTicketStatus = async (ticketId: string, newStatus: string) => {
     try {
-      const db = getFirestore();
-      const ticketRef = doc(db, 'Support_Tickets', ticketId);
-      await updateDoc(ticketRef, { status: newStatus });
-    } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error(`Failed to update ticket ${ticketId} status:`, error);
-      }
-      throw error;
+      const { getFunctions, httpsCallable } = await import('firebase/functions');
+      const functions = getFunctions();
+      const updateFn = httpsCallable<any, { status: string }>(functions, 'adminUpdateStatuses');
+      await updateFn({
+        updates: [{ collection: 'Support_Tickets', id: ticketId, status: newStatus }]
+      });
+    } catch (err: any) {
+      console.error(`Failed to update ticket ${ticketId} status:`, err);
+      throw err;
     }
   };
 
-  return { unresolvedCount, updateTicketStatus };
+  return { unresolvedCount, updateTicketStatus, loading, error };
 }

@@ -58,6 +58,7 @@ interface DevicesContextValue {
   recommendationLoading: boolean;
   fetchRecommendations: (params: RecommendationRequest) => Promise<void>;
   saveRecommendationToQuote: (recommendation: DeviceRecommendation) => Promise<void>;
+  updateItemStatus: (collectionName: string, id: string, newStatus: string) => Promise<void>;
 }
 
 const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -573,14 +574,26 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [uid]);
 
+  const updateItemStatus = useCallback(async (collectionName: string, id: string, newStatus: string) => {
+    try {
+      const updateFn = httpsCallable<any, { status: string }>(functions, 'adminUpdateStatuses');
+      await updateFn({
+        updates: [{ collection: collectionName, id, status: newStatus }]
+      });
+    } catch (err: any) {
+      console.error(`Failed to update status for ${id} in ${collectionName}:`, err);
+      throw err;
+    }
+  }, []);
+
   const value = useMemo<DevicesContextValue>(() => ({ 
     devices, loading, adminLoading, error, refresh: fetchDevices, uid,
     planLeads, contactSubmissions, reports, isFloorplanItem,
     filteredPlanLeads, filteredContactSubmissions, filteredReports,
     searchQuery, setSearchQuery, filterCriteria, setFilterCriteria,
     recommendations, recommendationLoading, fetchRecommendations,
-    saveRecommendationToQuote
-  }), [devices, loading, adminLoading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, filteredContactSubmissions, filteredReports, searchQuery, filterCriteria, recommendations, recommendationLoading, fetchRecommendations, saveRecommendationToQuote]);
+    saveRecommendationToQuote, updateItemStatus
+  }), [devices, loading, adminLoading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, filteredContactSubmissions, filteredReports, searchQuery, filterCriteria, recommendations, recommendationLoading, fetchRecommendations, saveRecommendationToQuote, updateItemStatus]);
 
   return (
     <DevicesContext.Provider value={value}>

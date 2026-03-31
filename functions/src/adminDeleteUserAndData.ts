@@ -134,6 +134,7 @@ export const adminDeleteUserAndData = onCall({ region: "us-central1", cors: true
       ["Plan_Leads", "uid"],
       ["contactRequests", "uid"],
       ["Contact_Submissions", "uid"],
+      ["Reviews", "uid"],
     ] as const) {
       summary[name] = await deleteByQuery(name, field, targetUid);
     }
@@ -141,9 +142,25 @@ export const adminDeleteUserAndData = onCall({ region: "us-central1", cors: true
     // 2) quotes (flat) by uid or userUid (handle both field names)
     const quotesByUid = await deleteByQuery("quotes", "uid", targetUid);
     const quotesByUserUid = await deleteByQuery("quotes", "userUid", targetUid);
-    summary.quotes = quotesByUid + quotesByUserUid;
+    summary.quotes_flat = quotesByUid + quotesByUserUid;
 
-    // 3) Estimation_Quote (flat) by uid only
+    // 3) Nested Quotes root: Quotes/{uid}/Quote_List/{id}
+    try {
+      const qRootRef = db.collection("Quotes").doc(targetUid);
+      const qListCol = qRootRef.collection("Quote_List");
+      const qListSnap = await qListCol.get();
+      if (!qListSnap.empty) {
+        const batcher = makeBatch();
+        for (const qDoc of qListSnap.docs) await batcher.delete(qDoc.ref);
+        await batcher.done();
+        summary.quotes_nested = qListSnap.size;
+      }
+      await qRootRef.delete();
+    } catch (e: any) {
+      console.error(`Failed to delete nested Quotes for ${targetUid}:`, e);
+    }
+
+    // 4) Estimation_Quote (flat) by uid only
     // Prepare estimation quotes for this user (we will delete attachments first, then docs)
     const estSnap = await db.collection("Estimation_Quote").where("uid", "==", targetUid).get();
     const estDocs = estSnap.docs;

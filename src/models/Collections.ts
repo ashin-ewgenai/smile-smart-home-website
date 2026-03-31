@@ -114,6 +114,9 @@ export function contactMessagePayload(input: ContactMessageInput): ContactMessag
 }
 
 // Contact Requests Collection (new, for notifications)
+// Kanban Stages for Contact Requests (Submissions)
+export type ContactSubmissionStage = 'new' | 'in_review' | 'follow_up' | 'resolved';
+
 export interface ContactRequest {
   name?: string;
   email?: string;
@@ -122,7 +125,11 @@ export interface ContactRequest {
   message?: string;
   createdAt?: Timestamp | null;
   adminRead?: boolean;
-  status?: 'new' | 'in_review' | 'follow_up' | 'resolved' | string; // Kanban stage for contactRequests
+  /** 
+   * Kanban stage for contactRequests. 
+   * NOTE: Requires a composite index for (status, createdAt) if querying both.
+   */
+  status?: ContactSubmissionStage | string; 
   [key: string]: any;
 }
 
@@ -337,11 +344,17 @@ export function userDoc(db: Firestore, uid: string): DocumentReference<UserProfi
   return doc(db, COLLECTION_USERS, uid) as DocumentReference<UserProfile>;
 }
 
-// Planner Leads
+// Kanban Stages for Planner Leads
+export type PlannerLeadStage = 'new' | 'contacted' | 'qualified' | 'closed';
+
 export interface PlannerLead {
   updatedAt?: Timestamp | null;
   createdAt?: Timestamp | null;
-  status?: 'new' | 'contacted' | 'qualified' | 'closed' | string; // Kanban stage for Planner_Leads
+  /** 
+   * Kanban stage for Planner_Leads.
+   * NOTE: Requires a composite index for (status, createdAt) if querying both.
+   */
+  status?: PlannerLeadStage | string;
   [key: string]: any;
 }
 
@@ -401,6 +414,9 @@ export function quoteDoc(db: Firestore, uid: string, id: string): DocumentRefere
 // Flat: supportTickets collection with uid field
 export const COLLECTION_SUPPORT_TICKETS = 'Support_Tickets';
 
+// Kanban Stages for Support Tickets
+export type SupportTicketStage = 'open' | 'in_progress' | 'resolved' | 'closed';
+
 export interface SupportTicket {
   // User identification
   uid: string;
@@ -412,8 +428,11 @@ export interface SupportTicket {
   description?: string;
   imageUrl?: string;
   createdAt?: Timestamp | null;
-  // Normalize to TicketCenter statuses while preserving legacy values used elsewhere
-  status?: 'open' | 'in_progress' | 'resolved' | 'closed' | string; // Kanban stage for Support_Tickets
+  /** 
+   * Kanban stage for Support_Tickets.
+   * NOTE: Requires a composite index for (status, createdAt) if querying both.
+   */
+  status?: SupportTicketStage | string;
   [key: string]: any;
 }
 
