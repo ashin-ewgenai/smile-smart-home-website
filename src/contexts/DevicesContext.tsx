@@ -15,6 +15,15 @@ interface SerialItem {
 }
 
 
+export type DeviceHealth = {
+  score: number;
+  status: 'Online' | 'Offline';
+  lastSeen: string;
+  batteryLevel: number;
+  signalStrength: number;
+  alerts: string[];
+};
+
 export type DeviceDoc = {
   id: string;
   deviceName?: string;
@@ -34,6 +43,7 @@ export type DeviceDoc = {
   description?: string;
   documentationUrl?: string;
   serials?: SerialItem[];
+  health?: DeviceHealth;
 };
 
 export const MOCK_DEVICES: DeviceDoc[] = [
@@ -45,7 +55,15 @@ export const MOCK_DEVICES: DeviceDoc[] = [
     status: 'Active',
     brand: 'Phillips Hue',
     modelNumber: 'HUE-V2-RGB',
-    description: 'Full spectrum RGB smart bulb for the living room.'
+    description: 'Full spectrum RGB smart bulb for the living room.',
+    health: {
+      score: 94,
+      status: 'Online',
+      lastSeen: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+      batteryLevel: 100,
+      signalStrength: -48,
+      alerts: []
+    }
   },
   {
     id: 'mock-lock-1',
@@ -55,7 +73,15 @@ export const MOCK_DEVICES: DeviceDoc[] = [
     status: 'Active',
     brand: 'Yale Secure',
     modelNumber: 'Y-2024-L',
-    description: 'Biometric and remote-controlled security lock.'
+    description: 'Biometric and remote-controlled security lock.',
+    health: {
+      score: 62,
+      status: 'Online',
+      lastSeen: new Date(Date.now() - 8 * 60 * 1000).toISOString(),
+      batteryLevel: 21,
+      signalStrength: -72,
+      alerts: ['⚠️ Battery critically low — replace soon']
+    }
   },
   {
     id: 'mock-ac-1',
@@ -65,7 +91,15 @@ export const MOCK_DEVICES: DeviceDoc[] = [
     status: 'Active',
     brand: 'Nest Pro',
     modelNumber: 'N-TERM-GEN3',
-    description: 'AI-driven climate control for optimal comfort.'
+    description: 'AI-driven climate control for optimal comfort.',
+    health: {
+      score: 89,
+      status: 'Online',
+      lastSeen: new Date(Date.now() - 1 * 60 * 1000).toISOString(),
+      batteryLevel: 87,
+      signalStrength: -55,
+      alerts: []
+    }
   },
   {
     id: 'mock-dimmer-1',
@@ -75,19 +109,45 @@ export const MOCK_DEVICES: DeviceDoc[] = [
     status: 'Active',
     brand: 'Lutron Caseta',
     modelNumber: 'L-DIM-01',
-    description: 'Smart dimmer for exterior mood lighting.'
+    description: 'Smart dimmer for exterior mood lighting.',
+    health: {
+      score: 78,
+      status: 'Online',
+      lastSeen: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+      batteryLevel: 65,
+      signalStrength: -68,
+      alerts: []
+    }
   },
   {
     id: 'mock-camera-1',
     deviceName: 'Garage Entry Cam',
     name: 'Floodlight Camera',
     type: 'Security Camera',
-    status: 'Active',
+    status: 'Offline',
     brand: 'Ring Pro',
     modelNumber: 'R-CAM-FLD',
-    description: 'Motion-activated floodlight and 4K security camera.'
+    description: 'Motion-activated floodlight and 4K security camera.',
+    health: {
+      score: 38,
+      status: 'Offline',
+      lastSeen: new Date(Date.now() - 95 * 60 * 1000).toISOString(),
+      batteryLevel: 12,
+      signalStrength: -91,
+      alerts: ['🔴 Device offline — check power and Wi-Fi signal']
+    }
   }
 ];
+
+/** Fallback admin stats for demo / pre-deploy environments */
+export const MOCK_ADMIN_HEALTH_STATS = {
+  aggregatedScore: 72,
+  onlineCount: 4,
+  offlineCount: 1,
+  totalDevices: 5,
+  alertCount: 2,
+  timestamp: new Date().toISOString()
+};
 
 export const MOCK_SCENES: any[] = [
   {
@@ -139,6 +199,9 @@ interface DevicesContextValue {
   fetchScenes: () => Promise<void>;
   saveScene: (scene: any) => Promise<void>;
   deleteScene: (sceneId: string) => Promise<void>;
+  // Health-related
+  adminHealthStats: any | null;
+  fetchAdminHealthOverview: () => Promise<void>;
 }
 
 const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -203,7 +266,9 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [recommendationLoading, setRecommendationLoading] = useState<boolean>(false);
   const [scenes, setScenes] = useState<any[]>([]);
   const [sceneLoading, setSceneLoading] = useState<boolean>(false);
+  const [adminHealthStats, setAdminHealthStats] = useState<any | null>(null);
   const unsubRef = useRef<(() => void) | null>(null);
+
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null));
@@ -390,6 +455,14 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
           warranty: getUserWarranty(userDeviceData) || deviceData.warranty || null,
           brand: deviceData.brand,
           description: deviceData.description,
+          health: userDeviceData.health || {
+            score: 100,
+            status: 'Online',
+            lastSeen: new Date().toISOString(),
+            batteryLevel: userDeviceData.batteryLevel ?? 100,
+            signalStrength: userDeviceData.signalStrength ?? -50,
+            alerts: []
+          }
         };
       });
 
@@ -493,6 +566,18 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [uid]);
 
+  const fetchAdminHealthOverview = useCallback(async () => {
+    try {
+      const getOverviewFn = httpsCallable<any, any>(functions, 'getAdminHealthOverview');
+      const res = await getOverviewFn();
+      setAdminHealthStats(res.data);
+    } catch (err) {
+      console.warn('Admin health function unavailable, using demo stats:', err);
+      // Fallback for demo mode / pre-deploy environments
+      setAdminHealthStats(MOCK_ADMIN_HEALTH_STATS);
+    }
+  }, []);
+
   const updateItemStatus = useCallback(async (collectionName: string, id: string, newStatus: string) => {
     let rollbackState: any[] = [];
     let setStateFn: any = null;
@@ -538,8 +623,9 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     searchQuery, setSearchQuery, filterCriteria, setFilterCriteria,
     recommendations, recommendationLoading, fetchRecommendations,
     saveRecommendationToQuote, updateItemStatus,
-    scenes, sceneLoading, fetchScenes, saveScene, deleteScene
-  }), [devices, loading, adminLoading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, filteredContactSubmissions, filteredReports, searchQuery, filterCriteria, recommendations, recommendationLoading, fetchRecommendations, saveRecommendationToQuote, updateItemStatus, scenes, sceneLoading, fetchScenes, saveScene, deleteScene]);
+    scenes, sceneLoading, fetchScenes, saveScene, deleteScene,
+    adminHealthStats, fetchAdminHealthOverview
+  }), [devices, loading, adminLoading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, filteredContactSubmissions, filteredReports, searchQuery, filterCriteria, recommendations, recommendationLoading, fetchRecommendations, saveRecommendationToQuote, updateItemStatus, scenes, sceneLoading, fetchScenes, saveScene, deleteScene, adminHealthStats, fetchAdminHealthOverview]);
 
   return (
     <DevicesContext.Provider value={value}>

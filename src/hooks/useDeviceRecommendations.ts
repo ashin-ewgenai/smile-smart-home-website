@@ -6,7 +6,19 @@ import type { RecommendationRequest } from '../models';
  * Hook for managing the recommendation form state and AI interaction.
  */
 export function useDeviceRecommendations() {
-  const { fetchRecommendations, recommendations, recommendationLoading, error, saveRecommendationToQuote, uid } = useDevices();
+  const { 
+    fetchRecommendations, 
+    recommendations, 
+    recommendationLoading, 
+    error, 
+    saveRecommendationToQuote, 
+    uid,
+    devices,
+    adminHealthStats,
+    fetchAdminHealthOverview,
+    loading: devicesLoading
+  } = useDevices();
+
   const [step, setStep] = useState<number>(1);
   const [formData, setFormData] = useState<RecommendationRequest>({
     houseSize: '',
@@ -47,9 +59,13 @@ export function useDeviceRecommendations() {
     handleSubmit,
     resetForm,
     recommendations,
-    loading: recommendationLoading,
+    loading: recommendationLoading || devicesLoading,
     error,
     saveRecommendationToQuote,
-    uid
+    uid,
+    devices,
+    adminHealthStats,
+    fetchAdminHealthOverview
   };
 }
+
