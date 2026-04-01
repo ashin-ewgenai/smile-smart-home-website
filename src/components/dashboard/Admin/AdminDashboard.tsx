@@ -376,7 +376,7 @@ const AdminDashboard: React.FC = () => {
             const Icon = kpi.icon as any;
             const isUp = kpi.delta >= 0;
             const kpiLoading = (kpi as any).isLoading;
-            const kpiHref = kpi.key === 'users' ? '/dashboard/admin/users' : kpi.key === 'quotes' ? '/dashboard/admin/estimates' : '/dashboard/admin/alerts';
+            const kpiHref = kpi.key === 'users' ? '/dashboard/admin/users' : kpi.key === 'quotes' ? '/dashboard/admin/estimates' : kpi.key === 'tickets' ? '/dashboard/admin/reports' : '/dashboard/admin/alerts';
             return (
               <a href={kpiHref} key={kpi.key} className="h-full block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded-xl relative group">
                 <div className="absolute inset-0 bg-gradient-to-r from-teal-500/0 to-emerald-500/0 group-hover:from-teal-500/5 group-hover:to-emerald-500/5 transition-colors rounded-xl pointer-events-none"></div>

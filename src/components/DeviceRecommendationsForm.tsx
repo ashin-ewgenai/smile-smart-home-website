@@ -73,9 +73,9 @@ export const DeviceRecommendationsForm: React.FC = () => {
         initial="hidden"
         animate="visible"
         variants={containerVariants}
-        className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800"
+        className="bg-white dark:bg-charcoal rounded-3xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-800"
       >
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white relative">
+        <div className="bg-gradient-to-r from-teal-600 to-teal-700 p-8 text-white relative">
           <div className="absolute top-0 right-0 p-4 opacity-10">
             <Sparkles size={120} />
           </div>
@@ -83,7 +83,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
             <Sparkles className="text-yellow-400" />
             AI Smart Recommendations
           </h2>
-          <p className="text-blue-100 max-w-lg">
+          <p className="text-teal-50 max-w-lg">
             Let our AI consultant design the perfect smart home setup for your space and budget.
           </p>
 
@@ -105,8 +105,8 @@ export const DeviceRecommendationsForm: React.FC = () => {
           <AnimatePresence mode="wait">
             {step === 1 && (
               <motion.div key="step1" variants={stepVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
-                <div className="flex items-center gap-3 text-slate-700 dark:text-slate-300 mb-4">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg text-blue-600">
+                <div className="flex items-center gap-3 text-slate-700 dark:text-gray-300 mb-4">
+                  <div className="p-2 bg-teal-100 dark:bg-teal-900/30 rounded-lg text-teal">
                     <Home size={24} />
                   </div>
                   <div>
@@ -121,8 +121,8 @@ export const DeviceRecommendationsForm: React.FC = () => {
                       onClick={() => { updateFormData({ houseSize: size }); nextStep(); }}
                       className={`flex items-center justify-between p-5 rounded-2xl border-2 text-left transition-all hover:shadow-lg ${
                         formData.houseSize === size
-                          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                          : 'border-slate-100 dark:border-slate-800 hover:border-blue-200 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30'
+                          ? 'border-teal bg-teal-50 dark:bg-teal-900/20 text-teal dark:text-teal-300'
+                          : 'border-slate-100 dark:border-gray-800 hover:border-teal/30 dark:hover:border-gray-700 bg-slate-50/50 dark:bg-gray-800/30'
                       }`}
                     >
                       <span className="font-medium">{size}</span>
@@ -135,8 +135,8 @@ export const DeviceRecommendationsForm: React.FC = () => {
 
             {step === 2 && (
               <motion.div key="step2" variants={stepVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
-                <div className="flex items-center gap-3 text-slate-700 dark:text-slate-300 mb-4">
-                  <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg text-indigo-600">
+                <div className="flex items-center gap-3 text-slate-700 dark:text-gray-300 mb-4">
+                  <div className="p-2 bg-cyan-100 dark:bg-cyan-900/30 rounded-lg text-cyan-600">
                     <Shield size={24} />
                   </div>
                   <div>
@@ -151,12 +151,12 @@ export const DeviceRecommendationsForm: React.FC = () => {
                       onClick={() => updateFormData({ securityNeeds: level })}
                       className={`flex items-center gap-4 p-5 rounded-2xl border-2 text-left transition-all hover:shadow-lg ${
                         formData.securityNeeds === level
-                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
-                          : 'border-slate-100 dark:border-slate-800 hover:border-indigo-200 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30'
+                          ? 'border-cyan-500 bg-cyan-50 dark:bg-cyan-900/20 text-cyan-700 dark:text-cyan-300'
+                          : 'border-slate-100 dark:border-gray-800 hover:border-cyan-200 dark:hover:border-gray-700 bg-slate-50/50 dark:bg-gray-800/30'
                       }`}
                     >
                       <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
-                        formData.securityNeeds === level ? 'border-indigo-500 bg-indigo-500 ring-4 ring-indigo-100 dark:ring-indigo-900/40' : 'border-slate-300'
+                        formData.securityNeeds === level ? 'border-cyan-500 bg-cyan-500 ring-4 ring-cyan-100 dark:ring-cyan-900/40' : 'border-slate-300'
                       }`}>
                         {formData.securityNeeds === level && <div className="w-1.5 h-1.5 bg-white rounded-full" />}
                       </div>
@@ -172,15 +172,15 @@ export const DeviceRecommendationsForm: React.FC = () => {
                   ))}
                 </div>
                 <div className="flex justify-between mt-8">
-                  <button onClick={prevStep} className="flex items-center gap-2 text-slate-500 hover:text-slate-700 font-medium"><ArrowLeft size={18} /> Back</button>
-                  <button onClick={nextStep} className="bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-slate-800 transition-colors">Next <ArrowRight size={18} /></button>
+                  <button onClick={prevStep} className="flex items-center gap-2 text-slate-500 hover:text-teal font-medium"><ArrowLeft size={18} /> Back</button>
+                  <button onClick={nextStep} className="btn-primary py-2 px-6 flex items-center gap-2 shadow-none">Next <ArrowRight size={18} /></button>
                 </div>
               </motion.div>
             )}
 
             {step === 3 && (
               <motion.div key="step3" variants={stepVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
-                <div className="flex items-center gap-3 text-slate-700 dark:text-slate-300 mb-4">
+                <div className="flex items-center gap-3 text-slate-700 dark:text-gray-300 mb-4">
                   <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg text-emerald-600">
                     <DollarSign size={24} />
                   </div>
@@ -197,7 +197,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
                       className={`p-5 rounded-2xl border-2 text-left transition-all hover:shadow-lg ${
                         formData.budget === range.value
                           ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
-                          : 'border-slate-100 dark:border-slate-800 hover:border-emerald-200 dark:hover:border-slate-700 bg-slate-50/50 dark:bg-slate-800/30'
+                          : 'border-slate-100 dark:border-gray-800 hover:border-emerald-200 dark:hover:border-gray-700 bg-slate-50/50 dark:bg-gray-800/30'
                       }`}
                     >
                       <div className="text-lg font-bold">{range.label}</div>
@@ -205,8 +205,8 @@ export const DeviceRecommendationsForm: React.FC = () => {
                   ))}
                 </div>
                 <div className="flex justify-between mt-8">
-                  <button onClick={prevStep} className="flex items-center gap-2 text-slate-500 hover:text-slate-700 font-medium"><ArrowLeft size={18} /> Back</button>
-                  <button onClick={handleSubmit} disabled={loading} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-blue-700 transition-all disabled:opacity-50 shadow-lg shadow-blue-200 dark:shadow-none">
+                  <button onClick={prevStep} className="flex items-center gap-2 text-slate-500 hover:text-teal font-medium"><ArrowLeft size={18} /> Back</button>
+                  <button onClick={handleSubmit} disabled={loading} className="btn-primary py-3 px-8 flex items-center gap-2 shadow-lg shadow-teal/20 transition-all disabled:opacity-50">
                     {loading ? <Loader2 className="animate-spin" /> : <Sparkles size={18} />}
                     {loading ? 'Consulting AI...' : 'Generate My Plan'}
                   </button>
@@ -221,21 +221,21 @@ export const DeviceRecommendationsForm: React.FC = () => {
                     <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><CheckCircle2 className="text-emerald-500" /> Your Custom Smart Plan</h3>
                     <p className="text-slate-500 italic">Based on your {formData.houseSize} and ${formData.budget} budget.</p>
                   </div>
-                  <button onClick={resetForm} className="text-blue-600 hover:text-blue-700 text-sm font-bold bg-blue-50 dark:bg-blue-900/20 px-4 py-2 rounded-lg">New Plan</button>
+                  <button onClick={resetForm} className="text-teal hover:text-teal/80 text-sm font-bold bg-teal/5 dark:bg-teal-900/20 px-4 py-2 rounded-lg">New Plan</button>
                 </div>
                 {error && <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm">{error}</div>}
                 {saveError && <div className="p-4 bg-amber-50 border border-amber-100 text-amber-700 rounded-xl text-sm flex items-center gap-2"><Shield size={16} />{saveError}</div>}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {recommendations.map((device, i) => (
-                    <motion.div key={device.name} custom={i} variants={itemVariants} className="group p-5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 hover:border-blue-500 transition-all shadow-sm">
+                    <motion.div key={device.name} custom={i} variants={itemVariants} className="group p-5 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 hover:border-teal transition-all shadow-sm">
                       <div className="flex justify-between items-start mb-3">
-                        <span className="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-600 text-xs font-bold rounded-full">{device.category}</span>
+                        <span className="px-3 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal text-xs font-bold rounded-full">{device.category}</span>
                         <div className="flex items-center gap-2">
                           <span className="text-slate-900 dark:text-white font-bold">${device.estimatedPrice}*</span>
                           <button 
                             onClick={() => handleSave(device)}
                             disabled={savingId === device.name || savedIds.has(device.name)}
-                            className={`p-1.5 rounded-full transition-all ${savedIds.has(device.name) ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 dark/bg-slate-700 text-slate-400 hover:text-blue-500'}`}
+                            className={`p-1.5 rounded-full transition-all ${savedIds.has(device.name) ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 dark:bg-gray-700 text-slate-400 hover:text-teal'}`}
                           >
                             {savingId === device.name ? <Loader2 size={16} className="animate-spin" /> : <Heart size={16} fill={savedIds.has(device.name) ? "currentColor" : "none"} />}
                           </button>
@@ -246,7 +246,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
                     </motion.div>
                   ))}
                 </div>
-                <div className="mt-8 p-6 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-300 text-center text-sm text-slate-500">
+                <div className="mt-8 p-6 bg-soft-gray dark:bg-gray-800/50 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 text-center text-sm text-slate-500">
                   *Estimated prices are representative. Our team can provide a precise quote for installation and hardware.
                 </div>
               </motion.div>

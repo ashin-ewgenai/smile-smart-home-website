@@ -15,7 +15,8 @@ const AdminSidebar: React.FC = () => {
       href === '/dashboard/admin'
         ? location.pathname === '/' || location.pathname === ''
         : location.pathname === href.replace('/dashboard/admin', '') ||
-        (href === '/dashboard/admin/contact-submissions' && location.pathname === '/contact-submissions')
+        (href === '/dashboard/admin/contact-submissions' && location.pathname === '/contact-submissions') ||
+        (href === '/dashboard/admin/reports' && location.pathname === '/reports')
     );
     const cls = `${linkBase} ${active ? 'bg-gray-200/80 dark:bg-gray-700/70' : ''}`;
     return inRouter ? (
@@ -51,6 +52,12 @@ const AdminSidebar: React.FC = () => {
           Manage Users
         </span>
       </Item>
+      <Item href="/dashboard/admin/reports">
+        <span className="inline-flex items-center gap-2">
+          <BarChart2 className="h-4 w-4" />
+          Reports
+        </span>
+      </Item>
       <Item href="/dashboard/admin/contact-submissions">
         <span className="inline-flex items-center gap-2">
           <UserCircle2 className="h-4 w-4" />
@@ -61,12 +68,6 @@ const AdminSidebar: React.FC = () => {
         <span className="inline-flex items-center gap-2">
           <FilePlus className="h-5 w-5" />
           Plan Leads
-        </span>
-      </Item>
-      <Item href="/dashboard/admin/reports">
-        <span className="inline-flex items-center gap-2">
-          <BarChart2 className="h-4 w-4" />
-          Reports
         </span>
       </Item>
       <Item href="/dashboard/admin/support">
