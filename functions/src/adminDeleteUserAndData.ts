@@ -125,7 +125,8 @@ export const adminDeleteUserAndData = onCall({ region: "us-central1", cors: true
   console.log('[adminDeleteUserAndData] Using bucket:', bucketName);
 
   try {
-    // 1) Flat collections by uid
+    // 1) Flat collections by uid (Includes all Kanban-enabled collections)
+    // Deleting the documents automatically clears Kanban metadata (status, dragIndex, etc.)
     for (const [name, field] of [
       ["Request_service", "uid"],
       ["Support_Tickets", "uid"],
@@ -136,7 +137,6 @@ export const adminDeleteUserAndData = onCall({ region: "us-central1", cors: true
       ["Contact_Submissions", "uid"],
       ["Reviews", "uid"],
     ] as const) {
-      // Deletes all matching docs in the specified collection using batching
       summary[name] = await deleteByQuery(name, field, targetUid);
     }
 

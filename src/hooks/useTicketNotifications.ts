@@ -67,13 +67,21 @@ export function useTicketNotifications(userIdOrParams?: string | null | { userId
     try {
       const { getFunctions, httpsCallable } = await import('firebase/functions');
       const functions = getFunctions();
-      const updateFn = httpsCallable<any, { status: string }>(functions, 'adminUpdateStatuses');
       
-      // We perform optimistic UI update by manually triggering a small state change if needed
-      // but usually the onSnapshot will take care of it very quickly.
-      await updateFn({
-        updates: [{ collection: 'Support_Tickets', id: ticketId, status: newStatus }]
-      });
+      try {
+        const updateFn = httpsCallable<any, { status: string }>(functions, 'adminUpdateStatuses');
+        await updateFn({
+          updates: [{ collection: 'Support_Tickets', id: ticketId, status: newStatus }]
+        });
+      } catch (cfErr) {
+        console.warn('[useTicketNotifications] Cloud Function update failed, trying direct Firestore fallback:', cfErr);
+        const { getFirestore, doc, updateDoc, serverTimestamp } = await import('firebase/firestore');
+        const db = getFirestore();
+        await updateDoc(doc(db, 'Support_Tickets', ticketId), {
+          status: newStatus,
+          updatedAt: serverTimestamp()
+        });
+      }
     } catch (err: any) {
       console.error(`Failed to update ticket ${ticketId} status:`, err);
       throw err;

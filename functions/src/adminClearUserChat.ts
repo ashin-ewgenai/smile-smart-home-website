@@ -166,10 +166,11 @@ export const adminUpdateStatuses = onCall({
   if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
   
   const callerSnap = await db.collection("Accounts").doc(authCtx.uid).get();
-  const role = callerSnap.exists ? (callerSnap.data()?.Role as string | undefined) : undefined;
-  const normalizedRole = role?.toLowerCase();
+  const userData = callerSnap.exists ? callerSnap.data() : null;
+  const role = (userData?.Role || userData?.role || "").toString().toLowerCase();
   
-  if (normalizedRole !== "super admin" && normalizedRole !== "admin") {
+  if (role !== "super admin" && role !== "admin") {
+    console.error(`[adminUpdateStatuses] Unauthorized caller ${authCtx.uid} with role: ${role}`);
     throw new HttpsError("permission-denied", "Only admins can update remote statuses.");
   }
 

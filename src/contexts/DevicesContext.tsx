@@ -598,13 +598,25 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
 
     try {
-      const updateFn = httpsCallable<any, { status: string }>(functions, 'adminUpdateStatuses');
-      await updateFn({
-        updates: [{ collection: collectionName, id, status: newStatus }]
-      });
+      // 3. Try Cloud Function first (supports batch/atomicity if needed)
+      try {
+        const updateFn = httpsCallable<any, { status: string }>(functions, 'adminUpdateStatuses');
+        await updateFn({
+          updates: [{ collection: collectionName, id, status: newStatus }]
+        });
+      } catch (cfErr: any) {
+        console.warn(`[DevicesContext] Cloud Function update failed, trying direct Firestore fallback:`, cfErr);
+        // 4. Fallback: Direct Firestore update (allowed by admin rules)
+        const { doc, updateDoc, getFirestore } = await import('firebase/firestore');
+        const db = getFirestore();
+        await updateDoc(doc(db, collectionName, id), { 
+          status: newStatus,
+          updatedAt: serverTimestamp() 
+        });
+      }
     } catch (err: any) {
-      console.error(`Failed to update status for ${id} in ${collectionName}:`, err);
-      // 3. Rollback on failure
+      console.error(`[DevicesContext] FATAL: Failed to update status for ${id} in ${collectionName}:`, err);
+      // 5. Rollback on failure
       if (setStateFn) setStateFn(rollbackState);
       throw err;
     }

@@ -130,6 +130,8 @@ export interface ContactRequest {
    * NOTE: Requires a composite index for (status, createdAt) if querying both.
    */
   status?: ContactSubmissionStage | string; 
+  /** Persistent vertical order in Kanban column */
+  dragIndex?: number;
   /** Unified tracking for admin dashboard */
   [key: string]: any;
 }
@@ -349,6 +351,10 @@ export function userDoc(db: Firestore, uid: string): DocumentReference<UserProfi
 export type PlannerLeadStage = 'new' | 'contacted' | 'qualified' | 'closed';
 
 export interface PlannerLead {
+  id: string;
+  uid?: string;
+  email?: string;
+  name?: string;
   updatedAt?: Timestamp | null;
   createdAt?: Timestamp | null;
   /** 
@@ -356,6 +362,14 @@ export interface PlannerLead {
    * NOTE: Requires a composite index for (status, createdAt) if querying both.
    */
   status?: PlannerLeadStage | string;
+  /** Persistent vertical order in Kanban column */
+  dragIndex?: number;
+  formData?: {
+    email?: string;
+    phone?: string;
+    [key: string]: any;
+  };
+  complexity?: string;
   [key: string]: any;
 }
 
@@ -419,6 +433,7 @@ export const COLLECTION_SUPPORT_TICKETS = 'Support_Tickets';
 export type SupportTicketStage = 'open' | 'in_progress' | 'resolved' | 'closed';
 
 export interface SupportTicket {
+  id: string;
   // User identification
   uid: string;
   // New fields used by TicketCenter
@@ -434,6 +449,8 @@ export interface SupportTicket {
    * NOTE: Requires a composite index for (status, createdAt) if querying both.
    */
   status?: SupportTicketStage | string;
+  /** Persistent vertical order in Kanban column */
+  dragIndex?: number;
   [key: string]: any;
 }
 
