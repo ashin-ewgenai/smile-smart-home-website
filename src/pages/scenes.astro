@@ -1,0 +1,58 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { SceneBuilderWrapper } from '../components/scenes/SceneBuilderWrapper';
+
+// Simple SEO meta
+const title = "Scene Builder | Smile Smart Homes";
+const description = "Create and customize smart home scenes like Good Morning, Away Mode, and Movie Night with our template-driven builder.";
+---
+
+<Layout title={title}>
+  <main class="min-h-screen bg-soft-gray dark:bg-charcoal">
+    <!-- Breadcrumbs / Back Navigation -->
+    <div class="max-w-7xl mx-auto px-4 pt-12">
+      <nav class="flex items-center gap-2 text-sm font-bold text-slate-400 uppercase tracking-widest">
+        <a href="/" class="hover:text-teal-600 transition-colors">Home</a>
+        <span>/</span>
+        <a href="/dashboard" class="hover:text-teal-600 transition-colors">Dashboard</a>
+        <span>/</span>
+        <span class="text-slate-800 dark:text-white">Scene Builder</span>
+      </nav>
+    </div>
+
+    <!-- Scene Builder Island -->
+    <SceneBuilderWrapper client:load />
+
+    <!-- Support Section -->
+    <section class="max-w-7xl mx-auto px-4 pb-24 mt-12">
+      <div class="bg-white dark:bg-slate-900 rounded-[50px] p-12 border-2 border-slate-100 dark:border-slate-800 shadow-xl relative overflow-hidden">
+        <div class="absolute -right-24 -bottom-24 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute -left-24 -top-24 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl"></div>
+        
+        <div class="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+          <div>
+            <h2 class="text-3xl font-bold text-slate-800 dark:text-white mb-4">Need help with complex automation?</h2>
+            <p class="text-slate-500 font-medium mb-8 leading-relaxed">Our experts can help you design custom automation logic that integrates perfectly with your existing devices and schedule.</p>
+            <div class="flex flex-wrap gap-4">
+              <a href="/contact" class="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-8 py-4 rounded-2xl font-bold hover:scale-105 transition-transform shadow-lg">Schedule Consultation</a>
+              <a href="/support" class="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-8 py-4 rounded-2xl font-bold hover:bg-slate-200 transition-colors">Browse Guide</a>
+            </div>
+          </div>
+          <div class="bg-slate-50 dark:bg-slate-800/50 p-8 rounded-[40px] border border-slate-100 dark:border-slate-800">
+             <div class="space-y-6">
+                {[
+                  { q: "Can I use scenes with voice assistants?", a: "Yes, all scenes created here can be synced with Alexa and Google Home." },
+                  { q: "How many scenes can I create?", a: "There is no limit! Create as many as you need for every room and mood." }
+                ].map(faq => (
+                  <div>
+                    <h4 class="font-bold text-slate-800 dark:text-white mb-2">{faq.q}</h4>
+                    <p class="text-sm text-slate-500">{faq.a}</p>
+                  </div>
+                ))}
+             </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</Layout>

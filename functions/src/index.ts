@@ -15,6 +15,7 @@ export * from "./adminClearUserChat";
 export * from "./adminDeleteUserAndData";
 export * from "./deviceRecommendations";
 export * from "./reviews";
+export * from "./sceneManagement";
 
 // Initialize Admin SDK once
 if (!getApps().length) {

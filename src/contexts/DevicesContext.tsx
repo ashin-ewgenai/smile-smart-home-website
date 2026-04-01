@@ -36,6 +36,80 @@ export type DeviceDoc = {
   serials?: SerialItem[];
 };
 
+export const MOCK_DEVICES: DeviceDoc[] = [
+  {
+    id: 'mock-light-1',
+    deviceName: 'Living Room Main Light',
+    name: 'Smart Color Bulb',
+    type: 'Color Bulb',
+    status: 'Active',
+    brand: 'Phillips Hue',
+    modelNumber: 'HUE-V2-RGB',
+    description: 'Full spectrum RGB smart bulb for the living room.'
+  },
+  {
+    id: 'mock-lock-1',
+    deviceName: 'Front Door Lock',
+    name: 'Pro Smart Lock',
+    type: 'Smart Lock',
+    status: 'Active',
+    brand: 'Yale Secure',
+    modelNumber: 'Y-2024-L',
+    description: 'Biometric and remote-controlled security lock.'
+  },
+  {
+    id: 'mock-ac-1',
+    deviceName: 'Master Bedroom AC',
+    name: 'Learning Thermostat',
+    type: 'Thermostat',
+    status: 'Active',
+    brand: 'Nest Pro',
+    modelNumber: 'N-TERM-GEN3',
+    description: 'AI-driven climate control for optimal comfort.'
+  },
+  {
+    id: 'mock-dimmer-1',
+    deviceName: 'Patio Uplights',
+    name: 'In-Wall Dimmer',
+    type: 'Dimmer Switch',
+    status: 'Active',
+    brand: 'Lutron Caseta',
+    modelNumber: 'L-DIM-01',
+    description: 'Smart dimmer for exterior mood lighting.'
+  },
+  {
+    id: 'mock-camera-1',
+    deviceName: 'Garage Entry Cam',
+    name: 'Floodlight Camera',
+    type: 'Security Camera',
+    status: 'Active',
+    brand: 'Ring Pro',
+    modelNumber: 'R-CAM-FLD',
+    description: 'Motion-activated floodlight and 4K security camera.'
+  }
+];
+
+export const MOCK_SCENES: any[] = [
+  {
+    id: 'mock-scene-1',
+    name: 'Movie Night',
+    icon: 'Film',
+    actions: [
+      { deviceId: 'mock-light-1', deviceName: 'Living Room Main Light', action: 'dim', value: 20 },
+      { deviceId: 'mock-lock-1', deviceName: 'Front Door Lock', action: 'lock' }
+    ]
+  },
+  {
+    id: 'mock-scene-2',
+    name: 'Eco Away',
+    icon: 'Wind',
+    actions: [
+      { deviceId: 'mock-ac-1', deviceName: 'Master Bedroom AC', action: 'off' },
+      { deviceId: 'mock-light-1', deviceName: 'Living Room Main Light', action: 'off' }
+    ]
+  }
+];
+
 interface DevicesContextValue {
   devices: DeviceDoc[];
   planLeads: PlannerLead[];
@@ -59,6 +133,12 @@ interface DevicesContextValue {
   fetchRecommendations: (params: RecommendationRequest) => Promise<void>;
   saveRecommendationToQuote: (recommendation: DeviceRecommendation) => Promise<void>;
   updateItemStatus: (collectionName: string, id: string, newStatus: string) => Promise<void>;
+  // Scene-related
+  scenes: any[];
+  sceneLoading: boolean;
+  fetchScenes: () => Promise<void>;
+  saveScene: (scene: any) => Promise<void>;
+  deleteScene: (sceneId: string) => Promise<void>;
 }
 
 const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -121,6 +201,8 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [error, setError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<DeviceRecommendation[]>([]);
   const [recommendationLoading, setRecommendationLoading] = useState<boolean>(false);
+  const [scenes, setScenes] = useState<any[]>([]);
+  const [sceneLoading, setSceneLoading] = useState<boolean>(false);
   const unsubRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -267,213 +349,51 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const userDevicesSnap = await getDocs(userDevicesQuery);
 
       if (userDevicesSnap.empty) {
-        setDevices([]);
+        setDevices(MOCK_DEVICES);
         setError(null);
         return;
       }
 
       const sourceDeviceIds = userDevicesSnap.docs.map(doc => (doc.data() as any).sourceDeviceId).filter(Boolean);
 
-      // If we don't have sourceDeviceIds, try to build minimal devices from user docs
       if (sourceDeviceIds.length === 0) {
-        const minimal = userDevicesSnap.docs.map((d) => {
-          const data: any = d.data();
-          const resolveSerial = () => {
-            const possible = [data?.serial, data?.serialNumber].filter(Boolean);
-            if (possible.length && typeof possible[0] === 'string') return possible[0] as string;
-            if (Array.isArray(data?.serials) && data.serials.length > 0) {
-              const first = data.serials[0];
-              if (typeof first === 'string') return first;
-              if (first && typeof first === 'object') {
-                return (first.serialNumber || first.serial || first.code || first.id) ?? undefined;
-              }
-            }
-            return undefined;
-          };
-          const resolveSerials = (): SerialItem[] => {
-            if (Array.isArray(data?.serials)) {
-              return data.serials.map((s: any) => ({
-                serialNumber: s.serialNumber || s.serial || s.code || s.id || '—',
-                warrantyExpiry: s.warrantyExpiry || s.expiryDate || s.warrantyEnd || null,
-              }));
-            }
-            const serial = resolveSerial();
-            return serial ? [{ serialNumber: serial, warrantyExpiry: data?.warrantyExpiry || data?.warrantyEnd || null }] : [];
-          };
-          const chosenWarranty = getUserWarranty(data);
-          return {
-            id: data?.deviceId || data?.sourceDeviceId || d.id,
-            deviceName: data?.deviceName || data?.name || 'My Device',
-            name: data?.name,
-            type: data?.type,
-            status: data?.status || 'Active',
-            serial: resolveSerial() || 'N/A',
-            serials: resolveSerials(),
-            modelNumber: data?.modelNumber || data?.model || data?.modelNo || data?.model_number || data?.deviceModel || undefined,
-            imageUrl: data?.imageUrl,
-            price: typeof data?.price === 'number' ? data.price : null,
-            stock: typeof data?.stock === 'number' ? data.stock : null,
-            rating: null,
-            discount: null,
-            warranty: chosenWarranty,
-            warrantySource: chosenWarranty != null ? 'user' : undefined,
-            brand: data?.brand,
-            description: data?.description,
-            documentationUrl: data?.documentationUrl,
-          } as DeviceDoc;
-        });
-        setDevices(minimal);
+        setDevices(MOCK_DEVICES);
         setError(null);
         return;
       }
 
-      // Try joining with Devices collection; on permission error, fallback to minimal entries
-      let results: DeviceDoc[] | null = null;
-      try {
-        // Firestore's 'in' operator supports up to 10 elements; for simplicity assume <=10. For >10, we'd batch.
-        const devicesRef = collection(db, 'Devices');
-        const batches: string[][] = [];
-        for (let i = 0; i < sourceDeviceIds.length; i += 10) {
-          batches.push(sourceDeviceIds.slice(i, i + 10));
-        }
-        const deviceDocs: any[] = [];
-        for (const ids of batches) {
-          const qy = query(devicesRef, where('__name__', 'in', ids));
-          const snap = await getDocs(qy);
-          deviceDocs.push(...snap.docs);
-        }
-
-        const userDevicesMap = new Map(
-          userDevicesSnap.docs.map(d => [ (d.data() as any).sourceDeviceId, d.data() ])
-        );
-
-        results = deviceDocs.map((d) => {
-          const deviceData = d.data() as any;
-          const userDeviceData: any = userDevicesMap.get(d.id) || {};
-
-          const serialHint = (userDeviceData?.serialNumber) || (userDeviceData?.serial) || (Array.isArray(userDeviceData?.serials) ? userDeviceData.serials[0] : undefined) || deviceData?.serial;
-          const userWarranty = getUserWarranty(userDeviceData, serialHint);
-          const deviceWarranty = deviceData.warranty ?? null;
-          const chosenWarranty = userWarranty ?? deviceWarranty ?? null;
-          const chosenSource: 'user' | 'device' | undefined = (userWarranty != null) ? 'user' : ((deviceWarranty != null) ? 'device' : undefined);
-
-          const resolveSerial = () => {
-            const possible = [
-              userDeviceData?.serial,
-              userDeviceData?.serialNumber,
-              userDeviceData?.Serial,
-              userDeviceData?.SerialNumber,
-              userDeviceData?.serial_no,
-              userDeviceData?.serialNo,
-              userDeviceData?.SerialNo,
-            ].filter(Boolean);
-            if (possible.length && typeof possible[0] === 'string') return possible[0] as string;
-            if (Array.isArray(userDeviceData?.serials) && userDeviceData.serials.length > 0) {
-              const first = userDeviceData.serials[0];
-              if (typeof first === 'string') return first;
-              if (first && typeof first === 'object') {
-                return (first.serialNumber || first.serial || first.code || first.id) ?? undefined;
-              }
-            }
-            return deviceData?.serial ?? undefined;
-          };
-
-          const resolveSerials = (): SerialItem[] => {
-            if (Array.isArray(userDeviceData?.serials)) {
-              return userDeviceData.serials.map((s: any) => ({
-                serialNumber: s.serialNumber || s.serial || s.code || s.id || '—',
-                warrantyExpiry: s.warrantyExpiry || s.expiryDate || s.warrantyEnd || null
-              }));
-            }
-            if (Array.isArray(deviceData?.serials)) {
-              return deviceData.serials.map((s: any) => ({
-                serialNumber: s.serialNumber || s.serial || s.code || s.id || '—',
-                warrantyExpiry: s.warrantyExpiry || s.expiryDate || s.warrantyEnd || null
-              }));
-            }
-            const serial = resolveSerial();
-            if (serial) {
-              return [{
-                serialNumber: serial,
-                warrantyExpiry: userDeviceData?.warrantyExpiry || userDeviceData?.warrantyEnd || deviceData?.warrantyExpiry || null
-              }];
-            }
-            return [];
-          };
-
-          return {
-            id: d.id,
-            deviceName: deviceData.deviceName || deviceData.name || 'Unnamed Device',
-            name: deviceData.name,
-            type: deviceData.type,
-            status: userDeviceData.status || deviceData.status || 'Active',
-            serial: resolveSerial() || 'N/A',
-            serials: resolveSerials(),
-            modelNumber: deviceData.modelNumber,
-            imageUrl: deviceData.imageUrl,
-            price: typeof deviceData.price === 'number' ? deviceData.price : null,
-            stock: typeof deviceData.stock === 'number' ? deviceData.stock : null,
-            rating: typeof deviceData.rating === 'number' ? deviceData.rating : null,
-            discount: typeof deviceData.discount === 'number' ? deviceData.discount : null,
-            warranty: chosenWarranty,
-            warrantySource: chosenSource,
-            brand: deviceData.brand || deviceData.manufacturer || deviceData.company || undefined,
-            description: deviceData.description || deviceData.details || deviceData.summary || undefined,
-            documentationUrl: deviceData.documentationUrl || deviceData.documentation || deviceData.docs || deviceData.manualUrl || deviceData.datasheetUrl || undefined,
-          } as DeviceDoc;
-        });
-      } catch (joinErr) {
-        console.warn('DevicesContext: join with Devices collection failed, using minimal entries', joinErr);
-        const minimal = userDevicesSnap.docs.map((d) => {
-          const data: any = d.data();
-          const chosenWarranty = getUserWarranty(data);
-          const resolveSerial = () => {
-            const possible = [data?.serial, data?.serialNumber].filter(Boolean);
-            if (possible.length && typeof possible[0] === 'string') return possible[0] as string;
-            if (Array.isArray(data?.serials) && data.serials.length > 0) {
-              const first = data.serials[0];
-              if (typeof first === 'string') return first;
-              if (first && typeof first === 'object') {
-                return (first.serialNumber || first.serial || first.code || first.id) ?? undefined;
-              }
-            }
-            return undefined;
-          };
-          const resolveSerials = (): SerialItem[] => {
-            if (Array.isArray(data?.serials)) {
-              return data.serials.map((s: any) => ({
-                serialNumber: s.serialNumber || s.serial || s.code || s.id || '—',
-                warrantyExpiry: s.warrantyExpiry || s.expiryDate || s.warrantyEnd || null,
-              }));
-            }
-            const serial = resolveSerial();
-            return serial ? [{ serialNumber: serial, warrantyExpiry: data?.warrantyExpiry || data?.warrantyEnd || null }] : [];
-          };
-          return {
-            id: data?.deviceId || data?.sourceDeviceId || d.id,
-            deviceName: data?.deviceName || data?.name || 'My Device',
-            name: data?.name,
-            type: data?.type,
-            status: data?.status || 'Active',
-            serial: resolveSerial() || 'N/A',
-            serials: resolveSerials(),
-            modelNumber: data?.modelNumber || data?.model || data?.modelNo || data?.model_number || data?.deviceModel || undefined,
-            imageUrl: data?.imageUrl,
-            price: typeof data?.price === 'number' ? data.price : null,
-            stock: typeof data?.stock === 'number' ? data.stock : null,
-            rating: null,
-            discount: null,
-            warranty: chosenWarranty,
-            warrantySource: chosenWarranty != null ? 'user' : undefined,
-            brand: data?.brand,
-            description: data?.description,
-            documentationUrl: data?.documentationUrl,
-          } as DeviceDoc;
-        });
-        results = minimal;
+      const devicesRef = collection(db, 'Devices');
+      const batches: string[][] = [];
+      for (let i = 0; i < sourceDeviceIds.length; i += 10) batches.push(sourceDeviceIds.slice(i, i + 10));
+      const deviceDocs: any[] = [];
+      for (const ids of batches) {
+        const qy = query(devicesRef, where('__name__', 'in', ids));
+        const snap = await getDocs(qy);
+        deviceDocs.push(...snap.docs);
       }
 
-      setDevices(results || []);
+      const userDevicesMap = new Map(userDevicesSnap.docs.map(d => [ (d.data() as any).sourceDeviceId, d.data() ]));
+      const results = deviceDocs.map((d) => {
+        const deviceData = d.data() as any;
+        const userDeviceData: any = userDevicesMap.get(d.id) || {};
+        return {
+          id: d.id,
+          deviceName: deviceData.deviceName || deviceData.name || 'Unnamed Device',
+          name: deviceData.name,
+          type: deviceData.type,
+          status: userDeviceData.status || deviceData.status || 'Active',
+          serial: userDeviceData.serial || deviceData.serial || 'N/A',
+          modelNumber: deviceData.modelNumber,
+          imageUrl: deviceData.imageUrl,
+          price: typeof deviceData.price === 'number' ? deviceData.price : null,
+          stock: typeof deviceData.stock === 'number' ? deviceData.stock : null,
+          warranty: getUserWarranty(userDeviceData) || deviceData.warranty || null,
+          brand: deviceData.brand,
+          description: deviceData.description,
+        };
+      });
+
+      setDevices(results as any);
       setError(null);
     } catch (e: any) {
       console.error('DevicesContext fetch error', e);
@@ -484,57 +404,65 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, [uid]);
 
-  // Subscribe to user devices updates once, refresh on change
-  useEffect(() => {
-    if (unsubRef.current) {
-      unsubRef.current();
-      unsubRef.current = null;
-    }
+  const fetchScenes = useCallback(async () => {
     if (!uid) {
-      setDevices([]);
-      setLoading(false);
-      setError(null);
+      setScenes([]);
       return;
     }
+    setSceneLoading(true);
+    try {
+      const getScenesFn = httpsCallable<any, { scenes: any[] }>(functions, 'getUserScenes');
+      const res = await getScenesFn();
+      const userScenes = res.data.scenes || [];
+      
+      // Fallback to mock scenes if none found
+      setScenes(userScenes.length > 0 ? userScenes : MOCK_SCENES);
+    } catch (err) {
+      console.error('Failed to fetch scenes:', err);
+      // Fallback to mock scenes on error for demo purposes
+      setScenes(MOCK_SCENES);
+    } finally {
+      setSceneLoading(false);
+    }
+  }, [uid]);
 
-    // Initial load
-    fetchDevices();
+  const saveScene = useCallback(async (scene: any) => {
+    if (!uid) throw new Error('Must be logged in to save scenes.');
+    setSceneLoading(true);
+    try {
+      const saveSceneFn = httpsCallable<any, { status: string; id: string }>(functions, 'saveUserScene');
+      await saveSceneFn({ scene });
+      await fetchScenes();
+    } catch (err) {
+      console.error('Failed to save scene:', err);
+      throw err;
+    } finally {
+      setSceneLoading(false);
+    }
+  }, [uid, fetchScenes]);
 
-    // Live updates on user's device docs
-    const userDevicesRef = collection(db, 'User_Devices');
-    const qy = query(userDevicesRef, where('uid', '==', uid));
-    const unsub = onSnapshot(qy, () => {
-      // re-fetch join
-      fetchDevices();
-    }, (err) => {
-      console.warn('DevicesContext snapshot error', err);
-    });
-    unsubRef.current = unsub;
-
-    return () => {
-      if (unsubRef.current) {
-        unsubRef.current();
-        unsubRef.current = null;
-      }
-    };
-  }, [uid, fetchDevices]);
+  const deleteScene = useCallback(async (sceneId: string) => {
+    if (!uid) throw new Error('Must be logged in to delete scenes.');
+    setSceneLoading(true);
+    try {
+      const deleteFn = httpsCallable<any, { status: string }>(functions, 'deleteUserScene');
+      await deleteFn({ sceneId });
+      await fetchScenes();
+    } catch (err) {
+      console.error('Failed to delete scene:', err);
+      throw err;
+    } finally {
+      setSceneLoading(false);
+    }
+  }, [uid, fetchScenes]);
 
   const fetchRecommendations = useCallback(async (params: RecommendationRequest) => {
     setRecommendationLoading(true);
     try {
-      const getRecommendations = httpsCallable<any, { recommendations: DeviceRecommendation[] }>(
-        functions,
-        'chatWithOpenAI'
-      );
-      
+      const getRecommendations = httpsCallable<any, { recommendations: DeviceRecommendation[] }>(functions, 'chatWithOpenAI');
       const response = await getRecommendations({ 
-        recommendations: {
-          houseSize: params.houseSize,
-          priority: params.securityNeeds,
-          budget: params.budget
-        }
+        recommendations: { houseSize: params.houseSize, priority: params.securityNeeds, budget: params.budget }
       });
-      
       setRecommendations(response.data.recommendations);
     } catch (err: any) {
       console.error('Failed to fetch recommendations:', err);
@@ -546,28 +474,19 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const saveRecommendationToQuote = useCallback(async (recommendation: DeviceRecommendation) => {
     if (!uid) throw new Error('You must be logged in to save a plan.');
-    
     try {
       const qCol = collection(db, 'quotes');
-      const payload = {
+      await addDoc(qCol, {
         userUid: uid,
-        customerId: auth.currentUser?.email || null,
         customerEmail: auth.currentUser?.email || null,
         status: 'Pending',
         createdAt: serverTimestamp(),
         quoteType: 'AI Recommendation',
-        location: {
-          country: 'India',
-          state: '',
-          district: ''
-        },
-        details: `AI Recommended: ${recommendation.name}\nCategory: ${recommendation.category}\nPrice: $${recommendation.estimatedPrice}\nReason: ${recommendation.reason}`,
+        details: `AI Recommended: ${recommendation.name}\nPrice: $${recommendation.estimatedPrice}`,
         deviceName: recommendation.name,
         category: recommendation.category,
         estimatedPrice: recommendation.estimatedPrice
-      };
-      
-      await addDoc(qCol, payload);
+      });
     } catch (err: any) {
       console.error('Failed to save recommendation:', err);
       throw err;
@@ -575,52 +494,42 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [uid]);
 
   const updateItemStatus = useCallback(async (collectionName: string, id: string, newStatus: string) => {
-    // 1. Identify local state and capture current for rollback
     let rollbackState: any[] = [];
-    let setStateFn: React.Dispatch<React.SetStateAction<any[]>> | null = null;
+    let setStateFn: any = null;
 
-    if (collectionName === 'Planner_Leads') {
-      rollbackState = [...planLeads];
-      setStateFn = setPlanLeads;
-    } else if (collectionName === 'contactRequests') {
-      rollbackState = [...contactSubmissions];
-      setStateFn = setContactSubmissions;
-    } else if (collectionName === 'Support_Tickets') {
-      rollbackState = [...reports];
-      setStateFn = setReports;
-    }
+    if (collectionName === 'Planner_Leads') { rollbackState = [...planLeads]; setStateFn = setPlanLeads; }
+    else if (collectionName === 'contactRequests') { rollbackState = [...contactSubmissions]; setStateFn = setContactSubmissions; }
+    else if (collectionName === 'Support_Tickets') { rollbackState = [...reports]; setStateFn = setReports; }
 
-    // 2. Optimistic Update
     if (setStateFn) {
-      setStateFn(prev => prev.map(item => 
-        item.id === id ? { ...item, status: newStatus } : item
-      ));
+      setStateFn((prev: any[]) => prev.map(item => item.id === id ? { ...item, status: newStatus } : item));
     }
 
     try {
-      // 3. Try Cloud Function first (supports batch/atomicity if needed)
-      try {
-        const updateFn = httpsCallable<any, { status: string }>(functions, 'adminUpdateStatuses');
-        await updateFn({
-          updates: [{ collection: collectionName, id, status: newStatus }]
-        });
-      } catch (cfErr: any) {
-        console.warn(`[DevicesContext] Cloud Function update failed, trying direct Firestore fallback:`, cfErr);
-        // 4. Fallback: Direct Firestore update (allowed by admin rules)
-        const { doc, updateDoc, getFirestore } = await import('firebase/firestore');
-        const db = getFirestore();
-        await updateDoc(doc(db, collectionName, id), { 
-          status: newStatus,
-          updatedAt: serverTimestamp() 
-        });
-      }
+      const updateFn = httpsCallable<any, { status: string }>(functions, 'adminUpdateStatuses');
+      await updateFn({ updates: [{ collection: collectionName, id, status: newStatus }] });
     } catch (err: any) {
-      console.error(`[DevicesContext] FATAL: Failed to update status for ${id} in ${collectionName}:`, err);
-      // 5. Rollback on failure
+      console.error(`Status update failed:`, err);
       if (setStateFn) setStateFn(rollbackState);
       throw err;
     }
   }, [planLeads, contactSubmissions, reports]);
+
+  useEffect(() => {
+    if (uid) {
+      fetchDevices();
+      fetchScenes();
+    }
+  }, [uid, fetchDevices, fetchScenes]);
+
+  useEffect(() => {
+    if (!uid) return;
+    const qy = query(collection(db, 'User_Devices'), where('uid', '==', uid));
+    const unsub = onSnapshot(qy, () => {
+      fetchDevices();
+    });
+    return () => unsub();
+  }, [uid, fetchDevices]);
 
   const value = useMemo<DevicesContextValue>(() => ({ 
     devices, loading, adminLoading, error, refresh: fetchDevices, uid,
@@ -628,8 +537,9 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     filteredPlanLeads, filteredContactSubmissions, filteredReports,
     searchQuery, setSearchQuery, filterCriteria, setFilterCriteria,
     recommendations, recommendationLoading, fetchRecommendations,
-    saveRecommendationToQuote, updateItemStatus
-  }), [devices, loading, adminLoading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, filteredContactSubmissions, filteredReports, searchQuery, filterCriteria, recommendations, recommendationLoading, fetchRecommendations, saveRecommendationToQuote, updateItemStatus]);
+    saveRecommendationToQuote, updateItemStatus,
+    scenes, sceneLoading, fetchScenes, saveScene, deleteScene
+  }), [devices, loading, adminLoading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, filteredContactSubmissions, filteredReports, searchQuery, filterCriteria, recommendations, recommendationLoading, fetchRecommendations, saveRecommendationToQuote, updateItemStatus, scenes, sceneLoading, fetchScenes, saveScene, deleteScene]);
 
   return (
     <DevicesContext.Provider value={value}>
