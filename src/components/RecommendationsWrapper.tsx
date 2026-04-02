@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { DevicesProvider, useDevices } from '../contexts/DevicesContext';
 import { DeviceRecommendationsForm } from './DeviceRecommendationsForm';
-import { Activity, Shield, AlertTriangle, TrendingUp, TrendingDown, Users } from 'lucide-react';
+import { RoomVisualization } from './RoomVisualization';
+import { Activity, Shield, AlertTriangle, TrendingUp, TrendingDown, Users, Sparkles } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 /**
@@ -109,11 +110,38 @@ const AdminOverview: React.FC = () => {
   );
 };
 
+const WrapperContent: React.FC = () => {
+  const { recommendations, visualizationData } = useDevices();
+  const showVisualizer = recommendations && recommendations.length > 0 || visualizationData !== null;
+
+  return (
+    <>
+      <AdminOverview />
+      <DeviceRecommendationsForm />
+      
+      {showVisualizer && (
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-4xl mx-auto px-4 mb-8 mt-8"
+        >
+          <div className="bg-white dark:bg-charcoal rounded-3xl p-6 shadow-xl border border-slate-100 dark:border-gray-800">
+            <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+              <Sparkles className="text-teal" size={20} />
+              AI Room Visualizer
+            </h3>
+            <RoomVisualization />
+          </div>
+        </motion.div>
+      )}
+    </>
+  );
+};
+
 export const RecommendationsWrapper: React.FC = () => {
   return (
     <DevicesProvider>
-      <AdminOverview />
-      <DeviceRecommendationsForm />
+      <WrapperContent />
     </DevicesProvider>
   );
 };
