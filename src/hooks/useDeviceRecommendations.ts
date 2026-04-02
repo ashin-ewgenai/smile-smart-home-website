@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { useState, useCallback, useRef } from 'react';
+import { httpsCallable } from 'firebase/functions';
 import { useDevices } from '../contexts/DevicesContext';
-import type { RecommendationRequest } from '../models';
+import { uploadRoomPhoto } from '../lib/firebase';
+import { functions } from '../lib/firebase';
+import type { RecommendationRequest, RoomVisualizationResult } from '../models';
 
 /**
- * Hook for managing the recommendation form state and AI interaction.
+ * Hook for managing the recommendation form state, AI interaction,
+ * and the new Room Visualization feature.
  */
 export function useDeviceRecommendations() {
   const { 
@@ -16,9 +20,23 @@ export function useDeviceRecommendations() {
     devices,
     adminHealthStats,
     fetchAdminHealthOverview,
-    loading: devicesLoading
+    loading: devicesLoading,
+    // Room visualization from context
+    roomPhoto,
+    roomPhotoUrl,
+    roomPhotoPreview,
+    uploadProgress,
+    uploadError,
+    uploadLoading,
+    visualizationLoading,
+    visualizationData,
+    visualizationError,
+    setRoomPhoto,
+    clearVisualization,
+    uploadAndAnalyzeRoom,
   } = useDevices();
 
+  // ── Recommendation form local state (specific to this form instance) ──────
   const [step, setStep] = useState<number>(1);
   const [formData, setFormData] = useState<RecommendationRequest>({
     houseSize: '',
@@ -36,7 +54,7 @@ export function useDeviceRecommendations() {
 
   const handleSubmit = async () => {
     await fetchRecommendations(formData);
-    nextStep(); // Move to results step
+    nextStep();
   };
 
   const resetForm = () => {
@@ -50,6 +68,7 @@ export function useDeviceRecommendations() {
   };
 
   return {
+    // Recommendation form
     step,
     setStep,
     formData,
@@ -65,7 +84,19 @@ export function useDeviceRecommendations() {
     uid,
     devices,
     adminHealthStats,
-    fetchAdminHealthOverview
+    fetchAdminHealthOverview,
+    // Room visualization (now from context)
+    roomPhoto,
+    roomPhotoUrl,
+    roomPhotoPreview,
+    uploadProgress,
+    uploadError,
+    uploadLoading,
+    visualizationLoading,
+    visualizationData,
+    visualizationError,
+    setRoomPhoto,
+    clearVisualization,
+    uploadAndAnalyzeRoom,
   };
 }
-

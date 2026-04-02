@@ -1,7 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore } from "firebase-admin/firestore";
-
-const db = getFirestore();
+import { db } from "./core";
 
 /**
  * Calculates a composite health score (0–100) from device telemetry.

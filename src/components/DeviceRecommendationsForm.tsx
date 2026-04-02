@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Home, Shield, DollarSign, ArrowRight, ArrowLeft, Loader2, CheckCircle2, ChevronRight, Heart, Activity, Wifi, Battery, AlertTriangle, Clock, Lightbulb, Lock, Thermometer, SlidersHorizontal, Camera } from 'lucide-react';
+import { Sparkles, Home, Shield, DollarSign, ArrowRight, ArrowLeft, Loader2, CheckCircle2, ChevronRight, Heart, Activity, Wifi, Battery, AlertTriangle, Clock, Lightbulb, Lock, Thermometer, SlidersHorizontal, Camera, MapPin } from 'lucide-react';
 import { useDevices } from '../contexts/DevicesContext';
 import { HOUSE_SIZES, SECURITY_LEVELS, BUDGET_RANGES } from '../lib/constants';
 import { useDeviceRecommendations } from '../hooks/useDeviceRecommendations';
 import type { DeviceRecommendation } from '../models';
+import { RoomVisualization } from './RoomVisualization';
 
 /** Returns a human-friendly relative time string (e.g. '2 mins ago') */
 function relativeTime(isoStr: string): string {
@@ -62,7 +63,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
     devices
   } = useDeviceRecommendations();
 
-  const [activeTab, setActiveTab] = useState<'consultant' | 'health'>('consultant');
+  const [activeTab, setActiveTab] = useState<'consultant' | 'health' | 'visualizer'>('consultant');
   const [savingId, setSavingId] = React.useState<string | null>(null);
   const [savedIds, setSavedIds] = React.useState<Set<string>>(new Set());
   const [saveError, setSaveError] = React.useState<string | null>(null);
@@ -152,6 +153,13 @@ export const DeviceRecommendationsForm: React.FC = () => {
             >
               Device Health
               {activeTab === 'health' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 bg-yellow-400 rounded-full" />}
+            </button>
+            <button 
+              onClick={() => setActiveTab('visualizer')}
+              className={`pb-4 px-2 font-bold transition-all relative ${activeTab === 'visualizer' ? 'text-white' : 'text-white/60 hover:text-white/80'}`}
+            >
+              AI Room Visualizer
+              {activeTab === 'visualizer' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 bg-yellow-400 rounded-full" />}
             </button>
           </div>
         </div>
@@ -287,6 +295,21 @@ export const DeviceRecommendationsForm: React.FC = () => {
                     })
                   )}
                 </div>
+              </motion.div>
+            ) : activeTab === 'visualizer' ? (
+              <motion.div key="visualizer" variants={stepVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <Camera className="text-teal" />
+                    AI Room Placement
+                  </h3>
+                  <div className="text-xs text-slate-500 bg-slate-100 dark:bg-gray-800 px-3 py-1 rounded-full flex items-center gap-2">
+                    <MapPin size={12} className="text-teal" />
+                    Interactive Visualization
+                  </div>
+                </div>
+                
+                <RoomVisualization />
               </motion.div>
             ) : (
               <motion.div key="consultant" variants={stepVariants} initial="hidden" animate="visible" exit="exit">

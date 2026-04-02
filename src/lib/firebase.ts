@@ -5,7 +5,7 @@ import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getFunctions } from 'firebase/functions';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getStorage, ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: "AIzaSyAabRQ7qLfA252KzafCLYhb5yO43jrJ1Nw",
@@ -47,17 +47,85 @@ try {
 } catch {}
 
 /**
- * uploadReviewMedia
- * Uploads a file to Firebase Storage under user_uploads/{uid}/reviews/
- * Returns the public download URL.
+ * uploadFile
+ * Generic, secure utility to upload a file to Firebase Storage.
+ * Handles validation, unique path generation, and progress tracking.
  */
-export async function uploadReviewMedia(file: File, uid: string): Promise<string> {
+export async function uploadFile(
+  file: File,
+  basePath: string,
+  options: {
+    allowedTypes?: string[];
+    maxSizeMB?: number;
+    onProgress?: (percent: number) => void;
+  } = {}
+): Promise<string> {
+  const {
+    allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+    maxSizeMB = 10,
+    onProgress
+  } = options;
+
+  // 1. Validation: Type
+  if (allowedTypes.length > 0 && !allowedTypes.includes(file.type)) {
+    throw new Error(`File type '${file.type}' is not supported. Allowed: ${allowedTypes.join(', ')}`);
+  }
+
+  // 2. Validation: Size
+  if (file.size > maxSizeMB * 1024 * 1024) {
+    throw new Error(`File is too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Max allowed is ${maxSizeMB}MB.`);
+  }
+
+  // 3. Prepare Path
   const timestamp = Date.now();
   const safeName = file.name.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
-  const storagePath = `user_uploads/${uid}/reviews/${timestamp}_${safeName}`;
+  const storagePath = `${basePath.endsWith('/') ? basePath : basePath + '/'}${timestamp}_${safeName}`;
   const storageRef = ref(storage, storagePath);
-  
-  const snapshot = await uploadBytes(storageRef, file);
-  return getDownloadURL(snapshot.ref);
+
+  // 4. Upload with Resumable support for progress
+  return new Promise((resolve, reject) => {
+    const uploadTask = uploadBytesResumable(storageRef, file, {
+      contentType: file.type,
+    });
+
+    uploadTask.on(
+      'state_changed',
+      (snapshot) => {
+        const percent = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+        onProgress?.(percent);
+      },
+      (error) => {
+        console.error('Upload failed:', error);
+        reject(new Error(`Upload failed: ${error.message}`));
+      },
+      async () => {
+        try {
+          const url = await getDownloadURL(uploadTask.snapshot.ref);
+          resolve(url);
+        } catch (err: any) {
+          reject(new Error(`Failed to get download URL: ${err.message}`));
+        }
+      }
+    );
+  });
 }
 
+/**
+ * uploadReviewMedia
+ * Uploads review media securely.
+ */
+export async function uploadReviewMedia(file: File, uid: string): Promise<string> {
+  return uploadFile(file, `user_uploads/${uid}/reviews`);
+}
+
+/**
+ * uploadRoomPhoto
+ * Uploads a room photo securely with progress support.
+ */
+export async function uploadRoomPhoto(
+  file: File,
+  uid: string,
+  onProgress?: (percent: number) => void
+): Promise<string> {
+  return uploadFile(file, `user_uploads/${uid}/room_photos`, { onProgress });
+}
