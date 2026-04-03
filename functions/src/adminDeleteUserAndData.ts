@@ -1,13 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { initializeApp, getApps } from "firebase-admin/app";
-import { getAuth } from "firebase-admin/auth";
-import { getFirestore } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
-
-// Ensure Admin SDK is initialized (in case this module is imported before index.ts runs)
-if (!getApps().length) {
-  initializeApp();
-}
+import { db, auth as adminAuth } from "./core";
 
 async function deleteFromSpecificBucketIfExists(bucketName: string, path: string): Promise<number> {
   try {
@@ -53,8 +46,6 @@ function parseStorageUrl(url: string): { bucket?: string; path?: string } {
   return {};
 }
 
-const db = getFirestore();
-const adminAuth = getAuth();
 // Do NOT initialize a Storage bucket at module load; projects without a default bucket will crash here.
 // Access Storage lazily inside helper functions with try/catch.
 

@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, getDocs, onSnapshot, query, where, Timestamp, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, where, Timestamp, addDoc, setDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db, functions, uploadRoomPhoto } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import type { ContactRequest, PlannerLead, SupportTicket, QuoteItem } from '../models/Collections';
@@ -202,6 +202,7 @@ interface DevicesContextValue {
   // Health-related
   adminHealthStats: any | null;
   fetchAdminHealthOverview: () => Promise<void>;
+  isAdmin: boolean;
   // Room Visualization
   roomPhoto: File | null;
   roomPhotoUrl: string | null;
@@ -266,13 +267,14 @@ function getUserWarranty(userData: any, serialHint?: string): any {
 
 export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
+  const [role, setRole] = useState<string | null>(null);
   const [devices, setDevices] = useState<DeviceDoc[]>([]);
   const [planLeads, setPlanLeads] = useState<PlannerLead[]>([]);
   const [contactSubmissions, setContactSubmissions] = useState<ContactRequest[]>([]);
   const [reports, setReports] = useState<SupportTicket[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCriteria, setFilterCriteria] = useState({ dateRange: 'all', itemType: 'all' });
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [adminLoading, setAdminLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<DeviceRecommendation[]>([]);
@@ -280,6 +282,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [scenes, setScenes] = useState<any[]>([]);
   const [sceneLoading, setSceneLoading] = useState<boolean>(false);
   const [adminHealthStats, setAdminHealthStats] = useState<any | null>(null);
+  const adminHealthStatsRef = useRef<any | null>(null);
   const unsubRef = useRef<(() => void) | null>(null);
 
   // ── Room Visualization State ─────────────────────────────────────────────
@@ -351,7 +354,28 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.log("Calling analyzeRoomWithAI with UID:", currentUid);
       const analyzeFn = httpsCallable<any, RoomVisualizationResult>(functions, 'analyzeRoomWithAI');
       const result = await analyzeFn({ imageUrl: downloadUrl, deviceNames, uid: currentUid });
-      setVisualizationData(result.data);
+      const data = result.data;
+      setVisualizationData(data);
+
+      // Persist Floorplan result to Planner_Leads
+      const email = auth.currentUser?.email || 'anonymous';
+      const emailKey = email.trim().toLowerCase();
+      await setDoc(doc(db, 'Planner_Leads', `${emailKey}_fp_${Date.now()}`), {
+        email: emailKey,
+        uid: currentUid,
+        status: 'new',
+        source: 'floorplan',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        complexity: 'Floorplan Analysis',
+        roomType: data.roomType,
+        lightingQuality: data.lightingQuality,
+        wifiCoverageNote: data.wifiCoverageNote,
+        generalInsight: data.generalInsight,
+        markers: data.markers,
+        imageUrl: downloadUrl,
+        planText: `Room Type: ${data.roomType}\nLighting: ${data.lightingQuality}\nWiFi: ${data.wifiCoverageNote}\n\nInsight: ${data.generalInsight}`
+      });
     } catch (err: any) {
       console.error("AI Room Analysis Failed:", {
          message: err?.message,
@@ -370,37 +394,73 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null));
+    const unsub = onAuthStateChanged(auth, (u) => {
+      setUid(u?.uid ?? null);
+      if (!u) setRole(null);
+    });
     return () => unsub();
   }, []);
 
+  // Fetch user role
+  useEffect(() => {
+    if (!uid) {
+      setRole(null);
+      return;
+    }
+    const unsub = onSnapshot(doc(db, 'Accounts', uid), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setRole(data.Role || 'User');
+      } else {
+        setRole('User');
+      }
+    }, (err) => {
+      console.warn('Failed to fetch user role (expected for new or guest accounts):', err);
+      setRole('User');
+    });
+    return () => unsub();
+  }, [uid]);
+
+  const isAdmin = useMemo(() => {
+    if (!role) return false;
+    const r = role.toLowerCase();
+    return r === 'admin' || r === 'super admin';
+  }, [role]);
+
   useEffect(() => {
     let unsubs: (() => void)[] = [];
-    if (uid) {
+
+    if (uid && isAdmin) {
       setAdminLoading(true);
       try {
         const u1 = onSnapshot(collection(db, 'Planner_Leads'), snap => {
           setPlanLeads(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as PlannerLead)));
           setAdminLoading(false);
         }, (err) => { 
-          console.error('Planner_Leads snapshot failed:', err);
+          console.debug('Planner_Leads collection snapshot failed (expected for non-admins):', err);
           setAdminLoading(false);
         }); 
         const u2 = onSnapshot(collection(db, 'contactRequests'), snap => {
           setContactSubmissions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as ContactRequest)));
           setAdminLoading(false);
         }, (err) => { 
-          console.error('contactRequests snapshot failed:', err);
+          console.debug('contactRequests collection snapshot failed (expected for non-admins):', err);
           setAdminLoading(false);
         });
         const u3 = onSnapshot(collection(db, 'Support_Tickets'), snap => {
           setReports(snap.docs.map(doc => {
             const data = doc.data();
-            return { id: doc.id, ...data, userUid: data.uid } as unknown as SupportTicket;
+            return { 
+              id: doc.id, 
+              ...data, 
+              userUid: data.uid,
+              createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || null),
+              adminRepliedAt: data.adminRepliedAt?.toDate ? data.adminRepliedAt.toDate() : (data.adminRepliedAt || null)
+            } as unknown as SupportTicket;
           }));
           setAdminLoading(false);
         }, (err) => { 
-          console.error('Support_Tickets snapshot failed:', err);
+          console.debug('Support_Tickets collection snapshot failed (expected for non-admins):', err);
           setAdminLoading(false);
         });
         unsubs = [u1, u2, u3];
@@ -413,9 +473,11 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setContactSubmissions([]);
       setReports([]);
       setAdminLoading(false);
+      // If user is just a regular user, we don't show admin loader
+      if (uid && !isAdmin) setAdminLoading(false);
     }
     return () => unsubs.forEach(u => u());
-  }, [uid]);
+  }, [uid, role]);
 
   const isFloorplanItem = useCallback((item: any): boolean => {
     if (!item) return false;
@@ -647,20 +709,35 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const saveRecommendationToQuote = useCallback(async (recommendation: DeviceRecommendation) => {
     if (!uid) throw new Error('You must be logged in to save a plan.');
     try {
-      const qCol = collection(db, 'quotes');
-      await addDoc(qCol, {
-        userUid: uid,
-        customerEmail: auth.currentUser?.email || null,
-        status: 'Pending',
+      const pCol = collection(db, 'Planner_Leads');
+      const email = auth.currentUser?.email || 'anonymous';
+      const emailKey = email.trim().toLowerCase();
+      
+      await setDoc(doc(db, 'Planner_Leads', `${emailKey}_ai_${Date.now()}`), {
+        email: emailKey,
+        uid: uid,
+        status: 'new',
+        source: 'ai_consultant',
         createdAt: serverTimestamp(),
-        quoteType: 'AI Recommendation',
-        details: `AI Recommended: ${recommendation.name}\nPrice: $${recommendation.estimatedPrice}`,
-        deviceName: recommendation.name,
-        category: recommendation.category,
-        estimatedPrice: recommendation.estimatedPrice
+        updatedAt: serverTimestamp(),
+        complexity: 'AI Recommended',
+        recommendedAreas: [recommendation.category || 'Smart Home'],
+        formData: {
+          deviceName: recommendation.name,
+          category: recommendation.category,
+          estimatedPrice: recommendation.estimatedPrice,
+          details: recommendation.reason
+        },
+        planText: `AI Recommended: ${recommendation.name}\nPrice: ₹${recommendation.estimatedPrice}\n\n${recommendation.reason}`
       });
     } catch (err: any) {
-      console.error('Failed to save recommendation:', err);
+      console.error('Failed to save recommendation to Plan Leads:', {
+        error: err,
+        message: err.message,
+        code: err.code,
+        uid: uid,
+        email: auth.currentUser?.email
+      });
       throw err;
     }
   }, [uid]);
@@ -678,26 +755,17 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const updateItemStatus = useCallback(async (collectionName: string, id: string, newStatus: string) => {
-    let rollbackState: any[] = [];
-    let setStateFn: any = null;
-
-    if (collectionName === 'Planner_Leads') { rollbackState = [...planLeads]; setStateFn = setPlanLeads; }
-    else if (collectionName === 'contactRequests') { rollbackState = [...contactSubmissions]; setStateFn = setContactSubmissions; }
-    else if (collectionName === 'Support_Tickets') { rollbackState = [...reports]; setStateFn = setReports; }
-
-    if (setStateFn) {
-      setStateFn((prev: any[]) => prev.map(item => item.id === id ? { ...item, status: newStatus } : item));
-    }
-
     try {
-      const updateFn = httpsCallable<any, { status: string }>(functions, 'adminUpdateStatuses');
-      await updateFn({ updates: [{ collection: collectionName, id, status: newStatus }] });
+      const docRef = doc(db, collectionName, id);
+      await updateDoc(docRef, { 
+        status: newStatus, 
+        updatedAt: serverTimestamp() 
+      });
     } catch (err: any) {
       console.error(`Status update failed:`, err);
-      if (setStateFn) setStateFn(rollbackState);
       throw err;
     }
-  }, [planLeads, contactSubmissions, reports]);
+  }, []);
 
   useEffect(() => {
     if (uid) {
@@ -723,7 +791,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     recommendations, recommendationLoading, fetchRecommendations,
     saveRecommendationToQuote, updateItemStatus,
     scenes, sceneLoading, fetchScenes, saveScene, deleteScene,
-    adminHealthStats, fetchAdminHealthOverview,
+    adminHealthStats, fetchAdminHealthOverview, isAdmin,
     // Room Visualization
     roomPhoto, roomPhotoUrl, roomPhotoPreview, uploadProgress,
     uploadError, uploadLoading, visualizationLoading, visualizationData,
@@ -734,7 +802,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     filteredContactSubmissions, filteredReports, searchQuery, filterCriteria, 
     recommendations, recommendationLoading, fetchRecommendations, 
     saveRecommendationToQuote, updateItemStatus, scenes, sceneLoading, 
-    fetchScenes, saveScene, deleteScene, adminHealthStats, fetchAdminHealthOverview,
+    fetchScenes, saveScene, deleteScene, adminHealthStats, fetchAdminHealthOverview, isAdmin,
     roomPhoto, roomPhotoUrl, roomPhotoPreview, uploadProgress,
     uploadError, uploadLoading, visualizationLoading, visualizationData,
     visualizationError, setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom
