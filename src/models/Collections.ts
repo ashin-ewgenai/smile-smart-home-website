@@ -347,6 +347,37 @@ export function userDoc(db: Firestore, uid: string): DocumentReference<UserProfi
   return doc(db, COLLECTION_USERS, uid) as DocumentReference<UserProfile>;
 }
 
+// Scene Builder Types
+export interface SceneAction {
+  deviceId: string;
+  deviceName?: string;
+  action: 'on' | 'off' | 'toggle' | 'dim' | 'set_temp' | string;
+  value?: any; // e.g., 80 for dimming, 72 for temperature
+}
+
+export interface Scene {
+  id?: string;
+  uid: string; // Owner of the scene
+  name: string;
+  icon?: string; // Lucide icon name, e.g., 'Sun', 'Moon', 'Film'
+  description?: string;
+  isTemplate?: boolean; // If true, it's a global template (not used by users yet)
+  actions: SceneAction[];
+  status?: 'active' | 'inactive' | string;
+  createdAt?: Timestamp | FieldValue | null;
+  updatedAt?: Timestamp | FieldValue | null;
+}
+
+export const COLLECTION_USER_SCENES = 'User_Scenes';
+
+export function userScenesCollection(db: Firestore): CollectionReference<Scene> {
+  return collection(db, COLLECTION_USER_SCENES) as CollectionReference<Scene>;
+}
+
+export function userSceneDoc(db: Firestore, id: string): DocumentReference<Scene> {
+  return doc(db, COLLECTION_USER_SCENES, id) as DocumentReference<Scene>;
+}
+
 // Kanban Stages for Planner Leads
 export type PlannerLeadStage = 'new' | 'contacted' | 'qualified' | 'closed';
 

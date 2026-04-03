@@ -1,0 +1,14 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { RoomVisualizerWrapper } from '../components/RoomVisualizerWrapper';
+
+const title = "AI Room Visualizer | Smile Smart Homes";
+const description = "Upload a photo of your room and let our AI show you exactly where to place your smart home devices for maximum efficiency and coverage.";
+---
+
+<Layout title={title}>
+  <meta name="description" content={description} slot="head" />
+  <main>
+    <RoomVisualizerWrapper client:load />
+  </main>
+</Layout>

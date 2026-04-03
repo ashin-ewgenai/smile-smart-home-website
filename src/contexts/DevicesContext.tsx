@@ -1,11 +1,11 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { collection, getDocs, onSnapshot, query, where, Timestamp, addDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, functions } from '../lib/firebase';
+import { auth, db, functions, uploadRoomPhoto } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import type { ContactRequest, PlannerLead, SupportTicket, QuoteItem } from '../models/Collections';
 import { quotesCollection } from '../models/Collections';
-import type { DeviceRecommendation, RecommendationRequest } from '../models';
+import type { DeviceRecommendation, RecommendationRequest, RoomVisualizationResult } from '../models';
 
 // Types aligned with AboutDevices.tsx to minimize refactor
 interface SerialItem {
@@ -202,6 +202,19 @@ interface DevicesContextValue {
   // Health-related
   adminHealthStats: any | null;
   fetchAdminHealthOverview: () => Promise<void>;
+  // Room Visualization
+  roomPhoto: File | null;
+  roomPhotoUrl: string | null;
+  roomPhotoPreview: string | null;
+  uploadProgress: number;
+  uploadError: string | null;
+  uploadLoading: boolean;
+  visualizationLoading: boolean;
+  visualizationData: RoomVisualizationResult | null;
+  visualizationError: string | null;
+  setRoomPhoto: (file: File) => void;
+  clearVisualization: () => void;
+  uploadAndAnalyzeRoom: (deviceNames: string[]) => Promise<void>;
 }
 
 const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -268,6 +281,92 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [sceneLoading, setSceneLoading] = useState<boolean>(false);
   const [adminHealthStats, setAdminHealthStats] = useState<any | null>(null);
   const unsubRef = useRef<(() => void) | null>(null);
+
+  // ── Room Visualization State ─────────────────────────────────────────────
+  const [roomPhoto, setRoomPhotoFile] = useState<File | null>(null);
+  const [roomPhotoUrl, setRoomPhotoUrl] = useState<string | null>(null);
+  const [roomPhotoPreview, setRoomPhotoPreview] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadLoading, setUploadLoading] = useState<boolean>(false);
+  const [visualizationLoading, setVisualizationLoading] = useState<boolean>(false);
+  const [visualizationData, setVisualizationData] = useState<RoomVisualizationResult | null>(null);
+  const [visualizationError, setVisualizationError] = useState<string | null>(null);
+  const analysisInFlight = useRef(false);
+
+  const setRoomPhoto = useCallback((file: File) => {
+    setRoomPhotoFile(file);
+    setUploadError(null);
+    setVisualizationData(null);
+    setVisualizationError(null);
+    setUploadProgress(0);
+    setRoomPhotoUrl(null);
+    const preview = URL.createObjectURL(file);
+    setRoomPhotoPreview(preview);
+  }, []);
+
+  const clearVisualization = useCallback(() => {
+    setRoomPhotoFile(null);
+    setRoomPhotoUrl(null);
+    setRoomPhotoPreview(null);
+    setUploadProgress(0);
+    setUploadError(null);
+    setVisualizationData(null);
+    setVisualizationError(null);
+  }, []);
+
+  const uploadAndAnalyzeRoom = useCallback(async (deviceNames: string[]) => {
+    if (!roomPhoto) {
+      setUploadError('Please select a room photo first.');
+      return;
+    }
+    if (!uid) {
+      setUploadError('Please sign in to use Room Visualizer.');
+      return;
+    }
+    if (analysisInFlight.current) return;
+    analysisInFlight.current = true;
+
+    setUploadError(null);
+    setVisualizationError(null);
+    setVisualizationData(null);
+    setUploadLoading(true);
+    setUploadProgress(0);
+
+    try {
+      const downloadUrl = await uploadRoomPhoto(roomPhoto, uid, (pct) => {
+        setUploadProgress(pct);
+      });
+      setRoomPhotoUrl(downloadUrl);
+      setUploadLoading(false);
+
+      setVisualizationLoading(true);
+
+      // Verify UID again right before the call to ensure no closure stale context
+      const currentUid = uid || auth.currentUser?.uid;
+      if (!currentUid) {
+         throw new Error("No user ID found. Please refresh and try again.");
+      }
+
+      console.log("Calling analyzeRoomWithAI with UID:", currentUid);
+      const analyzeFn = httpsCallable<any, RoomVisualizationResult>(functions, 'analyzeRoomWithAI');
+      const result = await analyzeFn({ imageUrl: downloadUrl, deviceNames, uid: currentUid });
+      setVisualizationData(result.data);
+    } catch (err: any) {
+      console.error("AI Room Analysis Failed:", {
+         message: err?.message,
+         code: err?.code,
+         details: err?.details,
+         error: err
+      });
+      const msg = err?.message || 'An error occurred during analysis.';
+      setVisualizationError(msg);
+    } finally {
+      setUploadLoading(false);
+      setVisualizationLoading(false);
+      analysisInFlight.current = false;
+    }
+  }, [roomPhoto, uid, uploadLoading]);
 
 
   useEffect(() => {
@@ -624,8 +723,22 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     recommendations, recommendationLoading, fetchRecommendations,
     saveRecommendationToQuote, updateItemStatus,
     scenes, sceneLoading, fetchScenes, saveScene, deleteScene,
-    adminHealthStats, fetchAdminHealthOverview
-  }), [devices, loading, adminLoading, error, fetchDevices, uid, planLeads, contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, filteredContactSubmissions, filteredReports, searchQuery, filterCriteria, recommendations, recommendationLoading, fetchRecommendations, saveRecommendationToQuote, updateItemStatus, scenes, sceneLoading, fetchScenes, saveScene, deleteScene, adminHealthStats, fetchAdminHealthOverview]);
+    adminHealthStats, fetchAdminHealthOverview,
+    // Room Visualization
+    roomPhoto, roomPhotoUrl, roomPhotoPreview, uploadProgress,
+    uploadError, uploadLoading, visualizationLoading, visualizationData,
+    visualizationError, setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom
+  }), [
+    devices, loading, adminLoading, error, fetchDevices, uid, planLeads, 
+    contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, 
+    filteredContactSubmissions, filteredReports, searchQuery, filterCriteria, 
+    recommendations, recommendationLoading, fetchRecommendations, 
+    saveRecommendationToQuote, updateItemStatus, scenes, sceneLoading, 
+    fetchScenes, saveScene, deleteScene, adminHealthStats, fetchAdminHealthOverview,
+    roomPhoto, roomPhotoUrl, roomPhotoPreview, uploadProgress,
+    uploadError, uploadLoading, visualizationLoading, visualizationData,
+    visualizationError, setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom
+  ]);
 
   return (
     <DevicesContext.Provider value={value}>

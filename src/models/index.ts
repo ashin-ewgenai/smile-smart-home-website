@@ -15,3 +15,21 @@ export interface RecommendationRequest {
   securityNeeds: 'Low' | 'Medium' | 'High' | string;
   preferences?: string[];
 }
+
+// Room Visualization Types
+export interface DevicePlacementMarker {
+  deviceName: string;
+  x: number;        // percentage (0-100) from left
+  y: number;        // percentage (0-100) from top
+  reason: string;
+  icon: string;
+}
+
+export interface RoomVisualizationResult {
+  markers: DevicePlacementMarker[];
+  roomType: string;
+  lightingQuality: 'Excellent' | 'Good' | 'Fair' | 'Poor';
+  wifiCoverageNote: string;
+  generalInsight: string;
+  demoMode?: boolean;
+}

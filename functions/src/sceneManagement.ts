@@ -1,7 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
-
-const db = getFirestore();
+import { FieldValue } from "firebase-admin/firestore";
+import { db } from "./core";
 const COLLECTION_USER_SCENES = "User_Scenes";
 
 /**

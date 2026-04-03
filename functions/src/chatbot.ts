@@ -1,23 +1,8 @@
-import { onCall } from "firebase-functions/v2/https";
-import type { CallableRequest } from "firebase-functions/v2/https";
-import { HttpsError } from "firebase-functions/v2/https";
-import { defineSecret } from "firebase-functions/params";
-import { initializeApp, getApps } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
+import { onCall, HttpsError, type CallableRequest } from "firebase-functions/v2/https";
+import { db, OPENAI_API_KEY } from "./core";
 
 // Declare global fetch to satisfy TypeScript without DOM lib in Node runtimes
 declare const fetch: any;
-
-// Secret for OpenAI
-const OPENAI_API_KEY = defineSecret("OPENAI_API_KEY");
-
-// Ensure Firebase Admin is initialized once per instance
-if (!getApps().length) {
-  initializeApp();
-}
-
-// Firestore reference shared by chatbot functions
-const db = getFirestore();
 
 // ===== CENTRALIZED CONFIGURATION =====
 const CONFIG = {
