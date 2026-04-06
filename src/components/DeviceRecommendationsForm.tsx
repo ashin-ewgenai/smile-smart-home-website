@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Home, Shield, DollarSign, ArrowRight, ArrowLeft, Loader2, CheckCircle2, ChevronRight, Heart, Activity, Wifi, Battery, AlertTriangle, Clock, Lightbulb, Lock, Thermometer, SlidersHorizontal, Camera, MapPin } from 'lucide-react';
+import { Sparkles, Home, Shield, IndianRupee, ArrowRight, ArrowLeft, Loader2, CheckCircle2, ChevronRight, Heart, Activity, Wifi, Battery, AlertTriangle, Clock, Lightbulb, Lock, Thermometer, SlidersHorizontal, Camera, MapPin, MessageCircle } from 'lucide-react';
 import { useDevices } from '../contexts/DevicesContext';
 import { HOUSE_SIZES, SECURITY_LEVELS, BUDGET_RANGES } from '../lib/constants';
 import { useDeviceRecommendations } from '../hooks/useDeviceRecommendations';
+import { useQuoteRequest } from '../hooks/useQuoteRequest';
 import type { DeviceRecommendation } from '../models';
 import { RoomVisualization } from './RoomVisualization';
 
@@ -67,6 +68,11 @@ export const DeviceRecommendationsForm: React.FC = () => {
   const [savingId, setSavingId] = React.useState<string | null>(null);
   const [savedIds, setSavedIds] = React.useState<Set<string>>(new Set());
   const [saveError, setSaveError] = React.useState<string | null>(null);
+  
+  const { notifyQuoteAction, isSending, sendSuccess, sendError, whatsappStatus } = useQuoteRequest();
+  const [recipientEmail, setRecipientEmail] = useState('');
+  const [recipientPhone, setRecipientPhone] = useState('');
+  const [showContactForm, setShowContactForm] = useState(false);
 
   const handleSave = async (device: DeviceRecommendation) => {
     if (!uid) {
@@ -196,7 +202,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
                       <p>Connecting to your smart home...</p>
                     </div>
                   ) : (
-                    devices.map((device, i) => {
+                    devices.map((device: any, i: number) => {
                       const health = device.health || { 
                         score: 100, 
                         status: 'Online', 
@@ -301,7 +307,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
                     <Camera className="text-teal" />
-                    AI Room Placement
+                    AI Room Visualizer
                   </h3>
                   <div className="text-xs text-slate-500 bg-slate-100 dark:bg-gray-800 px-3 py-1 rounded-full flex items-center gap-2">
                     <MapPin size={12} className="text-teal" />
@@ -392,7 +398,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
                   <div className="space-y-6">
                     <div className="flex items-center gap-3 text-slate-700 dark:text-gray-300 mb-4">
                       <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg text-emerald-600">
-                        <DollarSign size={24} />
+                        <IndianRupee size={24} />
                       </div>
                       <div>
                         <h3 className="text-xl font-semibold">Estimated Budget</h3>
@@ -429,7 +435,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
                     <div className="flex items-center justify-between mb-6">
                       <div>
                         <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><CheckCircle2 className="text-emerald-500" /> Your Custom Smart Plan</h3>
-                        <p className="text-slate-500 italic">Based on your {formData.houseSize} and ${formData.budget} budget.</p>
+                        <p className="text-slate-500 italic">Based on your {formData.houseSize} and ₹{formData.budget} budget.</p>
                       </div>
                       <button onClick={resetForm} className="text-teal hover:text-teal/80 text-sm font-bold bg-teal/5 dark:bg-teal-900/20 px-4 py-2 rounded-lg">New Plan</button>
                     </div>
@@ -441,7 +447,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
                           <div className="flex justify-between items-start mb-3">
                             <span className="px-3 py-1 bg-teal-100 dark:bg-teal-900/30 text-teal text-xs font-bold rounded-full">{device.category}</span>
                             <div className="flex items-center gap-2">
-                              <span className="text-slate-900 dark:text-white font-bold">${device.estimatedPrice}*</span>
+                              <span className="text-slate-900 dark:text-white font-bold">₹{device.estimatedPrice}*</span>
                               <button 
                                 onClick={() => handleSave(device)}
                                 disabled={savingId === device.name || savedIds.has(device.name)}
@@ -456,6 +462,113 @@ export const DeviceRecommendationsForm: React.FC = () => {
                         </motion.div>
                       ))}
                     </div>
+                    
+                    <div className="mt-10 p-8 bg-teal-50 dark:bg-teal-900/10 rounded-3xl border border-teal-100 dark:border-teal-900/30 text-center relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:rotate-12 transition-transform">
+                        <Sparkles size={100} />
+                      </div>
+                      <h4 className="text-xl font-bold text-teal-800 dark:text-teal-300 mb-3">Love this setup?</h4>
+                      <p className="text-teal-600 dark:text-teal-500/80 mb-6 max-w-md mx-auto">
+                        Get this custom smart home plan sent directly to your registered email and WhatsApp for easy access later.
+                      </p>
+                      
+                      {sendSuccess ? (
+                        <motion.div 
+                          initial={{ scale: 0.9, opacity: 0 }} 
+                          animate={{ scale: 1, opacity: 1 }}
+                          className="space-y-3"
+                        >
+                          <div className="flex items-center justify-center gap-2 text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-900/20 py-3 px-6 rounded-xl mx-auto w-fit">
+                            <CheckCircle2 size={20} />
+                            Quote sent successfully!
+                          </div>
+                          {whatsappStatus === 'sent' && (
+                            <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-medium bg-emerald-50/50 dark:bg-emerald-900/10 py-2 px-4 rounded-lg mx-auto w-fit">
+                              <MessageCircle size={16} />
+                              WhatsApp notification delivered
+                            </div>
+                          )}
+                          {whatsappStatus === 'failed' && (
+                            <div className="flex items-center justify-center gap-2 text-amber-600 text-sm font-medium bg-amber-50 dark:bg-amber-900/10 py-2 px-4 rounded-lg mx-auto w-fit">
+                              <MessageCircle size={16} />
+                              WhatsApp failed (email delivered)
+                            </div>
+                          )}
+                          {whatsappStatus === 'skipped' && (
+                            <div className="flex items-center justify-center gap-2 text-slate-500 text-sm font-medium bg-slate-100 dark:bg-slate-800/50 py-2 px-4 rounded-lg mx-auto w-fit">
+                              <MessageCircle size={16} />
+                              WhatsApp skipped (no phone number)
+                            </div>
+                          )}
+                          <p className="text-slate-500 text-sm">
+                            Check your inbox for the full quote details.
+                          </p>
+                        </motion.div>
+                      ) : !showContactForm ? (
+                        <button 
+                          onClick={() => setShowContactForm(true)}
+                          className="btn-primary py-3 px-10 flex items-center gap-3 mx-auto shadow-xl shadow-teal-500/20 relative z-10 hover:scale-105 transition-all"
+                        >
+                          <Wifi size={18} />
+                          Send My Plan to Email & WhatsApp
+                        </button>
+                      ) : (
+                        <div className="max-w-xs mx-auto space-y-4">
+                          <div className="text-left space-y-3">
+                            <input 
+                              type="email" 
+                              placeholder="Your Email"
+                              value={recipientEmail}
+                              onChange={e => setRecipientEmail(e.target.value)}
+                              className="w-full px-4 py-2 rounded-xl bg-white dark:bg-gray-800 border border-teal-200 dark:border-teal-900/40 text-sm focus:ring-2 focus:ring-teal-500"
+                            />
+                            <input 
+                              type="tel" 
+                              placeholder="WhatsApp Number"
+                              value={recipientPhone}
+                              onChange={e => setRecipientPhone(e.target.value)}
+                              className="w-full px-4 py-2 rounded-xl bg-white dark:bg-gray-800 border border-teal-200 dark:border-teal-900/40 text-sm focus:ring-2 focus:ring-teal-500"
+                            />
+                          </div>
+                          <div className="space-y-4">
+                            <button 
+                              disabled={isSending || !recipientEmail}
+                              onClick={() => {
+                                console.log("[DEBUG] Button clicked, email:", recipientEmail);
+                                notifyQuoteAction({
+                                  type: 'quote_submitted',
+                                  quoteId: `AI-${Date.now()}`,
+                                  email: recipientEmail,
+                                  phone: recipientPhone,
+                                  details: { budget: formData.budget, houseSize: formData.houseSize }
+                                });
+                              }}
+                              className="w-full btn-primary py-2.5 flex items-center justify-center gap-2 shadow-lg"
+                            >
+                              {isSending ? (
+                                <>
+                                  <Loader2 size={18} className="animate-spin" />
+                                  {whatsappStatus === 'sending' ? 'Sending email & WhatsApp...' : 'Sending...'}
+                                </>
+                              ) : (
+                                <>
+                                  <Wifi size={18} />
+                                  Confirm & Send
+                                </>
+                              )}
+                            </button>
+                            {sendSuccess && (
+                              <div className="flex items-center gap-2 text-green-600 text-sm">
+                                <CheckCircle2 size={16} />
+                                <span>Quote sent successfully!</span>
+                              </div>
+                            )}
+                            {sendError && <p className="text-red-500 text-xs font-medium">{sendError}</p>}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     <div className="mt-8 p-6 bg-soft-gray dark:bg-gray-800/50 rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 text-center text-sm text-slate-500">
                       *Estimated prices are representative. Our team can provide a precise quote for installation and hardware.
                     </div>

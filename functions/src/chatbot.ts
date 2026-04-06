@@ -1,5 +1,11 @@
 import { onCall, HttpsError, type CallableRequest } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import { db, OPENAI_API_KEY } from "./core";
+
+// Twilio/WhatsApp Configuration Secrets (defined locally in this file)
+const TWILIO_ACCOUNT_SID = defineSecret("TWILIO_ACCOUNT_SID");
+const TWILIO_AUTH_TOKEN = defineSecret("TWILIO_AUTH_TOKEN");
+const TWILIO_WHATSAPP_NUMBER = defineSecret("TWILIO_WHATSAPP_NUMBER");
 
 // Declare global fetch to satisfy TypeScript without DOM lib in Node runtimes
 declare const fetch: any;
@@ -218,6 +224,125 @@ async function ensureSupportTicketForIssue(params: {
   const ticketRef = await ticketsCol.add(payload);
   const ticketId = ticketRef.id;
   return { ticketId, ticketNumber, status: payload.status, alreadyExists: false };
+}
+
+/**
+ * triggerWhatsAppMessaging (Real Implementation with Twilio)
+ * Sends WhatsApp messages using Twilio WhatsApp API
+ */
+export async function triggerWhatsAppMessaging(params: {
+  recipient: string;
+  templateId: string;
+  variables: Record<string, string>;
+}): Promise<boolean> {
+  const { recipient, templateId, variables } = params;
+
+  const accountSid = TWILIO_ACCOUNT_SID.value();
+  const authToken = TWILIO_AUTH_TOKEN.value();
+  const fromNumber = TWILIO_WHATSAPP_NUMBER.value(); // e.g., "whatsapp:+14155238886"
+
+  // If Twilio is not configured, log and skip gracefully
+  if (!accountSid || !authToken || !fromNumber) {
+    console.warn(`[WhatsApp] Twilio not configured. Logging only for ${recipient}`);
+    await db.collection("System_Logs").add({
+      target: recipient,
+      channel: "whatsapp",
+      templateId,
+      timestamp: new Date().toISOString(),
+      status: "skipped",
+      reason: "Twilio not configured"
+    });
+    return true;
+  }
+
+  // Dynamically import twilio if available
+  let Twilio: any;
+  try {
+    Twilio = require("twilio");
+  } catch {
+    console.warn(`[WhatsApp] twilio not installed. Logging only for ${recipient}`);
+    await db.collection("System_Logs").add({
+      target: recipient,
+      channel: "whatsapp",
+      templateId,
+      timestamp: new Date().toISOString(),
+      status: "skipped",
+      reason: "twilio not installed"
+    });
+    return true;
+  }
+
+  const client = new Twilio(accountSid, authToken);
+
+  // Format recipient number with whatsapp: prefix
+  const toNumber = recipient.startsWith("whatsapp:") ? recipient : `whatsapp:${recipient}`;
+
+  // Build message based on template
+  const messageBody = buildWhatsAppMessage(templateId, variables);
+
+  try {
+    const message = await client.messages.create({
+      from: fromNumber,
+      to: toNumber,
+      body: messageBody,
+    });
+
+    console.log(`[WhatsApp Sent] SID: ${message.sid} to ${recipient}`);
+
+    // Log to System_Logs
+    await db.collection("System_Logs").add({
+      target: recipient,
+      channel: "whatsapp",
+      templateId,
+      timestamp: new Date().toISOString(),
+      status: "success",
+      twilioSid: message.sid,
+    });
+
+    return true;
+  } catch (error: any) {
+    console.error(`[WhatsApp Failed] to ${recipient}:`, error);
+
+    await db.collection("System_Logs").add({
+      target: recipient,
+      channel: "whatsapp",
+      templateId,
+      timestamp: new Date().toISOString(),
+      status: "failed",
+      error: error.message,
+    });
+
+    throw error;
+  }
+}
+
+/**
+ * Build WhatsApp message content based on template
+ */
+function buildWhatsAppMessage(templateId: string, variables: Record<string, string>): string {
+  const templates: Record<string, string> = {
+    new_quote_user: `👋 Hi ${variables.name || "there"}!
+
+Your Smart Home quote request (${variables.id}) has been received. 🏠
+
+Our team will review your requirements and send a detailed estimation soon.
+
+View your quote: https://smilesmarthome.com/dashboard/user/my-quotes
+
+- Smile Smart Home Team`,
+
+    estimation_ready: `🎉 Great news, ${variables.name || "there"}!
+
+Your quote estimation for ${variables.id} is ready!
+
+Check your email for full details or view it in your dashboard.
+
+Questions? Reply here or call our support team.
+
+- Smile Smart Home Team`,
+  };
+
+  return templates[templateId] || templates.new_quote_user;
 }
 
 // ===== Full chat with OpenAI including Firestore persistence =====
@@ -2032,4 +2157,86 @@ export const structuredSupportAction = onCall({ secrets: [OPENAI_API_KEY], cors:
     reply,
   };
 });
+
+/**
+ * Callable: Initiate a Live Consultation session
+ * Creates a specialized chat session for live expert interaction.
+ */
+export const initiateLiveConsultation = onCall({
+  secrets: [OPENAI_API_KEY],
+  cors: true
+}, async (request: CallableRequest) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated to start a consultation.");
+
+  const uid = authCtx.uid;
+  const now = Date.now();
+  const sessionId = `consult_${uid}_${now}`;
+
+  try {
+    const sessionsCol = db.collection(CONFIG.COLLECTIONS.CHAT_SESSIONS);
+    await sessionsCol.doc(sessionId).set({
+      ownerUid: uid,
+      createdAt: now,
+      updatedAt: now,
+      status: "waiting", // Waiting for an agent
+      type: "live_consultation",
+      requestedAt: now,
+    }, { merge: true });
+
+    // Add initial system message
+    await sessionsCol.doc(sessionId).collection("messages").add({
+      role: "assistant", // Using assistant for compatibility with UI
+      content: "Thank you for requesting a live consultation. A smart home expert will be with you shortly. Please stay on this page.",
+      ts: now,
+      source: "system",
+    });
+
+    return {
+      status: "initialized",
+      sessionId,
+      message: "Consultation session created successfully.",
+    };
+  } catch (error: any) {
+    console.error("Error initiating live consultation:", error);
+    throw new HttpsError("internal", `Failed to start consultation: ${error?.message || error}`);
+  }
+});
+
+/**
+ * Prototype WhatsApp sending function using Twilio API
+ * 
+ * This function demonstrates how to send WhatsApp messages for quote delivery.
+ * To enable, uncomment the code and configure Twilio credentials in Firebase Secrets:
+ * - TWILIO_ACCOUNT_SID
+ * - TWILIO_AUTH_TOKEN  
+ * - TWILIO_WHATSAPP_NUMBER (e.g., whatsapp:+14155238886)
+ * 
+ * Usage:
+ * await sendQuoteWhatsApp('+1234567890', 'Your quote Q-123 is ready! Total: ₹5000');
+ * 
+ * Note: WhatsApp Business API requires pre-approved message templates for outbound messages.
+ * Twilio Sandbox allows testing with joined users.
+ */
+export async function sendQuoteWhatsApp(phoneNumber: string, message: string): Promise<boolean> {
+  try {
+    // TODO: Install twilio package: npm install twilio
+    // const twilio = require('twilio');
+    // const client = twilio(TWILIO_ACCOUNT_SID.value(), TWILIO_AUTH_TOKEN.value());
+    // 
+    // await client.messages.create({
+    //   from: TWILIO_WHATSAPP_NUMBER.value(),
+    //   to: `whatsapp:${phoneNumber}`,
+    //   body: message,
+    // });
+    
+    console.log(`[WhatsApp Prototype] Would send to ${phoneNumber}: ${message}`);
+    console.log('[WhatsApp Prototype] To enable: uncomment code above and install twilio package');
+    
+    return true;
+  } catch (error: any) {
+    console.error('[WhatsApp Prototype] Error:', error);
+    return false;
+  }
+}
 

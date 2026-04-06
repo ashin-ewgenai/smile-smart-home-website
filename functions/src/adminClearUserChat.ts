@@ -40,7 +40,7 @@ export const adminClearUserChat = onCall({
     console.log(`Found ${sessionsSnap.size} chat sessions for user ${targetUid}`);
     
     if (sessionsSnap.empty) {
-      return {status: "ok", deletedSessions: 0, deletedImages: 0, message: "No chat sessions found for this user"};
+      return {status: "ok", deletedSessions: 0, deletedImages: 0, message: "No chat or consultation sessions found for this user"};
     }
 
     // Collect all image URLs before deletion
