@@ -193,6 +193,7 @@ interface DevicesContextValue {
   fetchRecommendations: (params: RecommendationRequest) => Promise<void>;
   saveRecommendationToQuote: (recommendation: DeviceRecommendation) => Promise<void>;
   updateItemStatus: (collectionName: string, id: string, newStatus: string) => Promise<void>;
+  updateItemDragIndex: (collectionName: string, id: string, newDragIndex: number) => Promise<void>;
   // Scene-related
   scenes: any[];
   sceneLoading: boolean;
@@ -216,6 +217,10 @@ interface DevicesContextValue {
   setRoomPhoto: (file: File) => void;
   clearVisualization: () => void;
   uploadAndAnalyzeRoom: (deviceNames: string[]) => Promise<void>;
+  // Live Consultation
+  activeConsultationId: string | null;
+  consultationLoading: boolean;
+  startLiveConsultation: () => Promise<string>;
 }
 
 const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -296,6 +301,10 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [visualizationData, setVisualizationData] = useState<RoomVisualizationResult | null>(null);
   const [visualizationError, setVisualizationError] = useState<string | null>(null);
   const analysisInFlight = useRef(false);
+
+  // ── Live Consultation State ─────────────────────────────────────────────
+  const [activeConsultationId, setActiveConsultationId] = useState<string | null>(null);
+  const [consultationLoading, setConsultationLoading] = useState<boolean>(false);
 
   const setRoomPhoto = useCallback((file: File) => {
     setRoomPhotoFile(file);
@@ -391,6 +400,25 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       analysisInFlight.current = false;
     }
   }, [roomPhoto, uid, uploadLoading]);
+
+  const startLiveConsultation = useCallback(async (): Promise<string> => {
+    if (!uid) {
+      throw new Error('Must be logged in to start a consultation.');
+    }
+    setConsultationLoading(true);
+    try {
+      const initiateFn = httpsCallable<any, { sessionId: string; status: string }>(functions, 'initiateLiveConsultation');
+      const res = await initiateFn();
+      const sid = res.data.sessionId;
+      setActiveConsultationId(sid);
+      return sid;
+    } catch (err: any) {
+      console.error('Failed to initiate consultation:', err);
+      throw err;
+    } finally {
+      setConsultationLoading(false);
+    }
+  }, [uid]);
 
 
   useEffect(() => {
@@ -767,6 +795,19 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
+  const updateItemDragIndex = useCallback(async (collectionName: string, id: string, newDragIndex: number) => {
+    try {
+      const docRef = doc(db, collectionName, id);
+      await updateDoc(docRef, { 
+        dragIndex: newDragIndex, 
+        updatedAt: serverTimestamp() 
+      });
+    } catch (err: any) {
+      console.error(`Drag index update failed:`, err);
+      throw err;
+    }
+  }, []);
+
   useEffect(() => {
     if (uid) {
       fetchDevices();
@@ -789,23 +830,26 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     filteredPlanLeads, filteredContactSubmissions, filteredReports,
     searchQuery, setSearchQuery, filterCriteria, setFilterCriteria,
     recommendations, recommendationLoading, fetchRecommendations,
-    saveRecommendationToQuote, updateItemStatus,
+    saveRecommendationToQuote, updateItemStatus, updateItemDragIndex,
     scenes, sceneLoading, fetchScenes, saveScene, deleteScene,
     adminHealthStats, fetchAdminHealthOverview, isAdmin,
     // Room Visualization
     roomPhoto, roomPhotoUrl, roomPhotoPreview, uploadProgress,
     uploadError, uploadLoading, visualizationLoading, visualizationData,
-    visualizationError, setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom
+    visualizationError, setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom,
+    // Live Consultation
+    activeConsultationId, consultationLoading, startLiveConsultation
   }), [
     devices, loading, adminLoading, error, fetchDevices, uid, planLeads, 
     contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, 
     filteredContactSubmissions, filteredReports, searchQuery, filterCriteria, 
     recommendations, recommendationLoading, fetchRecommendations, 
-    saveRecommendationToQuote, updateItemStatus, scenes, sceneLoading, 
+    saveRecommendationToQuote, updateItemStatus, updateItemDragIndex, scenes, sceneLoading, 
     fetchScenes, saveScene, deleteScene, adminHealthStats, fetchAdminHealthOverview, isAdmin,
     roomPhoto, roomPhotoUrl, roomPhotoPreview, uploadProgress,
     uploadError, uploadLoading, visualizationLoading, visualizationData,
-    visualizationError, setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom
+    visualizationError, setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom,
+    activeConsultationId, consultationLoading, startLiveConsultation
   ]);
 
   return (
