@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, type User, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { collection, getDocs, onSnapshot, query, where, or, orderBy, Timestamp, addDoc, setDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db, functions, uploadRoomPhoto } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
@@ -223,9 +223,11 @@ interface DevicesContextValue {
   startLiveConsultation: () => Promise<string>;
   // Planning Leads for current user
   userPlannerLeads: PlannerLead[];
+  currentUser: User | null;
+  loginWithGoogle: () => Promise<User>;
 }
 
-const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
+export const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
 
 function getUserWarranty(userData: any, serialHint?: string): any {
   try {
@@ -273,6 +275,7 @@ function getUserWarranty(userData: any, serialHint?: string): any {
 }
 
 export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
   const [role, setRole] = useState<string | null>(null);
   const [devices, setDevices] = useState<DeviceDoc[]>([]);
@@ -429,6 +432,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
+      setCurrentUser(u);
       setUid(u?.uid ?? null);
       if (!u) setRole(null);
     });
@@ -884,35 +888,80 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => unsub();
   }, [uid, fetchDevices]);
 
-  const value = useMemo<DevicesContextValue>(() => ({ 
-    devices, loading, adminLoading, error, refresh: fetchDevices, uid,
-    planLeads, contactSubmissions, reports, isFloorplanItem,
-    filteredPlanLeads, filteredContactSubmissions, filteredReports,
-    searchQuery, setSearchQuery, filterCriteria, setFilterCriteria,
+  const loginWithGoogle = useCallback(async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      return result.user;
+    } catch (err) {
+      console.error('Google Login Error in DevicesContext:', err);
+      throw err;
+    }
+  }, []);
+
+  const value = useMemo(() => ({
+    devices,
+    planLeads,
+    contactSubmissions,
+    reports,
+    filteredPlanLeads,
+    filteredContactSubmissions,
+    filteredReports,
+    searchQuery,
+    setSearchQuery,
+    filterCriteria,
+    setFilterCriteria,
+    loading,
+    adminLoading,
+    error,
+    refresh: fetchDevices,
+    uid,
+    isFloorplanItem,
+    recommendations,
+    recommendationLoading,
+    fetchRecommendations,
+    saveRecommendationToQuote,
+    updateItemStatus,
+    updateItemDragIndex,
+    scenes,
+    sceneLoading,
+    fetchScenes,
+    saveScene,
+    deleteScene,
+    adminHealthStats,
+    fetchAdminHealthOverview,
+    isAdmin,
+    roomPhoto,
+    roomPhotoUrl,
+    roomPhotoPreview,
+    uploadProgress,
+    uploadError,
+    uploadLoading,
+    visualizationLoading,
+    visualizationData,
+    visualizationError,
+    setRoomPhoto,
+    clearVisualization,
+    uploadAndAnalyzeRoom,
+    activeConsultationId,
+    consultationLoading,
+    startLiveConsultation,
+    userPlannerLeads,
+    currentUser,
+    loginWithGoogle
+  }), [
+    devices, planLeads, contactSubmissions, reports, filteredPlanLeads,
+    filteredContactSubmissions, filteredReports, searchQuery, filterCriteria,
+    loading, adminLoading, error, fetchDevices, uid, isFloorplanItem,
     recommendations, recommendationLoading, fetchRecommendations,
     saveRecommendationToQuote, updateItemStatus, updateItemDragIndex,
     scenes, sceneLoading, fetchScenes, saveScene, deleteScene,
-    adminHealthStats, fetchAdminHealthOverview, isAdmin,
-    // Room Visualization
-    roomPhoto, roomPhotoUrl, roomPhotoPreview, uploadProgress,
-    uploadError, uploadLoading, visualizationLoading, visualizationData,
-    visualizationError, setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom,
-    adminAccepted,
-    // Live Consultation
+    adminHealthStats, isAdmin, roomPhoto, roomPhotoUrl,
+    roomPhotoPreview, uploadProgress, uploadError, uploadLoading,
+    visualizationLoading, visualizationData, visualizationError,
+    setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom,
     activeConsultationId, consultationLoading, startLiveConsultation,
-    userPlannerLeads
-  }), [
-    devices, loading, adminLoading, error, fetchDevices, uid, planLeads, 
-    contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, 
-    filteredContactSubmissions, filteredReports, searchQuery, filterCriteria, 
-    recommendations, recommendationLoading, fetchRecommendations, 
-    saveRecommendationToQuote, updateItemStatus, updateItemDragIndex, scenes, sceneLoading, 
-    fetchScenes, saveScene, deleteScene, adminHealthStats, fetchAdminHealthOverview, isAdmin,
-    roomPhoto, roomPhotoUrl, roomPhotoPreview, uploadProgress,
-    uploadError, uploadLoading, visualizationLoading, visualizationData,
-    visualizationError, setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom,
-    activeConsultationId, consultationLoading, startLiveConsultation,
-    userPlannerLeads
+    userPlannerLeads, currentUser, loginWithGoogle
   ]);
 
   return (
