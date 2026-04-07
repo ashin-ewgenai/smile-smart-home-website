@@ -61,7 +61,9 @@ export const DeviceRecommendationsForm: React.FC = () => {
     error,
     saveRecommendationToQuote,
     uid,
-    devices
+    devices,
+    adminAccepted,
+    acceptedAt
   } = useDeviceRecommendations();
 
   const [activeTab, setActiveTab] = useState<'consultant' | 'health' | 'visualizer'>('consultant');
@@ -439,6 +441,20 @@ export const DeviceRecommendationsForm: React.FC = () => {
                       </div>
                       <button onClick={resetForm} className="text-teal hover:text-teal/80 text-sm font-bold bg-teal/5 dark:bg-teal-900/20 px-4 py-2 rounded-lg">New Plan</button>
                     </div>
+
+                    <AnimatePresence>
+                      {adminAccepted && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -10 }}
+                          className="mb-6 p-4 bg-green-100 text-green-800 rounded-xl flex items-center shadow-sm border border-green-200"
+                        >
+                          <CheckCircle2 className="mr-3 text-green-600" />
+                          <span className="font-medium">Your requirement has been accepted by the admin.</span>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                     {error && <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm">{error}</div>}
                     {saveError && <div className="p-4 bg-amber-50 border border-amber-100 text-amber-700 rounded-xl text-sm flex items-center gap-2"><Shield size={16} />{saveError}</div>}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

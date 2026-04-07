@@ -1,5 +1,6 @@
 import {onCall, HttpsError} from "firebase-functions/v2/https";
 import {getStorage} from "firebase-admin/storage";
+import {FieldValue} from "firebase-admin/firestore";
 import {db} from "./core";
 
 const storage = getStorage();
@@ -184,7 +185,15 @@ export const adminUpdateStatuses = onCall({
         count = 0;
       }
       const ref = db.collection(update.collection).doc(update.id);
-      currentBatch.update(ref, { status: update.status });
+      const updateData: any = { status: update.status };
+      
+      // If the status is 'accepted', add metadata for user notification
+      if (update.status === 'accepted' || update.status === 'Accepted') {
+        updateData.adminAccepted = true;
+        updateData.acceptedAt = FieldValue.serverTimestamp();
+      }
+      
+      currentBatch.update(ref, updateData);
       count++;
     }
     

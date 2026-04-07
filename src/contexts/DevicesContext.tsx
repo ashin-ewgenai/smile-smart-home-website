@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { collection, getDocs, onSnapshot, query, where, Timestamp, addDoc, setDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, where, or, orderBy, Timestamp, addDoc, setDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db, functions, uploadRoomPhoto } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import type { ContactRequest, PlannerLead, SupportTicket, QuoteItem } from '../models/Collections';
@@ -221,6 +221,8 @@ interface DevicesContextValue {
   activeConsultationId: string | null;
   consultationLoading: boolean;
   startLiveConsultation: () => Promise<string>;
+  // Planning Leads for current user
+  userPlannerLeads: PlannerLead[];
 }
 
 const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -305,6 +307,10 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // ── Live Consultation State ─────────────────────────────────────────────
   const [activeConsultationId, setActiveConsultationId] = useState<string | null>(null);
   const [consultationLoading, setConsultationLoading] = useState<boolean>(false);
+
+  // ── User Planning Leads State ───────────────────────────────────────────
+  const [adminAccepted, setAdminAccepted] = useState<boolean>(false);
+  const [userPlannerLeads, setUserPlannerLeads] = useState<PlannerLead[]>([]);
 
   const setRoomPhoto = useCallback((file: File) => {
     setRoomPhotoFile(file);
@@ -506,6 +512,52 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     return () => unsubs.forEach(u => u());
   }, [uid, role]);
+
+  // Real-time listener for current user's planner leads (UID or Email match)
+  useEffect(() => {
+    if (!uid) {
+      setUserPlannerLeads([]);
+      return;
+    }
+    
+    const userEmail = auth.currentUser?.email?.trim();
+    if (!userEmail && !uid) return;
+
+    // Remove orderBy to avoid 'missing index' errors for composite 'or' queries.
+    // We will sort in memory for maximum reliability.
+    const q = query(
+      collection(db, 'Planner_Leads'), 
+      or(
+        where('uid', '==', uid), 
+        ...(userEmail ? [
+          where('email', '==', userEmail.toLowerCase()),
+          where('email', '==', userEmail) 
+        ] : [])
+      )
+    );
+    
+    const unsub = onSnapshot(q, (snap) => {
+      const leads = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      
+      // Deduplicate by ID just in case
+      const uniqueLeads = Array.from(new Map(leads.map(l => [l.id, l])).values());
+      
+      // Update global acceptance status
+      setAdminAccepted(uniqueLeads.some(l => l.status === 'accepted' || l.status === 'Accepted' || l.adminAccepted === true));
+
+      // Sort in memory by updatedAt or createdAt
+      const sortedLeads = uniqueLeads.sort((a, b) => {
+        const dateA = a.updatedAt?.toDate?.() || new Date(a.updatedAt || 0);
+        const dateB = b.updatedAt?.toDate?.() || new Date(b.updatedAt || 0);
+        return dateB.getTime() - dateA.getTime();
+      }) as unknown as PlannerLead[];
+
+      setUserPlannerLeads(sortedLeads);
+    }, (err) => {
+      console.warn('User planner leads listener failed:', err);
+    });
+    return () => unsub();
+  }, [uid, auth.currentUser?.email]);
 
   const isFloorplanItem = useCallback((item: any): boolean => {
     if (!item) return false;
@@ -785,10 +837,18 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const updateItemStatus = useCallback(async (collectionName: string, id: string, newStatus: string) => {
     try {
       const docRef = doc(db, collectionName, id);
-      await updateDoc(docRef, { 
+      const updateData: any = { 
         status: newStatus, 
         updatedAt: serverTimestamp() 
-      });
+      };
+
+      // Handle Admin Acceptance logic in frontend for real-time responsiveness
+      if (collectionName === 'Planner_Leads' && (newStatus === 'accepted' || newStatus === 'Accepted')) {
+        updateData.adminAccepted = true;
+        updateData.acceptedAt = serverTimestamp();
+      }
+
+      await updateDoc(docRef, updateData);
     } catch (err: any) {
       console.error(`Status update failed:`, err);
       throw err;
@@ -837,8 +897,10 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     roomPhoto, roomPhotoUrl, roomPhotoPreview, uploadProgress,
     uploadError, uploadLoading, visualizationLoading, visualizationData,
     visualizationError, setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom,
+    adminAccepted,
     // Live Consultation
-    activeConsultationId, consultationLoading, startLiveConsultation
+    activeConsultationId, consultationLoading, startLiveConsultation,
+    userPlannerLeads
   }), [
     devices, loading, adminLoading, error, fetchDevices, uid, planLeads, 
     contactSubmissions, reports, isFloorplanItem, filteredPlanLeads, 
@@ -849,7 +911,8 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     roomPhoto, roomPhotoUrl, roomPhotoPreview, uploadProgress,
     uploadError, uploadLoading, visualizationLoading, visualizationData,
     visualizationError, setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom,
-    activeConsultationId, consultationLoading, startLiveConsultation
+    activeConsultationId, consultationLoading, startLiveConsultation,
+    userPlannerLeads
   ]);
 
   return (
