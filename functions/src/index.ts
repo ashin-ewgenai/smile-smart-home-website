@@ -263,6 +263,59 @@ export const adminCloseTicket = onCall({ cors: true }, async (request) => {
   return {status: "closed"};
 });
 
+/** Admin updates statuses for Planner_Leads, contactRequests, or Support_Tickets. Requires Admin or Super Admin role. */
+export const adminUpdateStatuses = onCall({ cors: true }, async (request) => {
+  const authCtx = request.auth;
+  if (!authCtx) throw new HttpsError("unauthenticated", "Must be authenticated.");
+
+  // Verify admin role
+  const callerSnap = await db.collection("Accounts").doc(authCtx.uid).get();
+  const role = callerSnap.exists ? (callerSnap.data()?.Role as string | undefined) : undefined;
+  if (role !== "Super Admin" && role !== "Admin") {
+    throw new HttpsError("permission-denied", "Only admins can update statuses");
+  }
+
+  const updates = request.data?.updates as Array<{ collection: string; id: string; status: string }> | undefined;
+  if (!Array.isArray(updates) || updates.length === 0) {
+    throw new HttpsError("invalid-argument", "updates array is required");
+  }
+
+  const allowedCollections = ["Planner_Leads", "contactRequests", "Support_Tickets"];
+  const results: Array<{ id: string; status: string; error?: string }> = [];
+
+  for (const update of updates) {
+    const { collection: collectionName, id, status } = update;
+
+    if (!collectionName || !id || !status) {
+      results.push({ id: id || "unknown", status: "error", error: "Missing collection, id, or status" });
+      continue;
+    }
+
+    if (!allowedCollections.includes(collectionName)) {
+      results.push({ id, status: "error", error: `Collection ${collectionName} not allowed` });
+      continue;
+    }
+
+    try {
+      await db.collection(collectionName).doc(id).set(
+        { status: status, updatedAt: Date.now() },
+        { merge: true }
+      );
+      results.push({ id, status: "ok" });
+    } catch (err: any) {
+      console.error(`Failed to update ${collectionName}/${id}:`, err);
+      results.push({ id, status: "error", error: err?.message || "Update failed" });
+    }
+  }
+
+  const hasErrors = results.some(r => r.status === "error");
+  if (hasErrors && results.every(r => r.status === "error")) {
+    throw new HttpsError("internal", "All updates failed", { results });
+  }
+
+  return { status: "ok", results };
+});
+
 /**
  * submitReview (Gen 1)
  * Using Gen 1 to avoid IAM policy errors on new Gen 2 functions.

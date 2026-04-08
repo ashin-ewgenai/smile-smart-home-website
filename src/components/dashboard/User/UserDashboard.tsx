@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, Wrench, ChevronRight, Router, Smile } from 'lucide-react';
+import { Home, Settings, Bell, Calendar, Battery, Thermometer, Lock, Wrench, ChevronRight, Router, Smile, Sparkles, Layout, CheckCircle2, ClipboardList } from 'lucide-react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import RequestServiceModal from './RequestServiceModal';
 import RequestStatusModal from './RequestStatusModal';
@@ -7,6 +7,8 @@ import { db, auth } from '../../../lib/firebase';
 import { getDocs, query, orderBy, limit, getDoc, collection, onSnapshot, doc, where } from 'firebase/firestore';
 import { requestServicesCollection, userDoc, userDeviceDoc, deviceDoc } from '../../../models/Collections';
 import { onAuthStateChanged } from 'firebase/auth';
+import { useDevices } from '../../../contexts/DevicesContext';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Device {
   id: string;
@@ -21,6 +23,54 @@ interface Device {
   warrantyStart?: string | null;
 }
 
+const MOCK_DEVICES: Device[] = [
+  {
+    id: 'mock-light-1',
+    name: 'Living Room Main Light',
+    type: 'Color Bulb',
+    status: 'active',
+    lastActivity: 'Just now',
+    brand: 'Phillips Hue',
+    modelNumber: 'HUE-V2-RGB'
+  },
+  {
+    id: 'mock-lock-1',
+    name: 'Front Door Lock',
+    type: 'Smart Lock',
+    status: 'active',
+    lastActivity: 'Just now',
+    brand: 'Yale Secure',
+    modelNumber: 'Y-2024-L'
+  },
+  {
+    id: 'mock-ac-1',
+    name: 'Master Bedroom AC',
+    type: 'Thermostat',
+    status: 'active',
+    lastActivity: 'Just now',
+    brand: 'Nest Pro',
+    modelNumber: 'N-TERM-GEN3'
+  },
+  {
+    id: 'mock-dimmer-1',
+    name: 'Patio Uplights',
+    type: 'Dimmer Switch',
+    status: 'active',
+    lastActivity: 'Just now',
+    brand: 'Lutron Caseta',
+    modelNumber: 'L-DIM-01'
+  },
+  {
+    id: 'mock-camera-1',
+    name: 'Garage Entry Cam',
+    type: 'Security Camera',
+    status: 'active',
+    lastActivity: 'Just now',
+    brand: 'Ring Pro',
+    modelNumber: 'R-CAM-FLD'
+  }
+];
+
 interface DeviceStats {
   totalDevices: number;
   activeDevices: number;
@@ -34,7 +84,9 @@ interface UserDashboardProps {
 const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { userPlannerLeads } = useDevices();
   const [isNavigating, setIsNavigating] = useState(false);
+  const [activeRequestTab, setActiveRequestTab] = useState<'smart_home_planner' | 'floorplan' | 'ai_consultant'>('smart_home_planner');
   const [iconOn, setIconOn] = useState(false);
   useEffect(() => {
     const id = requestAnimationFrame(() => setIconOn(true));
@@ -293,13 +345,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
         // console.log('Processed user devices:', validDevices);
         
         if (isMounted) {
+          // Fallback to mock devices if none found in database
+          const finalDevices = validDevices.length > 0 ? validDevices : MOCK_DEVICES;
+          
           // Update both userDeviceOptions and userDevices with the same data
-          setUserDeviceOptions(validDevices);
+          setUserDeviceOptions(finalDevices);
           
           // Set the first device as default if none selected
-          if (validDevices.length > 0 && !reqDevice) {
-            // console.log('Setting default device:', validDevices[0]);
-            setReqDevice(validDevices[0].id);
+          if (finalDevices.length > 0 && !reqDevice) {
+            setReqDevice(finalDevices[0].id);
           }
         }
       } catch (error) {
@@ -765,6 +819,156 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                       <span className="text-sm font-medium text-gray-900 dark:text-white">Quote Portal</span>
                     )}
                   </Link>
+                  {/* Smart Scenes */}
+                  <a
+                    href="/scenes"
+                    className={`group flex flex-col items-center justify-center p-4 bg-soft-gray dark:bg-gray-800 rounded-[32px] hover:bg-teal/5 dark:hover:bg-teal/10 transition-all border border-transparent hover:border-teal/30`}
+                    aria-label="Open Scene Builder"
+                  >
+                    <div className="h-12 w-12 rounded-[18px] bg-teal/10 dark:bg-teal/20 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                      <Sparkles className="h-6 w-6 text-teal" />
+                    </div>
+                    <span className="text-xs font-black text-charcoal dark:text-white uppercase tracking-wider">Smart Scenes</span>
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* My Planning Requests Tabs */}
+            <div className="mb-6 bg-white dark:bg-gray-800 rounded-[24px] shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5 text-teal" />
+                  My Planning Requests
+                </h2>
+                <div className="flex bg-gray-100/50 dark:bg-gray-900/50 p-1 rounded-xl w-fit">
+                  {[
+                    { id: 'smart_home_planner', label: 'Home Planner', icon: Home },
+                    { id: 'floorplan', label: 'Floorplan', icon: Layout },
+                    { id: 'ai_consultant', label: 'AI Consultant', icon: Sparkles }
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveRequestTab(tab.id as any)}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                        activeRequestTab === tab.id
+                          ? 'bg-white dark:bg-gray-800 text-teal shadow-md ring-1 ring-black/5'
+                          : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                      }`}
+                    >
+                      <tab.icon size={14} />
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <AnimatePresence mode="wait">
+                    {userPlannerLeads
+                      .filter(lead => lead.source === activeRequestTab)
+                      .map((lead) => (
+                        <motion.div
+                          key={lead.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          className="group p-5 bg-gray-50/50 dark:bg-gray-900/30 rounded-[20px] border border-gray-100 dark:border-gray-800 hover:border-teal/50 transition-all shadow-sm flex flex-col h-full"
+                        >
+                          <div className="flex justify-between items-start mb-4">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              lead.status === 'accepted' || lead.status === 'Accepted'
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                                : lead.status === 'qualified'
+                                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                                : 'bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+                            }`}>
+                              {lead.status}
+                            </span>
+                            <span className="text-[10px] font-medium text-gray-400">
+                              {lead.createdAt instanceof Date ? lead.createdAt.toLocaleDateString() : 
+                               lead.createdAt?.toDate ? lead.createdAt.toDate().toLocaleDateString() : 'Recent'}
+                            </span>
+                          </div>
+
+                          <h3 className="text-sm font-bold text-gray-900 dark:text-white mb-2 line-clamp-1">
+                            {lead.source === 'floorplan' ? 'Floorplan Analysis' : 
+                             lead.source === 'ai_consultant' ? 'AI Recommendation' : 'Smart Home Plan'}
+                          </h3>
+                          
+                          <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 mb-4 flex-grow">
+                            {lead.summary || (lead.items ? `${lead.items.length} items planned` : 'Planning request submitted.')}
+                          </p>
+
+                          {/* Status Stepper */}
+                          <div className="mb-4">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                {lead.status === 'accepted' ? 'Processing' : 'Status'}
+                              </span>
+                              <span className={`text-[10px] font-black uppercase ${
+                                lead.status === 'accepted' ? 'text-emerald-500' : 'text-teal'
+                              }`}>
+                                {lead.status || 'new'}
+                              </span>
+                            </div>
+                            <div className="flex gap-1.5 h-1.5">
+                              {['new', 'contacted', 'qualified', 'accepted', 'closed'].map((step, idx) => {
+                                const currentStatus = (lead.status || 'new').toLowerCase();
+                                const statusLabels = ['new', 'contacted', 'qualified', 'accepted', 'closed'];
+                                const statusIdx = statusLabels.indexOf(currentStatus);
+                                const isCurrent = currentStatus === step;
+                                const isPast = idx < statusIdx;
+                                return (
+                                  <div 
+                                    key={step} 
+                                    title={step.toUpperCase()}
+                                    className={`flex-1 rounded-full transition-all duration-500 ${
+                                      isCurrent 
+                                        ? step === 'accepted' ? 'bg-emerald-500 ring-2 ring-emerald-500/20' : 'bg-teal ring-2 ring-teal-500/20'
+                                        : isPast 
+                                        ? step === 'accepted' || currentStatus === 'accepted' ? 'bg-emerald-400/60' : 'bg-teal/40'
+                                        : 'bg-gray-200 dark:bg-gray-800'
+                                    }`}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {(lead.adminAccepted || lead.status === 'accepted' || lead.status === 'Accepted') && (
+                            <div className="mt-auto pt-4 border-t border-gray-100 dark:border-gray-700/50">
+                              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-[10px] bg-emerald-50 dark:bg-emerald-900/10 py-2 px-3 rounded-xl">
+                                <span className="relative flex h-2 w-2">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                                </span>
+                                Requirement Accepted
+                              </div>
+                              <p className="mt-2 text-[9px] text-gray-400 leading-tight">
+                                Our experts are working on your plan. We'll contact you for next steps.
+                              </p>
+                            </div>
+                          )}
+                        </motion.div>
+                      ))}
+                  </AnimatePresence>
+                  
+                  {userPlannerLeads.filter(l => l.source === activeRequestTab).length === 0 && (
+                    <div className="col-span-full py-12 flex flex-col items-center justify-center text-center opacity-60">
+                      <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+                        <ClipboardList className="text-gray-400" size={24} />
+                      </div>
+                      <p className="text-sm font-medium text-gray-500">No {activeRequestTab.replace('_', ' ')} requests yet.</p>
+                      <button 
+                        onClick={() => navigate(activeRequestTab === 'ai_consultant' ? '/consultant' : '/services')}
+                        className="mt-4 text-xs font-bold text-teal hover:underline"
+                      >
+                        Start a new request
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
