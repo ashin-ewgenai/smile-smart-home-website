@@ -3,9 +3,13 @@ import { onAuthStateChanged, type User, GoogleAuthProvider, signInWithPopup } fr
 import { collection, getDocs, onSnapshot, query, where, or, orderBy, Timestamp, addDoc, setDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db, functions, uploadRoomPhoto } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
+import { motion, AnimatePresence } from 'framer-motion';
+import { AlertCircle, CheckCircle, Info, AlertTriangle, X } from 'lucide-react';
 import type { ContactRequest, PlannerLead, SupportTicket, QuoteItem } from '../models/Collections';
 import { quotesCollection } from '../models/Collections';
 import type { DeviceRecommendation, RecommendationRequest, RoomVisualizationResult } from '../models';
+
+// UI Components integrated directly to comply with "no new files" constraint
 
 // Types aligned with AboutDevices.tsx to minimize refactor
 interface SerialItem {
@@ -44,6 +48,39 @@ export type DeviceDoc = {
   documentationUrl?: string;
   serials?: SerialItem[];
   health?: DeviceHealth;
+};
+
+/**
+ * Translates technical error messages (like Firebase internal errors) 
+ * into user-friendly, professional messages.
+ * Consolidated here to keep the application stable within a specific file subset commit.
+ */
+export const getFriendlyErrorMessage = (err: any): string => {
+  if (typeof window !== 'undefined' && !window.navigator.onLine) {
+    return "No internet connection. Please check your network and try again.";
+  }
+  
+  if (typeof err === 'string') {
+    if (err.toLowerCase().includes('internal')) return "Our secondary services are briefly busy. Please try again soon.";
+    return err;
+  }
+
+  const code = err?.code || (err?.message?.includes('internal') ? 'internal' : 'unknown');
+  
+  switch (code) {
+    case 'internal':
+      return "Our secondary services are briefly busy. Please try again in a few moments.";
+    case 'unavailable':
+      return "The cloud service is currently unreachable. Please check your connection.";
+    case 'deadline-exceeded':
+      return "The request timed out. This can happen on slower connections.";
+    case 'permission-denied':
+      return "You don't have permission to perform this action.";
+    case 'unauthenticated':
+      return "Your session has expired. Please sign in again.";
+    default:
+      return err?.message || "An unexpected error occurred. Please try again.";
+  }
 };
 
 export const MOCK_DEVICES: DeviceDoc[] = [
@@ -170,6 +207,24 @@ export const MOCK_SCENES: any[] = [
   }
 ];
 
+export type NotificationType = 'success' | 'error' | 'warning' | 'info';
+export type NotificationMode = 'snackbar' | 'modal';
+
+export interface NotificationState {
+  message: React.ReactNode | null;
+  type: NotificationType;
+  mode: NotificationMode;
+  isOpen: boolean;
+  title?: string;
+}
+
+export interface CriticalErrorState {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  onRetry?: () => void;
+}
+
 interface DevicesContextValue {
   devices: DeviceDoc[];
   planLeads: PlannerLead[];
@@ -225,6 +280,14 @@ interface DevicesContextValue {
   userPlannerLeads: PlannerLead[];
   currentUser: User | null;
   loginWithGoogle: () => Promise<User>;
+  // Global Notification
+  notification: NotificationState;
+  showNotification: (params: { message: React.ReactNode; type?: NotificationType; mode?: NotificationMode; title?: string }) => void;
+  hideNotification: () => void;
+  // Critical Error Modal
+  criticalError: CriticalErrorState;
+  showCriticalError: (params: { title: string; message: string; onRetry?: () => void }) => void;
+  hideCriticalError: () => void;
 }
 
 export const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -274,6 +337,55 @@ function getUserWarranty(userData: any, serialHint?: string): any {
   }
 }
 
+/** 
+ * Integrated Snackbar Component
+ * Standardized for transient, non-blocking feedback.
+ */
+const Snackbar: React.FC<{
+  isOpen: boolean;
+  message: React.ReactNode;
+  type: NotificationType;
+  onClose: () => void;
+}> = ({ isOpen, message, type, onClose }) => (
+  <AnimatePresence>
+    {isOpen && (
+      <motion.div
+        initial={{ opacity: 0, y: 50, scale: 0.9 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 20, scale: 0.9 }}
+        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[10000] w-full max-w-md px-4 pointer-events-none"
+        role="alert"
+        aria-live="polite"
+      >
+        <div className={`
+          backdrop-blur-xl border p-4 rounded-2xl shadow-2xl flex items-start gap-4 pointer-events-auto
+          ${type === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-100' :
+            type === 'success' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-100' :
+            type === 'warning' ? 'bg-amber-500/20 border-amber-500/30 text-amber-100' :
+            'bg-blue-500/20 border-blue-500/30 text-blue-100'}
+        `}>
+          <div className="mt-0.5 shrink-0">
+            {type === 'error' && <AlertCircle className="w-5 h-5 text-red-400" />}
+            {type === 'success' && <CheckCircle className="w-5 h-5 text-emerald-400" />}
+            {type === 'info' && <Info className="w-5 h-5 text-blue-400" />}
+            {type === 'warning' && <AlertTriangle className="w-5 h-5 text-amber-400" />}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold leading-relaxed">{message}</p>
+          </div>
+          <button 
+            onClick={onClose}
+            className="mt-0.5 opacity-40 hover:opacity-100 transition-opacity p-1 -mr-1 rounded-lg hover:bg-white/10"
+            aria-label="Close notification"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      </motion.div>
+    )}
+  </AnimatePresence>
+);
+
 export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
@@ -315,6 +427,60 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [adminAccepted, setAdminAccepted] = useState<boolean>(false);
   const [userPlannerLeads, setUserPlannerLeads] = useState<PlannerLead[]>([]);
 
+  // ── Global Notification State ──────────────────────────────────────────
+  const [notification, setNotification] = useState<NotificationState>({
+    message: null,
+    type: 'info',
+    mode: 'snackbar',
+    isOpen: false,
+    title: ''
+  });
+
+  const [criticalError, setCriticalError] = useState<CriticalErrorState>({
+    isOpen: false,
+    title: '',
+    message: '',
+  });
+
+
+  const showNotification = useCallback((params: { 
+    message: React.ReactNode; 
+    type?: NotificationType; 
+    mode?: NotificationMode; 
+    title?: string 
+  }) => {
+    setNotification({
+      message: params.message,
+      type: params.type || 'info',
+      mode: params.mode || 'snackbar',
+      isOpen: true,
+      title: params.title || (params.type === 'error' ? 'Error' : params.type === 'success' ? 'Success' : 'Notice')
+    });
+
+    // Auto-hide snackbars after 6 seconds
+    if ((params.mode || 'snackbar') === 'snackbar') {
+      setTimeout(() => {
+        setNotification(prev => ({ ...prev, isOpen: false }));
+      }, 6000);
+    }
+  }, []);
+
+  const hideNotification = useCallback(() => {
+    setNotification(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
+  const showCriticalError = useCallback(({ title, message, onRetry }: { 
+    title: string; 
+    message: string; 
+    onRetry?: () => void;
+  }) => {
+    setCriticalError({ isOpen: true, title, message, onRetry });
+  }, []);
+
+  const hideCriticalError = useCallback(() => {
+    setCriticalError(prev => ({ ...prev, isOpen: false }));
+  }, []);
+
   const setRoomPhoto = useCallback((file: File) => {
     setRoomPhotoFile(file);
     setUploadError(null);
@@ -338,13 +504,24 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const uploadAndAnalyzeRoom = useCallback(async (deviceNames: string[]) => {
     if (!roomPhoto) {
-      setUploadError('Please select a room photo first.');
+      showNotification({ message: 'Please select a room photo first.', type: 'warning' });
       return;
     }
     if (!uid) {
-      setUploadError('Please sign in to use Room Visualizer.');
+      showNotification({ 
+        message: 'Please sign in to use Room Visualizer.', 
+        type: 'warning'
+      });
       return;
     }
+    if (!window.navigator.onLine) {
+      showNotification({ 
+        message: 'No internet connection. Please check your network and try again.', 
+        type: 'error'
+      });
+      return;
+    }
+
     if (analysisInFlight.current) return;
     analysisInFlight.current = true;
 
@@ -395,14 +572,14 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
         planText: `Room Type: ${data.roomType}\nLighting: ${data.lightingQuality}\nWiFi: ${data.wifiCoverageNote}\n\nInsight: ${data.generalInsight}`
       });
     } catch (err: any) {
-      console.error("AI Room Analysis Failed:", {
-         message: err?.message,
-         code: err?.code,
-         details: err?.details,
-         error: err
-      });
-      const msg = err?.message || 'An error occurred during analysis.';
+      console.error("AI Room Analysis Failed:", err);
+      const msg = getFriendlyErrorMessage(err);
       setVisualizationError(msg);
+      showCriticalError({ 
+        title: 'Analysis Failed',
+        message: msg,
+        onRetry: () => uploadAndAnalyzeRoom(deviceNames)
+      });
     } finally {
       setUploadLoading(false);
       setVisualizationLoading(false);
@@ -746,13 +923,26 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const saveScene = useCallback(async (scene: any) => {
     if (!uid) throw new Error('Must be logged in to save scenes.');
+    if (!window.navigator.onLine) {
+      showNotification({ 
+        message: 'No internet connection. Please check your network and try again.', 
+        type: 'error'
+      });
+      return;
+    }
     setSceneLoading(true);
     try {
       const saveSceneFn = httpsCallable<any, { status: string; id: string }>(functions, 'saveUserScene');
       await saveSceneFn({ scene });
       await fetchScenes();
-    } catch (err) {
+      showNotification({ message: 'Scene saved successfully!', type: 'success' });
+    } catch (err: any) {
       console.error('Failed to save scene:', err);
+      const msg = getFriendlyErrorMessage(err);
+      showNotification({ 
+        message: msg, 
+        type: 'error'
+      });
       throw err;
     } finally {
       setSceneLoading(false);
@@ -761,13 +951,26 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const deleteScene = useCallback(async (sceneId: string) => {
     if (!uid) throw new Error('Must be logged in to delete scenes.');
+    if (!window.navigator.onLine) {
+      showNotification({ 
+        message: 'No internet connection. Please check your network and try again.', 
+        type: 'error'
+      });
+      return;
+    }
     setSceneLoading(true);
     try {
       const deleteFn = httpsCallable<any, { status: string }>(functions, 'deleteUserScene');
       await deleteFn({ sceneId });
       await fetchScenes();
-    } catch (err) {
+      showNotification({ message: 'Scene deleted.', type: 'success' });
+    } catch (err: any) {
       console.error('Failed to delete scene:', err);
+      const msg = getFriendlyErrorMessage(err);
+      showNotification({ 
+        message: msg, 
+        type: 'error'
+      });
       throw err;
     } finally {
       setSceneLoading(false);
@@ -783,8 +986,9 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       });
       setRecommendations(response.data.recommendations);
     } catch (err: any) {
-      console.error('Failed to fetch recommendations:', err);
-      setError(err.message || 'Failed to get recommendations');
+      const msg = getFriendlyErrorMessage(err);
+      setError(msg);
+      showNotification({ message: msg, type: 'error' });
     } finally {
       setRecommendationLoading(false);
     }
@@ -948,7 +1152,13 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     startLiveConsultation,
     userPlannerLeads,
     currentUser,
-    loginWithGoogle
+    loginWithGoogle,
+    notification,
+    showNotification,
+    hideNotification,
+    criticalError,
+    showCriticalError,
+    hideCriticalError
   }), [
     devices, planLeads, contactSubmissions, reports, filteredPlanLeads,
     filteredContactSubmissions, filteredReports, searchQuery, filterCriteria,
@@ -961,12 +1171,149 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     visualizationLoading, visualizationData, visualizationError,
     setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom,
     activeConsultationId, consultationLoading, startLiveConsultation,
-    userPlannerLeads, currentUser, loginWithGoogle
+    userPlannerLeads, currentUser, loginWithGoogle, notification,
+    showNotification, hideNotification,
+    criticalError, showCriticalError, hideCriticalError
   ]);
 
   return (
     <DevicesContext.Provider value={value}>
       {children}
+      
+      
+      {/* ── Notification Components ── */}
+
+      {/* Global Snackbar for transient notifications */}
+      <Snackbar 
+        isOpen={notification.isOpen && notification.mode === 'snackbar'}
+        message={notification.message}
+        type={notification.type}
+        onClose={hideNotification}
+      />
+
+      {/* Global Modals for critical / blocking feedback */}
+      <AnimatePresence>
+        {notification.isOpen && notification.mode === 'modal' && (
+          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={hideNotification}
+              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-lg bg-[#0A0A0B] border border-white/10 rounded-3xl shadow-2xl overflow-hidden"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="modal-title"
+            >
+              <div className={`h-1.5 w-full ${
+                notification.type === 'error' ? 'bg-red-500' :
+                notification.type === 'success' ? 'bg-emerald-500' :
+                'bg-blue-500'
+              }`} />
+              <div className="p-8">
+                <div className="flex items-center gap-4 mb-6">
+                  <div className={`p-3 rounded-2xl ${
+                    notification.type === 'error' ? 'bg-red-500/10 text-red-500' :
+                    notification.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' :
+                    'bg-blue-500/10 text-blue-500'
+                  }`}>
+                    {notification.type === 'error' && <AlertCircle className="w-8 h-8" />}
+                    {notification.type === 'success' && <CheckCircle className="w-8 h-8" />}
+                    {notification.type === 'info' && <Info className="w-8 h-8" />}
+                    {notification.type === 'warning' && <AlertTriangle className="w-8 h-8" />}
+                  </div>
+                  <h3 id="modal-title" className="text-2xl font-bold text-white leading-none">
+                    {notification.title || (notification.type === 'error' ? 'Error' : 'Notification')}
+                  </h3>
+                </div>
+                
+                <p className="text-white/60 text-lg leading-relaxed mb-8">
+                  {notification.message}
+                </p>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={hideNotification}
+                    className={`
+                      px-8 py-3 rounded-xl font-semibold transition-all
+                      ${notification.type === 'error' ? 'bg-red-500 hover:bg-red-600' :
+                        notification.type === 'success' ? 'bg-emerald-500 hover:bg-emerald-600' :
+                        'bg-white text-black hover:bg-white/90'}
+                    `}
+                  >
+                    Got it
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+
+        {criticalError.isOpen && (
+          <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={hideCriticalError}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              className="relative w-full max-w-md bg-gradient-to-b from-charcoal to-[#050505] border border-red-500/20 rounded-[2.5rem] shadow-[0_0_50px_rgba(239,68,68,0.2)] overflow-hidden"
+              role="alertdialog"
+              aria-modal="true"
+            >
+              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-50" />
+              <div className="absolute -top-24 -right-24 w-48 h-48 bg-red-500/10 rounded-full blur-[60px]" />
+              
+              <div className="p-10">
+                <div className="flex flex-col items-center text-center">
+                  <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(239,68,68,0.1)]">
+                    <AlertCircle className="w-10 h-10 text-red-500" />
+                  </div>
+                  
+                  <h3 className="text-2xl font-black text-white mb-3 tracking-tight">
+                    {criticalError.title}
+                  </h3>
+                  
+                  <p className="text-slate-400 leading-relaxed mb-8 font-medium">
+                    {criticalError.message}
+                  </p>
+                  
+                  <div className="w-full flex flex-col gap-3">
+                    {criticalError.onRetry && (
+                      <button
+                        onClick={() => {
+                          criticalError.onRetry?.();
+                          hideCriticalError();
+                        }}
+                        className="w-full py-4 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-bold transition-all shadow-lg shadow-red-500/20 hover:scale-[1.02] active:scale-[0.98]"
+                      >
+                        Try Again
+                      </button>
+                    )}
+                    <button
+                      onClick={hideCriticalError}
+                      className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all border border-white/5"
+                    >
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </DevicesContext.Provider>
   );
 };

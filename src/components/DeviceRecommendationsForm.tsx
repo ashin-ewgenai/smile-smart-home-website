@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Home, Shield, IndianRupee, ArrowRight, ArrowLeft, Loader2, CheckCircle2, ChevronRight, Heart, Activity, Wifi, Battery, AlertTriangle, Clock, Lightbulb, Lock, Thermometer, SlidersHorizontal, Camera, MapPin, MessageCircle } from 'lucide-react';
 import { useDevices } from '../contexts/DevicesContext';
@@ -66,28 +66,46 @@ export const DeviceRecommendationsForm: React.FC = () => {
     acceptedAt
   } = useDeviceRecommendations();
 
-  const [activeTab, setActiveTab] = useState<'consultant' | 'health' | 'visualizer'>('consultant');
+  const [activeTab, setActiveTab] = useState<'consultant' | 'health'>('consultant');
   const [savingId, setSavingId] = React.useState<string | null>(null);
   const [savedIds, setSavedIds] = React.useState<Set<string>>(new Set());
-  const [saveError, setSaveError] = React.useState<string | null>(null);
   
   const { notifyQuoteAction, isSending, sendSuccess, sendError, whatsappStatus } = useQuoteRequest();
+  const { showNotification } = useDevices();
   const [recipientEmail, setRecipientEmail] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [showContactForm, setShowContactForm] = useState(false);
 
+  useEffect(() => {
+    if (sendSuccess) {
+      showNotification({
+        message: 'Your smart home quote has been sent successfully!',
+        type: 'success'
+      });
+    }
+  }, [sendSuccess, showNotification]);
+
   const handleSave = async (device: DeviceRecommendation) => {
     if (!uid) {
-      setSaveError('Please log in to save items to your plan.');
+      showNotification({ 
+        message: 'Please log in to save items to your plan.', 
+        type: 'warning' 
+      });
       return;
     }
     setSavingId(device.name);
-    setSaveError(null);
     try {
       await saveRecommendationToQuote(device);
       setSavedIds(prev => new Set(prev).add(device.name));
+      showNotification({
+        message: `${device.name} added to your plan.`,
+        type: 'success'
+      });
     } catch (err: any) {
-      setSaveError(err.message || 'Failed to save to plan');
+      showNotification({
+        message: err.message || 'Failed to save to plan',
+        type: 'error'
+      });
     } finally {
       setSavingId(null);
     }
@@ -161,13 +179,6 @@ export const DeviceRecommendationsForm: React.FC = () => {
             >
               Device Health
               {activeTab === 'health' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 bg-yellow-400 rounded-full" />}
-            </button>
-            <button 
-              onClick={() => setActiveTab('visualizer')}
-              className={`pb-4 px-2 font-bold transition-all relative ${activeTab === 'visualizer' ? 'text-white' : 'text-white/60 hover:text-white/80'}`}
-            >
-              AI Room Visualizer
-              {activeTab === 'visualizer' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 bg-yellow-400 rounded-full" />}
             </button>
           </div>
         </div>
@@ -303,21 +314,6 @@ export const DeviceRecommendationsForm: React.FC = () => {
                     })
                   )}
                 </div>
-              </motion.div>
-            ) : activeTab === 'visualizer' ? (
-              <motion.div key="visualizer" variants={stepVariants} initial="hidden" animate="visible" exit="exit" className="space-y-6">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                    <Camera className="text-teal" />
-                    AI Room Visualizer
-                  </h3>
-                  <div className="text-xs text-slate-500 bg-slate-100 dark:bg-gray-800 px-3 py-1 rounded-full flex items-center gap-2">
-                    <MapPin size={12} className="text-teal" />
-                    Interactive Visualization
-                  </div>
-                </div>
-                
-                <RoomVisualization />
               </motion.div>
             ) : (
               <motion.div key="consultant" variants={stepVariants} initial="hidden" animate="visible" exit="exit">
@@ -455,8 +451,6 @@ export const DeviceRecommendationsForm: React.FC = () => {
                         </motion.div>
                       )}
                     </AnimatePresence>
-                    {error && <div className="p-4 bg-red-50 border border-red-100 text-red-600 rounded-xl text-sm">{error}</div>}
-                    {saveError && <div className="p-4 bg-amber-50 border border-amber-100 text-amber-700 rounded-xl text-sm flex items-center gap-2"><Shield size={16} />{saveError}</div>}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {recommendations.map((device, i) => (
                         <motion.div key={device.name} custom={i} variants={itemVariants} className="group p-5 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 hover:border-teal transition-all shadow-sm">
@@ -550,6 +544,14 @@ export const DeviceRecommendationsForm: React.FC = () => {
                             <button 
                               disabled={isSending || !recipientEmail}
                               onClick={() => {
+                                if (!window.navigator.onLine) {
+                                  showNotification({
+                                    message: 'No internet connection. Please check your network and try again.',
+                                    type: 'error'
+                                  });
+                                  return;
+                                }
+
                                 console.log("[DEBUG] Button clicked, email:", recipientEmail);
                                 notifyQuoteAction({
                                   type: 'quote_submitted',
@@ -574,12 +576,11 @@ export const DeviceRecommendationsForm: React.FC = () => {
                               )}
                             </button>
                             {sendSuccess && (
-                              <div className="flex items-center gap-2 text-green-600 text-sm">
+                              <div className="flex items-center gap-2 text-emerald-500 text-sm font-semibold animate-in fade-in slide-in-from-top-1">
                                 <CheckCircle2 size={16} />
                                 <span>Quote sent successfully!</span>
                               </div>
                             )}
-                            {sendError && <p className="text-red-500 text-xs font-medium">{sendError}</p>}
                           </div>
                         </div>
                       )}

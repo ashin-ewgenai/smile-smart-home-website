@@ -19,6 +19,7 @@ import { getAuth } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { db } from '../lib/firebase';
 import emailjs from '@emailjs/browser';
+import { useDevices, getFriendlyErrorMessage } from '../contexts/DevicesContext';
 
 // EmailJS Configuration - Environment variables would be preferred for production
 const EMAILJS_SERVICE_ID = 'service_fd3vtgc';
@@ -75,8 +76,11 @@ export async function submitSpaceRequest(payload: SpaceRequestPayload): Promise<
     roomData.phone = payload.phone;
   }
 
+  const auth = getAuth();
+  
   await addDoc(collection(db, 'Planner_Leads'), {
     email: payload.email.toLowerCase().trim(),
+    uid: auth.currentUser?.uid || '',
     phoneNumber: payload.phone || '', 
     source: 'floorplan',
     status: 'new',
@@ -163,6 +167,7 @@ function buildEmailHtml(params: {
 </html>`;
 }
 export function useQuoteRequest() {
+  const { showNotification } = useDevices();
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
@@ -244,14 +249,24 @@ export function useQuoteRequest() {
         result.whatsappSkipped = true;
       }
 
+      console.log('[notifyQuoteAction] End-to-end send successful.');
+      showNotification({ 
+        message: 'Your quote setup has been sent to your email successfully.', 
+        type: 'success' 
+      });
+
       return result;
     } catch (err: any) {
       console.error('[notifyQuoteAction] ERROR:', err);
-      const message = err?.message || err?.toString() || 'Failed to send email notification';
+      const message = getFriendlyErrorMessage(err);
       setSendError(message);
       setWhatsappStatus('failed');
-      // Also show alert for visibility during testing
-      window.alert('Email Error: ' + message);
+      
+      showNotification({ 
+        message: 'Delivery Error: ' + message, 
+        type: 'error'
+      });
+      
       throw err;
     } finally {
       setIsSending(false);

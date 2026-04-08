@@ -19,6 +19,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { useSceneManagement, getIconByName, SCENE_TEMPLATES } from '../hooks/useSceneManagement';
+import { useDevices } from '../contexts/DevicesContext';
 
 export const SceneBuilder: React.FC = () => {
   const {
@@ -37,6 +38,8 @@ export const SceneBuilder: React.FC = () => {
     templates,
     devices
   } = useSceneManagement();
+
+  const { showCriticalError } = useDevices();
 
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -61,6 +64,31 @@ export const SceneBuilder: React.FC = () => {
     { title: '2. Link Devices', desc: 'Connect your lights, locks, and sensors.' },
     { title: '3. Set Actions', desc: 'Define exactly what happens on activation.' }
   ];
+
+  const wrappedHandleSave = async () => {
+    try {
+      await handleSave();
+    } catch (err) {
+      showCriticalError({
+        title: 'Save Failed',
+        message: 'We couldn\'t save your scene. This usually happens due to a network interruption or permission issue.',
+        onRetry: wrappedHandleSave
+      });
+    }
+  };
+
+  const wrappedDeleteScene = async (id: string) => {
+    try {
+      await deleteScene(id);
+      setDeleteConfirm(null);
+    } catch (err) {
+      showCriticalError({
+        title: 'Delete Failed',
+        message: 'The scene could not be removed. Please check your connection and try again.',
+        onRetry: () => wrappedDeleteScene(id)
+      });
+    }
+  };
 
   if (isEditing && currentScene) {
     return (
@@ -241,7 +269,7 @@ export const SceneBuilder: React.FC = () => {
                   <X size={18} /> Discard
                 </button>
                 <button 
-                  onClick={handleSave}
+                  onClick={wrappedHandleSave}
                   disabled={sceneLoading || !currentScene.name}
                   className="w-full sm:w-auto bg-gradient-to-r from-teal to-blue-600 text-white px-12 py-5 rounded-[24px] font-bold flex items-center justify-center gap-3 hover:scale-[1.02] transition-all disabled:opacity-50 shadow-[0_10px_30px_rgba(0,150,136,0.3)]"
                 >
@@ -422,7 +450,7 @@ export const SceneBuilder: React.FC = () => {
                     <h3 className="text-3xl font-bold text-slate-800 dark:text-white mb-3 tracking-tight">{scene.name}</h3>
                     <div className="flex items-center gap-3 mb-10">
                       <div className="flex -space-x-2">
-                        {(scene.actions || []).slice(0, 3).map((_, idx) => (
+                        {(scene.actions || []).slice(0, 3).map((_: any, idx: number) => (
                           <div key={idx} className="w-6 h-6 rounded-full border-2 border-white dark:border-gray-900 bg-teal/20 flex items-center justify-center text-[8px] font-bold text-teal">
                               D
                           </div>
@@ -560,10 +588,7 @@ export const SceneBuilder: React.FC = () => {
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    deleteScene(deleteConfirm);
-                    setDeleteConfirm(null);
-                  }}
+                  onClick={() => wrappedDeleteScene(deleteConfirm)}
                   className="px-8 py-5 rounded-[24px] font-bold text-white bg-red-500 hover:bg-red-600 shadow-xl shadow-red-500/20 transition-all"
                 >
                   Confirm

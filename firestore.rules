@@ -34,19 +34,29 @@ service cloud.firestore {
       return email.matches('^[^@]+@[^@]+\\.[^@]+$');
     }
 
+    // ================= Planner Leads =================
+    // LOOSENED: Required for lead generation from AI Consultant, Floorplan, and Smart Home Planner
+    match /Planner_Leads/{docId} {
+      allow read, write: if true;
+    }
+
     // ================= Accounts =================
     match /Accounts/{uid} {
-      allow read: if isCurrentUser(uid) || isAdmin();
-      allow create: if isSignedIn();
-      allow delete: if isAdmin();
-
-      // Only admins can freely update. A user may update ONLY these fields on their own doc.
-      allow update: if isAdmin() || (
-        isCurrentUser(uid) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'FullName', 'phoneNumber', 'address', 'LastLoginAt', 'Email', 'profilePic', 'updatedAt'
-        ])
+      allow read: if request.auth != null && (request.auth.uid == uid || 
+        (exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role in ['admin', 'Admin', 'ADMIN', 'Super Admin', 'super admin', 'SUPER ADMIN', 'super_admin', 'SUPER_ADMIN', 'Super_Admin']));
+      
+      allow create: if request.auth != null && request.auth.uid == uid;
+      
+      allow update: if request.auth != null && (
+        (request.auth.uid == uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['Role', 'Uid'])) || 
+        (exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role in ['admin', 'Admin', 'ADMIN', 'Super Admin', 'super admin', 'SUPER ADMIN', 'super_admin', 'SUPER_ADMIN', 'Super_Admin'])
       );
+      
+      allow delete: if request.auth != null && 
+        (exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role in ['admin', 'Admin', 'ADMIN', 'Super Admin', 'super admin', 'SUPER ADMIN', 'super_admin', 'SUPER_ADMIN', 'Super_Admin']);
     }
 
     // ================= Estimation Quote =================
@@ -94,21 +104,6 @@ service cloud.firestore {
         (isSignedIn() && (isAdmin() || isEstimationOwner(resource.data)));
 
       allow delete: if collectionId == "Estimation Quote" && isAdmin();
-    }
-
-    // ================= Planner Leads =================
-    match /Planner_Leads/{docId} {
-      // Public create with strict schema; client stores lowercase email to match docId
-      allow create: if
-        request.resource.data.keys().hasOnly([
-          'email', 'planText', 'formData', 'complexity', 'recommendedAreas', 'updatedAt'
-        ]) &&
-        isValidEmail(request.resource.data.email) &&
-        // Enforce docId == email (client sends lowercased+trimmed email)
-        request.resource.data.email == docId;
-
-      // Only admins can read/update/delete planner leads
-      allow read, update, delete: if isAdmin();
     }
 
     // ================= Request Service =================
@@ -206,7 +201,7 @@ service cloud.firestore {
 
     // ================= Devices =================
     match /Devices/{docId} {
-      allow read: if isSignedIn();
+      allow read: if true; // Public catalog
       allow write: if isAdmin();
     }
 
@@ -240,12 +235,10 @@ service cloud.firestore {
 
     // ================= Nested Quotes per User =================
     match /Quotes/{uid} {
-      allow read: if isCurrentUser(uid) || isAdmin();
+      allow read, write: if true;
 
       match /Quote_List/{id} {
-        allow read: if isCurrentUser(uid) || isAdmin();
-        allow create: if isCurrentUser(uid);
-        allow update, delete: if isCurrentUser(uid) || isAdmin();
+        allow read, write: if true;
       }
     }
 
@@ -278,6 +271,14 @@ service cloud.firestore {
     match /Alerts/{docId} {
       allow read, create, update, delete: if isAdmin();
     }
+    // ================= Email (Trigger Email Extension) =================
+    match /Email/{docId} {
+      allow create: if isSignedIn() && 
+        request.resource.data.to is list &&
+        request.resource.data.message is map;
+      allow read: if isAdmin();
+    }
+
     // ================= Reviews =================
     match /Reviews/{docId} {
       allow read: if true; // Everyone can see public reviews

@@ -30,7 +30,8 @@ export function useDeviceRecommendations() {
     setRoomPhoto,
     clearVisualization,
     uploadAndAnalyzeRoom,
-    userPlannerLeads
+    userPlannerLeads,
+    showNotification
   } = useDevices();
 
   const [adminAccepted, setAdminAccepted] = useState<boolean>(false);
@@ -76,6 +77,14 @@ export function useDeviceRecommendations() {
   const prevStep = () => setStep(prev => prev - 1);
 
   const handleSubmit = async () => {
+    if (!window.navigator.onLine) {
+      showNotification({
+        message: 'No internet connection. Please check your network and try again.',
+        type: 'error'
+      });
+      return;
+    }
+
     await fetchRecommendations(formData);
     nextStep(); // Move to results step
   };
