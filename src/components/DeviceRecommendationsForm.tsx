@@ -1,3 +1,19 @@
+/**
+ * DeviceRecommendationsForm.tsx
+ * File: src/components/DeviceRecommendationsForm.tsx
+ *
+ * README Usage Documentation Reference:
+ * This component is documented in README.md "Usage" section under:
+ * "User Workflow: AI Device Recommendations (src/components/DeviceRecommendationsForm.tsx)"
+ *
+ * Features:
+ * - 4-step AI Consultant Wizard: house size → security → budget → AI recommendations
+ * - Device Health Dashboard: real-time health scores, battery, signal, alerts
+ * - Quote Actions: save to plan, send quotes via Email & WhatsApp
+ * - Uses: useDeviceRecommendations(), useQuoteRequest(), useDevices() contexts
+ *
+ * See README.md Usage section for detailed workflow examples.
+ */
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Home, Shield, IndianRupee, ArrowRight, ArrowLeft, Loader2, CheckCircle2, ChevronRight, Heart, Activity, Wifi, Battery, AlertTriangle, Clock, Lightbulb, Lock, Thermometer, SlidersHorizontal, Camera, MapPin, MessageCircle } from 'lucide-react';

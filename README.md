@@ -25,7 +25,9 @@ The Smile Smart Homes Website is a modern web application that combines static s
 
 The project uses a monorepo structure with npm workspaces, allowing seamless dependency management between the main web application and Firebase Cloud Functions.
 
-## 📁 Project Structure
+## Project Structure
+
+<!-- Project Structure section - reflects actual folder and file organization for src/, functions/, hooks/ -->
 
 This section describes the folder and file organization for `src/`, `functions/`, and `hooks/`.
 
@@ -71,7 +73,7 @@ This section describes the folder and file organization for `src/`, `functions/`
 └── firebase.json                # Firebase configuration
 ```
 
-## ⚙️ Environment Variables and Configuration
+## Environment Variables and Configuration
 
 This section documents all required environment variables and configuration settings from `functions/src/` and `src/middleware.ts`.
 
@@ -535,7 +537,9 @@ FIREBASE_PROJECT_ID=smile-smart-homes
 
 This modular architecture ensures scalability, maintainability, and clear separation of concerns between frontend and backend components.
 
-## 🚀 Installation
+## Installation
+
+<!-- Installation section - complete and tested for fresh environment setup -->
 
 This section provides tested instructions for setting up the project in a fresh environment.
 
@@ -683,13 +687,15 @@ npm run functions:deploy
 - `functions/package.json` uses Node `"engines": { "node": "20" }` (as of latest update).
 - The `@astrojs/node` adapter is available in devDependencies but not currently used (static output mode).
 
-## 📖 Usage
+## Usage
 
-This section describes the current user and developer workflows, including how to use `DeviceRecommendationsForm.tsx`, `RoomVisualization.tsx`, and `SceneBuilder.tsx` components, as well as `DevicesContext.tsx` for state management.
+<!-- Usage section - describes current workflows and references src/components/DeviceRecommendationsForm.tsx and src/contexts/DevicesContext.tsx -->
 
-### User Workflow: AI Device Recommendations
+This section describes the current user and developer workflows, including how to use `src/components/DeviceRecommendationsForm.tsx`, `src/components/RoomVisualization.tsx`, and `src/components/SceneBuilder.tsx` components, as well as `src/contexts/DevicesContext.tsx` for state management.
 
-1. **Navigate to the recommendations page** containing `DeviceRecommendationsForm.tsx`
+### User Workflow: AI Device Recommendations (`src/components/DeviceRecommendationsForm.tsx`)
+
+1. **Navigate to the recommendations page** containing the DeviceRecommendationsForm component
 2. **Complete the 4-step wizard**:
    - Step 1: Select house size (1 BHK, 2 BHK, etc.)
    - Step 2: Choose security priority level
@@ -698,7 +704,7 @@ This section describes the current user and developer workflows, including how t
 3. **Save recommendations** to your quote plan using the heart icon
 4. **Send quote** via Email & WhatsApp using the contact form
 
-**Using `useDeviceRecommendations()` hook**:
+**Using `useDeviceRecommendations()` hook** (defined in `src/hooks/useDeviceRecommendations.tsx`):
 ```typescript
 const { 
   step,           // Current wizard step (1-4)
@@ -709,16 +715,14 @@ const {
 } = useDeviceRecommendations();
 ```
 
-### User Workflow: Room Visualization
-
-1. **Access Room Visualizer** (`RoomVisualization.tsx`)
+### User Workflow: Room Visualization (`src/components/RoomVisualization.tsx`)
 2. **Upload a room photo** (JPEG/PNG/WebP, max 10MB)
 3. **Select devices** to place from recommendations or fallback list
 4. **Click "Analyze My Room"** to trigger AI analysis
 5. **Review placement markers** on the photo with tooltips explaining each position
 6. **Save results** which persist to `Planner_Leads` collection
 
-**Using `uploadAndAnalyzeRoom()` from DevicesContext**:
+**Using `uploadAndAnalyzeRoom()` from `src/contexts/DevicesContext.tsx`**:
 ```typescript
 const { uploadAndAnalyzeRoom, visualizationData } = useDevices();
 
@@ -728,9 +732,7 @@ await uploadAndAnalyzeRoom(['Smart Bulb', 'Security Camera']);
 // visualizationData contains: markers, roomType, lightingQuality, etc.
 ```
 
-### User Workflow: Scene Builder
-
-1. **Open Scene Builder** (`SceneBuilder.tsx`)
+### User Workflow: Scene Builder (`src/components/SceneBuilder.tsx`)
 2. **Choose a template** (Movie Night, Eco Away, etc.) or start from scratch
 3. **Add device actions**: Select devices and set actions (on/off/dim/lock/temp)
 4. **Configure scene**: Name the scene and select an icon
@@ -745,15 +747,15 @@ const {
 } = useSceneManagement();
 ```
 
-### Developer Workflow: State Management with DevicesContext
+### Developer Workflow: State Management with `src/contexts/DevicesContext.tsx`
 
-**DevicesContext** (`src/contexts/DevicesContext.tsx`) provides global state for:
+**DevicesContext** provides global state for:
 - Device inventory and health telemetry
 - AI recommendations and room visualization state
 - Scene management
 - Notifications (snackbar + critical error modal)
 
-**Usage in components**:
+**Usage in components** (importing from `src/contexts/DevicesContext.tsx`):
 ```typescript
 import { useDevices } from '../contexts/DevicesContext';
 
@@ -774,7 +776,7 @@ function MyComponent() {
 }
 ```
 
-### Developer Workflow: Quote Notifications
+### Developer Workflow: Quote Notifications (`src/hooks/useQuoteRequest.ts`)
 
 **Triggering quote requests** via `useQuoteRequest()`:
 ```typescript
@@ -821,7 +823,9 @@ The `SceneBuilder.tsx` component allows:
 
 ---
 
-## 📝 Changelog
+## Changelog
+
+<!-- Changelog section - summarizing major recent commits and feature rollouts -->
 
 ### 2024-2025 Major Updates
 

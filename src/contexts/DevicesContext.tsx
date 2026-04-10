@@ -1,3 +1,20 @@
+/**
+ * DevicesContext.tsx
+ * File: src/contexts/DevicesContext.tsx
+ *
+ * README Usage Documentation Reference:
+ * This context is documented in README.md "Usage" section under:
+ * "Developer Workflow: State Management with src/contexts/DevicesContext.tsx"
+ *
+ * Features:
+ * - Provides global state for: device inventory, health telemetry, AI recommendations
+ * - Room visualization state: uploadAndAnalyzeRoom(), visualizationData
+ * - Scene management: scenes, saveScene(), fetchScenes()
+ * - Notifications: showNotification(), showCriticalError()
+ * - Admin CRM data: adminHealthStats, plannerLeads, supportTickets
+ *
+ * See README.md Usage section for hook usage examples with useDevices().
+ */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, type User, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { collection, getDocs, onSnapshot, query, where, or, orderBy, Timestamp, addDoc, setDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
