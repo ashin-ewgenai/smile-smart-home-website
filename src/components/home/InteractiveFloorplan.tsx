@@ -352,7 +352,7 @@ export default function InteractiveFloorplan() {
 
   return (
     <section
-      className="py-24 bg-gray-900 border-t border-white/5 overflow-hidden relative"
+      className="py-24 bg-soft-gray dark:bg-gray-900 border-t border-gray-200 dark:border-white/5 overflow-hidden relative"
       id="interactive-tour"
       aria-label="Interactive Smart Home Tour"
     >
@@ -364,20 +364,20 @@ export default function InteractiveFloorplan() {
 
         {/* Section Header */}
         <div className="text-center mb-10">
-          <span className="text-teal-400 font-semibold tracking-wider uppercase text-sm mb-4 block inline-flex items-center gap-2">
+          <span className="text-teal-600 dark:text-teal-400 font-semibold tracking-wider uppercase text-sm mb-4 block inline-flex items-center gap-2">
             <Zap className="w-4 h-4" /> Virtual Experience
           </span>
-          <h2 className="text-4xl md:text-5xl font-extrabold text-white mb-4 tracking-tight">
+          <h2 className="text-4xl md:text-5xl font-extrabold text-charcoal dark:text-white mb-4 tracking-tight">
             Explore Your Smart Space
           </h2>
-          <p className="text-xl text-gray-400 max-w-3xl mx-auto font-light leading-relaxed">
+          <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto font-light leading-relaxed">
             Select your space type, then click the pulsing hotspots to discover how Smile Smart Homes transforms every corner.
           </p>
         </div>
 
         {/* Space Type Selector */}
         <div className="flex justify-center mb-10">
-          <div className="inline-flex bg-gray-800/60 border border-white/10 rounded-2xl p-1.5 gap-1" role="tablist" aria-label="Space type selector">
+          <div className="inline-flex bg-white dark:bg-gray-800/60 border border-gray-300 dark:border-white/10 rounded-2xl p-1.5 gap-1 shadow-sm" role="tablist" aria-label="Space type selector">
             {SPACE_TYPES.map((space) => {
               const Icon = SPACES[space].icon;
               const isActive = activeSpace === space;
@@ -389,8 +389,8 @@ export default function InteractiveFloorplan() {
                   onClick={() => handleSpaceChange(space)}
                   className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
                     isActive
-                      ? 'bg-teal-500 text-white shadow-lg shadow-teal-500/30'
-                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-teal text-white shadow-lg shadow-teal/30'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-charcoal dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
                   }`}
                 >
                   <Icon className="w-4 h-4" />
@@ -403,7 +403,7 @@ export default function InteractiveFloorplan() {
         </div>
 
         {/* Selected space sublabel */}
-        <p className="text-center text-gray-500 text-sm mb-8 -mt-4">
+        <p className="text-center text-gray-500 dark:text-gray-500 text-sm mb-8 -mt-4">
           {SPACES[activeSpace].sublabel}
         </p>
 
@@ -411,7 +411,7 @@ export default function InteractiveFloorplan() {
         <div className="flex flex-col lg:flex-row gap-8 items-start justify-center">
 
           {/* SVG Blueprint with Hotspots */}
-          <div className="relative w-full max-w-3xl aspect-[4/3] bg-gray-800/40 border border-white/10 rounded-3xl overflow-hidden backdrop-blur-lg shadow-2xl flex-shrink-0">
+          <div className="relative w-full max-w-3xl aspect-[4/3] bg-white dark:bg-gray-800/40 border border-gray-300 dark:border-white/10 rounded-3xl overflow-hidden backdrop-blur-lg shadow-2xl flex-shrink-0">
             <BlueprintSVG config={config} />
 
             {/* Hotspot buttons */}
@@ -442,10 +442,10 @@ export default function InteractiveFloorplan() {
                     {/* Core dot */}
                     <div className={`relative w-10 h-10 rounded-full flex items-center justify-center border-[3px] transition-all duration-300 ${
                       isActive
-                        ? 'bg-teal-500 border-teal-200 shadow-[0_0_30px_rgba(20,184,166,1)]'
-                        : 'bg-gray-900 border-teal-500/70 shadow-[0_0_15px_rgba(20,184,166,0.5)] group-hover/spot:bg-teal-900 group-hover/spot:border-teal-300'
+                        ? 'bg-teal border-teal-200 shadow-[0_0_30px_rgba(0,150,136,1)]'
+                        : 'bg-white dark:bg-gray-900 border-teal/70 shadow-[0_0_15px_rgba(0,150,136,0.5)] group-hover/spot:bg-teal-50 dark:group-hover/spot:bg-teal-900 group-hover/spot:border-teal'
                     }`}>
-                      <div className={`w-2.5 h-2.5 rounded-full transition-colors duration-300 ${isActive ? 'bg-white' : 'bg-teal-400'}`} />
+                      <div className={`w-2.5 h-2.5 rounded-full transition-colors duration-300 ${isActive ? 'bg-white' : 'bg-teal'}`} />
                     </div>
                   </div>
                 </div>
@@ -459,35 +459,35 @@ export default function InteractiveFloorplan() {
               <div
                 ref={panelRef}
                 key={currentHotspot.id}
-                className="relative bg-white/5 backdrop-blur-2xl border border-white/10 p-8 rounded-[2rem] shadow-2xl"
+                className="relative bg-white dark:bg-white/5 backdrop-blur-2xl border border-gray-200 dark:border-white/10 p-8 rounded-[2rem] shadow-2xl"
               >
                 {/* Close button */}
                 <button
                   onClick={() => setActiveSpot(null)}
-                  className="absolute top-5 right-5 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 p-2 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                  className="absolute top-5 right-5 text-gray-400 hover:text-charcoal dark:hover:text-white bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 p-2 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
                   aria-label="Close panel"
                 >
                   <X className="w-4 h-4" />
                 </button>
 
                 {/* Icon */}
-                <div className="w-14 h-14 bg-gradient-to-br from-teal-500/20 to-teal-500/5 text-teal-400 rounded-2xl flex items-center justify-center mb-5 border border-teal-500/30 shadow-[0_0_20px_rgba(20,184,166,0.2)]">
+                <div className="w-14 h-14 bg-gradient-to-br from-teal/20 to-teal/5 text-teal rounded-2xl flex items-center justify-center mb-5 border border-teal/30 shadow-[0_0_20px_rgba(0,150,136,0.2)]">
                   <currentHotspot.icon className="w-7 h-7" />
                 </div>
 
                 {/* Title + accent */}
-                <h3 className="text-2xl font-extrabold text-white mb-2 leading-tight">{currentHotspot.title}</h3>
-                <div className="h-1 w-10 bg-teal-500 rounded-full mb-4" />
+                <h3 className="text-2xl font-extrabold text-charcoal dark:text-white mb-2 leading-tight">{currentHotspot.title}</h3>
+                <div className="h-1 w-10 bg-teal rounded-full mb-4" />
 
                 {/* Description */}
-                <p className="text-gray-300 leading-relaxed mb-5 font-light">{currentHotspot.description}</p>
+                <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-5 font-light">{currentHotspot.description}</p>
 
                 {/* Feature tags */}
                 <div className="flex flex-wrap gap-2 mb-7">
                   {currentHotspot.tags.map((tag) => (
                     <span
                       key={tag}
-                      className="px-3 py-1 bg-teal-500/10 border border-teal-500/20 text-teal-300 text-xs font-semibold rounded-full"
+                      className="px-3 py-1 bg-teal/10 border border-teal/20 text-teal-700 dark:text-teal-300 text-xs font-semibold rounded-full"
                     >
                       {tag}
                     </span>
@@ -497,7 +497,7 @@ export default function InteractiveFloorplan() {
                 {/* CTA */}
                 <button
                   onClick={openModal}
-                  className="inline-flex items-center gap-2 text-teal-400 font-semibold hover:text-teal-300 group/link transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded-lg"
+                  className="inline-flex items-center gap-2 text-teal font-semibold hover:text-teal-700 dark:hover:text-teal-300 group/link transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded-lg"
                 >
                   Plan this space
                   <ArrowRight className="w-4 h-4 transform group-hover/link:translate-x-1.5 transition-transform" />
@@ -505,12 +505,12 @@ export default function InteractiveFloorplan() {
               </div>
             ) : (
               /* Placeholder when no hotspot is selected */
-              <div className="relative bg-white/5 border border-white/5 p-10 rounded-[2rem] flex flex-col items-center justify-center text-center backdrop-blur-md shadow-inner min-h-[320px]">
-                <div className="w-16 h-16 bg-gray-800/60 border border-gray-700/60 rounded-full flex items-center justify-center mb-5 shadow-xl">
-                  <Zap className="w-8 h-8 text-teal-500/40 animate-pulse" />
+              <div className="relative bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 p-10 rounded-[2rem] flex flex-col items-center justify-center text-center backdrop-blur-md shadow-inner min-h-[320px]">
+                <div className="w-16 h-16 bg-white dark:bg-gray-800/60 border border-gray-300 dark:border-gray-700/60 rounded-full flex items-center justify-center mb-5 shadow-xl">
+                  <Zap className="w-8 h-8 text-teal/40 animate-pulse" />
                 </div>
-                <h3 className="text-xl font-bold text-gray-400 mb-2">Select a Space</h3>
-                <p className="text-gray-500 font-light leading-relaxed max-w-[240px]">
+                <h3 className="text-xl font-bold text-gray-600 dark:text-gray-400 mb-2">Select a Space</h3>
+                <p className="text-gray-500 dark:text-gray-500 font-light leading-relaxed max-w-[240px]">
                   Click a pulsing hotspot on the blueprint to explore automation possibilities.
                 </p>
               </div>
@@ -525,12 +525,12 @@ export default function InteractiveFloorplan() {
           {/* Backdrop */}
           <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={closeModal} />
 
-          <div className="relative z-10 w-full max-w-md bg-gray-900 border border-white/10 rounded-2xl shadow-2xl p-8">
+          <div className="relative z-10 w-full max-w-md bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl p-8">
             {/* Close */}
             <button
               onClick={closeModal}
               disabled={modal.submitting}
-              className="absolute top-4 right-4 text-gray-400 hover:text-white bg-white/5 hover:bg-white/10 p-2 rounded-full transition-colors"
+              className="absolute top-4 right-4 text-gray-400 hover:text-charcoal dark:hover:text-white bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 p-2 rounded-full transition-colors"
               aria-label="Close"
             >
               <X className="w-4 h-4" />
@@ -539,12 +539,12 @@ export default function InteractiveFloorplan() {
             {modal.success ? (
               /* Success state */
               <div className="text-center py-4">
-                <div className="w-16 h-16 bg-teal-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <CheckCircle className="w-8 h-8 text-teal-400" />
+                <div className="w-16 h-16 bg-teal/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-8 h-8 text-teal" />
                 </div>
-                <h3 className="text-2xl font-bold text-white mb-2">Request Sent!</h3>
-                <p className="text-gray-400 leading-relaxed mb-4">
-                  Our team will review your <strong className="text-teal-400">{currentHotspot.title}</strong> automation request and get back to you shortly.
+                <h3 className="text-2xl font-bold text-charcoal dark:text-white mb-2">Request Sent!</h3>
+                <p className="text-gray-600 dark:text-gray-400 leading-relaxed mb-6">
+                  Our team will review your <strong className="text-teal">{currentHotspot.title}</strong> automation request and get back to you shortly.
                 </p>
 
                 {/* WhatsApp Action */}
@@ -570,7 +570,7 @@ export default function InteractiveFloorplan() {
                 </div>
                 <button
                   onClick={closeModal}
-                  className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold transition-colors"
+                  className="w-full py-3 rounded-xl bg-teal hover:bg-teal-600 text-white font-semibold transition-colors"
                 >
                   Done
                 </button>
@@ -580,18 +580,18 @@ export default function InteractiveFloorplan() {
               <>
                 <div className="mb-6">
                   <div className="flex items-center gap-3 mb-1">
-                    <currentHotspot.icon className="w-5 h-5 text-teal-400" />
-                    <h3 id="modal-title" className="text-xl font-bold text-white">Plan Your {currentHotspot.title}</h3>
+                    <currentHotspot.icon className="w-5 h-5 text-teal" />
+                    <h3 id="modal-title" className="text-xl font-bold text-charcoal dark:text-white">Plan Your {currentHotspot.title}</h3>
                   </div>
-                  <p className="text-gray-400 text-sm">
-                    Share your details and our team will reach out to plan your <span className="text-teal-400 capitalize">{activeSpace}</span> automation.
+                  <p className="text-gray-600 dark:text-gray-400 text-sm">
+                    Share your details and our team will reach out to plan your <span className="text-teal capitalize">{activeSpace}</span> automation.
                   </p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="fp-email">
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5" htmlFor="fp-email">
                       Your Email Address *
                     </label>
                     <input
@@ -602,7 +602,7 @@ export default function InteractiveFloorplan() {
                       value={modal.email}
                       onChange={e => setModal(m => ({ ...m, email: e.target.value }))}
                       placeholder="e.g. john@example.com"
-                      className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-shadow text-base"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-white/10 text-charcoal dark:text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal transition-shadow text-base"
                     />
                   </div>
 
@@ -626,14 +626,14 @@ export default function InteractiveFloorplan() {
                   {/* Selected features summary */}
                   <div className="flex flex-wrap gap-2">
                     {currentHotspot.tags.map(tag => (
-                      <span key={tag} className="px-2.5 py-1 bg-teal-500/10 border border-teal-500/20 text-teal-300 text-xs font-semibold rounded-full">{tag}</span>
+                      <span key={tag} className="px-2.5 py-1 bg-teal/10 border border-teal/20 text-teal-700 dark:text-teal-300 text-xs font-semibold rounded-full">{tag}</span>
                     ))}
                   </div>
 
                   <button
                     type="submit"
                     disabled={modal.submitting}
-                    className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold transition-colors flex items-center justify-center gap-2"
+                    className="w-full py-3 rounded-xl bg-teal hover:bg-teal-600 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold transition-colors flex items-center justify-center gap-2"
                   >
                     {modal.submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</> : 'Send Details to My Email →'}
                   </button>
