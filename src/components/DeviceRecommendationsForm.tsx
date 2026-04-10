@@ -497,38 +497,48 @@ export const DeviceRecommendationsForm: React.FC = () => {
                       <p className="text-teal-600 dark:text-teal-500/80 mb-6 max-w-md mx-auto">
                         Get this custom smart home plan sent directly to your registered email and WhatsApp for easy access later.
                       </p>
-                      
-                      {sendSuccess ? (
-                        <motion.div 
-                          initial={{ scale: 0.9, opacity: 0 }} 
-                          animate={{ scale: 1, opacity: 1 }}
-                          className="space-y-3"
+                               {sendSuccess ? (
+                         <motion.div 
+                          initial={{ scale: 0.8, opacity: 0, y: 20, rotate: -2 }} 
+                          animate={{ scale: 1, opacity: 1, y: 0, rotate: 0 }}
+                          transition={{ 
+                            type: 'spring', 
+                            damping: 15, 
+                            stiffness: 250,
+                            mass: 0.8
+                          } as any}
+                          className="space-y-4"
                         >
-                          <div className="flex items-center justify-center gap-2 text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-900/20 py-3 px-6 rounded-xl mx-auto w-fit">
-                            <CheckCircle2 size={20} />
-                            Quote sent successfully!
+                          <div className="flex flex-col items-center gap-3">
+                            <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500 shadow-lg shadow-emerald-500/5">
+                              <CheckCircle2 size={32} strokeWidth={2.5} />
+                            </div>
+                            <div className="text-center">
+                              <h5 className="text-xl font-black text-slate-800 dark:text-white leading-tight">Quote sent successfully!</h5>
+                              <p className="text-sm text-slate-500 mt-1">Check your inbox for the full details.</p>
+                            </div>
                           </div>
-                          {whatsappStatus === 'sent' && (
-                            <div className="flex items-center justify-center gap-2 text-emerald-600 text-sm font-medium bg-emerald-50/50 dark:bg-emerald-900/10 py-2 px-4 rounded-lg mx-auto w-fit">
-                              <MessageCircle size={16} />
-                              WhatsApp notification delivered
-                            </div>
-                          )}
-                          {whatsappStatus === 'failed' && (
-                            <div className="flex items-center justify-center gap-2 text-amber-600 text-sm font-medium bg-amber-50 dark:bg-amber-900/10 py-2 px-4 rounded-lg mx-auto w-fit">
-                              <MessageCircle size={16} />
-                              WhatsApp failed (email delivered)
-                            </div>
-                          )}
-                          {whatsappStatus === 'skipped' && (
-                            <div className="flex items-center justify-center gap-2 text-slate-500 text-sm font-medium bg-slate-100 dark:bg-slate-800/50 py-2 px-4 rounded-lg mx-auto w-fit">
-                              <MessageCircle size={16} />
-                              WhatsApp skipped (no phone number)
-                            </div>
-                          )}
-                          <p className="text-slate-500 text-sm">
-                            Check your inbox for the full quote details.
-                          </p>
+
+                          <div className="flex flex-col gap-2 max-w-xs mx-auto">
+                            {whatsappStatus === 'sent' && (
+                              <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/10 py-2 px-4 rounded-xl">
+                                <MessageCircle size={14} />
+                                WhatsApp notification delivered
+                              </div>
+                            )}
+                            {whatsappStatus === 'failed' && (
+                              <div className="flex items-center gap-2 text-amber-600 text-xs font-bold bg-amber-50 dark:bg-amber-900/10 py-2 px-4 rounded-xl">
+                                <MessageCircle size={14} />
+                                WhatsApp failed (email delivered)
+                              </div>
+                            )}
+                            {whatsappStatus === 'skipped' && (
+                              <div className="flex items-center gap-2 text-slate-500 text-xs font-bold bg-slate-100 dark:bg-slate-800/50 py-2 px-4 rounded-xl">
+                                <MessageCircle size={14} />
+                                WhatsApp skipped (no phone number)
+                              </div>
+                            )}
+                          </div>
                         </motion.div>
                       ) : !showContactForm ? (
                         <button 

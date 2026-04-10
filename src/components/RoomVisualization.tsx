@@ -34,52 +34,98 @@ interface MarkerProps {
   onToggle: () => void;
 }
 
-const DeviceMarker: React.FC<MarkerProps> = ({ marker, index, isActive, onToggle }) => (
-  <motion.div
-    initial={{ scale: 0, opacity: 0 }}
-    animate={{ scale: 1, opacity: 1 }}
-    transition={{ type: 'spring', stiffness: 300, damping: 20, delay: index * 0.08 }}
-    className="absolute z-10"
-    style={{ left: `${marker.x}%`, top: `${marker.y}%`, transform: 'translate(-50%, -50%)' }}
-  >
-    {/* Ping animation */}
-    <span className={`absolute inset-0 rounded-full bg-teal/40 animate-ping ${isActive ? '' : 'hidden'}`} />
+const DeviceMarker: React.FC<MarkerProps> = ({ marker, index, isActive, onToggle }) => {
+  const popupRef = useRef<HTMLDivElement>(null);
 
-    <button
-      onClick={onToggle}
-      className={`relative flex items-center justify-center w-10 h-10 rounded-full border-2 shadow-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal/50 ${
-        isActive
-          ? 'bg-teal border-white scale-125 shadow-teal/50'
-          : 'bg-white/90 dark:bg-charcoal/90 border-teal hover:scale-110 hover:bg-teal/10'
-      }`}
-      aria-label={`${marker.deviceName} placement`}
-      title={marker.deviceName}
+  useEffect(() => {
+    if (isActive) {
+      const previouslyFocused = document.activeElement as HTMLElement;
+      popupRef.current?.focus();
+      return () => {
+        previouslyFocused?.focus();
+      };
+    }
+  }, [isActive]);
+
+  const tooltipVariants = {
+    hidden: { opacity: 0, y: 15, scale: 0.8, rotate: -5 },
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      scale: 1,
+      rotate: 0,
+      transition: { 
+        type: 'spring', 
+        damping: 15, 
+        stiffness: 250,
+        mass: 0.8 
+      }
+    },
+    exit: { 
+      opacity: 0, 
+      y: 10, 
+      scale: 0.8, 
+      transition: { duration: 0.2, ease: 'easeIn' } 
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ scale: 0, opacity: 0, rotate: -20 }}
+      animate={{ scale: 1, opacity: 1, rotate: 0 }}
+      transition={{ 
+        type: 'spring', 
+        stiffness: 350, 
+        damping: 15, 
+        delay: index * 0.08 
+      }}
+      className="absolute z-10"
+      style={{ left: `${marker.x}%`, top: `${marker.y}%`, transform: 'translate(-50%, -50%)' }}
     >
-      <span className="text-lg leading-none select-none">{marker.icon}</span>
-    </button>
+      {/* Ping animation */}
+      <span className={`absolute inset-0 rounded-full bg-teal/40 animate-ping ${isActive ? '' : 'hidden'}`} />
 
-    {/* Tooltip */}
-    <AnimatePresence>
-      {isActive && (
-        <motion.div
-          initial={{ opacity: 0, y: 6, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 6, scale: 0.95 }}
-          transition={{ duration: 0.15 }}
-          className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 w-48 bg-white dark:bg-charcoal rounded-2xl shadow-2xl border border-teal/20 p-3 z-20 pointer-events-none"
-        >
-          <div className="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1.5 mb-1">
-            <span>{marker.icon}</span>
-            {marker.deviceName}
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{marker.reason}</p>
-          {/* Arrow */}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-white dark:border-t-charcoal" />
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </motion.div>
-);
+      <button
+        onClick={onToggle}
+        className={`relative flex items-center justify-center w-10 h-10 rounded-full border-2 shadow-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-teal/50 ${
+          isActive
+            ? 'bg-teal border-white scale-125 shadow-teal/50'
+            : 'bg-white/90 dark:bg-charcoal/90 border-teal hover:scale-110 hover:bg-teal/10'
+        }`}
+        aria-label={`${marker.deviceName} placement`}
+        title={marker.deviceName}
+      >
+        <span className="text-lg leading-none select-none">{marker.icon}</span>
+      </button>
+
+      {/* Tooltip */}
+      <AnimatePresence>
+        {isActive && (
+          <motion.div
+            ref={popupRef}
+            tabIndex={-1}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') onToggle();
+            }}
+            variants={tooltipVariants as any}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 w-48 bg-white dark:bg-charcoal rounded-2xl shadow-2xl border border-teal/20 p-3 z-20 focus:outline-none"
+          >
+            <div className="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1.5 mb-1">
+              <span>{marker.icon}</span>
+              {marker.deviceName}
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{marker.reason}</p>
+            {/* Arrow */}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-white dark:border-t-charcoal" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
 
 // ── Drop Zone ─────────────────────────────────────────────────────────────────
 
@@ -358,6 +404,17 @@ export const RoomVisualization: React.FC = () => {
     if (selectedDevices.size === 0) return;
     uploadAndAnalyzeRoom(Array.from(selectedDevices));
   };
+
+  // Handle ESC key to clear active marker
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && activeMarker) {
+        setActiveMarker(null);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeMarker]);
 
   useEffect(() => {
     if (hasResult) {
