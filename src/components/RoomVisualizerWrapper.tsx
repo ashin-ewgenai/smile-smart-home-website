@@ -8,12 +8,10 @@ import { motion, AnimatePresence } from 'framer-motion';
  * Standalone wrapper for the Room Visualizer feature page.
  * Provides the DevicesContext and renders the full RoomVisualization UI
  * with hero section, feature highlights, and the main tool.
- */
-
-/**
- * Standalone wrapper for the Room Visualizer feature page.
- * Provides the DevicesContext and renders the full RoomVisualization UI
- * with hero section, feature highlights, and the main tool.
+ * 
+ * Supports manual device addition feature via DevicesContext, allowing users
+ * to add custom devices with AI-assisted or manual placement alongside
+ * AI-recommended equipment.
  */
 export const RoomVisualizerWrapper: React.FC = () => {
   return (
