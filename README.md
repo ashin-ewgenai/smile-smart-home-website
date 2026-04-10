@@ -25,7 +25,11 @@ The Smile Smart Homes Website is a modern web application that combines static s
 
 The project uses a monorepo structure with npm workspaces, allowing seamless dependency management between the main web application and Firebase Cloud Functions.
 
-## 📁 Comprehensive Project Structure
+## 📁 Project Structure
+
+This section describes the folder and file organization for `src/`, `functions/`, and `hooks/`.
+
+### Comprehensive Project Structure
 
 ```text
 /
@@ -66,6 +70,49 @@ The project uses a monorepo structure with npm workspaces, allowing seamless dep
 ├── public/                      # Static assets
 └── firebase.json                # Firebase configuration
 ```
+
+## ⚙️ Environment Variables and Configuration
+
+This section documents all required environment variables and configuration settings from `functions/src/` and `src/middleware.ts`.
+
+### Required Firebase Secrets
+
+Set via `firebase functions:secrets:set`:
+
+| Secret | Description | Used In |
+|--------|-------------|---------|
+| `OPENAI_API_KEY` | OpenAI API for GPT-4o room analysis | `aiVisualization.ts` |
+| `TWILIO_ACCOUNT_SID` | Twilio account for WhatsApp | `chatbot.ts`, `deviceRecommendations.ts` |
+| `TWILIO_AUTH_TOKEN` | Twilio auth token | `chatbot.ts`, `deviceRecommendations.ts` |
+| `TWILIO_WHATSAPP_NUMBER` | Twilio WhatsApp sender | `chatbot.ts`, `deviceRecommendations.ts` |
+| `EMAILJS_SERVICE_ID` | EmailJS service ID | `deviceRecommendations.ts` |
+| `EMAILJS_TEMPLATE_ID` | EmailJS template ID | `deviceRecommendations.ts` |
+| `EMAILJS_PUBLIC_KEY` | EmailJS public key | `deviceRecommendations.ts` |
+| `SMTP_HOST` | SMTP server host (legacy fallback) | `deviceRecommendations.ts` |
+| `SMTP_PORT` | SMTP server port | `deviceRecommendations.ts` |
+| `SMTP_USER` | SMTP username | `deviceRecommendations.ts` |
+| `SMTP_PASS` | SMTP password | `deviceRecommendations.ts` |
+| `EMAIL_FROM` | Sender email address | `deviceRecommendations.ts` |
+
+### Frontend Environment Variables
+
+Create a `.env` file in the project root:
+
+```bash
+# Optional: Enable reCAPTCHA v3 App Check
+PUBLIC_RECAPTCHA_V3_SITE_KEY=your_recaptcha_site_key
+
+# Optional: Middleware project ID (defaults to firebase config)
+FIREBASE_PROJECT_ID=smile-smart-homes
+```
+
+### Middleware Configuration
+
+`src/middleware.ts` reads:
+- `FIREBASE_PROJECT_ID` - For Firebase Admin initialization
+- Bearer tokens from `Authorization` header for `/api/health` endpoints
+
+---
 
 ## 🔧 Backend Functions
 
@@ -488,6 +535,58 @@ FIREBASE_PROJECT_ID=smile-smart-homes
 
 This modular architecture ensures scalability, maintainability, and clear separation of concerns between frontend and backend components.
 
+## 🚀 Installation
+
+This section provides tested instructions for setting up the project in a fresh environment.
+
+### Prerequisites
+
+- **Node.js**: Version 20 (as specified in `functions/package.json`)
+- **npm**: Comes with Node.js
+- **Firebase CLI**: Install globally with `npm install -g firebase-tools`
+- **Git**: For cloning the repository
+
+### Step-by-Step Setup
+
+1. **Clone the repository**:
+```bash
+git clone https://github.com/Expectation-Walkers/smile-smart-home-website.git
+cd smile-smart-home-website
+```
+
+2. **Install dependencies** (root + functions workspace):
+```bash
+npm install
+```
+
+3. **Set up Firebase**:
+```bash
+firebase login
+firebase init
+```
+
+4. **Configure environment variables**:
+   - Create `.env` file with optional `PUBLIC_RECAPTCHA_V3_SITE_KEY`
+   - Set Firebase Secrets for functions (see Environment Variables section)
+
+5. **Run the development server**:
+```bash
+npm run dev
+```
+
+The site will be available at `http://localhost:4321/`
+
+### Dependency Installation Commands
+
+| Command | Purpose |
+|---------|---------|
+| `npm install` | Install all dependencies (root + functions) |
+| `npm i <pkg>` | Add dependency to root (web app) |
+| `npm i -w functions <pkg>` | Add dependency to Firebase Functions only |
+| `npm i -D -w functions <pkg>` | Add devDependency to Functions only |
+
+---
+
 ## 🧞 Commands
 
 All commands are run from the root of the project, from a terminal:
@@ -583,6 +682,117 @@ npm run functions:deploy
 - Keep a single lockfile at the repo root. If `functions/package-lock.json` exists, delete it and run `npm install` again at root.
 - `functions/package.json` uses Node `"engines": { "node": "20" }` (as of latest update).
 - The `@astrojs/node` adapter is available in devDependencies but not currently used (static output mode).
+
+## 📖 Usage
+
+This section describes the current user and developer workflows, including how to use `DeviceRecommendationsForm.tsx`, `RoomVisualization.tsx`, and `SceneBuilder.tsx` components, as well as `DevicesContext.tsx` for state management.
+
+### User Workflow: AI Device Recommendations
+
+1. **Navigate to the recommendations page** containing `DeviceRecommendationsForm.tsx`
+2. **Complete the 4-step wizard**:
+   - Step 1: Select house size (1 BHK, 2 BHK, etc.)
+   - Step 2: Choose security priority level
+   - Step 3: Set estimated budget range
+   - Step 4: View AI-generated device recommendations
+3. **Save recommendations** to your quote plan using the heart icon
+4. **Send quote** via Email & WhatsApp using the contact form
+
+**Using `useDeviceRecommendations()` hook**:
+```typescript
+const { 
+  step,           // Current wizard step (1-4)
+  formData,       // { houseSize, securityNeeds, budget }
+  recommendations,  // AI-generated device list
+  handleSubmit,   // Trigger AI recommendation
+  saveRecommendationToQuote  // Save to user profile
+} = useDeviceRecommendations();
+```
+
+### User Workflow: Room Visualization
+
+1. **Access Room Visualizer** (`RoomVisualization.tsx`)
+2. **Upload a room photo** (JPEG/PNG/WebP, max 10MB)
+3. **Select devices** to place from recommendations or fallback list
+4. **Click "Analyze My Room"** to trigger AI analysis
+5. **Review placement markers** on the photo with tooltips explaining each position
+6. **Save results** which persist to `Planner_Leads` collection
+
+**Using `uploadAndAnalyzeRoom()` from DevicesContext**:
+```typescript
+const { uploadAndAnalyzeRoom, visualizationData } = useDevices();
+
+// Upload and analyze
+await uploadAndAnalyzeRoom(['Smart Bulb', 'Security Camera']);
+
+// visualizationData contains: markers, roomType, lightingQuality, etc.
+```
+
+### User Workflow: Scene Builder
+
+1. **Open Scene Builder** (`SceneBuilder.tsx`)
+2. **Choose a template** (Movie Night, Eco Away, etc.) or start from scratch
+3. **Add device actions**: Select devices and set actions (on/off/dim/lock/temp)
+4. **Configure scene**: Name the scene and select an icon
+5. **Save scene** to Firestore for later activation
+
+**Using `useSceneManagement()` hook**:
+```typescript
+const { 
+  scenes,       // List of saved scenes
+  startNewScene, // Initialize scene creation
+  handleSave     // Persist scene to Firestore
+} = useSceneManagement();
+```
+
+### Developer Workflow: State Management with DevicesContext
+
+**DevicesContext** (`src/contexts/DevicesContext.tsx`) provides global state for:
+- Device inventory and health telemetry
+- AI recommendations and room visualization state
+- Scene management
+- Notifications (snackbar + critical error modal)
+
+**Usage in components**:
+```typescript
+import { useDevices } from '../contexts/DevicesContext';
+
+function MyComponent() {
+  const { 
+    devices,           // Device array with health data
+    recommendations,   // AI recommendations
+    scenes,           // User scenes
+    showNotification, // Show success/error/warning/info toast
+    adminHealthStats  // Admin fleet overview
+  } = useDevices();
+  
+  // Show notification
+  showNotification({ 
+    message: 'Device updated!', 
+    type: 'success' 
+  });
+}
+```
+
+### Developer Workflow: Quote Notifications
+
+**Triggering quote requests** via `useQuoteRequest()`:
+```typescript
+const { notifyQuoteAction, isSending, sendSuccess } = useQuoteRequest();
+
+// Send quote notification
+await notifyQuoteAction({
+  type: 'quote_submitted',
+  quoteId: `AI-${Date.now()}`,
+  email: userEmail,
+  phone: userPhone,
+  details: { budget, houseSize }
+});
+```
+
+This triggers EmailJS email + Twilio WhatsApp notifications via Cloud Functions.
+
+---
 
 ## 📸 Feature Screenshots
 
