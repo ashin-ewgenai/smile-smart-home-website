@@ -24,7 +24,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, CheckCircle, Info, AlertTriangle, X } from 'lucide-react';
 import type { ContactRequest, PlannerLead, SupportTicket, QuoteItem } from '../models/Collections';
 import { quotesCollection } from '../models/Collections';
-import type { DeviceRecommendation, RecommendationRequest, RoomVisualizationResult } from '../models';
+import type { DeviceRecommendation, RecommendationRequest, RoomVisualizationResult, DevicePlacementMarker } from '../models';
 
 // UI Components integrated directly to comply with "no new files" constraint
 
@@ -289,6 +289,11 @@ interface DevicesContextValue {
   setRoomPhoto: (file: File) => void;
   clearVisualization: () => void;
   uploadAndAnalyzeRoom: (deviceNames: string[]) => Promise<void>;
+  // User-added devices
+  addedDevices: DevicePlacementMarker[];
+  addDevice: (device: DevicePlacementMarker) => void;
+  removeDevice: (deviceId: string) => void;
+  analyzeSingleDevice: (deviceName: string) => Promise<DevicePlacementMarker | null>;
   // Live Consultation
   activeConsultationId: string | null;
   consultationLoading: boolean;
@@ -436,6 +441,9 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [visualizationError, setVisualizationError] = useState<string | null>(null);
   const analysisInFlight = useRef(false);
 
+  // ── User-Added Devices State ──────────────────────────────────────────────
+  const [addedDevices, setAddedDevices] = useState<DevicePlacementMarker[]>([]);
+
   // ── Live Consultation State ─────────────────────────────────────────────
   const [activeConsultationId, setActiveConsultationId] = useState<string | null>(null);
   const [consultationLoading, setConsultationLoading] = useState<boolean>(false);
@@ -517,7 +525,52 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setUploadError(null);
     setVisualizationData(null);
     setVisualizationError(null);
+    setAddedDevices([]);
   }, []);
+
+  const addDevice = useCallback((device: DevicePlacementMarker) => {
+    setAddedDevices(prev => [...prev, device]);
+  }, []);
+
+  const removeDevice = useCallback((deviceId: string) => {
+    setAddedDevices(prev => prev.filter(d => d.deviceName !== deviceId));
+  }, []);
+
+  const analyzeSingleDevice = useCallback(async (deviceName: string): Promise<DevicePlacementMarker | null> => {
+    if (!roomPhotoUrl) {
+      showNotification({ message: 'Please upload and analyze a room photo first.', type: 'warning' });
+      return null;
+    }
+    if (!uid) {
+      showNotification({ message: 'Please sign in to use AI placement.', type: 'warning' });
+      return null;
+    }
+    if (!window.navigator.onLine) {
+      showNotification({ message: 'No internet connection.', type: 'error' });
+      return null;
+    }
+
+    setVisualizationLoading(true);
+    try {
+      const currentUid = uid || auth.currentUser?.uid;
+      const analyzeFn = httpsCallable<any, RoomVisualizationResult>(functions, 'analyzeRoomWithAI');
+      const result = await analyzeFn({ imageUrl: roomPhotoUrl, deviceNames: [deviceName], uid: currentUid });
+      const data = result.data;
+      
+      if (data.markers && data.markers.length > 0) {
+        // Return the first (and only) marker
+        return data.markers[0];
+      }
+      return null;
+    } catch (err: any) {
+      console.error('AI Single Device Analysis Failed:', err);
+      const msg = getFriendlyErrorMessage(err);
+      showNotification({ message: msg, type: 'error' });
+      return null;
+    } finally {
+      setVisualizationLoading(false);
+    }
+  }, [roomPhotoUrl, uid]);
 
   const uploadAndAnalyzeRoom = useCallback(async (deviceNames: string[]) => {
     if (!roomPhoto) {
@@ -1164,6 +1217,10 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setRoomPhoto,
     clearVisualization,
     uploadAndAnalyzeRoom,
+    addedDevices,
+    addDevice,
+    removeDevice,
+    analyzeSingleDevice,
     activeConsultationId,
     consultationLoading,
     startLiveConsultation,

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useDeviceRecommendations } from '../hooks/useDeviceRecommendations';
 import { useDevices } from '../contexts/DevicesContext';
+import { Plus, Trash2, Crosshair, MousePointer2, Hand } from 'lucide-react';
 import type { DevicePlacementMarker, RoomVisualizationResult } from '../models';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -385,7 +386,12 @@ export const RoomVisualization: React.FC = () => {
   );
   const [activeMarker, setActiveMarker] = useState<string | null>(null);
 
-  const { showNotification } = useDevices();
+  const { showNotification, addedDevices, addDevice, removeDevice, analyzeSingleDevice } = useDevices();
+  const [newDeviceName, setNewDeviceName] = useState('');
+  const [isAddingDevice, setIsAddingDevice] = useState(false);
+  const [isPlacementMode, setIsPlacementMode] = useState(false);
+  const [pendingDevice, setPendingDevice] = useState<DevicePlacementMarker | null>(null);
+  const [isAiPlacing, setIsAiPlacing] = useState(false);
 
   const toggleDevice = (name: string) => {
     setSelectedDevices(prev => {
@@ -404,6 +410,93 @@ export const RoomVisualization: React.FC = () => {
     if (selectedDevices.size === 0) return;
     uploadAndAnalyzeRoom(Array.from(selectedDevices));
   };
+
+  const handleAddDevice = () => {
+    if (!newDeviceName.trim()) return;
+    
+    // Enter placement mode - user will click on image to set position
+    const device: DevicePlacementMarker = {
+      deviceName: newDeviceName.trim(),
+      x: 0,
+      y: 0,
+      reason: 'User-added device for custom room setup',
+      icon: '🔌'
+    };
+    
+    setPendingDevice(device);
+    setIsPlacementMode(true);
+    showNotification({
+      message: `Click on the room image to place "${device.deviceName}"`,
+      type: 'info'
+    });
+  };
+
+  const handleImageClick = (e: React.MouseEvent<HTMLImageElement>) => {
+    if (!isPlacementMode || !pendingDevice) return;
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    
+    // Clamp to 0-100%
+    const clampedX = Math.max(0, Math.min(100, x));
+    const clampedY = Math.max(0, Math.min(100, y));
+    
+    const deviceWithPosition: DevicePlacementMarker = {
+      ...pendingDevice,
+      x: clampedX,
+      y: clampedY
+    };
+    
+    addDevice(deviceWithPosition);
+    setIsPlacementMode(false);
+    setPendingDevice(null);
+    setNewDeviceName('');
+    setIsAddingDevice(false);
+    
+    showNotification({
+      message: `${deviceWithPosition.deviceName} placed at ${Math.round(clampedX)}%, ${Math.round(clampedY)}%`,
+      type: 'success'
+    });
+  };
+
+  const cancelPlacement = () => {
+    setIsPlacementMode(false);
+    setPendingDevice(null);
+    showNotification({
+      message: 'Placement cancelled',
+      type: 'warning'
+    });
+  };
+
+  const handleAiPlaceDevice = async () => {
+    if (!newDeviceName.trim()) return;
+    
+    setIsAiPlacing(true);
+    showNotification({
+      message: `AI is finding the best spot for "${newDeviceName.trim()}"...`,
+      type: 'info'
+    });
+    
+    const marker = await analyzeSingleDevice(newDeviceName.trim());
+    
+    if (marker) {
+      addDevice(marker);
+      setNewDeviceName('');
+      setIsAddingDevice(false);
+      showNotification({
+        message: `${marker.deviceName} placed by AI at ${Math.round(marker.x)}%, ${Math.round(marker.y)}%`,
+        type: 'success'
+      });
+    }
+    
+    setIsAiPlacing(false);
+  };
+
+  // Combine AI markers with user-added devices
+  const allMarkers: DevicePlacementMarker[] = visualizationData 
+    ? [...(visualizationData.markers || []), ...addedDevices]
+    : [];
 
   // Handle ESC key to clear active marker
   useEffect(() => {
@@ -471,6 +564,137 @@ export const RoomVisualization: React.FC = () => {
             selected={selectedDevices}
             onToggle={toggleDevice}
           />
+        </motion.div>
+      )}
+
+      {/* Manual Device Addition - Always visible when photo is present */}
+      {roomPhoto && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-white dark:bg-gray-900 rounded-2xl p-5 border border-teal/20 shadow-lg"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <h4 className="text-sm font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider flex items-center gap-2">
+              <Plus size={14} className="text-teal" /> Add Your Own Devices
+            </h4>
+            <button
+              onClick={() => {
+                if (isPlacementMode) {
+                  cancelPlacement();
+                }
+                setIsAddingDevice(!isAddingDevice);
+              }}
+              className="text-xs font-semibold text-teal hover:text-teal-600 transition-colors"
+            >
+              {isAddingDevice ? 'Cancel' : 'Add Device'}
+            </button>
+          </div>
+          
+          {/* Placement Mode Banner */}
+          {isPlacementMode && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl"
+            >
+              <div className="flex items-center gap-3">
+                <Crosshair size={18} className="text-amber-600 animate-pulse" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">
+                    Placement Mode Active
+                  </p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">
+                    Click anywhere on the room image to place "{pendingDevice?.deviceName}"
+                  </p>
+                </div>
+                <button
+                  onClick={cancelPlacement}
+                  className="text-xs font-semibold text-amber-600 hover:text-amber-800 px-2 py-1"
+                >
+                  Cancel
+                </button>
+              </div>
+            </motion.div>
+          )}
+          
+          {isAddingDevice && !isPlacementMode && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="space-y-3"
+            >
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newDeviceName}
+                  onChange={(e) => setNewDeviceName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleAiPlaceDevice()}
+                  placeholder="Enter device name (e.g., 'My Smart Speaker')"
+                  className="flex-1 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-slate-700 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-teal/50"
+                />
+              </div>
+              
+              {/* Placement Options */}
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={handleAiPlaceDevice}
+                  disabled={!newDeviceName.trim() || isAiPlacing || !visualizationData}
+                  className="flex-1 px-4 py-2.5 bg-gradient-to-r from-teal to-teal-600 text-white rounded-xl text-sm font-semibold hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-teal/20"
+                >
+                  {isAiPlacing ? (
+                    <><Loader2 size={16} className="animate-spin" /> Analyzing...</>
+                  ) : (
+                    <><Sparkles size={16} /> AI Place</>
+                  )}
+                </button>
+                
+                <button
+                  onClick={handleAddDevice}
+                  disabled={!newDeviceName.trim()}
+                  className="flex-1 px-4 py-2.5 bg-white dark:bg-gray-800 border-2 border-teal text-teal rounded-xl text-sm font-semibold hover:bg-teal/5 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <Hand size={16} /> Manual Place
+                </button>
+              </div>
+              
+              <p className="text-xs text-slate-400">
+                <span className="font-semibold text-teal">AI Place:</span> GPT-4o Vision finds the optimal position based on room layout, lighting, and coverage. 
+                <span className="font-semibold text-teal ml-1">Manual Place:</span> You choose the exact location.
+              </p>
+              
+              {!visualizationData && (
+                <p className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-200">
+                  Run "Analyze My Room" first to enable AI placement (requires room context).
+                </p>
+              )}
+            </motion.div>
+          )}
+          
+          {addedDevices.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+              <p className="text-xs text-slate-400 mb-2">Added devices ({addedDevices.length}):</p>
+              <div className="flex flex-wrap gap-2">
+                {addedDevices.map((device, index) => (
+                  <div
+                    key={`${device.deviceName}-${index}`}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl text-xs"
+                  >
+                    <span>{device.icon}</span>
+                    <span className="text-slate-700 dark:text-slate-300">{device.deviceName}</span>
+                    <span className="text-amber-500/60">@{Math.round(device.x)}%,{Math.round(device.y)}%</span>
+                    <button
+                      onClick={() => removeDevice(device.deviceName)}
+                      className="text-slate-400 hover:text-red-500 transition-colors"
+                      title="Remove device"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </motion.div>
       )}
 
@@ -563,14 +787,27 @@ export const RoomVisualization: React.FC = () => {
               <img
                 src={roomPhotoPreview}
                 alt="Analyzed room"
-                className="w-full object-cover"
+                onClick={handleImageClick}
+                className={`w-full object-cover ${isPlacementMode ? 'cursor-crosshair' : 'cursor-default'}`}
                 style={{ maxHeight: '480px', objectFit: 'cover' }}
               />
+              
+              {/* Placement Mode Overlay */}
+              {isPlacementMode && (
+                <div className="absolute inset-0 bg-amber-500/10 pointer-events-none flex items-center justify-center">
+                  <div className="bg-white dark:bg-charcoal px-4 py-2 rounded-full shadow-lg border border-amber-200">
+                    <span className="text-sm font-semibold text-amber-600 flex items-center gap-2">
+                      <Crosshair size={16} className="animate-pulse" />
+                      Click to place {pendingDevice?.deviceName}
+                    </span>
+                  </div>
+                </div>
+              )}
               {/* Dark overlay gradient for contrast */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
 
-              {/* Device markers */}
-              {visualizationData.markers.map((marker: DevicePlacementMarker, i: number) => (
+              {/* Device markers - AI + User Added */}
+              {allMarkers.map((marker: DevicePlacementMarker, i: number) => (
                 <DeviceMarker
                   key={`${marker.deviceName}-${i}`}
                   marker={marker}
@@ -584,7 +821,7 @@ export const RoomVisualization: React.FC = () => {
 
               {/* Map legend */}
               <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1.5">
-                {visualizationData.markers.map((m: DevicePlacementMarker, i: number) => (
+                {allMarkers.map((m: DevicePlacementMarker, i: number) => (
                   <button
                     key={i}
                     onClick={() => setActiveMarker(prev =>
@@ -593,7 +830,9 @@ export const RoomVisualization: React.FC = () => {
                     className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold shadow border transition-all duration-200 ${
                       activeMarker === m.deviceName
                         ? 'bg-teal text-white border-teal'
-                        : 'bg-white/80 dark:bg-charcoal/80 text-slate-700 dark:text-white border-white/50 hover:border-teal/50'
+                        : addedDevices.some(d => d.deviceName === m.deviceName)
+                          ? 'bg-amber-100/80 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 hover:border-amber-400'
+                          : 'bg-white/80 dark:bg-charcoal/80 text-slate-700 dark:text-white border-white/50 hover:border-teal/50'
                     }`}
                   >
                     <span>{m.icon}</span>
@@ -612,25 +851,50 @@ export const RoomVisualization: React.FC = () => {
                   exit={{ opacity: 0, height: 0 }}
                   className="overflow-hidden"
                 >
-                  {visualizationData.markers
+                  {allMarkers
                     .filter((m: DevicePlacementMarker) => m.deviceName === activeMarker)
-                    .map((m: DevicePlacementMarker, i: number) => (
-                      <div
-                        key={i}
-                        className="bg-teal/5 dark:bg-teal-900/10 border border-teal/20 rounded-2xl p-4 flex items-start gap-4"
-                      >
-                        <div className="w-10 h-10 rounded-xl bg-teal/10 flex items-center justify-center text-xl shrink-0">
-                          {m.icon}
-                        </div>
-                        <div>
-                          <h4 className="font-bold text-slate-800 dark:text-white">{m.deviceName}</h4>
-                          <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{m.reason}</p>
-                          <div className="text-xs text-teal font-mono mt-2 opacity-60">
-                            Position: {Math.round(m.x)}% from left, {Math.round(m.y)}% from top
+                    .map((m: DevicePlacementMarker, i: number) => {
+                      const isUserAdded = addedDevices.some(d => d.deviceName === m.deviceName);
+                      return (
+                        <div
+                          key={i}
+                          className={`rounded-2xl p-4 flex items-start gap-4 ${
+                            isUserAdded 
+                              ? 'bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800' 
+                              : 'bg-teal/5 dark:bg-teal-900/10 border border-teal/20'
+                          }`}
+                        >
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${
+                            isUserAdded ? 'bg-amber-100 dark:bg-amber-900/30' : 'bg-teal/10'
+                          }`}>
+                            {m.icon}
                           </div>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-bold text-slate-800 dark:text-white">{m.deviceName}</h4>
+                              {isUserAdded && (
+                                <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                                  User Added
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{m.reason}</p>
+                            <div className={`text-xs font-mono mt-2 opacity-60 ${isUserAdded ? 'text-amber-600' : 'text-teal'}`}>
+                              Position: {Math.round(m.x)}% from left, {Math.round(m.y)}% from top
+                            </div>
+                          </div>
+                          {isUserAdded && (
+                            <button
+                              onClick={() => removeDevice(m.deviceName)}
+                              className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                              title="Remove device"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                 </motion.div>
               )}
             </AnimatePresence>
