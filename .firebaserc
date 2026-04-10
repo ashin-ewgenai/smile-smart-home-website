@@ -1,5 +1,13 @@
 {
   "projects": {
     "default": "smile-smart-homes"
+  },
+  "targets": {},
+  "etags": {
+    "smile-smart-homes": {
+      "extensionInstances": {
+        "firestore-send-email": "5a89adc4d9761a66f82fa8371268baf7cc27e7078b1b4b6373fcd5c48b15d58e"
+      }
+    }
   }
 }

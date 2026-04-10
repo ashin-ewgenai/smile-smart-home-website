@@ -1,62 +1,72 @@
 rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
 
- // Craft rules based on data in your Firestore database
- //    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
- service firebase.storage {
-   match /b/{bucket}/o {
+    // ============ Helpers ============
+    function isSignedIn() {
+      return request.auth != null;
+    }
 
-     // ============ Helpers ============
-     function isSignedIn() {
-       return request.auth != null;
-     }
+    function isAdmin() {
+      // Use Auth custom claims set via Admin SDK: { admin: true }
+      return request.auth != null && request.auth.token.admin == true;
+    }
 
-     function isAdmin() {
-       // Use Auth custom claims set via Admin SDK: { admin: true }
-       return request.auth != null && request.auth.token.admin == true;
-     }
+    // ============ User uploads (AI Visualizer Fix) ============
+    match /user_uploads/{uid}/{allPaths=**} {
+      // Allow anyone (even guests) to upload to 'room_photos' path specifically for the visualizer.
+      // Other paths still require the user to be signed in as themselves or an admin.
+      allow read, write: if (isSignedIn() && (request.auth.uid == uid || isAdmin())) 
+                         || (allPaths[0] == 'room_photos');
+    }
+
+    // ============ Estimation attachments ============
+    // Avoid cross-service Firestore reads by encoding uploader uid in the path
+    // Path: estimation_attachments/{quoteId}/{uid}/...
+    match /estimation_attachments/{quoteId}/{uid}/{allPaths=**} {
+      allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // ============ User profile pictures ============
+    match /profile/{uid}/{allPaths=**} {
+      allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // ============ Device images ============
+    // Path: devices/images/{uid}/...
+    match /devices/images/{uid}/{allPaths=**} {
+      allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // ============ Support ticket attachments ============
+    // Path: supportTickets/{uid}/...
+    match /supportTickets/{uid}/{allPaths=**} {
+      allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // ============ Support chat uploads ============
+    // Path: support_chat/{uid}/...
+    match /support_chat/{uid}/{allPaths=**} {
+      allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    }
+
+    // ============ Planner Leads uploads ============
+    match /Planner_Leads/{allPaths=**} {
+      allow read, write: if true;
+    }
     
-
-     // ============ User uploads ============
-     match /user_uploads/{uid}/{allPaths=**} {
-       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-     }
-
-     // ============ Estimation attachments ============
-     // Avoid cross-service Firestore reads by encoding uploader uid in the path
-     // Path: estimation_attachments/{quoteId}/{uid}/...
-     match /estimation_attachments/{quoteId}/{uid}/{allPaths=**} {
-       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-     }
-
-     // ============ User profile pictures ============
-     match /profile/{uid}/{allPaths=**} {
-       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-     }
-
-     // ============ Device images ============
-     // Path: devices/images/{uid}/...
-     match /devices/images/{uid}/{allPaths=**} {
-       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-     }
-
-     // ============ Support ticket attachments ============
-     // Path: supportTickets/{uid}/...
-     match /supportTickets/{uid}/{allPaths=**} {
-       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-     }
-
-     // ============ Support chat uploads ============
-     // Path: support_chat/{uid}/...
-     match /support_chat/{uid}/{allPaths=**} {
-       allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
-     }
-
-     // ============ Admin-only storage ============
-     match /admin/{allPaths=**} {
-       allow read, write: if isAdmin();
-     }
-     match /{allPaths=**} {
-       allow read, write: if false;
-     }
-   }
- }
+    // ============ Reviews Media ============
+    match /Reviews/{allPaths=**} {
+      allow read: if true;
+      allow write: if isSignedIn();
+    }
+     
+    // ============ Admin-only storage ============
+    match /admin/{allPaths=**} {
+      allow read, write: if isAdmin();
+    }
+    match /{allPaths=**} {
+      allow read, write: if isSignedIn() && isAdmin();
+    }
+  }
+}

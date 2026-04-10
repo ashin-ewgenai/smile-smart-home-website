@@ -24,9 +24,28 @@
   }
   
   html {
+    @apply bg-white dark:bg-charcoal;
     scroll-behavior: auto;
     scrollbar-width: var(--scrollbar-width);
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    /* Prevent white flash during View Transitions */
+    background-color: theme('colors.white');
+  }
+
+  html.dark {
+    background-color: theme('colors.charcoal');
+  }
+
+  /* View Transition background persistence */
+  ::view-transition-group(root) {
+    background-color: inherit;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+    background-color: inherit;
   }
   
   /* Custom scrollbar for Webkit browsers (Chrome, Safari, Edge) */

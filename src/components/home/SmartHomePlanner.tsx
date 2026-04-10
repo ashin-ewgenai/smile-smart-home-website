@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { db } from '../../lib/firebase';
+import { db, auth } from '../../lib/firebase';
 import { serverTimestamp, setDoc } from 'firebase/firestore';
 import { plannerLeadDoc } from '../../models/Collections';
 
@@ -131,11 +131,15 @@ const SmartHomePlanner = () => {
           {
             // Must match docId per rules (lowercased, trimmed)
             email: emailKey,
+            uid: auth.currentUser?.uid || '',
+            source: 'smart_home_planner',
             planText,
             formData,
             complexity,
             recommendedAreas: areas,
             updatedAt: serverTimestamp(),
+            createdAt: serverTimestamp(),
+            status: 'new'
           },
           { merge: true }
         );

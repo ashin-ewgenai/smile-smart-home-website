@@ -3,10 +3,9 @@ import { Link } from 'react-router-dom';
 import { Ticket } from 'lucide-react';
 
 // Firebase
-import { auth, db, storage, functions } from '../../../lib/firebase';
+import { auth, db, storage, functions, uploadFile } from '../../../lib/firebase';
 import { addDoc, serverTimestamp, query, onSnapshot, Timestamp, getDocs, where, updateDoc, doc, collection } from 'firebase/firestore';
 import { supportTicketsCollection, supportTicketDoc } from '../../../models/Collections';
-import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 import { httpsCallable } from 'firebase/functions';
 
@@ -271,10 +270,7 @@ const TicketCenter: React.FC = () => {
       // Optional image upload to Firebase Storage
       let uploadedImageUrl: string | undefined;
       if (imageFile) {
-        const path = `supportTickets/${userUid}/${Date.now()}_${imageFile.name}`;
-        const ref = storageRef(storage, path);
-        await uploadBytes(ref, imageFile);
-        uploadedImageUrl = await getDownloadURL(ref);
+        uploadedImageUrl = await uploadFile(imageFile, `supportTickets/${userUid}`);
       }
 
       // Generate ticket number client-side

@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.onSupportTicketDeleted = exports.onQuoteCreated = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.onSupportTicketCreatedGen1 = exports.checkExpiredWarranties = exports.onUserDeviceWriteWarrantyNotify = void 0;
+exports.onSupportTicketDeleted = exports.onQuoteCreatedGen1 = exports.onSecureDataWrite = exports.onRequestServiceCreated = exports.onContactRequestCreated = exports.onSupportTicketCreatedGen1 = exports.checkExpiredWarranties = exports.onUserDeviceWriteWarrantyNotify = void 0;
 /**
  * Warranty notifications
  * - Firestore trigger: on write to User_Devices, evaluate warranty and create/update
@@ -452,7 +452,7 @@ async function rollbackOnViolation(change, action) {
  * Gen 1 Firestore trigger: When a new quote is created, create an admin notification.
  * Path: quotes/{docId}
  */
-exports.onQuoteCreated = functions.firestore
+exports.onQuoteCreatedGen1 = functions.firestore
     .document("quotes/{docId}")
     .onCreate(async (snap) => {
     const data = snap.data();
@@ -527,3 +527,30 @@ exports.onSupportTicketDeleted = functions.firestore
     catch { }
     return null;
 });
+/**
+ * Deterministic fallback placement when no AI key or on error.
+ */
+function generateFallbackMarkers(deviceNames) {
+    const positions = [
+        { x: 20, y: 25 }, { x: 75, y: 20 }, { x: 50, y: 55 },
+        { x: 15, y: 70 }, { x: 80, y: 65 }, { x: 40, y: 30 },
+        { x: 65, y: 45 }, { x: 25, y: 50 },
+    ];
+    const iconMap = {
+        camera: "📷", lock: "🔒", light: "💡", bulb: "💡",
+        thermostat: "🌡️", sensor: "🔍", switch: "⚡", dimmer: "🔆",
+        doorbell: "🔔", hub: "📡", plug: "🔌", alarm: "🚨",
+    };
+    return deviceNames.slice(0, 8).map((name, i) => {
+        const pos = positions[i % positions.length];
+        const lowerName = name.toLowerCase();
+        const iconKey = Object.keys(iconMap).find((k) => lowerName.includes(k)) || "plug";
+        return {
+            deviceName: name,
+            x: pos.x,
+            y: pos.y,
+            reason: `Optimal placement for ${name} based on room layout analysis.`,
+            icon: iconMap[iconKey],
+        };
+    });
+}

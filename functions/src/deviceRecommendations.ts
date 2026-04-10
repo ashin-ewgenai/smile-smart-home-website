@@ -2,7 +2,7 @@ import { onDocumentCreated, onDocumentUpdated, FirestoreEvent } from "firebase-f
 import { onCall, CallableRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { db } from "./core";
-import { triggerWhatsAppMessaging } from "./chatbot";
+import { triggerWhatsAppMessaging, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER } from "./chatbot";
 
 // EmailJS Configuration Secrets (for transactional email API)
 const EMAILJS_SERVICE_ID = defineSecret("EMAILJS_SERVICE_ID");
@@ -388,7 +388,9 @@ export const onQuoteStatusNotification = onDocumentUpdated("quotes/{quoteId}", a
  * sendQuoteNotification (V2 Callable)
  * Used by AI Consultant results page.
  */
-export const sendQuoteNotification = onCall(async (request: CallableRequest<any>) => {
+export const sendQuoteNotification = onCall({
+  secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER]
+}, async (request: CallableRequest<any>) => {
   const { type, quoteId, customerEmail, customerName, details: _details, phone: providedPhone } = request.data || {};
   const authUid = request.auth?.uid;
 

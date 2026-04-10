@@ -1,14 +1,12 @@
 import * as functionsV1 from "firebase-functions";
-import { getFirestore } from "firebase-admin/firestore";
-
-const db = getFirestore();
+import { db } from "./core";
 
 /**
  * submitReview (Gen 1)
  * Backend validation and persistence for user reviews.
  */
-export const submitReview = functionsV1.https.onCall(async (data, context) => {
-  const authCtx = context.auth;
+export const submitReview = functionsV1.https.onCall(async (data: any, context: any) => {
+  const authCtx = context?.auth;
   if (!authCtx) {
     throw new functionsV1.https.HttpsError("unauthenticated", "Must be authenticated.");
   }

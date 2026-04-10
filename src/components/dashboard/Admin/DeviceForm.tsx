@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { db, auth, storage } from '../../../lib/firebase';
+import { db, auth, storage, uploadFile } from '../../../lib/firebase';
 import { addDoc, serverTimestamp, onSnapshot, query, orderBy, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { devicesCollection, deviceDoc } from '../../../models/Collections';
-import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { ref as storageRef, deleteObject } from 'firebase/storage';
 
  
 
@@ -422,11 +422,7 @@ export default function DeviceForm() {
         // Optional image upload to Firebase Storage (like TicketCenter)
         let uploadedImageUrl: string | undefined;
         if (imageFile) {
-          // Store under devices/images/{uid}/... so rules can authorize owner-or-admin
-          const path = `devices/images/${uid}/${Date.now()}_${imageFile.name}`;
-          const ref = storageRef(storage, path);
-          await uploadBytes(ref, imageFile);
-          uploadedImageUrl = await getDownloadURL(ref);
+          uploadedImageUrl = await uploadFile(imageFile, `devices/images/${uid}`);
         }
 
         // Build payload and omit empty optional fields; dual-write new keys
@@ -530,13 +526,10 @@ export default function DeviceForm() {
     const oldImageUrl = editing.imageUrl;
     if (editImageFile) {
       try {
-        const path = `devices/images/${auth?.currentUser?.uid ?? 'unknown'}/${Date.now()}_${editImageFile.name}`;
-        const imgRef = storageRef(storage, path);
-        await uploadBytes(imgRef, editImageFile);
-        uploadedImageUrl = await getDownloadURL(imgRef);
-      } catch (e) {
+        uploadedImageUrl = await uploadFile(editImageFile, `devices/images/${auth?.currentUser?.uid ?? 'unknown'}`);
+      } catch (e: any) {
         console.error('Failed to upload image:', e);
-        alert('Failed to upload image. Please try again or choose a different file.');
+        alert(`Failed to upload image: ${e.message}`);
         return;
       }
     }

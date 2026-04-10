@@ -6,7 +6,7 @@ import { useDevices } from '../../../../contexts/DevicesContext';
 import { KanbanBoard } from '../KanbanBoard';
 
 const AdminContactSubmissions: React.FC = () => {
-  const { filteredContactSubmissions, updateItemStatus, adminLoading, searchQuery, setSearchQuery } = useDevices();
+  const { filteredContactSubmissions, updateItemStatus, updateItemDragIndex, adminLoading, searchQuery, setSearchQuery } = useDevices();
   const [error, setError] = useState<string | null>(null);
 
   const columns = [
@@ -56,6 +56,45 @@ const AdminContactSubmissions: React.FC = () => {
     );
   };
 
+  const renderActions = (request: any) => {
+    const status = (request.status || 'new').toLowerCase();
+    
+    if (status === 'new') {
+      return (
+        <button
+          onClick={(e) => { e.stopPropagation(); updateItemStatus('contactRequests', request.id, 'in_review'); }}
+          className="px-2 py-0.5 rounded bg-blue-600 text-white text-[10px] hover:bg-blue-700 transition-colors"
+        >
+          Review
+        </button>
+      );
+    }
+    
+    if (status === 'in_review') {
+      return (
+        <button
+          onClick={(e) => { e.stopPropagation(); updateItemStatus('contactRequests', request.id, 'follow_up'); }}
+          className="px-2 py-0.5 rounded bg-indigo-600 text-white text-[10px] hover:bg-indigo-700 transition-colors"
+        >
+          Mark Contacted
+        </button>
+      );
+    }
+
+    if (status === 'follow_up') {
+      return (
+        <button
+          onClick={(e) => { e.stopPropagation(); updateItemStatus('contactRequests', request.id, 'resolved'); }}
+          className="px-2 py-0.5 rounded bg-green-600 text-white text-[10px] hover:bg-green-700 transition-colors"
+        >
+          Resolve
+        </button>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <section className="p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -98,10 +137,9 @@ const AdminContactSubmissions: React.FC = () => {
           items={filteredContactSubmissions}
           columns={columns}
           itemType="contactRequests"
+          disableDrag={false}
           onStatusChange={(id, newStatus) => updateItemStatus('contactRequests', id, newStatus)}
-          onReorder={async (id, newIndex) => {
-            await updateDoc(doc(db, 'contactRequests', id), { dragIndex: newIndex });
-          }}
+          onReorder={(id, newIndex) => updateItemDragIndex('contactRequests', id, newIndex)}
           onDeleteItem={handleDelete}
           getCardId={(r) => r.id}
           getCardStatus={(r) => r.status || 'new'}
@@ -110,6 +148,7 @@ const AdminContactSubmissions: React.FC = () => {
           getCardIndex={(r) => r.dragIndex ?? 0}
           getCardDate={(r) => r.createdAt}
           renderCardDetails={renderDetails}
+          renderActions={renderActions}
         />
       )}
     </section>

@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { setDoc, Timestamp, getDocs, query, collection, where, getDoc, doc, limit } from 'firebase/firestore';
-import { auth, db, storage } from '../../../../lib/firebase';
+import { auth, db, storage, uploadFile } from '../../../../lib/firebase';
 import { estimationQuoteDoc, estimationQuotePayload } from '../../../../models/Collections';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref } from 'firebase/storage';
 
 type SelectedQuote = { type: 'quotes'; id: string; data: any } | null;
 
@@ -353,21 +353,19 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
         setUploading(false);
         return;
       }
-      const uploadedUrls: string[] = [];
-      for (const file of Array.from(files)) {
-        const path = `estimation_attachments/${quoteId}/${uid}/${Date.now()}_${file.name}`;
-        const storageRef = ref(storage, path);
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        uploadedUrls.push(url);
-      }
+      
+      const uploadPromises = Array.from(files).map((file) => 
+        uploadFile(file, `estimation_attachments/${quoteId}/${uid}`)
+      );
+      
+      const urls = await Promise.all(uploadPromises);
       setDraft((prev: any) => ({
         ...prev,
-        attachments: [...(prev.attachments || []), ...uploadedUrls],
+        attachments: [...(prev.attachments || []), ...urls],
       }));
-    } catch (e) {
+    } catch (e: any) {
       console.error('Attachment upload failed:', e);
-      alert('Failed to upload one or more attachments.');
+      alert(`Failed to upload one or more attachments: ${e.message}`);
     } finally {
       setUploading(false);
     }

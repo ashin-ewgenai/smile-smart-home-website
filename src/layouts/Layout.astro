@@ -15,9 +15,9 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
 <!DOCTYPE html>
 <html lang="en" class="scroll-smooth">
   <head>
-    <!-- Prevent theme flash: set dark class before paint based on saved preference or OS -->
-    <script>
-      (function() {
+    <script is:inline>
+      /* Prevent theme flash: set dark class before paint based on saved preference or OS */
+      function applyTheme() {
         if (typeof window === 'undefined' || typeof document === 'undefined') return;
         try {
           var saved = localStorage.getItem('theme');
@@ -27,7 +27,9 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
           if (isDark) root.classList.add('dark');
           else root.classList.remove('dark');
         } catch (e) {}
-      })();
+      }
+      applyTheme();
+      document.addEventListener('astro:after-swap', applyTheme);
     </script>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
@@ -101,7 +103,7 @@ const canonicalURL = new URL(Astro.url.pathname, Astro.site);
       }
     </script>
   </head>
-  <body>
+  <body class="bg-white dark:bg-charcoal">
     <ViewTransitions />
     <slot />
     <script type="module" src="/src/lib/lenis-init.ts"></script>

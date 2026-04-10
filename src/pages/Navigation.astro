@@ -1,7 +1,6 @@
 ---
 import DarkModeToggle from '../components/ui/DarkModeToggle';
-import AuthModal from '../components/home/AuthModal';
-import AuthNavClient from '../components/common/AuthNavClient';
+import AuthModalWrapper from '../components/home/AuthModalWrapper';
 
 // Server-side auth hint
 // Do NOT access window/localStorage here; this code runs on the server.
@@ -77,8 +76,10 @@ const authState = {
           <div data-auth="user-menu-trigger" class="h-8 w-8 rounded-full flex items-center justify-center bg-teal text-white cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
-          <div data-auth="user-menu-dropdown" class="absolute right-0 mt-2 w-40 origin-top-right rounded-md shadow-lg ring-1 ring-black/10 dark:ring-white/10 bg-white dark:bg-gray-900 py-1 hidden">
+          <div data-auth="user-menu-dropdown" class="absolute right-0 mt-2 w-48 origin-top-right rounded-md shadow-lg ring-1 ring-black/10 dark:ring-white/10 bg-white dark:bg-gray-900 py-1 hidden">
+            <a href="/scenes" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 font-medium">Scene Builder</a>
             <a href="/dashboard/user" data-auth="dashboard-action" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800">Dashboard</a>
+            <div class="border-t border-gray-100 dark:border-gray-800 my-1"></div>
             <button type="button" data-auth="logout-action" class="w-full text-left block px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-600/10">Sign out</button>
           </div>
         </div>
@@ -101,6 +102,7 @@ const authState = {
         <a href="/gallery" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Gallery</a>
         <a href="/reviews" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Reviews</a>
         <a href="/contact" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Contact</a>
+        <a href="/scenes" class="block px-4 py-3 text-teal font-bold hover:bg-teal/5 rounded-xl transition-all duration-200">Scene Builder</a>
         <!-- Mobile auth: Sign In (hidden when authed by AuthNavClient) -->
         <a href="#" data-open-auth="login" data-auth="signin-mobile" class="block px-4 py-3 mt-3 text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl text-center font-medium shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200">Sign In</a>
 
@@ -115,7 +117,7 @@ const authState = {
 </header>
 
 <!-- Inline React Auth Modal -->
-<AuthModal client:load />
+<AuthModalWrapper client:load />
 
 <!-- Server-rendered auth hint for pre-hydration script -->
 <meta id="auth-hint" data-is-authed={authState.isAuthed ? '1' : '0'} />
@@ -206,8 +208,6 @@ const authState = {
   })();
   // AuthNavClient will refine this once hydrated (role checks, Firestore, etc.)
 </script>
-
-<AuthNavClient client:load />
 
 <style>
   /* Apply teal color filter to logo */

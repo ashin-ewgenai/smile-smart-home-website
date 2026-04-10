@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from 'react';
+import React, { useRef, useState, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload, Camera, Sparkles, X, AlertTriangle, CheckCircle2, Loader2,
@@ -6,6 +6,7 @@ import {
   ImagePlus, Zap, MapPin
 } from 'lucide-react';
 import { useDeviceRecommendations } from '../hooks/useDeviceRecommendations';
+import { useDevices } from '../contexts/DevicesContext';
 import type { DevicePlacementMarker, RoomVisualizationResult } from '../models';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -338,6 +339,8 @@ export const RoomVisualization: React.FC = () => {
   );
   const [activeMarker, setActiveMarker] = useState<string | null>(null);
 
+  const { showNotification } = useDevices();
+
   const toggleDevice = (name: string) => {
     setSelectedDevices(prev => {
       const next = new Set(prev);
@@ -355,6 +358,15 @@ export const RoomVisualization: React.FC = () => {
     if (selectedDevices.size === 0) return;
     uploadAndAnalyzeRoom(Array.from(selectedDevices));
   };
+
+  useEffect(() => {
+    if (hasResult) {
+      showNotification({
+        message: 'AI Room Analysis complete! Explore the suggested placements below.',
+        type: 'success'
+      });
+    }
+  }, [hasResult, showNotification]);
 
   // Sign-in gate
   if (!uid) {
@@ -404,21 +416,6 @@ export const RoomVisualization: React.FC = () => {
           />
         </motion.div>
       )}
-
-      {/* Error message */}
-      <AnimatePresence>
-        {hasError && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="flex items-center gap-3 p-4 bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-900/30 rounded-2xl text-red-600 dark:text-red-400 text-sm"
-          >
-            <AlertTriangle size={18} className="shrink-0" />
-            {uploadError || visualizationError}
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Analyze CTA */}
       {roomPhoto && !hasResult && !isLoading && (
@@ -516,7 +513,7 @@ export const RoomVisualization: React.FC = () => {
               <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
 
               {/* Device markers */}
-              {visualizationData.markers.map((marker, i) => (
+              {visualizationData.markers.map((marker: DevicePlacementMarker, i: number) => (
                 <DeviceMarker
                   key={`${marker.deviceName}-${i}`}
                   marker={marker}
@@ -530,7 +527,7 @@ export const RoomVisualization: React.FC = () => {
 
               {/* Map legend */}
               <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1.5">
-                {visualizationData.markers.map((m, i) => (
+                {visualizationData.markers.map((m: DevicePlacementMarker, i: number) => (
                   <button
                     key={i}
                     onClick={() => setActiveMarker(prev =>
@@ -559,8 +556,8 @@ export const RoomVisualization: React.FC = () => {
                   className="overflow-hidden"
                 >
                   {visualizationData.markers
-                    .filter(m => m.deviceName === activeMarker)
-                    .map((m, i) => (
+                    .filter((m: DevicePlacementMarker) => m.deviceName === activeMarker)
+                    .map((m: DevicePlacementMarker, i: number) => (
                       <div
                         key={i}
                         className="bg-teal/5 dark:bg-teal-900/10 border border-teal/20 rounded-2xl p-4 flex items-start gap-4"

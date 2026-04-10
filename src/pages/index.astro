@@ -8,8 +8,10 @@ import Testimonial from '../components/common/Testimonial.astro';
 import Footer from './Footer.astro';
 import { StaggerContainer, StaggerItem } from '../components/ui/MotionIsland';
 import SmartHomePlannerSection from '../components/home/SmartHomePlannerSection.astro';
-import InteractiveFloorplan from '../components/home/InteractiveFloorplan';
+import InteractiveFloorplanWrapper from '../components/home/InteractiveFloorplanWrapper';
+import RoomVisualizerSection from '../components/home/RoomVisualizerSection.astro';
 import { RecommendationsWrapper } from '../components/RecommendationsWrapper';
+
 ---
 
 <Layout title="Smile Smart Homes - Professional Smart Home Installation">
@@ -58,8 +60,12 @@ import { RecommendationsWrapper } from '../components/RecommendationsWrapper';
       </div>
     </section>
 
+
+    <!-- Room Visualizer Section (Highlight Feature) -->
+    <RoomVisualizerSection />
+
     <!-- Interactive Smart Home Tour -->
-    <InteractiveFloorplan client:load />
+    <InteractiveFloorplanWrapper client:load />
 
     <!-- Process Section -->
     <section class="section-padding bg-soft-gray dark:bg-gray-800">
@@ -156,6 +162,7 @@ import { RecommendationsWrapper } from '../components/RecommendationsWrapper';
         <RecommendationsWrapper client:visible />
       </div>
     </section>
+
 
     <!-- Smart Home Planner Section -->
     <SmartHomePlannerSection />

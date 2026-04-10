@@ -22,6 +22,9 @@ interface KanbanBoardProps<T> {
   getCardIndex?: (item: T) => number; // New index getter
   getCardDate?: (item: T) => any;
   itemType: 'Planner_Leads' | 'contactRequests' | 'Support_Tickets';
+  disableDrag?: boolean;
+  renderActions?: (item: T) => React.ReactNode;
+  renderSourceBadge?: (item: T) => React.ReactNode;
 }
 
 export function KanbanBoard<T extends { id: string }>({
@@ -37,7 +40,10 @@ export function KanbanBoard<T extends { id: string }>({
   getCardSubtitle,
   getCardIndex,
   getCardDate,
-  itemType
+  itemType,
+  disableDrag = false,
+  renderActions,
+  renderSourceBadge
 }: KanbanBoardProps<T>) {
   const { isFloorplanItem } = useDevices();
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -167,20 +173,21 @@ export function KanbanBoard<T extends { id: string }>({
             {boardData[column.id]?.map(item => (
               <div
                 key={item.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, item.id)}
+                draggable={!disableDrag}
+                onDragStart={(e) => !disableDrag && handleDragStart(e, item.id)}
                 onDragEnd={handleDragEnd}
-                onDragOver={(e) => handleDragOver(e, true, item.id)}
-                onDrop={(e) => handleDrop(e, column.id, item.id)}
+                onDragOver={(e) => !disableDrag && handleDragOver(e, true, item.id)}
+                onDrop={(e) => !disableDrag && handleDrop(e, column.id, item.id)}
                 className={`
                   bg-white dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm 
-                  hover:shadow-md hover:border-teal-500/50 transition-all cursor-grab active:cursor-grabbing relative
+                  transition-all relative
+                  ${!disableDrag ? 'hover:shadow-md hover:border-teal-500/50 cursor-grab active:cursor-grabbing' : 'cursor-default'}
                   ${draggedId === item.id ? 'ring-2 ring-teal-500 border-transparent opacity-50' : ''}
                   ${dropTargetId === item.id ? 'border-t-4 border-t-teal-500' : ''}
                 `}
               >
                 {/* Card Header */}
-                <div className="flex justify-between items-start mb-2 pointer-events-none">
+                <div className="flex justify-between items-start mb-2">
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
                       {getCardTitle(item)}
@@ -191,17 +198,20 @@ export function KanbanBoard<T extends { id: string }>({
                       </p>
                     )}
                   </div>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); onDeleteItem(item); }}
-                    className="p-1 text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors pointer-events-auto"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  {!disableDrag && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); onDeleteItem(item); }}
+                      className="p-1 text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors pointer-events-auto"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
 
                 {/* Card Badges */}
-                <div className="flex flex-wrap gap-1.5 mb-3 pointer-events-none">
-                  {isFloorplanItem(item) && (
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {renderSourceBadge && renderSourceBadge(item)}
+                  {isFloorplanItem(item) && !renderSourceBadge && (
                     <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
                       <Layout className="h-2.5 w-2.5 mr-1" />
                       Floorplan
@@ -216,21 +226,29 @@ export function KanbanBoard<T extends { id: string }>({
                 </div>
 
                 {/* Card Actions */}
-                <div className="flex items-center justify-between mt-auto pt-2 border-t border-gray-100 dark:border-gray-700/50">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setExpandedId(expandedId === item.id ? null : item.id); }}
-                    className="text-[10px] font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 pointer-events-auto"
-                  >
-                    {expandedId === item.id ? 'Hide details' : 'View details'}
-                  </button>
-                </div>
-
-                {/* Expanded Details */}
-                {expandedId === item.id && (
-                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/50 animate-in fade-in slide-in-from-top-1 pointer-events-auto">
-                    {renderCardDetails(item)}
+                <div className="flex flex-col gap-2 mt-auto pt-2 border-t border-gray-100 dark:border-gray-700/50">
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setExpandedId(expandedId === item.id ? null : item.id); }}
+                      className="text-[10px] font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
+                    >
+                      {expandedId === item.id ? 'Hide details' : 'View details'}
+                    </button>
+                    
+                    {renderActions && (
+                      <div className="flex gap-2">
+                        {renderActions(item)}
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  {/* Expanded Details */}
+                  {expandedId === item.id && (
+                    <div className="mt-1 pt-3 border-t border-gray-100 dark:border-gray-700/50 animate-in fade-in slide-in-from-top-1">
+                      {renderCardDetails(item)}
+                    </div>
+                  )}
+                </div>
               </div>
             ))}
             

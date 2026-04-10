@@ -3,8 +3,7 @@ import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import { Save, User, Mail, Phone, MapPin, Calendar, Home, Camera } from 'lucide-react';
 import { collection, doc, getDoc, getDocs, query, setDoc, where, Timestamp } from 'firebase/firestore';
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { auth, db, storage, firebaseApp } from '../../../lib/firebase';
+import { auth, db, storage, firebaseApp, uploadFile } from '../../../lib/firebase';
 import { COLLECTION_USER_DEVICES } from '../../../models/Collections';
 import { useNavigate } from 'react-router-dom';
 
@@ -166,47 +165,16 @@ const UserProfile: React.FC = () => {
         setProfilePicUrl(localUrl);
       } catch {}
 
-      // Basic validation
-      const allowed = ['image/jpeg', 'image/png', 'image/jpg'];
-      if (!allowed.includes(file.type)) {
-        setPicStatus('Please select a JPG or PNG image.');
-        e.target.value = '';
-        return;
-      }
-
       const uid = auth.currentUser?.uid || localStorage.getItem('userId');
       if (!uid) {
         setPicStatus('You must be signed in to upload a photo.');
         return;
       }
 
-      const ext = file.type === 'image/png' ? 'png' : 'jpg';
-      // Store under profile/{uid}/... so Storage rules can authorize owner-or-admin without Firestore reads
-      const path = `profile/${uid}/${Date.now()}.${ext}`;
-      const ref = storageRef(storage, path);
-      const task = uploadBytesResumable(ref, file, { contentType: file.type });
-
-      // Watchdog: if no progress > 0 within 15s, cancel and hint likely causes
-      let stalled = true;
-      const stallTimer = setTimeout(() => {
-        if (stalled) {
-          try { task.cancel(); } catch {}
-          setPicStatus('Error: Upload stalled. Ensure you are signed in, Storage rules allow profile/{uid}.jpg|png, and storageBucket is set.');
-        }
-      }, 15000);
-
-      task.on('state_changed', (snap) => {
-        const pct = Math.round((snap.bytesTransferred / snap.totalBytes) * 100);
-        // Lightweight status feedback
-        setPicStatus(`Uploading... ${pct}%`);
-        if (pct > 0 && stalled) {
-          stalled = false;
-          clearTimeout(stallTimer);
-        }
+      const url = await uploadFile(file, `profile/${uid}`, {
+        onProgress: (pct) => setPicStatus(`Uploading... ${pct}%`),
+        allowedTypes: ['image/jpeg', 'image/png', 'image/jpg']
       });
-      await task;
-      clearTimeout(stallTimer);
-      const url = await getDownloadURL(ref);
 
       // Save URL to Firestore (Accounts/{uid} profilePic)
       const userDocRef = doc(db, 'Accounts', uid);

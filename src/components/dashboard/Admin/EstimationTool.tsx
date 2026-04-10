@@ -3,9 +3,10 @@ import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
 import EstimatePDF from './EstimatePDF';
 import { useSearchParams } from 'react-router-dom';
 import { Clock, FilePlus } from 'lucide-react';
-import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc, where, limit } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { auth, db, storage } from '../../../lib/firebase';
+import emailjs from '@emailjs/browser';
+import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc, where, limit, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref } from 'firebase/storage';
+import { auth, db, storage, uploadFile } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload, accountsCollection, userNotificationsCollection } from '../../../models/Collections';
 import QuoteDetails from './QuoteDetails';
@@ -30,6 +31,11 @@ interface QuoteItem {
   customDetails?: string;
   location?: { country?: string; state?: string; district?: string };
 }
+
+// EmailJS Configuration
+const EMAILJS_SERVICE_ID = 'service_fd3vtgc';
+const EMAILJS_TEMPLATE_ID = 'template_d6hadva';
+const EMAILJS_PUBLIC_KEY = 'R0tIXRXubwM-BqDDW';
 
 const EstimationTool: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -270,17 +276,16 @@ const EstimationTool: React.FC = () => {
         return;
       }
       const quoteId = createForm.quoteId || `Q-${Date.now()}`;
-      const uploaded: string[] = [];
-      for (const file of Array.from(files)) {
-        const path = `estimation_attachments/${quoteId}/${uid}/${Date.now()}_${file.name}`;
-        const storageRef = ref(storage, path);
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        uploaded.push(url);
-      }
-      setCreateForm((p) => ({ ...p, attachments: [...(p.attachments || []), ...uploaded] }));
-    } catch (e) {
-      alert('Failed to upload one or more attachments.');
+      
+      const uploadPromises = Array.from(files).map((file) => 
+        uploadFile(file, `estimation_attachments/${quoteId}/${uid}`)
+      );
+      
+      const urls = await Promise.all(uploadPromises);
+      setCreateForm((p) => ({ ...p, attachments: [...(p.attachments || []), ...urls] }));
+    } catch (e: any) {
+      console.error('Attachment upload error:', e);
+      alert(`Failed to upload one or more attachments: ${e.message}`);
     }
   };
 
@@ -426,6 +431,9 @@ const EstimationTool: React.FC = () => {
         if (resolvedUserUid) {
           await createUserNotification(resolvedUserUid, customerEmail, estimationId);
         }
+        
+        // Send email notification to customer
+        await sendEmailNotification(customerEmail, estimationId, totals.grand);
       } else {
         // For Draft/Pending, just add reference without changing status
         await updateDoc(doc(db, 'quotes', selectedQuote.id), {
@@ -483,7 +491,29 @@ const EstimationTool: React.FC = () => {
     }
   };
 
-  // Create notification for user when estimation quote is sent
+  // Send email notification via EmailJS
+  const sendEmailNotification = async (customerEmail: string, quoteId: string, grandTotal: number) => {
+    try {
+      const templateParams = {
+        to_email: customerEmail,
+        name: 'Valued Customer',
+        quote_id: quoteId,
+        total: `₹${grandTotal.toFixed(2)}`,
+      };
+      
+      await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        templateParams,
+        EMAILJS_PUBLIC_KEY
+      );
+      
+      console.log('Email sent via EmailJS to:', customerEmail);
+    } catch (err) {
+      console.error('Failed to send email via EmailJS:', err);
+      // Don't throw - email failure shouldn't block the quote sending
+    }
+  };
   const createUserNotification = async (customerUid: string, customerEmail: string, quoteId: string) => {
     try {
       const notificationData = {

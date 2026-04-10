@@ -42,21 +42,9 @@ service cloud.firestore {
 
     // ================= Accounts =================
     match /Accounts/{uid} {
-      allow read: if request.auth != null && (request.auth.uid == uid || 
+      allow read, write: if request.auth != null && (request.auth.uid == uid || 
         (exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role in ['admin', 'Admin', 'ADMIN', 'Super Admin', 'super admin', 'SUPER ADMIN', 'super_admin', 'SUPER_ADMIN', 'Super_Admin']));
-      
-      allow create: if request.auth != null && request.auth.uid == uid;
-      
-      allow update: if request.auth != null && (
-        (request.auth.uid == uid && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['Role', 'Uid'])) || 
-        (exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role in ['admin', 'Admin', 'ADMIN', 'Super Admin', 'super admin', 'SUPER ADMIN', 'super_admin', 'SUPER_ADMIN', 'Super_Admin'])
-      );
-      
-      allow delete: if request.auth != null && 
-        (exists(/databases/$(database)/documents/Accounts/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/Accounts/$(request.auth.uid)).data.Role in ['admin', 'Admin', 'ADMIN', 'Super Admin', 'super admin', 'SUPER ADMIN', 'super_admin', 'SUPER_ADMIN', 'Super_Admin']);
     }
 
     // ================= Estimation Quote =================

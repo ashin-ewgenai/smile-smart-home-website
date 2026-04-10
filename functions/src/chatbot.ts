@@ -3,9 +3,9 @@ import { defineSecret } from "firebase-functions/params";
 import { db, OPENAI_API_KEY } from "./core";
 
 // Twilio/WhatsApp Configuration Secrets (defined locally in this file)
-const TWILIO_ACCOUNT_SID = defineSecret("TWILIO_ACCOUNT_SID");
-const TWILIO_AUTH_TOKEN = defineSecret("TWILIO_AUTH_TOKEN");
-const TWILIO_WHATSAPP_NUMBER = defineSecret("TWILIO_WHATSAPP_NUMBER");
+export const TWILIO_ACCOUNT_SID = defineSecret("TWILIO_ACCOUNT_SID");
+export const TWILIO_AUTH_TOKEN = defineSecret("TWILIO_AUTH_TOKEN");
+export const TWILIO_WHATSAPP_NUMBER = defineSecret("TWILIO_WHATSAPP_NUMBER");
 
 // Declare global fetch to satisfy TypeScript without DOM lib in Node runtimes
 declare const fetch: any;
@@ -240,6 +240,10 @@ export async function triggerWhatsAppMessaging(params: {
   const accountSid = TWILIO_ACCOUNT_SID.value();
   const authToken = TWILIO_AUTH_TOKEN.value();
   const fromNumber = TWILIO_WHATSAPP_NUMBER.value(); // e.g., "whatsapp:+14155238886"
+
+  // DEBUG: Log secret availability (redacted for security)
+  console.log(`[WhatsApp DEBUG] Secrets check - accountSid exists: ${!!accountSid}, authToken exists: ${!!authToken}, fromNumber exists: ${!!fromNumber}`);
+  console.log(`[WhatsApp DEBUG] fromNumber value: ${fromNumber || 'NOT SET'}`);
 
   // If Twilio is not configured, log and skip gracefully
   if (!accountSid || !authToken || !fromNumber) {

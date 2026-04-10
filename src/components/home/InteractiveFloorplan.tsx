@@ -6,6 +6,7 @@ import {
   Home, Building2, Building, X, ArrowRight, Zap, CheckCircle, Loader2
 } from 'lucide-react';
 import { submitSpaceRequest, type SpaceType, type SpaceRequestPayload } from '../../hooks/useQuoteRequest';
+import { useDevices } from '../../contexts/DevicesContext';
 import { hotspotReveal } from '../../lib/animate';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,7 +34,6 @@ interface ModalState {
   open: boolean;
   submitting: boolean;
   success: boolean;
-  error: string | null;
   email: string;
 }
 
@@ -256,8 +256,9 @@ export default function InteractiveFloorplan() {
   const [activeSpot, setActiveSpot] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>({
     open: false, submitting: false, success: false,
-    error: null, email: '',
+    email: '',
   });
+  const { showNotification } = useDevices();
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   const config = SPACES[activeSpace];
@@ -268,16 +269,26 @@ export default function InteractiveFloorplan() {
     setActiveSpot(null);
   };
 
-  const openModal = () => setModal(m => ({ ...m, open: true, success: false, error: null }));
+  const openModal = () => setModal(m => ({ ...m, open: true, success: false }));
   const closeModal = () => {
     if (modal.submitting) return;
-    setModal({ open: false, submitting: false, success: false, error: null, email: '' });
+    setModal({ open: false, submitting: false, success: false, email: '' });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentHotspot) return;
-    setModal(m => ({ ...m, submitting: true, error: null }));
+
+    if (!window.navigator.onLine) {
+      showNotification({ 
+        message: 'No internet connection. Please check your network and try again.', 
+        type: 'error',
+        mode: 'snackbar'
+      });
+      return;
+    }
+
+    setModal(m => ({ ...m, submitting: true }));
     try {
       const payload: SpaceRequestPayload = {
         email: modal.email.trim(),
@@ -289,7 +300,9 @@ export default function InteractiveFloorplan() {
       await submitSpaceRequest(payload);
       setModal(m => ({ ...m, submitting: false, success: true }));
     } catch (err: any) {
-      setModal(m => ({ ...m, submitting: false, error: err?.message || 'Submission failed. Please try again.' }));
+      const errorMessage = err?.message || 'Submission failed. Please try again.';
+      setModal(m => ({ ...m, submitting: false }));
+      showNotification({ message: errorMessage, type: 'error', mode: 'snackbar' });
     }
   };
 
@@ -529,11 +542,6 @@ export default function InteractiveFloorplan() {
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
-                  {modal.error && (
-                    <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-2">
-                      {modal.error}
-                    </div>
-                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="fp-email">

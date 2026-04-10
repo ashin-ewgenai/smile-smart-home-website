@@ -17,7 +17,7 @@ export const HOUSE_SIZES = [
 export const SECURITY_LEVELS = ['Low', 'Medium', 'High'];
 
 export const BUDGET_RANGES = [
-  { label: 'Economy ($500 - $1,500)', value: 1500 },
-  { label: 'Standard ($1,500 - $5,000)', value: 5000 },
-  { label: 'Premium ($5,000+)', value: 15000 }
+  { label: 'Economy (₹500 - ₹1,500)', value: 1500 },
+  { label: 'Standard (₹1,500 - ₹5,000)', value: 5000 },
+  { label: 'Premium (₹5,000+)', value: 15000 }
 ];

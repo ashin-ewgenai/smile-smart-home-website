@@ -20,12 +20,8 @@ type Ticket = {
 };
 
 const Reports: React.FC = () => {
-  const { updateItemStatus } = useDevices();
-  const [loading, setLoading] = useState(true);
+  const { updateItemStatus, updateItemDragIndex, filteredReports, adminLoading } = useDevices();
   const [error, setError] = useState<string | null>(null);
-  const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest');
-  const [replyMap, setReplyMap] = useState<Record<string, string>>({});
   const [userCache, setUserCache] = useState<Record<string, { email?: string; displayName?: string; role?: string }>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
@@ -36,48 +32,11 @@ const Reports: React.FC = () => {
     { id: 'Resolved', title: 'Resolved', color: 'bg-green-500' },
   ];
 
-  // (useEffect for ticket polling and user polling remains same...)
-  useEffect(() => {
-    let unsub: undefined | (() => void);
-    setLoading(true);
-    try {
-      const qRef = query(supportTicketsCollection(db));
-      unsub = onSnapshot(qRef, async (snap) => {
-        const arr: Ticket[] = snap.docs.map((d) => {
-          const data = d.data() as any;
-          return {
-            id: d.id,
-            subject: data.subject || '',
-            category: data.category || 'Other',
-            description: data.description || '',
-            status: data.status || 'Pending',
-            createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || null),
-            userUid: data.uid,
-            imageUrl: data.imageUrl ?? null,
-            adminReply: data.adminReply || '',
-            adminRepliedAt: data.adminRepliedAt?.toDate ? data.adminRepliedAt.toDate() : (data.adminRepliedAt || null),
-          };
-        });
-        setTickets(arr);
-        const seed: Record<string, string> = {};
-        arr.forEach(t => { if (t.adminReply) seed[t.id] = t.adminReply; });
-        setReplyMap(seed);
-        setLoading(false);
-      }, (err) => {
-        console.error(err);
-        setError('Unable to load complaints.');
-        setLoading(false);
-      });
-    } catch (e) {
-      console.error(e);
-      setError('Unable to connect to Firebase.');
-      setLoading(false);
-    }
-    return () => { if (typeof unsub === 'function') unsub(); };
-  }, []);
+  // Sync search term to context if needed? Actually DevicesContext already has searchQuery.
+  // But Reports has its own search input. Let's keep it local for now or sync it.
 
   useEffect(() => {
-    const missingUids = Array.from(new Set(tickets
+    const missingUids = Array.from(new Set(filteredReports
       .map(t => t.userUid || (t as any).uid)
       .filter(Boolean) as string[]
     )).filter(uid => !userCache[uid]);
@@ -107,21 +66,21 @@ const Reports: React.FC = () => {
         setUserCache(prev => ({ ...prev, ...updates }));
       }
     })();
-  }, [tickets]);
+  }, [filteredReports]);
 
   const visible = useMemo(() => {
-    return [...tickets].filter(t => (
+    return [...filteredReports].filter(t => (
       (t.subject || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (t.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (t.category || '').toLowerCase().includes(searchTerm.toLowerCase())
     )).filter(t => filterCategory === 'all' || t.category === filterCategory);
-  }, [tickets, searchTerm, filterCategory]);
+  }, [filteredReports, searchTerm, filterCategory]);
 
   const handleStatusChange = async (id: string, newStatus: string) => {
     await updateItemStatus('Support_Tickets', id, newStatus);
   };
 
-  const deleteTicket = async (ticket: Ticket) => {
+  const deleteTicket = async (ticket: any) => {
     try {
       const ok = window.confirm('Delete this support ticket? This cannot be undone.');
       if (!ok) return;
@@ -182,19 +141,17 @@ const Reports: React.FC = () => {
         </div>
       )}
 
-      {loading ? (
+      {adminLoading ? (
         <div className="flex items-center justify-center h-64">
           <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
         </div>
       ) : (
-        <KanbanBoard<Ticket>
+        <KanbanBoard<any>
           items={visible}
           columns={columns}
           itemType="Support_Tickets"
           onStatusChange={handleStatusChange}
-          onReorder={async (id, newIndex) => {
-            await updateDoc(doc(db, 'Support_Tickets', id), { dragIndex: newIndex });
-          }}
+          onReorder={(id, newIndex) => updateItemDragIndex('Support_Tickets', id, newIndex)}
           onDeleteItem={deleteTicket}
           getCardId={(t) => t.id}
           getCardStatus={(t) => t.status}
@@ -202,6 +159,31 @@ const Reports: React.FC = () => {
           getCardSubtitle={(t) => userCache[t.userUid!]?.displayName || 'Unknown User'}
           getCardIndex={(t) => (t as any).dragIndex ?? 0}
           getCardDate={(t) => t.createdAt}
+          disableDrag={false}
+          renderActions={(ticket) => {
+            const status = ticket.status;
+            if (status === 'Pending') {
+              return (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleStatusChange(ticket.id, 'In Progress'); }}
+                  className="px-2 py-0.5 rounded bg-blue-600 text-white text-[10px] hover:bg-blue-700 transition-colors"
+                >
+                  Acknowledge
+                </button>
+              );
+            }
+            if (status === 'In Progress') {
+              return (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleStatusChange(ticket.id, 'Resolved'); }}
+                  className="px-2 py-0.5 rounded bg-green-600 text-white text-[10px] hover:bg-green-700 transition-colors"
+                >
+                  Resolve
+                </button>
+              );
+            }
+            return null;
+          }}
           renderCardDetails={(ticket) => (
             <div className="space-y-4">
               <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{ticket.description}</p>

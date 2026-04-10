@@ -416,10 +416,10 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
   const closeModal = () => { setModalOpen(false); setSelectedQuote(null); setEstimation(null); };
 
   // Local toast notifications
-  const [toasts, setToasts] = useState<Array<{ id: number; message: string; entering: boolean }>>([]);
-  const showToast = (message: string) => {
+  const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: 'success' | 'error'; entering: boolean }>>([]);
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     const id = Date.now() + Math.floor(Math.random() * 1000);
-    setToasts((prev) => [...prev, { id, message, entering: true }]);
+    setToasts((prev) => [...prev, { id, message, type, entering: true }]);
     // Trigger enter transition on next frame
     setTimeout(() => {
       setToasts((prev) => prev.map((t) => (t.id === id ? { ...t, entering: false } : t)));
@@ -651,6 +651,12 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     e.preventDefault();
     setSubmitError(null);
     setSubmitSuccess(null);
+
+    if (!window.navigator.onLine) {
+      showToast('No internet connection. Please check your network and try again.', 'error');
+      return;
+    }
+
     if (currentStep !== 4) {
       handleNext();
       return;
@@ -778,11 +784,11 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       if (code === 'permission-denied') {
         // Provide clearer hints for common causes
         setSubmitError('Permission denied. Make sure you are signed in and your account has access.');
-        showToast('Permission denied when creating quote. Please sign in again.');
+        showToast('Permission denied when creating quote. Please sign in again.', 'error');
         console.warn('[QuoteForm] permission-denied creating quotes doc. Hints: ensure request.auth.uid is set and matches userUid in payload; verify rules on /quotes allow create. Payload userUid:', uid);
       } else if (code === 'unauthenticated') {
         setSubmitError('You are not signed in. Please sign in and try again.');
-        showToast('Not signed in. Please log in.');
+        showToast('Not signed in. Please log in.', 'error');
       } else {
         setSubmitError(error?.message || 'Failed to submit. Please try again.');
       }
@@ -1142,7 +1148,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
           </div>
         )}
 
-        {submitError && <p className="mt-6 text-sm text-red-600">{submitError}</p>}
+        {/* submitError is now handled by snackbar showToast(..., 'error') */}
 
         <div className="mt-8 flex flex-wrap items-center gap-3">
           {currentStep > 1 && (
@@ -1501,25 +1507,44 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         </div>
       )}
 
-      {/* Toasts (top-right) */}
       <div className="fixed top-4 right-4 z-50 space-y-2 max-w-full">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`w-[calc(100vw-2rem)] sm:max-w-sm break-words rounded-lg shadow-lg border border-emerald-300 dark:border-emerald-700 bg-white dark:bg-gray-900/90 text-emerald-800 dark:text-emerald-200 px-4 py-3 transition-all duration-300 ${
-              t.entering ? 'opacity-0 translate-x-4' : 'opacity-100 translate-x-0'
+            className={`w-[calc(100vw-2rem)] sm:max-w-sm break-words rounded-xl shadow-2xl border px-5 py-4 transition-all duration-300 transform ${
+              t.type === 'error' 
+                ? 'bg-rose-50 dark:bg-rose-950/90 border-rose-200 dark:border-rose-900/50 text-rose-800 dark:text-rose-200' 
+                : 'bg-emerald-50 dark:bg-emerald-950/90 border-emerald-200 dark:border-emerald-900/50 text-emerald-800 dark:text-emerald-200'
+            } ${
+              t.entering ? 'opacity-0 translate-y-[-20px] scale-95' : 'opacity-100 translate-y-0 scale-100'
             }`}
           >
-            <div className="flex items-start gap-3">
-              <span className="mt-0.5">✓</span>
-              <div className="text-sm font-medium flex-1">{t.message}</div>
+            <div className="flex items-center gap-4">
+              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                t.type === 'error' ? 'bg-rose-100 dark:bg-rose-900/50' : 'bg-emerald-100 dark:bg-emerald-900/50'
+              }`}>
+                {t.type === 'error' ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-rose-600 dark:text-rose-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600 dark:text-emerald-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+              <div className="flex-1 text-sm font-bold leading-tight">{t.message}</div>
               <button
                 type="button"
                 onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
                 aria-label="Close notification"
-                className="text-emerald-700/80 dark:text-emerald-200/80 hover:opacity-80"
+                className={`flex-shrink-0 p-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors ${
+                  t.type === 'error' ? 'text-rose-400' : 'text-emerald-400'
+                }`}
               >
-                ×
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 011.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
               </button>
             </div>
           </div>

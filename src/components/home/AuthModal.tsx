@@ -4,6 +4,7 @@ import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getDoc, setDoc } from 'firebase/firestore';
 import { accountDoc, accountLoginMergePayload, newAccountPayload } from '../../models';
 import { useAuth } from '../../hooks/useAuth';
+import { useDevices } from '../../contexts/DevicesContext';
 import { serverTimestamp } from 'firebase/firestore';
 
 type View = 'login' | null;
@@ -11,13 +12,13 @@ type View = 'login' | null;
 export default function AuthModal() {
   const [open, setOpen] = useState<View>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<React.ReactNode | null>(null);
 
   // form fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const { loginWithGoogle } = useAuth();
+  const { showNotification, showCriticalError } = useDevices();
 
   // basic client-side validators and error mapping
   function validEmail(v: string) {
@@ -39,9 +40,9 @@ export default function AuthModal() {
       case 'auth/account-exists-with-different-credential':
         return 'An account already exists with a different sign-in method';
       case 'permission-denied':
-        return `[permission-denied] Permission denied. Please ensure you have the correct role and are logged in.`;
+        return 'Permission denied. Please ensure you have the correct role and are logged in.';
       case 'unauthenticated':
-        return `[unauthenticated] Session expired. Please sign in again`;
+        return 'Session expired. Please sign in again';
       case 'auth/user-disabled':
         return 'This account has been disabled';
       case 'auth/email-already-in-use':
@@ -51,7 +52,7 @@ export default function AuthModal() {
       case 'auth/operation-not-allowed':
         return 'Operation not allowed. Contact support';
       default:
-        return `[${code || 'unknown'}] Something went wrong. Please try again`;
+        return 'Something went wrong. Please try again';
     }
   }
 
@@ -71,27 +72,26 @@ export default function AuthModal() {
     else document.documentElement.classList.remove('overflow-hidden');
   }, [open]);
 
-  function resetError() {
-    setError(null);
-  }
 
   function resetFormFields() {
     setEmail('');
     setPassword('');
-    setError(null);
   }
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
-    resetError();
     try {
       // client-side validation
       if (!validEmail(email)) {
-        setError('Please enter a valid email');
+        showNotification({ message: 'Please enter a valid email', type: 'error', mode: 'snackbar' });
         return;
       }
       if (!validPassword(password)) {
-        setError('Password must be at least 8 characters and include uppercase, lowercase, number, and symbol');
+        showNotification({ 
+          message: 'Password must be at least 8 characters and include uppercase, lowercase, number, and symbol', 
+          type: 'error', 
+          mode: 'snackbar' 
+        });
         return;
       }
       setLoading(true);
@@ -104,7 +104,7 @@ export default function AuthModal() {
 
         if (!snap.exists()) {
           // Treat as invalid credentials for home login
-          setError('Wrong user ID or password');
+          showNotification({ message: 'Wrong user ID or password', type: 'error', mode: 'snackbar' });
           try { await signOut(auth); } catch {}
           return;
         }
@@ -147,14 +147,18 @@ export default function AuthModal() {
         }
 
         // Any non-user role is invalid for home login
-        setError(
-          <span>
-            Invalid account for home login{' '}
-            <a href="/admin_login" className="underline text-blue-600">
-              Go to admin login
-            </a>
-          </span>
-        );
+        showNotification({ 
+          message: (
+            <span>
+              Invalid account for home login{' '}
+              <a href="/admin_login" className="underline text-blue-600">
+                Go to admin login
+              </a>
+            </span>
+          ), 
+          type: 'error', 
+          mode: 'snackbar' 
+        });
         try { await signOut(auth); } catch {}
         return;
       }
@@ -163,14 +167,16 @@ export default function AuthModal() {
     } catch (err: any) {
       // Do not surface raw Firebase error messages
       const code = err?.code as string | undefined;
-      setError(friendlyAuthError(code));
+      showNotification({ 
+        message: friendlyAuthError(code),
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
   }
 
   async function handleGoogleLogin() {
-    resetError();
     setLoading(true);
     try {
       const user = await loginWithGoogle();
@@ -184,21 +190,22 @@ export default function AuthModal() {
 
           // Reject admins from using the User Dashboard
           if (role !== 'user') {
-            setError(
-              <span>
-                Administrative account detected. Please use the{' '}
-                <a href="/admin_login" className="underline text-blue-600">
-                  Admin Portal
-                </a>{' '}
-                to sign in.
-              </span>
-            );
+            showNotification({
+              message: 'Administrative account detected. Please use the Admin Portal to sign in.',
+              type: 'error',
+              mode: 'snackbar'
+            });
             await signOut(auth);
             return;
           }
 
-          // Update existing user metadata
-          await setDoc(userRef, accountLoginMergePayload(), { merge: true });
+          // Update existing user metadata - NON-BLOCKING
+          try {
+            await setDoc(userRef, accountLoginMergePayload(), { merge: true });
+          } catch (updateErr) {
+            console.error('Non-blocking metadata update failure:', updateErr);
+            // We ignore this error and let the user through to their dashboard
+          }
 
           // Persist to localStorage
           localStorage.setItem('userEmail', user.email);
@@ -236,8 +243,12 @@ export default function AuthModal() {
       if (err.message && err.message.includes('permission')) {
         diagnosticMsg = `[permission-denied] You do not have permission to update your profile. Please contact support.`;
       }
-      
-      setError(diagnosticMsg);
+      // show diagnostic in console for logging/debugging
+      console.warn('Google Sign-In Diagnostic:', diagnosticMsg);
+      showNotification({ 
+        message: errorMessage,
+        type: 'error'
+      });
       await signOut(auth);
     } finally {
       setLoading(false);
@@ -366,7 +377,6 @@ export default function AuthModal() {
                   Sign in with Google
                 </button>
 
-                {error && <p className="text-sm text-red-600 mt-4 text-center font-medium">{error}</p>}
               </form>
             )}
           </div>

@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { auth, db, functions, storage } from '../../lib/firebase';
+import { auth, db, functions, storage, uploadFile } from '../../lib/firebase';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit, updateDoc, deleteField, where, deleteDoc, writeBatch } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { ref as storageRef, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 // Removed unused triageChat import - functionality integrated into chatWithOpenAI
 
 interface SupportChatPanelProps {
@@ -2077,21 +2076,14 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
                   const tempId = Math.random().toString(36).slice(2);
                   setMessages(prev => [...prev, { id: tempId, role: 'user', uploading: true, ts: Date.now() }]);
                   try {
-                    const path = `support_chat/${uid}/${sessionId}/${Date.now()}_${file.name}`;
-                    const ref = storageRef(storage, path);
-                    const task = uploadBytesResumable(ref, file, { contentType: file.type });
-                    task.on('state_changed', undefined, (error) => {
-                      setMessages((prev) => prev.map((m) => m.id === tempId ? ({ id: tempId, role: 'agent', content: `Upload failed: ${error?.message || 'unknown error'}`, ts: Date.now() }) : m));
-                    }, async () => {
-                      const url = await getDownloadURL(task.snapshot.ref);
-                      setMessages((prev) => prev.map((m) => m.id === tempId ? ({ id: tempId, role: 'user', imageUrl: url, ts: Date.now() }) : m));
-                      try {
-                        const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
-                        await addDoc(msgsCol, { role: 'user', imageUrl: url, ts: Date.now() });
-                      } catch (err) {}
-                    });
-                  } catch (err) {
-                    setMessages(prev => [...prev, { role: 'agent', content: 'Image upload failed. Please try again.', ts: Date.now() }]);
+                    const url = await uploadFile(file, `support_chat/${uid}/${sessionId}`);
+                    setMessages((prev) => prev.map((m) => m.id === tempId ? ({ id: tempId, role: 'user', imageUrl: url, ts: Date.now() }) : m));
+                    
+                    const msgsCol = collection(db, 'chat_sessions', sessionId, 'messages');
+                    await addDoc(msgsCol, { role: 'user', imageUrl: url, ts: Date.now() });
+                  } catch (err: any) {
+                    console.error('Chat image upload error:', err);
+                    setMessages(prev => prev.map((m) => m.id === tempId ? ({ id: tempId, role: 'agent', content: `Image upload failed: ${err.message}`, ts: Date.now() }) : m));
                   }
                 }}
               />
