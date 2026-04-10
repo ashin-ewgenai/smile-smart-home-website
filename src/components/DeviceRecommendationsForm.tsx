@@ -91,6 +91,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [showContactForm, setShowContactForm] = useState(false);
+  const [waManualLink, setWaManualLink] = useState<string | null>(null);
 
   useEffect(() => {
     if (sendSuccess) {
@@ -520,22 +521,22 @@ export const DeviceRecommendationsForm: React.FC = () => {
                           </div>
 
                           <div className="flex flex-col gap-2 max-w-xs mx-auto">
-                            {whatsappStatus === 'sent' && (
-                              <div className="flex items-center gap-2 text-emerald-600 text-xs font-bold bg-emerald-50 dark:bg-emerald-900/10 py-2 px-4 rounded-xl">
-                                <MessageCircle size={14} />
-                                WhatsApp notification delivered
-                              </div>
-                            )}
-                            {whatsappStatus === 'failed' && (
-                              <div className="flex items-center gap-2 text-amber-600 text-xs font-bold bg-amber-50 dark:bg-amber-900/10 py-2 px-4 rounded-xl">
-                                <MessageCircle size={14} />
-                                WhatsApp failed (email delivered)
-                              </div>
-                            )}
-                            {whatsappStatus === 'skipped' && (
-                              <div className="flex items-center gap-2 text-slate-500 text-xs font-bold bg-slate-100 dark:bg-slate-800/50 py-2 px-4 rounded-xl">
-                                <MessageCircle size={14} />
-                                WhatsApp skipped (no phone number)
+                            {waManualLink && (
+                              <div className="space-y-4">
+                                <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400 text-xs font-bold justify-center bg-teal-50 dark:bg-teal-900/10 py-2 px-4 rounded-xl border border-teal-500/10">
+                                  <MessageCircle size={14} />
+                                  Opening WhatsApp...
+                                </div>
+                                
+                                <a 
+                                  href={waManualLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center justify-center gap-2 w-full py-3 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-xl shadow-teal-500/20 active:scale-[0.98]"
+                                >
+                                  <MessageCircle size={16} fill="currentColor" />
+                                  Click here if it didn't open
+                                </a>
                               </div>
                             )}
                           </div>
@@ -546,7 +547,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
                           className="btn-primary py-3 px-10 flex items-center gap-3 mx-auto shadow-xl shadow-teal-500/20 relative z-10 hover:scale-105 transition-all"
                         >
                           <Wifi size={18} />
-                          Send My Plan to Email & WhatsApp
+                          Send Details to My Email
                         </button>
                       ) : (
                         <div className="max-w-xs mx-auto space-y-4">
@@ -585,6 +586,8 @@ export const DeviceRecommendationsForm: React.FC = () => {
                                   email: recipientEmail,
                                   phone: recipientPhone,
                                   details: { budget: formData.budget, houseSize: formData.houseSize }
+                                }).then(res => {
+                                  if (res?.whatsappLink) setWaManualLink(res.whatsappLink);
                                 });
                               }}
                               className="w-full btn-primary py-2.5 flex items-center justify-center gap-2 shadow-lg"
@@ -592,12 +595,12 @@ export const DeviceRecommendationsForm: React.FC = () => {
                               {isSending ? (
                                 <>
                                   <Loader2 size={18} className="animate-spin" />
-                                  {whatsappStatus === 'sending' ? 'Sending email & WhatsApp...' : 'Sending...'}
+                                  Sending to Email...
                                 </>
                               ) : (
                                 <>
                                   <Wifi size={18} />
-                                  Confirm & Send
+                                  Send Details to My Email
                                 </>
                               )}
                             </button>

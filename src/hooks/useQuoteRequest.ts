@@ -41,6 +41,7 @@ export interface NotifyResult {
   emailSent: boolean;
   whatsappSent?: boolean;
   whatsappSkipped?: boolean;
+  whatsappLink?: string;
 }
 
 export interface SpaceRequestPayload {
@@ -82,6 +83,7 @@ export async function submitSpaceRequest(payload: SpaceRequestPayload): Promise<
     email: payload.email.toLowerCase().trim(),
     uid: auth.currentUser?.uid || '',
     phoneNumber: payload.phone || '', 
+    whatsappNumber: payload.phone || '', // Standardized field for WhatsApp triggers
     source: 'floorplan',
     status: 'new',
     createdAt: serverTimestamp(),
@@ -92,6 +94,29 @@ export async function submitSpaceRequest(payload: SpaceRequestPayload): Promise<
     planText: `[Floorplan Request — ${spaceLabel[payload.spaceType]}] ${payload.roomTitle}: ${payload.roomDescription}\n\nFeatures: ${payload.roomTags.join(', ')}`,
     formData: roomData
   });
+}
+
+/**
+ * Generates a manual WhatsApp Web link for fallback delivery
+ */
+export function generateWhatsAppLink(params: {
+  phone: string;
+  type: 'quote_submitted' | 'estimation_sent';
+  quoteId: string;
+  name?: string;
+}): string {
+  const { phone, type, quoteId, name } = params;
+  const isSubmitted = type === 'quote_submitted';
+  
+  // Clean phone number (remove +, spaces, etc)
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  
+  const firstName = name?.split(' ')[0] || 'there';
+  const message = isSubmitted
+    ? `👋 Hi ${firstName}! %0A%0AYour Smart Home quote request (${quoteId}) has been received. 🏠%0A%0AOur team will review your requirements and send a detailed estimation soon.%0A%0AView your quote: https://smilesmarthome.com/dashboard/user/my-quotes%0A%0A- Smile Smart Home Team`
+    : `🎉 Great news, ${firstName}! %0A%0AYour quote estimation for ${quoteId} is ready!%0A%0ACheck your email for full details or view it in your dashboard.%0A%0AQuestions? Reply here or call our support team.%0A%0A- Smile Smart Home Team`;
+
+  return `https://wa.me/${cleanPhone}?text=${message}`;
 }
 
 /**
@@ -190,13 +215,12 @@ export function useQuoteRequest() {
       // Check auth first
       const auth = getAuth();
       const currentUser = auth.currentUser;
-      console.log('[notifyQuoteAction] Current user:', currentUser?.uid || 'NOT LOGGED IN');
       
       if (!currentUser) {
         throw new Error('You must be logged in to send emails. Please sign in and try again.');
       }
 
-      // Step 1: Send email via EmailJS (client-side for immediate feedback)
+      // Step 1: Send email via EmailJS
       const templateParams = {
         to_email: params.email,
         name: params.name || 'Valued Customer',
@@ -204,54 +228,41 @@ export function useQuoteRequest() {
         total: params.details?.budget || 'Contact us for details',
       };
       
-      console.log('[notifyQuoteAction] Sending via EmailJS:', templateParams);
-      
-      const emailResult = await emailjs.send(
+      await emailjs.send(
         EMAILJS_SERVICE_ID,
         EMAILJS_TEMPLATE_ID,
         templateParams,
         EMAILJS_PUBLIC_KEY
       );
       
-      console.log('[notifyQuoteAction] EmailJS SUCCESS:', emailResult);
       result.emailSent = true;
       setSendSuccess(true);
 
-      // Step 2: Trigger backend for WhatsApp delivery (if phone provided)
+      // Step 2: Client-Side WhatsApp Redirect
       if (params.phone) {
-        setWhatsappStatus('sending');
-        try {
-          const functions = getFunctions();
-          const sendQuoteNotification = httpsCallable(functions, 'sendQuoteNotification');
-          
-          console.log('[notifyQuoteAction] Calling backend for WhatsApp:', params.phone);
-          
-          const backendResult = await sendQuoteNotification({
-            type: params.type,
-            quoteId: params.quoteId,
-            customerEmail: params.email,
-            customerName: params.name,
-            phone: params.phone,
-            details: params.details
-          });
-          
-          console.log('[notifyQuoteAction] Backend WhatsApp result:', backendResult.data);
-          result.whatsappSent = true;
-          setWhatsappStatus('sent');
-        } catch (whatsappErr: any) {
-          console.warn('[notifyQuoteAction] WhatsApp delivery failed (non-blocking):', whatsappErr);
-          result.whatsappSkipped = true;
-          setWhatsappStatus('failed');
-          // Don't fail the whole operation - email was sent successfully
-        }
+        setWhatsappStatus('sent');
+        
+        const waLink = generateWhatsAppLink({
+          phone: params.phone,
+          type: params.type,
+          quoteId: params.quoteId,
+          name: params.name
+        });
+        
+        result.whatsappLink = waLink;
+
+        // Auto-open WhatsApp in a new tab after a brief delay
+        setTimeout(() => {
+          window.open(waLink, '_blank');
+        }, 1500);
+
       } else {
         setWhatsappStatus('skipped');
         result.whatsappSkipped = true;
       }
 
-      console.log('[notifyQuoteAction] End-to-end send successful.');
       showNotification({ 
-        message: 'Your quote setup has been sent to your email successfully.', 
+        message: 'Your details have been sent to your email. Opening WhatsApp...', 
         type: 'success' 
       });
 
@@ -270,7 +281,6 @@ export function useQuoteRequest() {
       throw err;
     } finally {
       setIsSending(false);
-      console.log('[notifyQuoteAction] END - result:', result);
     }
   };
 

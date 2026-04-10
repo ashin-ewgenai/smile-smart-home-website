@@ -3,9 +3,9 @@ import {
   Tv, Flame, Lock, Sun, Car,
   ShieldCheck, Monitor, Users, Server, Briefcase,
   Moon, UtensilsCrossed, Droplets, DoorOpen,
-  Home, Building2, Building, X, ArrowRight, Zap, CheckCircle, Loader2
+  Home, Building2, Building, X, ArrowRight, Zap, CheckCircle, Loader2, MessageSquare
 } from 'lucide-react';
-import { submitSpaceRequest, type SpaceType, type SpaceRequestPayload } from '../../hooks/useQuoteRequest';
+import { submitSpaceRequest, useQuoteRequest, type SpaceType, type SpaceRequestPayload } from '../../hooks/useQuoteRequest';
 import { useDevices } from '../../contexts/DevicesContext';
 import { hotspotReveal } from '../../lib/animate';
 
@@ -35,6 +35,7 @@ interface ModalState {
   submitting: boolean;
   success: boolean;
   email: string;
+  phone: string;
 }
 
 // ─── Space Config Data ─────────────────────────────────────────────────────────
@@ -256,9 +257,11 @@ export default function InteractiveFloorplan() {
   const [activeSpot, setActiveSpot] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>({
     open: false, submitting: false, success: false,
-    email: '',
+    email: '', phone: '',
   });
   const { showNotification } = useDevices();
+  const { whatsappStatus, notifyQuoteAction } = useQuoteRequest();
+  const [waLink, setWaLink] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   const config = SPACES[activeSpace];
@@ -269,10 +272,11 @@ export default function InteractiveFloorplan() {
     setActiveSpot(null);
   };
 
-  const openModal = () => setModal(m => ({ ...m, open: true, success: false }));
+  const openModal = () => setModal(m => ({ ...m, open: true, success: false, waLink: null }));
   const closeModal = () => {
     if (modal.submitting) return;
-    setModal({ open: false, submitting: false, success: false, email: '' });
+    setModal({ open: false, submitting: false, success: false, email: '', phone: '' });
+    setWaLink(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -292,12 +296,33 @@ export default function InteractiveFloorplan() {
     try {
       const payload: SpaceRequestPayload = {
         email: modal.email.trim(),
+        phone: modal.phone.trim(),
         spaceType: activeSpace,
         roomTitle: currentHotspot.title,
         roomDescription: currentHotspot.description,
         roomTags: currentHotspot.tags,
       };
+
+      // 1. Submit to Firestore (Trigger backend)
       await submitSpaceRequest(payload);
+
+      // 2. Also trigger manual notification logic if phone is provided to get real-time status/link
+      if (modal.phone.trim()) {
+        try {
+          const res = await notifyQuoteAction({
+            type: 'quote_submitted',
+            quoteId: `Tour-${Date.now()}`,
+            email: modal.email.trim(),
+            phone: modal.phone.trim(),
+            name: 'Valued Customer',
+            details: { space: activeSpace, room: currentHotspot.title }
+          });
+          if (res?.whatsappLink) setWaLink(res.whatsappLink);
+        } catch (e) {
+          console.warn('WhatsApp notification trigger failed', e);
+        }
+      }
+
       setModal(m => ({ ...m, submitting: false, success: true }));
     } catch (err: any) {
       const errorMessage = err?.message || 'Submission failed. Please try again.';
@@ -518,9 +543,31 @@ export default function InteractiveFloorplan() {
                   <CheckCircle className="w-8 h-8 text-teal-400" />
                 </div>
                 <h3 className="text-2xl font-bold text-white mb-2">Request Sent!</h3>
-                <p className="text-gray-400 leading-relaxed mb-6">
+                <p className="text-gray-400 leading-relaxed mb-4">
                   Our team will review your <strong className="text-teal-400">{currentHotspot.title}</strong> automation request and get back to you shortly.
                 </p>
+
+                {/* WhatsApp Action */}
+                <div className="mb-6">
+                  {waLink && (
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-teal-400 text-xs justify-center bg-teal-400/5 py-2 rounded-xl border border-teal-400/10 backdrop-blur-sm">
+                        <MessageSquare className="w-3.5 h-3.5" />
+                        Opening WhatsApp on your device...
+                      </div>
+                      
+                      <a 
+                        href={waLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center justify-center gap-2 w-full py-3 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-xl shadow-teal-500/20 active:scale-[0.98]"
+                      >
+                        <MessageSquare className="w-4 h-4 fill-current" />
+                        Click if WhatsApp doesn't open
+                      </a>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={closeModal}
                   className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-semibold transition-colors"
@@ -557,8 +604,22 @@ export default function InteractiveFloorplan() {
                       placeholder="e.g. john@example.com"
                       className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-shadow text-base"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-1.5" htmlFor="fp-phone">
+                      WhatsApp Number (Optional)
+                    </label>
+                    <input
+                      id="fp-phone"
+                      type="tel"
+                      value={modal.phone}
+                      onChange={e => setModal(m => ({ ...m, phone: e.target.value }))}
+                      placeholder="e.g. +91 9876543210"
+                      className="w-full px-4 py-3 rounded-xl bg-gray-800 border border-white/10 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-teal-500 transition-shadow text-base"
+                    />
                     <p className="text-xs text-gray-500 mt-1.5">
-                      We'll use this to send you your personalised smart home plan.
+                      Enter your mobile number to receive your plan summary via WhatsApp.
                     </p>
                   </div>
 
@@ -574,7 +635,7 @@ export default function InteractiveFloorplan() {
                     disabled={modal.submitting}
                     className="w-full py-3 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold transition-colors flex items-center justify-center gap-2"
                   >
-                    {modal.submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</> : 'Send My Plan Request →'}
+                    {modal.submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending...</> : 'Send Details to My Email →'}
                   </button>
                 </form>
               </>
