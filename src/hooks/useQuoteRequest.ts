@@ -34,7 +34,8 @@ export interface NotifyParams {
   email: string,
   phone?: string,
   name?: string,
-  details?: any
+  details?: any,
+  pdfBase64?: string
 }
 
 export interface NotifyResult {
@@ -221,19 +222,33 @@ export function useQuoteRequest() {
       }
 
       // Step 1: Send email via EmailJS
-      const templateParams = {
-        to_email: params.email,
-        name: params.name || 'Valued Customer',
-        quote_id: params.quoteId,
-        total: params.details?.budget || 'Contact us for details',
-      };
-      
-      await emailjs.send(
-        EMAILJS_SERVICE_ID,
-        EMAILJS_TEMPLATE_ID,
-        templateParams,
-        EMAILJS_PUBLIC_KEY
-      );
+      if (params.type === 'estimation_sent' && params.pdfBase64) {
+        // Use the Cloud Function for estimations with PDF attachments
+        const functions = getFunctions();
+        const sendEmail = httpsCallable(functions, 'sendQuoteEmailWithPDF');
+        await sendEmail({
+          toEmail: params.email,
+          name: params.name || 'Valued Customer',
+          quoteId: params.quoteId,
+          total: params.details?.totalAmount || '',
+          pdfBase64: params.pdfBase64
+        });
+      } else {
+        // Default transactional email via EmailJS browser SDK
+        const templateParams = {
+          to_email: params.email,
+          name: params.name || 'Valued Customer',
+          quote_id: params.quoteId,
+          total: params.details?.totalAmount || 'Contact us for details',
+        };
+
+        await emailjs.send(
+          EMAILJS_SERVICE_ID,
+          EMAILJS_TEMPLATE_ID,
+          templateParams,
+          EMAILJS_PUBLIC_KEY
+        );
+      }
       
       result.emailSent = true;
       setSendSuccess(true);

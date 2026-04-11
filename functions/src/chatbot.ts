@@ -1,5 +1,16 @@
 import { onCall, HttpsError, type CallableRequest } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import { db, OPENAI_API_KEY } from "./core";
+
+
+// SMTP Configuration Secrets
+
+// SMTP Configuration Secrets
+const SMTP_HOST = defineSecret("SMTP_HOST");
+const SMTP_PORT = defineSecret("SMTP_PORT");
+const SMTP_USER = defineSecret("SMTP_USER");
+const SMTP_PASS = defineSecret("SMTP_PASS");
+const EMAIL_FROM = defineSecret("EMAIL_FROM");
 
 // Core internal declarations to satisfy TypeScript without DOM lib
 declare const fetch: any;
@@ -164,7 +175,8 @@ async function ensureSupportTicketForIssue(params: {
   category?: string;
   priority?: string;
   imageUrl?: string;
-}): Promise<{
+}
+): Promise<{
   ticketId: string;
   ticketNumber: string;
   status: string;
@@ -2083,3 +2095,104 @@ export const initiateLiveConsultation = onCall({
 
 
 
+
+/**
+ * sendQuoteEmailWithPDF
+ * 
+ * Callable function to send a quote estimation email with a PDF attachment via Nodemailer (SMTP).
+ * This is more robust for attachments than the EmailJS REST API.
+ */
+export const sendQuoteEmailWithPDF = onCall({
+  secrets: [SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, EMAIL_FROM],
+  cors: true
+}, async (request: CallableRequest) => {
+  try {
+    const { toEmail, name, quoteId, total, pdfBase64 } = request.data as {
+      toEmail: string;
+      name?: string;
+      quoteId: string;
+      total?: string;
+      pdfBase64?: string;
+    };
+
+    if (!toEmail) {
+      throw new HttpsError("invalid-argument", "Recipient email is required.");
+    }
+
+    // Dynamically require nodemailer
+    let nodemailer: any;
+    try {
+      nodemailer = require("nodemailer");
+    } catch (e) {
+      console.error("Nodemailer not found:", e);
+      throw new HttpsError("internal", "Email service is temporarily unavailable.");
+    }
+
+    const host = SMTP_HOST.value().trim();
+    const port = Number(SMTP_PORT.value().trim());
+    const user = SMTP_USER.value().trim();
+    const pass = SMTP_PASS.value().trim();
+    const from = EMAIL_FROM.value().trim();
+
+    if (!host || !user || !pass) {
+      console.error('[sendQuoteEmailWithPDF] SMTP Secrets are missing or incomplete.');
+      throw new HttpsError("failed-precondition", "Email service credentials are not configured in the backend.");
+    }
+
+    const transporter = nodemailer.createTransport({
+      host: host,
+      port: port,
+      secure: port === 465,
+      auth: {
+        user: user,
+        pass: pass,
+      },
+    });
+
+    const mailOptions: any = {
+      from: `"Smile Smart Home" <${from}>`,
+      to: toEmail,
+      subject: `Your Smart Home Quote Estimation - Smile Smart Home`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+          <h2 style="color: #0d9488;">Hello ${name || 'Valued Customer'},</h2>
+          <p>Thank you for choosing Smile Smart Home. Your estimation quote is ready for review.</p>
+          <div style="background-color: #f9fafb; padding: 15px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 5px 0;"><strong>Quote ID:</strong> ${quoteId}</p>
+            <p style="margin: 5px 0;"><strong>Estimated Amount:</strong> ${total || 'Contact us for details'}</p>
+          </div>
+          <p>We have attached the detailed estimation bill (PDF) to this email for your reference.</p>
+          <p>Please review the details and let us know if you have any questions.</p>
+          <hr style="border: 0; border-top: 1px solid #eee; margin: 30px 0;" />
+          <p style="font-size: 12px; color: #666;">
+            Best regards,<br />
+            <strong>Smile Smart Home Team</strong><br />
+            <a href="https://smile-smart-home.com" style="color: #0d9488; text-decoration: none;">www.smilesmarthomes.in</a>
+          </p>
+        </div>
+      `,
+    };
+
+    if (pdfBase64) {
+      mailOptions.attachments = [
+        {
+          filename: `Estimation_${quoteId}.pdf`,
+          content: pdfBase64,
+          encoding: 'base64',
+          contentType: 'application/pdf'
+        }
+      ];
+    }
+
+    await transporter.sendMail(mailOptions);
+    console.log('[sendQuoteEmailWithPDF] Email sent via SMTP to:', toEmail);
+
+    return { 
+      success: true, 
+      message: `Quote email with PDF sent successfully to ${toEmail}` 
+    };
+  } catch (error: any) {
+    console.error('[sendQuoteEmailWithPDF] SMTP Error:', error);
+    throw new HttpsError("internal", error?.message || 'Failed to send email via SMTP');
+  }
+});

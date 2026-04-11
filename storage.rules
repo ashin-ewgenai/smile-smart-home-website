@@ -20,11 +20,10 @@ service firebase.storage {
                          || (allPaths[0] == 'room_photos');
     }
 
-    // ============ Estimation attachments ============
-    // Avoid cross-service Firestore reads by encoding uploader uid in the path
-    // Path: estimation_attachments/{quoteId}/{uid}/...
-    match /estimation_attachments/{quoteId}/{uid}/{allPaths=**} {
-      allow read, write: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+    // ============ Estimation bill PDFs (Hosted) ============
+    match /estimation_quotes/{quoteId}/{allPaths=**} {
+      allow read: if true; // Allow customers to view their bills via link
+      allow write: if isSignedIn(); // Allow admins to upload bills
     }
 
     // ============ User profile pictures ============

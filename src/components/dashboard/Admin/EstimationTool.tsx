@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { PDFViewer, PDFDownloadLink } from '@react-pdf/renderer';
+import { PDFViewer, PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import EstimatePDF from './EstimatePDF';
 import { useSearchParams } from 'react-router-dom';
-import { Clock, FilePlus } from 'lucide-react';
+import { Clock, FilePlus, MessageCircle } from 'lucide-react';
 import emailjs from '@emailjs/browser';
 import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc, where, limit, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref } from 'firebase/storage';
 import { auth, db, storage, uploadFile } from '../../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload, accountsCollection, userNotificationsCollection } from '../../../models/Collections';
 import QuoteDetails from './QuoteDetails';
 
@@ -30,6 +31,7 @@ interface QuoteItem {
   // Additional optional fields present on various quote types
   customDetails?: string;
   location?: { country?: string; state?: string; district?: string };
+  customerId?: string;
 }
 
 // EmailJS Configuration
@@ -162,6 +164,8 @@ const EstimationTool: React.FC = () => {
     taxPercent: 0,
     taxes: [] as Array<{ name: string; percent: number }>,
   });
+
+  const [customerPhone, setCustomerPhone] = useState<string | null>(null);
 
   type LineItem = {
     id: string;
@@ -347,6 +351,30 @@ const EstimationTool: React.FC = () => {
     }
   };
 
+  // Fetch customer phone when quote is selected
+  useEffect(() => {
+    const fetchPhone = async () => {
+      const email = selectedQuote?.customerEmail || selectedQuote?.customerId;
+      if (!email) {
+        setCustomerPhone(null);
+        return;
+      }
+      try {
+        const accSnap = await getDocs(query(accountsCollection(db), where('Email', '==', email), limit(1)));
+        if (!accSnap.empty) {
+          const u = accSnap.docs[0].data() as any;
+          setCustomerPhone(u.phoneNumber || u.whatsappNumber || null);
+        } else {
+          setCustomerPhone(null);
+        }
+      } catch (err) {
+        console.warn('Failed to fetch customer phone:', err);
+        setCustomerPhone(null);
+      }
+    };
+    fetchPhone();
+  }, [selectedQuote]);
+
   const saveEstimationQuote = async (status: 'Draft' | 'Pending' | 'Confirmed') => {
     if (!selectedQuote) {
       alert('No quote selected');
@@ -432,8 +460,13 @@ const EstimationTool: React.FC = () => {
           await createUserNotification(resolvedUserUid, customerEmail, estimationId);
         }
         
-        // Send email notification to customer
-        await sendEmailNotification(customerEmail, estimationId, totals.grand);
+        // Send email notification with PDF to customer
+        try {
+          await sendEmailNotification(customerEmail, estimationId);
+        } catch (emailErr) {
+          console.error('[EstimationTool] Email notification failed but quote was saved:', emailErr);
+          // Don't alert here, sendEmailNotification has its own internal alerts/fallbacks
+        }
       } else {
         // For Draft/Pending, just add reference without changing status
         await updateDoc(doc(db, 'quotes', selectedQuote.id), {
@@ -491,27 +524,76 @@ const EstimationTool: React.FC = () => {
     }
   };
 
-  // Send email notification via EmailJS
-  const sendEmailNotification = async (customerEmail: string, quoteId: string, grandTotal: number) => {
+  // Send email notification with PDF attachment via Cloud Function
+  const sendEmailNotification = async (customerEmail: string, quoteId: string) => {
     try {
+      console.log('[EstimationTool] --- STARTING PDF FLOW (HOSTED) ---');
+      setSaving(true);
+      
+      // 1. Generate PDF Blob
+      const blob = await pdf(
+        <EstimatePDF 
+          createForm={createForm} 
+          items={items} 
+          totals={totals}
+        />
+      ).toBlob();
+      
+      console.log(`[EstimationTool] PDF Blob generated. Size: ${Math.round(blob.size / 1024)} KB`);
+
+      // 2. Upload to Firebase Storage
+      let pdfLink = '';
+      try {
+        const pdfFile = new File([blob], `Estimation_${quoteId}.pdf`, { type: 'application/pdf' });
+        const storagePath = `estimation_quotes/${quoteId}`;
+        console.log(`[EstimationTool] Uploading to Storage: ${storagePath}...`);
+        pdfLink = await uploadFile(pdfFile, storagePath, { 
+          allowedTypes: ['application/pdf'],
+          maxSizeMB: 5 
+        });
+        console.log('[EstimationTool] Upload successful. Link:', pdfLink);
+      } catch (uploadErr) {
+        console.error('[EstimationTool] STORAGE UPLOAD FAILED:', uploadErr);
+        alert('Failed to save PDF to Cloud Storage. Check your Internet or Firebase rules.');
+        throw uploadErr; // Bubble up to main catch
+      }
+
+      // 3. Prepare rich data for template_bgw0woc
       const templateParams = {
-        to_email: customerEmail,
-        name: 'Valued Customer',
-        quote_id: quoteId,
-        total: `₹${grandTotal.toFixed(2)}`,
+        order_id: quoteId,
+        email: customerEmail,
+        logo_url: 'https://smile-smart-homes.web.app/logo-primary.png',
+        pdf_link: pdfLink,
+        currency: '₹',
+        orders: items.map(item => ({
+          name: item.name,
+          price: item.unitPrice,
+          units: item.quantity
+        })),
+        cost: {
+          subtotal: totals.subtotal.toFixed(2),
+          tax: totals.taxes.toFixed(2),
+          total: totals.grand.toFixed(2)
+        }
       };
+
+      // 4. Send directly via EmailJS (template_bgw0woc)
+      try {
+        console.log('[EstimationTool] Sending via EmailJS (template_bgw0woc)...');
+        await emailjs.send(EMAILJS_SERVICE_ID, 'template_bgw0woc', templateParams, EMAILJS_PUBLIC_KEY);
+        console.log('Email sent successfully via EmailJS with hosted PDF link.');
+      } catch (emailjsErr) {
+        console.error('[EstimationTool] EMAILJS SEND FAILED:', emailjsErr);
+        alert('Final Step Failed: PDF saved to Cloud, but EmailJS refused to send.');
+        throw emailjsErr;
+      }
       
-      await emailjs.send(
-        EMAILJS_SERVICE_ID,
-        EMAILJS_TEMPLATE_ID,
-        templateParams,
-        EMAILJS_PUBLIC_KEY
-      );
-      
-      console.log('Email sent via EmailJS to:', customerEmail);
-    } catch (err) {
-      console.error('Failed to send email via EmailJS:', err);
-      // Don't throw - email failure shouldn't block the quote sending
+      alert('Quote saved and sent successfully with bill link!');
+    } catch (err: any) {
+      console.error('[EstimationTool] CRITICAL ERROR in Email Flow:', err);
+      // Main catch-all for any other unexpected issues
+    } finally {
+      setSaving(false);
     }
   };
   const createUserNotification = async (customerUid: string, customerEmail: string, quoteId: string) => {
@@ -1097,6 +1179,12 @@ const EstimationTool: React.FC = () => {
                   }} disabled={saving}>
                     {saving ? 'Sending...' : 'Send to Customer'}
                   </button>
+                  {customerPhone && (
+                    <div className="flex items-center gap-2 text-xs font-medium text-teal-600 dark:text-teal-400 py-2">
+                      <MessageCircle size={14} />
+                      WhatsApp will be sent to {customerPhone}
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => isPdfReady && setShowPdfPreview(true)}
