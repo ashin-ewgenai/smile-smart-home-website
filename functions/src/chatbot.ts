@@ -12,6 +12,10 @@ const SMTP_USER = defineSecret("SMTP_USER");
 const SMTP_PASS = defineSecret("SMTP_PASS");
 const EMAIL_FROM = defineSecret("EMAIL_FROM");
 
+// UltraMsg WhatsApp API Secrets
+const ULTRAMSG_INSTANCE_ID = defineSecret("ULTRAMSG_INSTANCE_ID");
+const ULTRAMSG_TOKEN = defineSecret("ULTRAMSG_TOKEN");
+
 // Core internal declarations to satisfy TypeScript without DOM lib
 declare const fetch: any;
 
@@ -2196,3 +2200,173 @@ export const sendQuoteEmailWithPDF = onCall({
     throw new HttpsError("internal", error?.message || 'Failed to send email via SMTP');
   }
 });
+
+// ===== WHATSAPP PROXY (UltraMsg) =====
+
+/**
+ * sendWhatsAppMessage
+ * 
+ * Backend proxy that sends a WhatsApp message via UltraMsg.
+ * Called from the frontend after a quote is submitted.
+ * 
+ * Required Firebase Secrets:
+ *   - ULTRAMSG_INSTANCE_ID: Your UltraMsg instance ID (e.g. "instance12345")
+ *   - ULTRAMSG_TOKEN: Your UltraMsg API token
+ * 
+ * Request data:
+ *   - phone: Recipient phone number (international format, e.g. "919876543210")
+ *   - type: 'quote_submitted' | 'estimation_sent'
+ *   - quoteId: Quote reference ID
+ *   - name: Recipient name (optional)
+ *   - details: Quote details object (optional, { budget, houseSize })
+ */
+export const sendWhatsAppMessage = onCall(
+  {
+    secrets: [ULTRAMSG_INSTANCE_ID, ULTRAMSG_TOKEN],
+    cors: true,
+  },
+  async (request: CallableRequest): Promise<{ success: boolean; message: string; sid?: string }> => {
+    const authCtx = request.auth;
+    if (!authCtx) {
+      throw new HttpsError("unauthenticated", "Must be authenticated to send WhatsApp messages.");
+    }
+
+    const { phone, type, quoteId, name, details } = (request.data || {}) as {
+      phone?: string;
+      type?: 'quote_submitted' | 'estimation_sent';
+      quoteId?: string;
+      name?: string;
+      details?: { budget?: number; houseSize?: string; securityNeeds?: string; totalAmount?: string };
+    };
+
+    // Validate required fields
+    if (!phone || !type || !quoteId) {
+      throw new HttpsError("invalid-argument", "phone, type, and quoteId are required fields.");
+    }
+
+    const instanceId = ULTRAMSG_INSTANCE_ID.value();
+    const token = ULTRAMSG_TOKEN.value();
+
+    if (!instanceId || !token) {
+      throw new HttpsError("failed-precondition", "UltraMsg credentials are not configured. Set ULTRAMSG_INSTANCE_ID and ULTRAMSG_TOKEN secrets.");
+    }
+
+    // Clean phone number — UltraMsg expects digits only (with country code, no +)
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    if (cleanPhone.length < 7) {
+      throw new HttpsError("invalid-argument", "Invalid phone number provided.");
+    }
+
+    // Build the message body matching the quote email content
+    const firstName = name?.split(' ')[0] || 'there';
+    const isSubmitted = type === 'quote_submitted';
+
+    let messageBody: string;
+
+    if (isSubmitted) {
+      messageBody = [
+        `👋 Hi ${firstName}!`,
+        ``,
+        `✅ Your Smart Home quote request *${quoteId}* has been received.`,
+        ``,
+        details?.houseSize ? `🏡 *Space:* ${details.houseSize}` : '',
+        details?.budget ? `💰 *Budget:* ₹${details.budget}` : '',
+        details?.securityNeeds ? `🔒 *Security Level:* ${details.securityNeeds}` : '',
+        ``,
+        `Our team is reviewing your requirements and will send a detailed estimation soon.`,
+        ``,
+        `📱 Track your quote anytime:`,
+        `https://smilesmarthome.com/dashboard/user/my-quotes`,
+        ``,
+        `— Smile Smart Home Team 🏠`,
+      ].filter(line => line !== undefined && !(line === '' && false)).join('\n').replace(/\n{3,}/g, '\n\n');
+    } else {
+      messageBody = [
+        `🎉 Great news, ${firstName}!`,
+        ``,
+        `Your Smart Home quote estimation *${quoteId}* is ready!`,
+        ``,
+        details?.totalAmount ? `💰 *Estimated Total:* ${details.totalAmount}` : '',
+        ``,
+        `Check your email for the full detailed proposal, or view it in your dashboard.`,
+        ``,
+        `📱 View estimation:`,
+        `https://smilesmarthome.com/dashboard/user/my-quotes`,
+        ``,
+        `Questions? Just reply here or contact our support team.`,
+        ``,
+        `— Smile Smart Home Team 🏠`,
+      ].filter(line => line !== undefined && !(line === '' && false)).join('\n').replace(/\n{3,}/g, '\n\n');
+    }
+
+    console.log(`[sendWhatsAppMessage] Sending WhatsApp to +${cleanPhone} | type=${type} | quoteId=${quoteId}`);
+
+    try {
+      const url = `https://api.ultramsg.com/${instanceId}/messages/chat`;
+      const body = new URLSearchParams({
+        token,
+        to: cleanPhone,
+        body: messageBody,
+      });
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: body.toString(),
+      });
+
+      const resultText = await response.text();
+      let result: any = {};
+      try { result = JSON.parse(resultText); } catch { /* leave as empty obj */ }
+
+      console.log(`[sendWhatsAppMessage] UltraMsg response:`, resultText);
+
+      // UltraMsg returns { sent: "true", id: "..." } on success
+      if (!response.ok || result?.sent === false || result?.error) {
+        const errMsg = result?.error || `UltraMsg API error: HTTP ${response.status}`;
+        console.error(`[sendWhatsAppMessage] Failed:`, errMsg);
+
+        // Log the failure to Firestore
+        try {
+          await db.collection("System_Logs").add({
+            channel: "whatsapp",
+            provider: "ultramsg",
+            type,
+            quoteId,
+            target: `+${cleanPhone}`,
+            status: "failed",
+            error: errMsg,
+            timestamp: new Date().toISOString(),
+          });
+        } catch { /* best-effort */ }
+
+        throw new HttpsError("internal", `WhatsApp delivery failed: ${errMsg}`);
+      }
+
+      // Log success
+      try {
+        await db.collection("System_Logs").add({
+          channel: "whatsapp",
+          provider: "ultramsg",
+          type,
+          quoteId,
+          target: `+${cleanPhone}`,
+          status: "success",
+          messageId: result?.id || null,
+          timestamp: new Date().toISOString(),
+        });
+      } catch { /* best-effort */ }
+
+      return {
+        success: true,
+        message: `WhatsApp message sent successfully to +${cleanPhone}`,
+        sid: result?.id || undefined,
+      };
+
+    } catch (error: any) {
+      if (error instanceof HttpsError) throw error;
+      console.error(`[sendWhatsAppMessage] Unexpected error:`, error);
+      throw new HttpsError("internal", error?.message || "Failed to send WhatsApp message");
+    }
+  }
+);

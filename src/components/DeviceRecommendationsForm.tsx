@@ -91,7 +91,6 @@ export const DeviceRecommendationsForm: React.FC = () => {
   const [recipientEmail, setRecipientEmail] = useState('');
   const [recipientPhone, setRecipientPhone] = useState('');
   const [showContactForm, setShowContactForm] = useState(false);
-  const [waManualLink, setWaManualLink] = useState<string | null>(null);
 
   useEffect(() => {
     if (sendSuccess) {
@@ -498,7 +497,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
                       <p className="text-teal-600 dark:text-teal-500/80 mb-6 max-w-md mx-auto">
                         Get this custom smart home plan sent directly to your registered email and WhatsApp for easy access later.
                       </p>
-                               {sendSuccess ? (
+                                  {sendSuccess ? (
                          <motion.div 
                           initial={{ scale: 0.8, opacity: 0, y: 20, rotate: -2 }} 
                           animate={{ scale: 1, opacity: 1, y: 0, rotate: 0 }}
@@ -520,23 +519,29 @@ export const DeviceRecommendationsForm: React.FC = () => {
                             </div>
                           </div>
 
-                          <div className="flex flex-col gap-2 max-w-xs mx-auto">
-                            {waManualLink && (
-                              <div className="space-y-4">
-                                <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400 text-xs font-bold justify-center bg-teal-50 dark:bg-teal-900/10 py-2 px-4 rounded-xl border border-teal-500/10">
-                                  <MessageCircle size={14} />
-                                  Opening WhatsApp...
-                                </div>
-                                
-                                <a 
-                                  href={waManualLink}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="flex items-center justify-center gap-2 w-full py-3 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-xl shadow-teal-500/20 active:scale-[0.98]"
-                                >
-                                  <MessageCircle size={16} fill="currentColor" />
-                                  Click here if it didn't open
-                                </a>
+                          {/* WhatsApp delivery status */}
+                          <div className="max-w-xs mx-auto">
+                            {whatsappStatus === 'sending' && (
+                              <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400 text-xs font-bold justify-center bg-teal-50 dark:bg-teal-900/10 py-2 px-4 rounded-xl border border-teal-500/10">
+                                <MessageCircle size={14} className="animate-pulse" />
+                                Sending WhatsApp message...
+                              </div>
+                            )}
+                            {whatsappStatus === 'sent' && (
+                              <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-xs font-bold justify-center bg-emerald-50 dark:bg-emerald-900/10 py-2 px-4 rounded-xl border border-emerald-500/10">
+                                <CheckCircle2 size={14} />
+                                WhatsApp message delivered!
+                              </div>
+                            )}
+                            {whatsappStatus === 'failed' && (
+                              <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 text-xs font-bold justify-center bg-amber-50 dark:bg-amber-900/10 py-2 px-4 rounded-xl border border-amber-500/10">
+                                <MessageCircle size={14} />
+                                WhatsApp delivery failed. Verify your number.
+                              </div>
+                            )}
+                            {whatsappStatus === 'skipped' && (
+                              <div className="text-xs text-slate-400 text-center">
+                                Add a phone number to also receive via WhatsApp.
                               </div>
                             )}
                           </div>
@@ -561,11 +566,14 @@ export const DeviceRecommendationsForm: React.FC = () => {
                             />
                             <input 
                               type="tel" 
-                              placeholder="WhatsApp Number"
+                              placeholder="+91 9876543210 (with country code)"
                               value={recipientPhone}
                               onChange={e => setRecipientPhone(e.target.value)}
                               className="w-full px-4 py-2 rounded-xl bg-white dark:bg-gray-800 border border-teal-200 dark:border-teal-900/40 text-sm focus:ring-2 focus:ring-teal-500"
                             />
+                            <p className="text-xs text-slate-400 -mt-1">
+                              Include country code, e.g. <span className="font-semibold text-teal-500">+91</span> for India. Must be a <span className="font-semibold">different</span> number from the sender.
+                            </p>
                           </div>
                           <div className="space-y-4">
                             <button 
@@ -586,8 +594,6 @@ export const DeviceRecommendationsForm: React.FC = () => {
                                   email: recipientEmail,
                                   phone: recipientPhone,
                                   details: { budget: formData.budget, houseSize: formData.houseSize }
-                                }).then(res => {
-                                  if (res?.whatsappLink) setWaManualLink(res.whatsappLink);
                                 });
                               }}
                               className="w-full btn-primary py-2.5 flex items-center justify-center gap-2 shadow-lg"
@@ -595,7 +601,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
                               {isSending ? (
                                 <>
                                   <Loader2 size={18} className="animate-spin" />
-                                  Sending to Email...
+                                  {whatsappStatus === 'sending' ? 'Sending WhatsApp...' : 'Sending to Email...'}
                                 </>
                               ) : (
                                 <>

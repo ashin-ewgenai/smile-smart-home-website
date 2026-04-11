@@ -1,3 +1,4 @@
+
 /**
  * useQuoteRequest — handles automated notifications and status tracking
  * for the Smile Smart Home Quote Portal.
@@ -26,6 +27,11 @@ const EMAILJS_SERVICE_ID = 'service_fd3vtgc';
 const EMAILJS_TEMPLATE_ID = 'template_d6hadva';
 const EMAILJS_PUBLIC_KEY = 'R0tIXRXubwM-BqDDW';
 
+// UltraMsg Client-Side Config (PUBLIC_ prefix makes them safe to expose in Astro)
+const ULTRAMSG_INSTANCE_ID = import.meta.env.PUBLIC_ULTRAMSG_INSTANCE_ID as string | undefined;
+const ULTRAMSG_TOKEN = import.meta.env.PUBLIC_ULTRAMSG_TOKEN as string | undefined;
+
+
 export type SpaceType = 'home' | 'office' | 'apartment';
 
 export interface NotifyParams {
@@ -42,7 +48,7 @@ export interface NotifyResult {
   emailSent: boolean;
   whatsappSent?: boolean;
   whatsappSkipped?: boolean;
-  whatsappLink?: string;
+  whatsappError?: string;
 }
 
 export interface SpaceRequestPayload {
@@ -73,17 +79,17 @@ export async function submitSpaceRequest(payload: SpaceRequestPayload): Promise<
     roomDescription: payload.roomDescription,
     roomTags: payload.roomTags,
   };
-  
+
   if (payload.phone) {
     roomData.phone = payload.phone;
   }
 
   const auth = getAuth();
-  
+
   await addDoc(collection(db, 'Planner_Leads'), {
     email: payload.email.toLowerCase().trim(),
     uid: auth.currentUser?.uid || '',
-    phoneNumber: payload.phone || '', 
+    phoneNumber: payload.phone || '',
     whatsappNumber: payload.phone || '', // Standardized field for WhatsApp triggers
     source: 'floorplan',
     status: 'new',
@@ -98,27 +104,85 @@ export async function submitSpaceRequest(payload: SpaceRequestPayload): Promise<
 }
 
 /**
- * Generates a manual WhatsApp Web link for fallback delivery
+ * sendWhatsAppViaUltraMsg
+ * Calls the UltraMsg REST API directly from the browser (client-side).
+ * No Firebase Function or billing required.
  */
-export function generateWhatsAppLink(params: {
+async function sendWhatsAppViaUltraMsg(params: {
   phone: string;
   type: 'quote_submitted' | 'estimation_sent';
   quoteId: string;
   name?: string;
-}): string {
-  const { phone, type, quoteId, name } = params;
-  const isSubmitted = type === 'quote_submitted';
-  
-  // Clean phone number (remove +, spaces, etc)
-  const cleanPhone = phone.replace(/[^0-9]/g, '');
-  
-  const firstName = name?.split(' ')[0] || 'there';
-  const message = isSubmitted
-    ? `👋 Hi ${firstName}! %0A%0AYour Smart Home quote request (${quoteId}) has been received. 🏠%0A%0AOur team will review your requirements and send a detailed estimation soon.%0A%0AView your quote: https://smilesmarthome.com/dashboard/user/my-quotes%0A%0A- Smile Smart Home Team`
-    : `🎉 Great news, ${firstName}! %0A%0AYour quote estimation for ${quoteId} is ready!%0A%0ACheck your email for full details or view it in your dashboard.%0A%0AQuestions? Reply here or call our support team.%0A%0A- Smile Smart Home Team`;
+  details?: any;
+}): Promise<void> {
+  const { phone, type, quoteId, name, details } = params;
 
-  return `https://wa.me/${cleanPhone}?text=${message}`;
+  if (!ULTRAMSG_INSTANCE_ID || !ULTRAMSG_TOKEN) {
+    throw new Error('UltraMsg credentials not configured. Add PUBLIC_ULTRAMSG_INSTANCE_ID and PUBLIC_ULTRAMSG_TOKEN to your .env file.');
+  }
+
+  // Clean phone: digits only, with country code (no +)
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  if (cleanPhone.length < 7) throw new Error('Invalid phone number.');
+
+  const firstName = name?.split(' ')[0] || 'there';
+  const isSubmitted = type === 'quote_submitted';
+
+  const lines = isSubmitted
+    ? [
+        `👋 Hi ${firstName}!`,
+        ``,
+        `✅ Your Smart Home quote request *${quoteId}* has been received.`,
+        ``,
+        details?.houseSize ? `🏡 *Space:* ${details.houseSize}` : null,
+        details?.budget ? `💰 *Budget:* ₹${details.budget}` : null,
+        details?.securityNeeds ? `🔒 *Security Level:* ${details.securityNeeds}` : null,
+        ``,
+        `Our team is reviewing your requirements and will send a detailed estimation soon.`,
+        ``,
+        `📱 Track your quote: https://smilesmarthome.com/dashboard/user/my-quotes`,
+        ``,
+        `— Smile Smart Home Team 🏠`,
+      ]
+    : [
+        `🎉 Great news, ${firstName}!`,
+        ``,
+        `Your Smart Home quote estimation *${quoteId}* is ready!`,
+        ``,
+        details?.totalAmount ? `💰 *Total:* ${details.totalAmount}` : null,
+        ``,
+        `Check your email for the full proposal or view it in your dashboard.`,
+        ``,
+        `📱 View: https://smilesmarthome.com/dashboard/user/my-quotes`,
+        ``,
+        `— Smile Smart Home Team 🏠`,
+      ];
+
+  const messageBody = lines.filter(l => l !== null).join('\n').replace(/\n{3,}/g, '\n\n');
+
+  const formData = new URLSearchParams({
+    token: ULTRAMSG_TOKEN,
+    to: cleanPhone,
+    body: messageBody,
+  });
+
+  const response = await fetch(
+    `https://api.ultramsg.com/${ULTRAMSG_INSTANCE_ID}/messages/chat`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData.toString(),
+    }
+  );
+
+  const result = await response.json().catch(() => ({}));
+
+  if (!response.ok || result?.sent === false || result?.error) {
+    throw new Error(result?.error || `UltraMsg error: HTTP ${response.status}`);
+  }
 }
+
+
 
 /**
  * Builds HTML email template for quote notifications
@@ -131,7 +195,7 @@ function buildEmailHtml(params: {
 }): string {
   const { type, quoteId, name, details } = params;
   const isSubmitted = type === 'quote_submitted';
-  
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -155,8 +219,8 @@ function buildEmailHtml(params: {
               <h2 style="color: #111827; margin: 0 0 20px 0; font-size: 24px;">Hello ${name || 'Valued Customer'},</h2>
               <p style="font-size: 16px; color: #4b5563; margin: 0 0 20px 0;">
                 ${isSubmitted
-                  ? "Thank you for your smart home quote request! We've received your requirements and our team is reviewing them."
-                  : "Great news! Your quote estimation is ready. We've analyzed your requirements and prepared a detailed proposal."}
+      ? "Thank you for your smart home quote request! We've received your requirements and our team is reviewing them."
+      : "Great news! Your quote estimation is ready. We've analyzed your requirements and prepared a detailed proposal."}
               </p>
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background: #0d9488; border-radius: 12px; margin: 25px 0;">
                 <tr>
@@ -216,7 +280,7 @@ export function useQuoteRequest() {
       // Check auth first
       const auth = getAuth();
       const currentUser = auth.currentUser;
-      
+
       if (!currentUser) {
         throw new Error('You must be logged in to send emails. Please sign in and try again.');
       }
@@ -249,36 +313,44 @@ export function useQuoteRequest() {
           EMAILJS_PUBLIC_KEY
         );
       }
-      
+
       result.emailSent = true;
       setSendSuccess(true);
 
-      // Step 2: Client-Side WhatsApp Redirect
+      // Step 2: Send WhatsApp via UltraMsg (direct browser API call — no Firebase billing)
       if (params.phone) {
-        setWhatsappStatus('sent');
-        
-        const waLink = generateWhatsAppLink({
-          phone: params.phone,
-          type: params.type,
-          quoteId: params.quoteId,
-          name: params.name
-        });
-        
-        result.whatsappLink = waLink;
-
-        // Auto-open WhatsApp in a new tab after a brief delay
-        setTimeout(() => {
-          window.open(waLink, '_blank');
-        }, 1500);
-
+        setWhatsappStatus('sending');
+        try {
+          await sendWhatsAppViaUltraMsg({
+            phone: params.phone,
+            type: params.type,
+            quoteId: params.quoteId,
+            name: params.name || '',
+            details: params.details || {},
+          });
+          setWhatsappStatus('sent');
+          result.whatsappSent = true;
+        } catch (waErr: any) {
+          console.warn('[notifyQuoteAction] WhatsApp delivery failed (non-fatal):', waErr);
+          setWhatsappStatus('failed');
+          result.whatsappSent = false;
+          result.whatsappError = waErr?.message || 'WhatsApp delivery failed';
+        }
       } else {
         setWhatsappStatus('skipped');
         result.whatsappSkipped = true;
       }
 
+
+      const waMsg = result.whatsappSent
+        ? ' WhatsApp message sent successfully!'
+        : result.whatsappSkipped
+        ? ''
+        : ' (WhatsApp delivery failed — check your phone number)';
+
       showNotification({ 
-        message: 'Your details have been sent to your email. Opening WhatsApp...', 
-        type: 'success' 
+        message: `Quote sent to your email.${waMsg}`, 
+        type: result.whatsappSent || result.whatsappSkipped ? 'success' : 'warning'
       });
 
       return result;
@@ -287,12 +359,12 @@ export function useQuoteRequest() {
       const message = getFriendlyErrorMessage(err);
       setSendError(message);
       setWhatsappStatus('failed');
-      
-      showNotification({ 
-        message: 'Delivery Error: ' + message, 
+
+      showNotification({
+        message: 'Delivery Error: ' + message,
         type: 'error'
       });
-      
+
       throw err;
     } finally {
       setIsSending(false);
@@ -314,11 +386,11 @@ export function useQuoteRequest() {
     }
   };
 
-  return { 
-    requestQuote, 
-    notifyQuoteAction, 
-    isSending, 
-    sendSuccess, 
+  return {
+    requestQuote,
+    notifyQuoteAction,
+    isSending,
+    sendSuccess,
     sendError,
     whatsappStatus
   };
