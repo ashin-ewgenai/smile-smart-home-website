@@ -293,6 +293,7 @@ interface DevicesContextValue {
   addedDevices: DevicePlacementMarker[];
   addDevice: (device: DevicePlacementMarker) => void;
   removeDevice: (deviceId: string) => void;
+  updateDevicePosition: (deviceName: string, x: number, y: number) => void;
   analyzeSingleDevice: (deviceName: string) => Promise<DevicePlacementMarker | null>;
   // Live Consultation
   activeConsultationId: string | null;
@@ -443,6 +444,15 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // ── User-Added Devices State ──────────────────────────────────────────────
   const [addedDevices, setAddedDevices] = useState<DevicePlacementMarker[]>([]);
+
+  // Update device position after drag
+  const updateDevicePosition = useCallback((deviceName: string, x: number, y: number) => {
+    setAddedDevices(prev => prev.map(device => 
+      device.deviceName === deviceName 
+        ? { ...device, x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) }
+        : device
+    ));
+  }, []);
 
   // ── Live Consultation State ─────────────────────────────────────────────
   const [activeConsultationId, setActiveConsultationId] = useState<string | null>(null);
@@ -1217,9 +1227,10 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setRoomPhoto,
     clearVisualization,
     uploadAndAnalyzeRoom,
-    addedDevices,
-    addDevice,
-    removeDevice,
+    addedDevices, 
+    addDevice, 
+    removeDevice, 
+    updateDevicePosition, 
     analyzeSingleDevice,
     activeConsultationId,
     consultationLoading,

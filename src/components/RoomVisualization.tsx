@@ -3,11 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Upload, Camera, Sparkles, X, AlertTriangle, CheckCircle2, Loader2,
   Wifi, Lightbulb, Eye, Info, ChevronDown, ChevronUp, RotateCcw,
-  ImagePlus, Zap, MapPin
+  ImagePlus, Zap, MapPin, ChevronLeft
 } from 'lucide-react';
 import { useDeviceRecommendations } from '../hooks/useDeviceRecommendations';
 import { useDevices } from '../contexts/DevicesContext';
-import { Plus, Trash2, Crosshair, MousePointer2, Hand } from 'lucide-react';
+import { Plus, Trash2, Crosshair, MousePointer2, Hand, GripVertical } from 'lucide-react';
 import type { DevicePlacementMarker, RoomVisualizationResult } from '../models';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -33,6 +33,11 @@ interface MarkerProps {
   index: number;
   isActive: boolean;
   onToggle: () => void;
+}
+
+interface DraggableMarkerProps extends MarkerProps {
+  onPositionChange: (x: number, y: number) => void;
+  containerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 const DeviceMarker: React.FC<MarkerProps> = ({ marker, index, isActive, onToggle }) => {
@@ -119,6 +124,234 @@ const DeviceMarker: React.FC<MarkerProps> = ({ marker, index, isActive, onToggle
               {marker.deviceName}
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{marker.reason}</p>
+            {/* Arrow */}
+            <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-white dark:border-t-charcoal" />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+};
+
+// ── Draggable Device Marker (for user-added devices) ──────────────────────────
+
+const DraggableDeviceMarker: React.FC<DraggableMarkerProps> = ({ 
+  marker, 
+  index, 
+  isActive, 
+  onToggle, 
+  onPositionChange,
+  containerRef 
+}) => {
+  const popupRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null);
+  const [committedPosition, setCommittedPosition] = useState<{ x: number; y: number }>({ x: marker.x, y: marker.y });
+  
+  // Track drag start position to distinguish clicks from drags
+  const dragStartRef = useRef<{ mouseX: number; mouseY: number; deviceX: number; deviceY: number } | null>(null);
+  const DRAG_THRESHOLD = 5; // pixels - movement below this is treated as a click
+
+  // Sync committed position when marker props change (after context update)
+  useEffect(() => {
+    if (!isDragging && (marker.x !== committedPosition.x || marker.y !== committedPosition.y)) {
+      setCommittedPosition({ x: marker.x, y: marker.y });
+      // Clear drag position once we've confirmed the prop updated
+      setDragPosition(null);
+    }
+  }, [marker.x, marker.y, isDragging, committedPosition.x, committedPosition.y]);
+
+  useEffect(() => {
+    if (isActive) {
+      const previouslyFocused = document.activeElement as HTMLElement;
+      popupRef.current?.focus();
+      return () => {
+        previouslyFocused?.focus();
+      };
+    }
+  }, [isActive]);
+
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Store initial positions to distinguish click vs drag
+    dragStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      deviceX: committedPosition.x,
+      deviceY: committedPosition.y
+    };
+    
+    onToggle(); // Activate the marker
+  }, [onToggle, committedPosition.x, committedPosition.y]);
+
+  useEffect(() => {
+    if (!dragStartRef.current) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!dragStartRef.current || !containerRef.current) return;
+      
+      const dx = e.clientX - dragStartRef.current.mouseX;
+      const dy = e.clientY - dragStartRef.current.mouseY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      // Only start dragging if moved beyond threshold
+      if (!isDragging && distance < DRAG_THRESHOLD) return;
+      
+      if (!isDragging) {
+        setIsDragging(true);
+      }
+      
+      const rect = containerRef.current.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width) * 100;
+      const y = ((e.clientY - rect.top) / rect.height) * 100;
+      
+      // Clamp to boundaries (0-100%)
+      const clampedX = Math.max(0, Math.min(100, x));
+      const clampedY = Math.max(0, Math.min(100, y));
+      
+      setDragPosition({ x: clampedX, y: clampedY });
+    };
+
+    const handleMouseUp = (e: MouseEvent) => {
+      if (!dragStartRef.current) return;
+      
+      const dx = e.clientX - dragStartRef.current.mouseX;
+      const dy = e.clientY - dragStartRef.current.mouseY;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (isDragging && containerRef.current) {
+        // This was a drag - update position
+        const rect = containerRef.current.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        
+        const clampedX = Math.max(0, Math.min(100, x));
+        const clampedY = Math.max(0, Math.min(100, y));
+        
+        setCommittedPosition({ x: clampedX, y: clampedY });
+        onPositionChange(clampedX, clampedY);
+      }
+      // If not dragging (distance < threshold), this was just a click - toggle only
+      
+      setIsDragging(false);
+      dragStartRef.current = null;
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isDragging, containerRef, onPositionChange]);
+
+  // Display position: use drag position during drag, otherwise use committed position
+  const displayPosition = dragPosition || committedPosition;
+  const tooltipVariants = {
+    hidden: { opacity: 0, y: 15, scale: 0.8, rotate: -5 },
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      scale: 1,
+      rotate: 0,
+      transition: { 
+        type: 'spring', 
+        damping: 15, 
+        stiffness: 250,
+        mass: 0.8 
+      }
+    },
+    exit: { 
+      opacity: 0, 
+      y: 10, 
+      scale: 0.8, 
+      transition: { duration: 0.2, ease: 'easeIn' } 
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ scale: 0, opacity: 0, rotate: -20 }}
+      animate={{ scale: 1, opacity: 1, rotate: 0 }}
+      transition={{ 
+        type: 'spring', 
+        stiffness: 350, 
+        damping: 15, 
+        delay: index * 0.08 
+      }}
+      className="absolute z-10"
+      style={{ 
+        left: `${displayPosition.x}%`, 
+        top: `${displayPosition.y}%`, 
+        transform: 'translate(-50%, -50%)',
+        cursor: isDragging ? 'grabbing' : 'grab'
+      }}
+    >
+      {/* Ping animation when active */}
+      <span className={`absolute inset-0 rounded-full bg-amber/40 animate-ping ${isActive ? '' : 'hidden'}`} />
+
+      {/* Drag handle / button */}
+      <div
+        onMouseDown={handleMouseDown}
+        className={`relative flex items-center justify-center w-10 h-10 rounded-full border-2 shadow-xl transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber/50 ${
+          isDragging
+            ? 'bg-amber border-white scale-125 shadow-amber/50 cursor-grabbing'
+            : isActive
+              ? 'bg-amber border-white scale-125 shadow-amber/50'
+              : 'bg-white/90 dark:bg-charcoal/90 border-amber hover:scale-110 hover:bg-amber/10'
+        }`}
+        aria-label={`${marker.deviceName} - drag to reposition`}
+        title={`${marker.deviceName} - drag to reposition`}
+      >
+        <span className="text-lg leading-none select-none">{marker.icon}</span>
+        
+        {/* Drag indicator icon */}
+        <div className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-amber flex items-center justify-center transition-opacity duration-200 ${isDragging || isActive ? 'opacity-100' : 'opacity-0'}`}>
+          <GripVertical size={10} className="text-white" />
+        </div>
+      </div>
+
+      {/* Position label during drag */}
+      {(isDragging || isActive) && (
+        <motion.div
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="absolute top-full left-1/2 -translate-x-1/2 mt-1.5 whitespace-nowrap"
+        >
+          <span className="px-2 py-0.5 bg-amber text-white text-[10px] font-bold rounded-full shadow-lg">
+            @{Math.round(displayPosition.x)}%,{Math.round(displayPosition.y)}%
+          </span>
+        </motion.div>
+      )}
+
+      {/* Tooltip */}
+      <AnimatePresence>
+        {isActive && !isDragging && (
+          <motion.div
+            ref={popupRef}
+            tabIndex={-1}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') onToggle();
+            }}
+            variants={tooltipVariants as any}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="absolute left-1/2 bottom-full mb-2 -translate-x-1/2 w-48 bg-white dark:bg-charcoal rounded-2xl shadow-2xl border border-amber/20 p-3 z-20 focus:outline-none"
+          >
+            <div className="font-bold text-sm text-slate-800 dark:text-white flex items-center gap-1.5 mb-1">
+              <span>{marker.icon}</span>
+              {marker.deviceName}
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{marker.reason}</p>
+            <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-800">
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                📍 @{Math.round(marker.x)}%,{Math.round(marker.y)}%
+              </p>
+            </div>
             {/* Arrow */}
             <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-white dark:border-t-charcoal" />
           </motion.div>
@@ -386,12 +619,23 @@ export const RoomVisualization: React.FC = () => {
   );
   const [activeMarker, setActiveMarker] = useState<string | null>(null);
 
-  const { showNotification, addedDevices, addDevice, removeDevice, analyzeSingleDevice } = useDevices();
+  const { showNotification, addedDevices, addDevice, removeDevice, updateDevicePosition, analyzeSingleDevice } = useDevices();
   const [newDeviceName, setNewDeviceName] = useState('');
   const [isAddingDevice, setIsAddingDevice] = useState(false);
   const [isPlacementMode, setIsPlacementMode] = useState(false);
   const [pendingDevice, setPendingDevice] = useState<DevicePlacementMarker | null>(null);
   const [isAiPlacing, setIsAiPlacing] = useState(false);
+  
+  // Track AI device position overrides (when user drags AI-suggested devices)
+  const [aiDeviceOverrides, setAiDeviceOverrides] = useState<Map<string, { x: number; y: number }>>(new Map());
+  
+  // Ref for the image container - used for drag-and-drop positioning
+  const imageContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Helper to update AI device position (keeps them as AI devices, not added devices)
+  const updateAiDevicePosition = useCallback((deviceName: string, x: number, y: number) => {
+    setAiDeviceOverrides(prev => new Map(prev).set(deviceName, { x, y }));
+  }, []);
 
   const toggleDevice = (name: string) => {
     setSelectedDevices(prev => {
@@ -494,9 +738,13 @@ export const RoomVisualization: React.FC = () => {
   };
 
   // Combine AI markers with user-added devices
-  const allMarkers: DevicePlacementMarker[] = visualizationData 
-    ? [...(visualizationData.markers || []), ...addedDevices]
-    : [];
+  // Apply position overrides to AI markers (when user drags them)
+  const aiMarkers = (visualizationData?.markers || []).map(m => {
+    const override = aiDeviceOverrides.get(m.deviceName);
+    return override ? { ...m, x: override.x, y: override.y } : m;
+  });
+  
+  const allMarkers: DevicePlacementMarker[] = [...aiMarkers, ...addedDevices];
 
   // Handle ESC key to clear active marker
   useEffect(() => {
@@ -541,7 +789,14 @@ export const RoomVisualization: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Drop Zone */}
+      {/* Back Button - Fixed top left */}
+      <button
+        onClick={() => window.history.back()}
+        className="fixed top-4 left-4 z-50 flex items-center gap-2 px-4 py-2.5 bg-white/90 dark:bg-charcoal/90 backdrop-blur-sm text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-teal dark:hover:text-teal transition-all rounded-xl shadow-lg border border-slate-200 dark:border-slate-700 hover:shadow-xl"
+      >
+        <ChevronLeft size={18} />
+        Back
+      </button>
 
       {/* Drop Zone */}
       <DropZone
@@ -781,6 +1036,7 @@ export const RoomVisualization: React.FC = () => {
 
             {/* Annotated photo */}
             <div
+              ref={imageContainerRef}
               className="relative rounded-3xl overflow-hidden border-2 border-teal/20 shadow-2xl bg-black"
               id="room-visualization-map"
             >
@@ -806,18 +1062,37 @@ export const RoomVisualization: React.FC = () => {
               {/* Dark overlay gradient for contrast */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent pointer-events-none" />
 
-              {/* Device markers - AI + User Added */}
-              {allMarkers.map((marker: DevicePlacementMarker, i: number) => (
-                <DeviceMarker
-                  key={`${marker.deviceName}-${i}`}
-                  marker={marker}
-                  index={i}
-                  isActive={activeMarker === marker.deviceName}
-                  onToggle={() => setActiveMarker(prev =>
-                    prev === marker.deviceName ? null : marker.deviceName
-                  )}
-                />
-              ))}
+              {/* Device markers - AI + User Added (all draggable) */}
+              {allMarkers.map((marker: DevicePlacementMarker, i: number) => {
+                // Check if this is a user-added device (already in addedDevices)
+                const isUserAdded = addedDevices.some(d => d.deviceName === marker.deviceName);
+                
+                return (
+                  <DraggableDeviceMarker
+                    key={`${marker.deviceName}-${i}`}
+                    marker={marker}
+                    index={i}
+                    isActive={activeMarker === marker.deviceName}
+                    onToggle={() => setActiveMarker(prev =>
+                      prev === marker.deviceName ? null : marker.deviceName
+                    )}
+                    onPositionChange={(x, y) => {
+                      if (isUserAdded) {
+                        // Update existing user-added device
+                        updateDevicePosition(marker.deviceName, x, y);
+                      } else {
+                        // AI device being repositioned - update override (keep as AI device)
+                        updateAiDevicePosition(marker.deviceName, x, y);
+                      }
+                      showNotification({
+                        message: `${marker.deviceName} moved to @${Math.round(x)}%,${Math.round(y)}%`,
+                        type: 'success'
+                      });
+                    }}
+                    containerRef={imageContainerRef}
+                  />
+                );
+              })}
 
               {/* Map legend */}
               <div className="absolute bottom-3 left-3 right-3 flex flex-wrap gap-1.5">
@@ -836,7 +1111,12 @@ export const RoomVisualization: React.FC = () => {
                     }`}
                   >
                     <span>{m.icon}</span>
-                    {m.deviceName}
+                    <span>{m.deviceName}</span>
+                    {addedDevices.some(d => d.deviceName === m.deviceName) && (
+                      <span className="text-[9px] opacity-60 ml-0.5">
+                        @{Math.round(m.x)}%,{Math.round(m.y)}%
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>
@@ -879,8 +1159,14 @@ export const RoomVisualization: React.FC = () => {
                               )}
                             </div>
                             <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">{m.reason}</p>
-                            <div className={`text-xs font-mono mt-2 opacity-60 ${isUserAdded ? 'text-amber-600' : 'text-teal'}`}>
-                              Position: {Math.round(m.x)}% from left, {Math.round(m.y)}% from top
+                            <div className={`text-xs font-mono mt-2 ${isUserAdded ? 'text-amber-600' : 'text-teal'} flex items-center gap-1`}>
+                              <span className="opacity-60">📍</span>
+                              <span className={isUserAdded ? 'bg-amber/10 px-1.5 py-0.5 rounded' : ''}>
+                                @{Math.round(m.x)}%,{Math.round(m.y)}%
+                              </span>
+                              {isUserAdded && (
+                                <span className="text-[10px] opacity-50 ml-1">(drag to move)</span>
+                              )}
                             </div>
                           </div>
                           {isUserAdded && (
