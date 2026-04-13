@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Plus, 
@@ -25,6 +25,7 @@ export const SceneBuilder: React.FC = () => {
   const {
     scenes,
     isEditing,
+    isNewScene,
     currentScene,
     sceneLoading,
     startNewScene,
@@ -43,6 +44,7 @@ export const SceneBuilder: React.FC = () => {
 
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const containerVariants = {
     hidden: { opacity: 0, y: 20 },
@@ -90,6 +92,14 @@ export const SceneBuilder: React.FC = () => {
     }
   };
 
+  // Auto-focus name input when creating a new scene
+  useEffect(() => {
+    if (isNewScene && isEditing && nameInputRef.current) {
+      nameInputRef.current.focus();
+      nameInputRef.current.select();
+    }
+  }, [isNewScene, isEditing]);
+
   if (isEditing && currentScene) {
     return (
       <div className="max-w-4xl mx-auto p-4 py-12">
@@ -124,15 +134,34 @@ export const SceneBuilder: React.FC = () => {
             <div className="space-y-10">
               {/* Scene Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div>
-                  <label className="block text-xs font-bold text-slate-400 dark:text-gray-500 mb-3 uppercase tracking-[0.2em]">Scene Name</label>
-                  <input
-                    type="text"
-                    value={currentScene.name || ''}
-                    onChange={(e) => updateAction(-1, { deviceId: 'INTERNAL', action: 'RENAME', value: e.target.value })}
-                    className="w-full bg-soft-gray dark:bg-charcoal/50 border-2 border-slate-100 dark:border-gray-800 rounded-2xl px-6 py-4 focus:border-teal transition-all outline-none text-slate-800 dark:text-white font-bold text-lg"
-                    placeholder="e.g. My Custom Scene"
-                  />
+                <div className={isNewScene ? 'md:col-span-2' : ''}>
+                  <label className="block text-xs font-bold text-slate-400 dark:text-gray-500 mb-3 uppercase tracking-[0.2em]">
+                    {isNewScene ? 'Name Your Scene' : 'Scene Name'}
+                    {isNewScene && <span className="ml-2 text-teal">*</span>}
+                  </label>
+                  <div className="relative">
+                    <input
+                      ref={nameInputRef}
+                      type="text"
+                      value={currentScene.name || ''}
+                      onChange={(e) => updateAction(-1, { deviceId: 'INTERNAL', action: 'RENAME', value: e.target.value })}
+                      className={`w-full bg-soft-gray dark:bg-charcoal/50 border-2 ${isNewScene ? 'border-teal ring-2 ring-teal/20' : 'border-slate-100 dark:border-gray-800'} rounded-2xl px-6 py-4 focus:border-teal focus:ring-2 focus:ring-teal/20 transition-all outline-none text-slate-800 dark:text-white font-bold text-lg`}
+                      placeholder={isNewScene ? 'Enter a memorable name for your scene...' : 'e.g. My Custom Scene'}
+                      maxLength={50}
+                    />
+                    {isNewScene && (
+                      <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                        <span className="text-xs font-bold text-teal bg-teal/10 px-3 py-1 rounded-full">
+                          {(currentScene.name || '').length}/50
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {isNewScene && (
+                    <p className="mt-2 text-sm text-slate-400 dark:text-gray-500">
+                      Give your scene a descriptive name so you can easily identify it later.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-400 dark:text-gray-500 mb-3 uppercase tracking-[0.2em]">Visual Icon</label>

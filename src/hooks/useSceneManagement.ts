@@ -95,6 +95,7 @@ export const getIconByName = (name: string) => {
 export function useSceneManagement() {
   const { devices, scenes, saveScene, deleteScene, sceneLoading } = useDevices();
   const [isEditing, setIsEditing] = useState(false);
+  const [isNewScene, setIsNewScene] = useState(false);
   const [currentScene, setCurrentScene] = useState<Partial<Scene> | null>(null);
 
   const startNewScene = useCallback((template?: typeof SCENE_TEMPLATES[0]) => {
@@ -124,11 +125,13 @@ export function useSceneManagement() {
       description: template?.description || '',
       actions
     });
+    setIsNewScene(true);
     setIsEditing(true);
   }, [devices]);
 
   const editScene = useCallback((scene: Scene) => {
     setCurrentScene(scene);
+    setIsNewScene(false);
     setIsEditing(true);
   }, []);
 
@@ -147,6 +150,18 @@ export function useSceneManagement() {
 
   const updateAction = useCallback((index: number, update: Partial<SceneAction>) => {
     if (!currentScene) return;
+
+    // Handle special scene-level updates (index = -1)
+    if (index === -1) {
+      if (update.deviceId === 'INTERNAL' && update.action === 'RENAME') {
+        setCurrentScene(prev => ({ ...prev!, name: update.value }));
+      } else if (update.deviceId === 'INTERNAL' && update.action === 'ICON') {
+        setCurrentScene(prev => ({ ...prev!, icon: update.value }));
+      }
+      return;
+    }
+
+    // Handle regular action updates
     const newActions = [...(currentScene.actions || [])];
     newActions[index] = { ...newActions[index], ...update };
     setCurrentScene(prev => ({
@@ -178,12 +193,14 @@ export function useSceneManagement() {
 
   const cancelEdit = useCallback(() => {
     setIsEditing(false);
+    setIsNewScene(false);
     setCurrentScene(null);
   }, []);
 
   return {
     scenes,
     isEditing,
+    isNewScene,
     currentScene,
     sceneLoading,
     startNewScene,

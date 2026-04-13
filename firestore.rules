@@ -120,8 +120,25 @@ service cloud.firestore {
     // ================= User Devices =================
     match /User_Devices/{docId} {
       allow read, write: if isSignedIn() && (
-        resource.data.uid == request.auth.uid || 
+        resource.data.uid == request.auth.uid ||
         request.resource.data.uid == request.auth.uid ||
+        isAdmin()
+      );
+    }
+
+    // ================= User Scenes =================
+    match /User_Scenes/{docId} {
+      allow read: if isSignedIn() && (
+        resource.data.uid == request.auth.uid ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow update: if isSignedIn() && (
+        resource.data.uid == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isSignedIn() && (
+        resource.data.uid == request.auth.uid ||
         isAdmin()
       );
     }

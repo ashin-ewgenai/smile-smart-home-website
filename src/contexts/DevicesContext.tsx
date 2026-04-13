@@ -360,7 +360,13 @@ function getUserWarranty(userData: any, serialHint?: string): any {
   }
 }
 
-/** 
+const snackbarVariants = {
+  hidden: { opacity: 0, y: -20, scale: 0.95 },
+  visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.3, ease: [0, 0, 0.2, 1] as const } },
+  exit: { opacity: 0, y: -20, scale: 0.95, transition: { duration: 0.2 } }
+};
+
+/**
  * Integrated Snackbar Component
  * Standardized for transient, non-blocking feedback.
  */
@@ -1004,7 +1010,9 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [uid]);
 
   const fetchScenes = useCallback(async () => {
+    console.log('[fetchScenes] Called with uid:', uid, 'auth.currentUser:', auth.currentUser?.uid);
     if (!uid) {
+      console.log('[fetchScenes] No uid, returning early with empty scenes');
       setScenes([]);
       return;
     }
@@ -1013,13 +1021,16 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const getScenesFn = httpsCallable<any, { scenes: any[] }>(functions, 'getUserScenes');
       const res = await getScenesFn();
       const userScenes = res.data.scenes || [];
-      
-      // Fallback to mock scenes if none found
-      setScenes(userScenes.length > 0 ? userScenes : MOCK_SCENES);
-    } catch (err) {
-      console.error('Failed to fetch scenes:', err);
-      // Fallback to mock scenes on error for demo purposes
-      setScenes(MOCK_SCENES);
+      console.log('[fetchScenes] Success, got', userScenes.length, 'scenes');
+      setScenes(userScenes);
+    } catch (err: any) {
+      console.error('[fetchScenes] Error:', err);
+      console.error('[fetchScenes] Error code:', err.code, 'message:', err.message);
+      showNotification({
+        message: 'Failed to load scenes. Please try refreshing.',
+        type: 'error'
+      });
+      setScenes([]);
     } finally {
       setSceneLoading(false);
     }
@@ -1054,6 +1065,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [uid, fetchScenes]);
 
   const deleteScene = useCallback(async (sceneId: string) => {
+    console.log('[deleteScene] Called with sceneId:', sceneId, 'uid:', uid);
     if (!uid) throw new Error('Must be logged in to delete scenes.');
     if (!window.navigator.onLine) {
       showNotification({ 
@@ -1065,11 +1077,14 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setSceneLoading(true);
     try {
       const deleteFn = httpsCallable<any, { status: string }>(functions, 'deleteUserScene');
+      console.log('[deleteScene] Calling deleteUserScene function...');
       await deleteFn({ sceneId });
+      console.log('[deleteScene] Delete successful, refreshing scenes...');
       await fetchScenes();
       showNotification({ message: 'Scene deleted.', type: 'success' });
     } catch (err: any) {
-      console.error('Failed to delete scene:', err);
+      console.error('[deleteScene] Error:', err);
+      console.error('[deleteScene] Error code:', err.code, 'message:', err.message);
       const msg = getFriendlyErrorMessage(err);
       showNotification({ 
         message: msg, 
