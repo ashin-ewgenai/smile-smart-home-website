@@ -126,8 +126,23 @@ export const SceneBuilder: React.FC = () => {
                 {React.createElement(getIconByName(currentScene.icon || 'Home'), { size: 48 })}
               </div>
             </div>
-            <h2 className="text-4xl font-bold mb-2">Configure Scene</h2>
-            <p className="text-teal-50 font-medium opacity-90 max-w-md">Design the perfect atmosphere for "{currentScene.name}".</p>
+            <h2 className="text-4xl font-bold mb-2">
+              {isNewScene ? 'Create New Scene' : 'Configure Scene'}
+            </h2>
+            <p className="text-teal-50 font-medium opacity-90 max-w-md">
+              {isNewScene 
+                ? 'Follow the steps below to build your automation routine.' 
+                : `Design the perfect atmosphere for "${currentScene.name}".`}
+            </p>
+            {isNewScene && (
+              <div className="flex items-center gap-2 mt-4">
+                <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-bold backdrop-blur-sm">Step 1: Name</span>
+                <span className="text-white/40">→</span>
+                <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-bold backdrop-blur-sm">Step 2: Icon</span>
+                <span className="text-white/40">→</span>
+                <span className="px-3 py-1 bg-white/20 rounded-full text-xs font-bold backdrop-blur-sm">Step 3: Devices</span>
+              </div>
+            )}
           </div>
 
           <div className="p-10">
@@ -218,12 +233,48 @@ export const SceneBuilder: React.FC = () => {
 
                 <div className="space-y-4">
                   {currentScene.actions?.length === 0 && (
-                    <div className="text-center py-20 bg-soft-gray dark:bg-charcoal/30 rounded-[40px] border-2 border-dashed border-slate-200 dark:border-gray-800">
+                    <div className="text-center py-16 bg-gradient-to-br from-teal/5 to-blue-600/5 rounded-[40px] border-2 border-dashed border-teal/30 dark:border-teal/20">
                       <div className="p-6 bg-white dark:bg-gray-800 rounded-full w-fit mx-auto mb-6 shadow-xl border border-slate-50 dark:border-gray-700">
-                        <PlusCircle size={40} className="text-teal/30" />
+                        <PlusCircle size={40} className="text-teal" />
                       </div>
-                      <h4 className="text-lg font-bold text-slate-400">Your layout is empty</h4>
-                      <p className="text-slate-400 text-sm mt-1">Add devices to build your automation routine.</p>
+                      <h4 className="text-xl font-bold text-slate-800 dark:text-white mb-2">
+                        {isNewScene ? 'Start Building Your Scene' : 'No Actions Defined'}
+                      </h4>
+                      <p className="text-slate-500 text-sm max-w-md mx-auto mb-6">
+                        {isNewScene 
+                          ? 'Add devices from your connected inventory to define what happens when this scene is activated.'
+                          : 'Add devices to build your automation routine.'}
+                      </p>
+                      <div className="relative inline-block group">
+                        <button className="bg-teal text-white px-8 py-4 rounded-[24px] font-bold flex items-center gap-3 hover:scale-105 transition-all shadow-xl shadow-teal/20">
+                          <Plus size={20} /> Add Your First Device
+                        </button>
+                        <div className="absolute left-1/2 -translate-x-1/2 top-full mt-3 w-80 bg-white dark:bg-gray-900 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.2)] border border-slate-100 dark:border-gray-800 p-3 z-20 hidden group-focus-within:block group-hover:block transition-all">
+                          <div className="text-xs font-bold text-slate-400 p-2 uppercase tracking-widest mb-2 border-b border-slate-50 dark:border-gray-800">Select a Device</div>
+                          <div className="max-h-72 overflow-y-auto custom-scrollbar pr-1">
+                            {devices.length > 0 ? devices.map(device => (
+                              <button
+                                key={device.id}
+                                onClick={() => addAction(device.id, device.deviceName || 'New Device')}
+                                className="w-full text-left p-4 hover:bg-soft-gray dark:hover:bg-charcoal/50 rounded-2xl transition-all flex items-center gap-4 group/item"
+                              >
+                                <div className="p-3 bg-slate-50 dark:bg-gray-800 rounded-xl group-hover/item:bg-teal group-hover/item:text-white transition-colors">
+                                  <Zap size={16} />
+                                </div>
+                                <div>
+                                  <div className="text-sm font-bold text-slate-800 dark:text-white truncate">{device.deviceName}</div>
+                                  <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mt-0.5">{device.type}</div>
+                                </div>
+                              </button>
+                            )) : (
+                              <div className="p-8 text-center">
+                                <p className="text-slate-400 text-sm mb-4">No devices connected yet</p>
+                                <a href="/dashboard" className="text-teal font-bold text-sm hover:underline">Go to Dashboard to add devices</a>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
                   {currentScene.actions?.map((action, idx) => (
