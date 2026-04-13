@@ -8,6 +8,8 @@ import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy,
 
 import type { DocumentData } from 'firebase/firestore';
 import { estimationQuoteDoc, estimationQuotesCollection, type EstimationQuote, adminNotificationsCollection } from '@/models/Collections';
+import { useQuoteRequest } from '@/hooks/useQuoteRequest';
+import { MessageCircle, CheckCircle2, Loader2, Zap } from 'lucide-react';
 
 // ... (existing imports)
 
@@ -40,6 +42,7 @@ interface FormData {
   
   // Common
   details?: string;
+  whatsappNumber?: string;
 }
 
 type QuoteFormProps = {
@@ -164,7 +167,10 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     budget: '',
     locationState: '',
     locationDistrict: '',
+    whatsappNumber: '',
   });
+  const { notifyQuoteAction, whatsappStatus } = useQuoteRequest();
+  const [waManualLink, setWaManualLink] = useState<string | null>(null);
   // Device options fetched from Firestore (fallback to static options if fetch fails)
   const [availableDevices, setAvailableDevices] = useState<{ value: string; label: string }[]>(DEVICE_OPTIONS);
   const [submitting, setSubmitting] = useState(false);
@@ -651,6 +657,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     e.preventDefault();
     setSubmitError(null);
     setSubmitSuccess(null);
+    setWaManualLink(null);
 
     if (!window.navigator.onLine) {
       showToast('No internet connection. Please check your network and try again.', 'error');
@@ -729,6 +736,8 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         timeline: formData.timeline,
         budget: formData.budget,
         budgetCurrency: 'INR',
+        whatsappNumber: formData.whatsappNumber || null,
+        phone: formData.whatsappNumber || null, // Backend alias
         ...(formData.details && formData.details.trim().length > 0 ? { details: formData.details.trim() } : {}),
       };
 
@@ -757,24 +766,32 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         console.warn('[QuoteForm] Failed to create admin notification for quote', e);
       }
       
-      setSubmitSuccess('Quote submitted successfully.');
+      setSubmitSuccess(docRef.id);
       showToast('Quote submitted successfully.');
-      // Clear inline success to avoid showing the paragraph
-      setTimeout(() => setSubmitSuccess(null), 0);
-      // Reset form and progress on success
-      setFormData({
-        quoteType: '',
-        timeline: '',
-        budget: '',
-        locationState: '',
-        locationDistrict: '',
-      });
-      setCurrentStep(1);
-      setErrors({});
+      
+      // Trigger WhatsApp notification via callable if phone provided
+      if (formData.whatsappNumber) {
+        try {
+          const waRes = await notifyQuoteAction({
+            type: 'quote_submitted',
+            quoteId: docRef.id,
+            email: userEmail || '',
+            phone: formData.whatsappNumber,
+            name: 'Valued Customer',
+            details: { budget: formData.budget, type: formData.quoteType }
+          });
+          if (waRes?.whatsappLink) setWaManualLink(waRes.whatsappLink);
+        } catch (waErr) {
+          console.warn('WhatsApp notification trigger failed', waErr);
+        }
+      }
+
+      // Reset form progress in localStorage
       try {
         localStorage.removeItem(FORM_STORAGE_KEY);
         localStorage.removeItem(STEP_STORAGE_KEY);
       } catch {}
+
       if (onSubmitted) {
         onSubmitted(docRef.id);
       }
@@ -830,6 +847,62 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
   };
 
   const renderStep = () => {
+    if (submitSuccess) {
+      return (
+        <div className="py-8 text-center space-y-6">
+          <div className="flex flex-col items-center gap-4">
+            <div className="w-20 h-20 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+              <CheckCircle2 size={48} />
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold dark:text-white">Quote Submitted!</h3>
+              <p className="text-gray-500 dark:text-gray-400 mt-2">
+                We've received your request and our team will get back to you soon.
+              </p>
+            </div>
+          </div>
+
+          <div className="max-w-xs mx-auto space-y-3">
+            {waManualLink && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-xs font-bold justify-center bg-emerald-50 dark:bg-emerald-900/10 py-2 px-4 rounded-xl border border-emerald-500/10">
+                  <CheckCircle2 size={16} />
+                  Opening WhatsApp...
+                </div>
+                
+                <a 
+                  href={waManualLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-4 px-4 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl text-base font-bold transition-all shadow-xl shadow-teal-500/20 active:scale-[0.98]"
+                >
+                  <MessageCircle size={20} fill="currentColor" />
+                  Click to Save on WhatsApp
+                </a>
+              </div>
+            )}
+            <button
+              onClick={() => {
+                setSubmitSuccess(null);
+                setCurrentStep(1);
+                setFormData({
+                  quoteType: '',
+                  timeline: '',
+                  budget: '',
+                  locationState: '',
+                  locationDistrict: '',
+                  whatsappNumber: '',
+                });
+              }}
+              className="w-full py-3 px-4 border border-gray-300 dark:border-gray-600 rounded-xl text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            >
+              Submit Another Quote
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     switch (currentStep) {
       case 1:
         return (
@@ -1067,6 +1140,18 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
               {errors.budget && <p className="text-sm text-red-600 mt-1">{errors.budget}</p>}
             </div>
             <div>
+              <label className="block text-sm font-medium mb-1">WhatsApp Number (Optional)</label>
+              <input
+                type="tel"
+                name="whatsappNumber"
+                value={formData.whatsappNumber || ''}
+                onChange={handleChange}
+                className={inputBase}
+                placeholder="e.g. +91 9876543210"
+              />
+              <p className="text-xs text-gray-500 mt-1">Receive updates via WhatsApp</p>
+            </div>
+            <div>
               <label className="block text-sm font-medium mb-1">Additional Details</label>
               <textarea
                 name="details"
@@ -1176,7 +1261,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
               disabled={submitting || activeQuotesCount >= MAX_QUOTES}
               title={`submitting: ${submitting}, activeQuotesCount: ${activeQuotesCount}, MAX_QUOTES: ${MAX_QUOTES}`}
             >
-              {submitting ? 'Submitting...' : activeQuotesCount >= MAX_QUOTES ? 'Limit Reached' : 'Submit Quote'}
+              {submitting ? 'Submitting Quote...' : activeQuotesCount >= MAX_QUOTES ? 'Limit Reached' : 'Submit Quote & Send Details →'}
             </button>
           )}
         </div>

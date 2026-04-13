@@ -373,32 +373,33 @@ const Snackbar: React.FC<{
   <AnimatePresence>
     {isOpen && (
       <motion.div
-        initial={{ opacity: 0, y: 50, scale: 0.9 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 20, scale: 0.9 }}
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[10000] w-full max-w-md px-4 pointer-events-none"
+        variants={snackbarVariants}
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        className="fixed top-6 right-6 z-[10005] w-full max-w-sm pointer-events-none"
         role="alert"
         aria-live="polite"
       >
         <div className={`
-          backdrop-blur-xl border p-4 rounded-2xl shadow-2xl flex items-start gap-4 pointer-events-auto
-          ${type === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-100' :
-            type === 'success' ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-100' :
-            type === 'warning' ? 'bg-amber-500/20 border-amber-500/30 text-amber-100' :
-            'bg-blue-500/20 border-blue-500/30 text-blue-100'}
+          backdrop-blur-2xl border p-4 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex items-start gap-4 pointer-events-auto
+          ${type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-900 dark:text-red-100' :
+            type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-900 dark:text-emerald-100' :
+            type === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-900 dark:text-amber-100' :
+            'bg-teal-500/10 border-teal-500/20 text-teal-900 dark:text-teal-100'}
         `}>
           <div className="mt-0.5 shrink-0">
-            {type === 'error' && <AlertCircle className="w-5 h-5 text-red-400" />}
-            {type === 'success' && <CheckCircle className="w-5 h-5 text-emerald-400" />}
-            {type === 'info' && <Info className="w-5 h-5 text-blue-400" />}
-            {type === 'warning' && <AlertTriangle className="w-5 h-5 text-amber-400" />}
+            {type === 'error' && <AlertCircle className="w-5 h-5 text-red-500" />}
+            {type === 'success' && <CheckCircle className="w-5 h-5 text-emerald-500" />}
+            {type === 'info' && <Info className="w-5 h-5 text-teal-500" />}
+            {type === 'warning' && <AlertTriangle className="w-5 h-5 text-amber-500" />}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold leading-relaxed">{message}</p>
+            <p className="text-sm font-bold leading-relaxed">{message}</p>
           </div>
           <button 
             onClick={onClose}
-            className="mt-0.5 opacity-40 hover:opacity-100 transition-opacity p-1 -mr-1 rounded-lg hover:bg-white/10"
+            className="mt-0.5 opacity-40 hover:opacity-100 transition-opacity p-1 -mr-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
             aria-label="Close notification"
           >
             <X className="w-4 h-4" />
@@ -685,6 +686,29 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setConsultationLoading(false);
     }
   }, [uid]);
+
+  // Handle ESC key to close popups
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (notification.isOpen) hideNotification();
+        if (criticalError.isOpen) hideCriticalError();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [notification.isOpen, criticalError.isOpen, hideNotification, hideCriticalError]);
+
+  // Focus trap for blocking modals
+  const modalRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (notification.isOpen && notification.mode === 'modal') {
+      const focusableElements = modalRef.current?.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (focusableElements && focusableElements.length > 0) {
+        (focusableElements[0] as HTMLElement).focus();
+      }
+    }
+  }, [notification.isOpen, notification.mode]);
 
 
   useEffect(() => {
@@ -1252,7 +1276,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     saveRecommendationToQuote, updateItemStatus, updateItemDragIndex,
     scenes, sceneLoading, fetchScenes, saveScene, deleteScene,
     adminHealthStats, isAdmin, roomPhoto, roomPhotoUrl,
-    roomPhotoPreview, uploadProgress, uploadError, uploadLoading,
+        roomPhotoPreview, uploadProgress, uploadError, uploadLoading,
     visualizationLoading, visualizationData, visualizationError,
     setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom,
     activeConsultationId, consultationLoading, startLiveConsultation,
@@ -1264,141 +1288,6 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   return (
     <DevicesContext.Provider value={value}>
       {children}
-      
-      
-      {/* ── Notification Components ── */}
-
-      {/* Global Snackbar for transient notifications */}
-      <Snackbar 
-        isOpen={notification.isOpen && notification.mode === 'snackbar'}
-        message={notification.message}
-        type={notification.type}
-        onClose={hideNotification}
-      />
-
-      {/* Global Modals for critical / blocking feedback */}
-      <AnimatePresence>
-        {notification.isOpen && notification.mode === 'modal' && (
-          <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={hideNotification}
-              className="absolute inset-0 bg-black/80 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-lg bg-[#0A0A0B] border border-white/10 rounded-3xl shadow-2xl overflow-hidden"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="modal-title"
-            >
-              <div className={`h-1.5 w-full ${
-                notification.type === 'error' ? 'bg-red-500' :
-                notification.type === 'success' ? 'bg-emerald-500' :
-                'bg-blue-500'
-              }`} />
-              <div className="p-8">
-                <div className="flex items-center gap-4 mb-6">
-                  <div className={`p-3 rounded-2xl ${
-                    notification.type === 'error' ? 'bg-red-500/10 text-red-500' :
-                    notification.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' :
-                    'bg-blue-500/10 text-blue-500'
-                  }`}>
-                    {notification.type === 'error' && <AlertCircle className="w-8 h-8" />}
-                    {notification.type === 'success' && <CheckCircle className="w-8 h-8" />}
-                    {notification.type === 'info' && <Info className="w-8 h-8" />}
-                    {notification.type === 'warning' && <AlertTriangle className="w-8 h-8" />}
-                  </div>
-                  <h3 id="modal-title" className="text-2xl font-bold text-white leading-none">
-                    {notification.title || (notification.type === 'error' ? 'Error' : 'Notification')}
-                  </h3>
-                </div>
-                
-                <p className="text-white/60 text-lg leading-relaxed mb-8">
-                  {notification.message}
-                </p>
-
-                <div className="flex justify-end">
-                  <button
-                    onClick={hideNotification}
-                    className={`
-                      px-8 py-3 rounded-xl font-semibold transition-all
-                      ${notification.type === 'error' ? 'bg-red-500 hover:bg-red-600' :
-                        notification.type === 'success' ? 'bg-emerald-500 hover:bg-emerald-600' :
-                        'bg-white text-black hover:bg-white/90'}
-                    `}
-                  >
-                    Got it
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-
-        {criticalError.isOpen && (
-          <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={hideCriticalError}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 30 }}
-              className="relative w-full max-w-md bg-gradient-to-b from-charcoal to-[#050505] border border-red-500/20 rounded-[2.5rem] shadow-[0_0_50px_rgba(239,68,68,0.2)] overflow-hidden"
-              role="alertdialog"
-              aria-modal="true"
-            >
-              <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-red-500 to-transparent opacity-50" />
-              <div className="absolute -top-24 -right-24 w-48 h-48 bg-red-500/10 rounded-full blur-[60px]" />
-              
-              <div className="p-10">
-                <div className="flex flex-col items-center text-center">
-                  <div className="w-20 h-20 rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(239,68,68,0.1)]">
-                    <AlertCircle className="w-10 h-10 text-red-500" />
-                  </div>
-                  
-                  <h3 className="text-2xl font-black text-white mb-3 tracking-tight">
-                    {criticalError.title}
-                  </h3>
-                  
-                  <p className="text-slate-400 leading-relaxed mb-8 font-medium">
-                    {criticalError.message}
-                  </p>
-                  
-                  <div className="w-full flex flex-col gap-3">
-                    {criticalError.onRetry && (
-                      <button
-                        onClick={() => {
-                          criticalError.onRetry?.();
-                          hideCriticalError();
-                        }}
-                        className="w-full py-4 rounded-2xl bg-red-500 hover:bg-red-600 text-white font-bold transition-all shadow-lg shadow-red-500/20 hover:scale-[1.02] active:scale-[0.98]"
-                      >
-                        Try Again
-                      </button>
-                    )}
-                    <button
-                      onClick={hideCriticalError}
-                      className="w-full py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all border border-white/5"
-                    >
-                      Dismiss
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </DevicesContext.Provider>
   );
 };

@@ -261,7 +261,6 @@ export default function InteractiveFloorplan() {
   });
   const { showNotification } = useDevices();
   const { whatsappStatus, notifyQuoteAction } = useQuoteRequest();
-  const [waLink, setWaLink] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   const config = SPACES[activeSpace];
@@ -272,11 +271,10 @@ export default function InteractiveFloorplan() {
     setActiveSpot(null);
   };
 
-  const openModal = () => setModal(m => ({ ...m, open: true, success: false, waLink: null }));
+  const openModal = () => setModal(m => ({ ...m, open: true, success: false }));
   const closeModal = () => {
     if (modal.submitting) return;
     setModal({ open: false, submitting: false, success: false, email: '', phone: '' });
-    setWaLink(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -306,7 +304,7 @@ export default function InteractiveFloorplan() {
       // 1. Submit to Firestore (Trigger backend)
       await submitSpaceRequest(payload);
 
-      // 2. Also trigger manual notification logic if phone is provided to get real-time status/link
+      // 2. Also trigger WhatsApp notification via backend proxy if phone is provided
       if (modal.phone.trim()) {
         try {
           await notifyQuoteAction({
@@ -318,7 +316,7 @@ export default function InteractiveFloorplan() {
             details: { space: activeSpace, room: currentHotspot.title }
           });
         } catch (e) {
-          console.warn('WhatsApp notification trigger failed', e);
+          console.warn('WhatsApp notification trigger failed (non-fatal)', e);
         }
       }
 
@@ -546,24 +544,24 @@ export default function InteractiveFloorplan() {
                   Our team will review your <strong className="text-teal">{currentHotspot.title}</strong> automation request and get back to you shortly.
                 </p>
 
-                {/* WhatsApp Action */}
+                {/* WhatsApp Status */}
                 <div className="mb-6">
-                  {waLink && (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2 text-teal-400 text-xs justify-center bg-teal-400/5 py-2 rounded-xl border border-teal-400/10 backdrop-blur-sm">
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        Opening WhatsApp on your device...
-                      </div>
-                      
-                      <a 
-                        href={waLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center gap-2 w-full py-3 bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white rounded-xl text-sm font-bold transition-all shadow-xl shadow-teal-500/20 active:scale-[0.98]"
-                      >
-                        <MessageSquare className="w-4 h-4 fill-current" />
-                        Click if WhatsApp doesn't open
-                      </a>
+                  {whatsappStatus === 'sending' && (
+                    <div className="flex items-center gap-2 text-teal-400 text-xs justify-center bg-teal-400/5 py-2 rounded-xl border border-teal-400/10">
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      Sending WhatsApp message...
+                    </div>
+                  )}
+                  {whatsappStatus === 'sent' && (
+                    <div className="flex items-center gap-2 text-emerald-400 text-xs justify-center bg-emerald-400/5 py-2 rounded-xl border border-emerald-400/10">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      WhatsApp message sent successfully!
+                    </div>
+                  )}
+                  {whatsappStatus === 'failed' && (
+                    <div className="flex items-center gap-2 text-amber-400 text-xs justify-center bg-amber-400/5 py-2 rounded-xl border border-amber-400/10">
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      WhatsApp delivery failed. Check your number.
                     </div>
                   )}
                 </div>

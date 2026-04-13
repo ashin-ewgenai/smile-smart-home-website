@@ -2,7 +2,7 @@ import { onDocumentCreated, onDocumentUpdated, FirestoreEvent } from "firebase-f
 import { onCall, CallableRequest, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import { db } from "./core";
-import { triggerWhatsAppMessaging, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER } from "./chatbot";
+
 
 // EmailJS Configuration Secrets (for transactional email API)
 const EMAILJS_SERVICE_ID = defineSecret("EMAILJS_SERVICE_ID");
@@ -275,33 +275,7 @@ function buildEmailTemplate(params: { type: string, name?: string, id: string, d
 </html>`;
 }
 
-/**
- * sendQuoteWhatsApp (Helper)
- * Calls the existing triggerWhatsAppMessaging and logs to System_Logs
- */
-async function sendQuoteWhatsApp(params: { type: string, email: string, name?: string, phone: string, id: string }) {
-  const { type, phone, name, id } = params;
-  
-  // Use the existing messaging utility
-  await triggerWhatsAppMessaging({
-    recipient: phone,
-    templateId: type === "quote_submitted" ? "new_quote_user" : "estimation_ready",
-    variables: {
-      name: name || "Customer",
-      id: id || "Quote"
-    }
-  });
 
-  await db.collection("System_Logs").add({
-    target: phone,
-    channel: "whatsapp",
-    type,
-    relatedEntityId: id,
-    timestamp: new Date().toISOString(),
-    status: "success"
-  });
-  return true;
-}
 
 /**
  * Process Quote Notification (Core Logic)
@@ -332,7 +306,6 @@ async function processQuoteNotification(id: string, data: any, isUpdate = false)
   
   console.info(`[Quote Notification] Triggered ${type} for ${email}`);
   await sendQuoteEmail({ type, email, name, id });
-  if (phone) await sendQuoteWhatsApp({ type, email, name, phone, id });
 
   // Update existing Notifications_Logs for the user
   await db.collection("Notifications_Logs").add({ 
@@ -389,7 +362,7 @@ export const onQuoteStatusNotification = onDocumentUpdated("quotes/{quoteId}", a
  * Used by AI Consultant results page.
  */
 export const sendQuoteNotification = onCall({
-  secrets: [TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER]
+  secrets: [EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, EMAILJS_PUBLIC_KEY]
 }, async (request: CallableRequest<any>) => {
   const { type, quoteId, customerEmail, customerName, details: _details, phone: providedPhone } = request.data || {};
   const authUid = request.auth?.uid;
@@ -413,7 +386,6 @@ export const sendQuoteNotification = onCall({
 
     console.info(`[V2 Callable] Triggered manual notification for ${email}`);
     await sendQuoteEmail({ type, email, name, id: quoteId || "manual" });
-    if (phone) await sendQuoteWhatsApp({ type, email, name, phone, id: quoteId || "manual" });
 
     return { success: true, message: "Notification triggered successfully via V2" };
   } catch (error: any) {
