@@ -12,6 +12,7 @@ type View = 'login' | 'signup' | null;
 export default function AuthModal() {
   const [open, setOpen] = useState<View>(null);
   const [loading, setLoading] = useState(false);
+  const [returnTo, setReturnTo] = useState<string | null>(null);
 
   // form fields
   const [email, setEmail] = useState('');
@@ -67,6 +68,16 @@ export default function AuthModal() {
       delete (window as any).__authOpen;
       delete (window as any).__authClose;
     };
+  }, []);
+
+  useEffect(() => {
+    // Parse returnTo from sessionStorage (set by login button before opening modal)
+    const returnParam = sessionStorage.getItem('authReturnTo');
+    if (returnParam) {
+      setReturnTo(returnParam);
+      // Clear it so it doesn't persist for future auth flows
+      sessionStorage.removeItem('authReturnTo');
+    }
   }, []);
 
   useEffect(() => {
@@ -151,8 +162,8 @@ export default function AuthModal() {
           } catch (error) {
             console.error('Error storing user data in localStorage:', error);
           }
-          // Redirect to user dashboard
-          window.location.href = '/dashboard/user';
+          // Redirect to return URL or user dashboard
+          window.location.href = returnTo || '/dashboard/user';
           return;
         }
 
@@ -237,9 +248,9 @@ export default function AuthModal() {
         localStorage.setItem('userName', fullName);
         
         showNotification({ message: 'Account created successfully!', type: 'success', mode: 'snackbar' });
-        
-        // Redirect to user dashboard
-        window.location.href = '/dashboard/user';
+
+        // Redirect to return URL or user dashboard
+        window.location.href = returnTo || '/dashboard/user';
         return;
       }
     } catch (err: any) {
@@ -308,7 +319,8 @@ export default function AuthModal() {
           if (user.displayName) localStorage.setItem('userName', user.displayName);
         }
 
-        window.location.href = '/dashboard/user';
+        // Redirect to return URL or user dashboard
+        window.location.href = returnTo || '/dashboard/user';
       }
     } catch (err: any) {
       console.error('Google Sign-In Error details:', err);

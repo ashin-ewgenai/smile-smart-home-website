@@ -186,12 +186,17 @@ const ReviewsRatingsPage = () => {
                 <p className="text-gray-500 dark:text-gray-400 mb-6">
                   Please log in to submit a review and upload photos of your installation.
                 </p>
-                <a 
-                  href="/auth" 
+                <button
+                  type="button"
+                  data-open-auth="login"
+                  onClick={() => {
+                    sessionStorage.setItem('authReturnTo', '/reviews');
+                    (window as any).__authOpen?.('login');
+                  }}
                   className="inline-flex items-center justify-center px-6 py-3 bg-teal text-white font-semibold rounded-xl hover:bg-teal-600 transition-all w-full shadow-lg shadow-teal/20"
                 >
                   Log In to Review
-                </a>
+                </button>
               </motion.div>
             ) : isSuccess ? (
               <motion.div 
