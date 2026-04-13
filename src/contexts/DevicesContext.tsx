@@ -67,6 +67,38 @@ export type DeviceDoc = {
   health?: DeviceHealth;
 };
 
+// Personality Quiz Types
+export type QuizAnswerValue = 'A' | 'B' | 'C' | 'D';
+
+export interface QuizAnswer {
+  value: QuizAnswerValue;
+  label: string;
+  description?: string;
+}
+
+export interface QuizQuestion {
+  id: number;
+  question: string;
+  answers: QuizAnswer[];
+}
+
+export interface PersonalityType {
+  id: string;
+  name: string;
+  tagline: string;
+  description: string;
+  color: string;
+  bgColor: string;
+  borderColor: string;
+  recommendedCategories: string[];
+  automationScenarios: string[];
+}
+
+export interface QuizResult {
+  personalityType: PersonalityType;
+  recommendations: DeviceRecommendation[];
+}
+
 /**
  * Translates technical error messages (like Firebase internal errors) 
  * into user-friendly, professional messages.
@@ -224,6 +256,256 @@ export const MOCK_SCENES: any[] = [
   }
 ];
 
+// Personality Quiz Data
+export const QUIZ_QUESTIONS: QuizQuestion[] = [
+  {
+    id: 1,
+    question: 'When do you feel most productive?',
+    answers: [
+      { value: 'A', label: 'Early Bird', description: 'I love mornings and sunrise routines' },
+      { value: 'B', label: 'Night Owl', description: 'I come alive after dark' },
+      { value: 'C', label: 'Flexible', description: 'I adapt to any schedule' },
+      { value: 'D', label: 'Spontaneous', description: 'No fixed pattern - I go with the flow' }
+    ]
+  },
+  {
+    id: 2,
+    question: 'How do you approach technology?',
+    answers: [
+      { value: 'A', label: 'Gadget Lover', description: 'Latest tech excites me' },
+      { value: 'B', label: 'Minimalist', description: 'Only what I truly need' },
+      { value: 'C', label: 'Security First', description: 'Safety and privacy matter most' },
+      { value: 'D', label: 'Comfort Seeker', description: 'Tech should make life cozy' }
+    ]
+  },
+  {
+    id: 3,
+    question: 'What is your ideal weekend activity?',
+    answers: [
+      { value: 'A', label: 'Movie Marathon', description: 'Home theater vibes' },
+      { value: 'B', label: 'Entertaining Guests', description: 'Hosting parties and gatherings' },
+      { value: 'C', label: 'Quiet Relaxation', description: 'Peaceful moments at home' },
+      { value: 'D', label: 'Home Projects', description: 'Improving and optimizing' }
+    ]
+  }
+];
+
+export const PERSONALITY_TYPES: Record<string, PersonalityType> = {
+  comfort_maximizer: {
+    id: 'comfort_maximizer',
+    name: 'Comfort Maximizer',
+    tagline: 'Your home is your sanctuary',
+    description: 'You prioritize comfort and relaxation above all. Your smart home should create the perfect ambiance with automated lighting, climate control, and entertainment systems that adapt to your mood.',
+    color: 'text-teal',
+    bgColor: 'bg-teal-50 dark:bg-teal-900/20',
+    borderColor: 'border-teal-200 dark:border-teal-800',
+    recommendedCategories: ['Climate Control', 'Smart Lighting', 'Entertainment'],
+    automationScenarios: [
+      'Morning: Gentle wake-up with gradual lighting and preferred temperature',
+      'Evening: Automatic dimming and cozy ambiance for relaxation',
+      'Movie Night: One-tap theater mode with dimmed lights and optimized sound'
+    ]
+  },
+  security_guardian: {
+    id: 'security_guardian',
+    name: 'Security Guardian',
+    tagline: 'Protection and peace of mind',
+    description: 'Security is your top priority. You want comprehensive monitoring, smart locks, and automated alerts that keep your home and loved ones safe around the clock.',
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50 dark:bg-cyan-900/20',
+    borderColor: 'border-cyan-200 dark:border-cyan-800',
+    recommendedCategories: ['Security Cameras', 'Smart Locks', 'Motion Sensors'],
+    automationScenarios: [
+      'Away Mode: All sensors armed with instant notifications',
+      'Night Patrol: Automated camera recording and perimeter monitoring',
+      'Visitor Detection: Smart doorbell with two-way audio and recording'
+    ]
+  },
+  tech_enthusiast: {
+    id: 'tech_enthusiast',
+    name: 'Tech Enthusiast',
+    tagline: 'Cutting-edge living',
+    description: 'You love the latest technology and want a fully integrated smart home with voice control, automation routines, and the newest gadgets working in harmony.',
+    color: 'text-teal-600',
+    bgColor: 'bg-teal-50 dark:bg-teal-900/20',
+    borderColor: 'border-teal-200 dark:border-teal-800',
+    recommendedCategories: ['Smart Hubs', 'Voice Assistants', 'Smart Displays'],
+    automationScenarios: [
+      'Voice Control: Every device responds to natural voice commands',
+      'Smart Routines: Complex automations based on time, weather, and presence',
+      'Energy Optimization: AI-driven power management across all devices'
+    ]
+  },
+  efficiency_expert: {
+    id: 'efficiency_expert',
+    name: 'Efficiency Expert',
+    tagline: 'Maximum results, minimum effort',
+    description: 'You value simplicity and efficiency. Your smart home should automate repetitive tasks, save energy, and make daily routines effortless without unnecessary complexity.',
+    color: 'text-emerald-600',
+    bgColor: 'bg-emerald-50 dark:bg-emerald-900/20',
+    borderColor: 'border-emerald-200 dark:border-emerald-800',
+    recommendedCategories: ['Smart Thermostats', 'Smart Plugs', 'Automated Lighting'],
+    automationScenarios: [
+      'Energy Saving: Automatic power-off for unused devices',
+      'Smart Scheduling: Lights and climate adjust based on your calendar',
+      'Quick Actions: One-tap scenes for common activities'
+    ]
+  }
+};
+
+export const PERSONALITY_DEVICE_RECOMMENDATIONS: Record<string, DeviceRecommendation[]> = {
+  comfort_maximizer: [
+    {
+      name: 'Smart Thermostat Pro',
+      category: 'Climate Control',
+      reason: 'Learns your preferred temperatures and adjusts automatically for maximum comfort',
+      estimatedPrice: 12500
+    },
+    {
+      name: 'Ambiance Light Strip',
+      category: 'Smart Lighting',
+      reason: 'Creates mood lighting that adapts to your activities and time of day',
+      estimatedPrice: 4500
+    },
+    {
+      name: 'Smart Speaker System',
+      category: 'Entertainment',
+      reason: 'Whole-home audio with voice control for your favorite music and podcasts',
+      estimatedPrice: 8900
+    },
+    {
+      name: 'Motorized Curtains',
+      category: 'Smart Shades',
+      reason: 'Wake up naturally with automated curtains that open with sunrise',
+      estimatedPrice: 15000
+    }
+  ],
+  security_guardian: [
+    {
+      name: '360° Security Camera',
+      category: 'Security Cameras',
+      reason: 'Full coverage monitoring with AI detection and night vision',
+      estimatedPrice: 7500
+    },
+    {
+      name: 'Biometric Smart Lock',
+      category: 'Smart Locks',
+      reason: 'Fingerprint and app-based entry with detailed access logs',
+      estimatedPrice: 12000
+    },
+    {
+      name: 'Motion Sensor Pro',
+      category: 'Motion Sensors',
+      reason: 'Advanced detection with instant mobile alerts and siren integration',
+      estimatedPrice: 3200
+    },
+    {
+      name: 'Video Doorbell Elite',
+      category: 'Access Control',
+      reason: 'HD video with two-way audio and package detection',
+      estimatedPrice: 6800
+    }
+  ],
+  tech_enthusiast: [
+    {
+      name: 'Smart Home Hub Ultra',
+      category: 'Smart Hubs',
+      reason: 'Central control for all devices with Matter and Zigbee support',
+      estimatedPrice: 9500
+    },
+    {
+      name: 'Voice Assistant Display',
+      category: 'Voice Assistants',
+      reason: 'Visual interface for controlling devices and viewing camera feeds',
+      estimatedPrice: 5500
+    },
+    {
+      name: 'Smart Display Panel',
+      category: 'Smart Displays',
+      reason: 'Wall-mounted control center for managing your entire smart home',
+      estimatedPrice: 18000
+    },
+    {
+      name: 'Universal Remote Pro',
+      category: 'Automation',
+      reason: 'Controls all devices including legacy IR equipment',
+      estimatedPrice: 4200
+    }
+  ],
+  efficiency_expert: [
+    {
+      name: 'Learning Thermostat',
+      category: 'Smart Thermostats',
+      reason: 'Saves up to 23% on energy bills with AI-driven climate scheduling',
+      estimatedPrice: 8900
+    },
+    {
+      name: 'Smart Plug Set (4-pack)',
+      category: 'Smart Plugs',
+      reason: 'Monitor and schedule power usage for any appliance',
+      estimatedPrice: 2400
+    },
+    {
+      name: 'Occupancy Sensors',
+      category: 'Automated Lighting',
+      reason: 'Lights turn on/off automatically based on room occupancy',
+      estimatedPrice: 3600
+    },
+    {
+      name: 'Energy Monitor',
+      category: 'Power Management',
+      reason: 'Real-time tracking of home energy consumption with insights',
+      estimatedPrice: 5200
+    }
+  ]
+};
+
+// Quiz scoring function
+export function calculatePersonality(answers: Record<number, QuizAnswerValue>): PersonalityType {
+  const answerValues = Object.values(answers);
+  
+  const scores: Record<string, number> = {
+    comfort_maximizer: 0,
+    security_guardian: 0,
+    tech_enthusiast: 0,
+    efficiency_expert: 0
+  };
+
+  answerValues.forEach(answer => {
+    switch (answer) {
+      case 'A':
+        scores.comfort_maximizer += 1;
+        scores.tech_enthusiast += 1;
+        break;
+      case 'B':
+        scores.efficiency_expert += 1;
+        scores.comfort_maximizer += 1;
+        break;
+      case 'C':
+        scores.security_guardian += 2;
+        scores.efficiency_expert += 1;
+        break;
+      case 'D':
+        scores.comfort_maximizer += 1;
+        scores.tech_enthusiast += 1;
+        scores.efficiency_expert += 1;
+        break;
+    }
+  });
+
+  let maxScore = -1;
+  let winner = 'comfort_maximizer';
+
+  Object.entries(scores).forEach(([type, score]) => {
+    if (score > maxScore) {
+      maxScore = score;
+      winner = type;
+    }
+  });
+
+  return PERSONALITY_TYPES[winner];
+}
+
 export type NotificationType = 'success' | 'error' | 'warning' | 'info';
 export type NotificationMode = 'snackbar' | 'modal';
 
@@ -311,6 +593,11 @@ interface DevicesContextValue {
   criticalError: CriticalErrorState;
   showCriticalError: (params: { title: string; message: string; onRetry?: () => void }) => void;
   hideCriticalError: () => void;
+  // Personality Quiz
+  quizQuestions: QuizQuestion[];
+  personalityTypes: Record<string, PersonalityType>;
+  personalityDeviceRecommendations: Record<string, DeviceRecommendation[]>;
+  calculatePersonality: (answers: Record<number, QuizAnswerValue>) => PersonalityType;
 }
 
 export const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -1282,7 +1569,12 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     hideNotification,
     criticalError,
     showCriticalError,
-    hideCriticalError
+    hideCriticalError,
+    // Personality Quiz
+    quizQuestions: QUIZ_QUESTIONS,
+    personalityTypes: PERSONALITY_TYPES,
+    personalityDeviceRecommendations: PERSONALITY_DEVICE_RECOMMENDATIONS,
+    calculatePersonality
   }), [
     devices, planLeads, contactSubmissions, reports, filteredPlanLeads,
     filteredContactSubmissions, filteredReports, searchQuery, filterCriteria,

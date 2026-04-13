@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, createContext, useContext, useState } from 'react';
 import { DevicesProvider, useDevices } from '../contexts/DevicesContext';
 import { DeviceRecommendationsForm } from './DeviceRecommendationsForm';
-import { Activity, Shield, AlertTriangle, TrendingUp, TrendingDown, Users, Sparkles, CheckCircle, Info, AlertCircle, X } from 'lucide-react';
+import { PersonalityQuiz } from './PersonalityQuiz';
+import { Activity, Shield, AlertTriangle, TrendingUp, TrendingDown, Users, Sparkles, CheckCircle, Info, AlertCircle, X, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Auth Mode Context for managing signin/signup toggle
@@ -140,9 +141,12 @@ const AdminOverview: React.FC = () => {
   );
 };
 
+type RecommendationTab = 'consultant' | 'personality-quiz';
+
 const WrapperContent: React.FC = () => {
   const { recommendations, visualizationData, showNotification, hideNotification, notification, error } = useDevices();
   const modalRef = useRef<HTMLDivElement>(null);
+  const [activeTab, setActiveTab] = useState<RecommendationTab>('consultant');
 
   useEffect(() => {
     if (notification.isOpen && notification.mode === 'modal') {
@@ -195,7 +199,58 @@ const WrapperContent: React.FC = () => {
   return (
     <div className="relative">
       <AdminOverview />
-      <DeviceRecommendationsForm />
+
+      {/* Tab Switcher for Recommendation Tools */}
+      <div className="max-w-4xl mx-auto px-4 mb-4">
+        <div className="flex rounded-2xl bg-white dark:bg-charcoal p-1.5 shadow-lg border border-gray-200 dark:border-gray-800">
+          <button
+            onClick={() => setActiveTab('consultant')}
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'consultant'
+                ? 'bg-teal text-white shadow-md'
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <Sparkles size={18} />
+            AI Consultant
+          </button>
+          <button
+            onClick={() => setActiveTab('personality-quiz')}
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'personality-quiz'
+                ? 'bg-teal text-white shadow-md'
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <Heart size={18} />
+            Personality Quiz
+          </button>
+        </div>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {activeTab === 'consultant' ? (
+          <motion.div
+            key="consultant"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+          >
+            <DeviceRecommendationsForm />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="personality-quiz"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.3 }}
+          >
+            <PersonalityQuiz />
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Global Notification UI (Strictly Top-Right) ── */}
       <AnimatePresence>
