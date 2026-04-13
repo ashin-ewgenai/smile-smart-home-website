@@ -309,7 +309,7 @@ export default function InteractiveFloorplan() {
       // 2. Also trigger manual notification logic if phone is provided to get real-time status/link
       if (modal.phone.trim()) {
         try {
-          const res = await notifyQuoteAction({
+          await notifyQuoteAction({
             type: 'quote_submitted',
             quoteId: `Tour-${Date.now()}`,
             email: modal.email.trim(),
@@ -317,7 +317,6 @@ export default function InteractiveFloorplan() {
             name: 'Valued Customer',
             details: { space: activeSpace, room: currentHotspot.title }
           });
-          if (res?.whatsappLink) setWaLink(res.whatsappLink);
         } catch (e) {
           console.warn('WhatsApp notification trigger failed', e);
         }

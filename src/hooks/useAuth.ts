@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { auth } from '../lib/firebase';
-import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, type User } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, createUserWithEmailAndPassword, updateProfile, type User } from 'firebase/auth';
 
 /**
  * useAuth
@@ -40,10 +40,24 @@ export function useAuth() {
     }
   }, []);
 
-  return { 
-    user, 
-    loading, 
-    loginWithGoogle, 
-    logout 
+  const signupWithEmail = useCallback(async (email: string, password: string, fullName: string) => {
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      if (fullName) {
+        await updateProfile(cred.user, { displayName: fullName });
+      }
+      return cred.user;
+    } catch (error) {
+      console.error('Signup Error:', error);
+      throw error;
+    }
+  }, []);
+
+  return {
+    user,
+    loading,
+    loginWithGoogle,
+    logout,
+    signupWithEmail
   };
 }

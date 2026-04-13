@@ -1,8 +1,27 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, createContext, useContext, useState } from 'react';
 import { DevicesProvider, useDevices } from '../contexts/DevicesContext';
 import { DeviceRecommendationsForm } from './DeviceRecommendationsForm';
 import { Activity, Shield, AlertTriangle, TrendingUp, TrendingDown, Users, Sparkles, CheckCircle, Info, AlertCircle, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+// Auth Mode Context for managing signin/signup toggle
+type AuthMode = 'signin' | 'signup';
+
+interface AuthModeContextType {
+  authMode: AuthMode;
+  setAuthMode: (mode: AuthMode) => void;
+  toggleAuthMode: () => void;
+}
+
+const AuthModeContext = createContext<AuthModeContextType | undefined>(undefined);
+
+export function useAuthMode(): AuthModeContextType {
+  const context = useContext(AuthModeContext);
+  if (!context) {
+    throw new Error('useAuthMode must be used within an AuthModeProvider');
+  }
+  return context;
+}
 
 /**
  * Custom SVG Sparkline for Health History
@@ -274,10 +293,18 @@ const WrapperContent: React.FC = () => {
 };
 
 export const RecommendationsWrapper: React.FC = () => {
+  const [authMode, setAuthMode] = useState<AuthMode>('signin');
+  
+  const toggleAuthMode = () => {
+    setAuthMode(prev => prev === 'signin' ? 'signup' : 'signin');
+  };
+
   return (
-    <DevicesProvider>
-      <WrapperContent />
-    </DevicesProvider>
+    <AuthModeContext.Provider value={{ authMode, setAuthMode, toggleAuthMode }}>
+      <DevicesProvider>
+        <WrapperContent />
+      </DevicesProvider>
+    </AuthModeContext.Provider>
   );
 };
 
