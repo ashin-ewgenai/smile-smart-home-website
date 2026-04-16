@@ -5,24 +5,7 @@ import { PersonalityQuiz } from './PersonalityQuiz';
 import { Activity, Shield, AlertTriangle, TrendingUp, TrendingDown, Users, Sparkles, CheckCircle, Info, AlertCircle, X, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Auth Mode Context for managing signin/signup toggle
-type AuthMode = 'signin' | 'signup';
-
-interface AuthModeContextType {
-  authMode: AuthMode;
-  setAuthMode: (mode: AuthMode) => void;
-  toggleAuthMode: () => void;
-}
-
-const AuthModeContext = createContext<AuthModeContextType | undefined>(undefined);
-
-export function useAuthMode(): AuthModeContextType {
-  const context = useContext(AuthModeContext);
-  if (!context) {
-    throw new Error('useAuthMode must be used within an AuthModeProvider');
-  }
-  return context;
-}
+import { AuthModeProvider, useAuthMode } from '../contexts/AuthModeContext';
 
 /**
  * Custom SVG Sparkline for Health History
@@ -141,12 +124,12 @@ const AdminOverview: React.FC = () => {
   );
 };
 
-type RecommendationTab = 'consultant' | 'personality-quiz';
+type RecommendationTab = 'personality-quiz' | 'consultant' | 'health';
 
 const WrapperContent: React.FC = () => {
   const { recommendations, visualizationData, showNotification, hideNotification, notification, error } = useDevices();
   const modalRef = useRef<HTMLDivElement>(null);
-  const [activeTab, setActiveTab] = useState<RecommendationTab>('consultant');
+  const [activeTab, setActiveTab] = useState<RecommendationTab>('personality-quiz');
 
   useEffect(() => {
     if (notification.isOpen && notification.mode === 'modal') {
@@ -202,18 +185,7 @@ const WrapperContent: React.FC = () => {
 
       {/* Tab Switcher for Recommendation Tools */}
       <div className="max-w-4xl mx-auto px-4 mb-4">
-        <div className="flex rounded-2xl bg-white dark:bg-charcoal p-1.5 shadow-lg border border-gray-200 dark:border-gray-800">
-          <button
-            onClick={() => setActiveTab('consultant')}
-            className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-              activeTab === 'consultant'
-                ? 'bg-teal text-white shadow-md'
-                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-            }`}
-          >
-            <Sparkles size={18} />
-            AI Consultant
-          </button>
+        <div className="flex flex-wrap gap-2 md:flex-nowrap rounded-2xl bg-white dark:bg-charcoal p-1.5 shadow-lg border border-gray-200 dark:border-gray-800">
           <button
             onClick={() => setActiveTab('personality-quiz')}
             className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
@@ -225,32 +197,72 @@ const WrapperContent: React.FC = () => {
             <Heart size={18} />
             Personality Quiz
           </button>
+          
+          <button
+            onClick={() => setActiveTab('consultant')}
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'consultant'
+                ? 'bg-teal text-white shadow-md'
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <Sparkles size={18} />
+            AI Consultant
+          </button>
+
+          <button
+            onClick={() => setActiveTab('health')}
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'health'
+                ? 'bg-teal text-white shadow-md'
+                : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
+            }`}
+          >
+            <Activity size={18} />
+            Device Health
+          </button>
         </div>
       </div>
 
-      <AnimatePresence mode="wait">
-        {activeTab === 'consultant' ? (
-          <motion.div
-            key="consultant"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.3 }}
-          >
-            <DeviceRecommendationsForm />
-          </motion.div>
-        ) : (
-          <motion.div
-            key="personality-quiz"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.3 }}
-          >
-            <PersonalityQuiz />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      <div className="min-h-[400px]">
+        <AnimatePresence mode="wait">
+          {activeTab === 'personality-quiz' && (
+            <motion.div
+              key="personality-quiz"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+            >
+              <PersonalityQuiz />
+            </motion.div>
+          )}
+
+          {activeTab === 'consultant' && (
+            <motion.div
+              key="consultant"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+            >
+              <DeviceRecommendationsForm forcedTab="consultant" />
+            </motion.div>
+          )}
+
+          {activeTab === 'health' && (
+            <motion.div
+              key="health"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+            >
+              <DeviceRecommendationsForm forcedTab="health" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
 
       {/* ── Global Notification UI (Strictly Top-Right) ── */}
       <AnimatePresence>
@@ -348,18 +360,12 @@ const WrapperContent: React.FC = () => {
 };
 
 export const RecommendationsWrapper: React.FC = () => {
-  const [authMode, setAuthMode] = useState<AuthMode>('signin');
-  
-  const toggleAuthMode = () => {
-    setAuthMode(prev => prev === 'signin' ? 'signup' : 'signin');
-  };
-
   return (
-    <AuthModeContext.Provider value={{ authMode, setAuthMode, toggleAuthMode }}>
+    <AuthModeProvider>
       <DevicesProvider>
         <WrapperContent />
       </DevicesProvider>
-    </AuthModeContext.Provider>
+    </AuthModeProvider>
   );
 };
 

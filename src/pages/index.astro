@@ -157,9 +157,17 @@ import { RecommendationsWrapper } from '../components/RecommendationsWrapper';
     </section>
     
     <!-- AI Recommendations Section -->
-    <section class="section-padding bg-soft-gray dark:bg-charcoal/50">
+    <section id="ai-recommendations" class="section-padding bg-soft-gray dark:bg-charcoal/50">
       <div class="container">
-        <RecommendationsWrapper client:visible />
+        <div class="text-center mb-12 reveal-on-scroll">
+          <h2 class="text-heading-lg font-bold text-charcoal dark:text-white mb-4">
+            Personalized Results
+          </h2>
+          <p class="text-body-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+            Explore our AI-driven recommendations and interactive health dashboard designed just for you.
+          </p>
+        </div>
+        <RecommendationsWrapper client:load />
       </div>
     </section>
 

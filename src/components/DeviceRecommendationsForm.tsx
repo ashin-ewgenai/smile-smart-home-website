@@ -22,7 +22,7 @@ import { HOUSE_SIZES, SECURITY_LEVELS, BUDGET_RANGES } from '../lib/constants';
 import { useDeviceRecommendations } from '../hooks/useDeviceRecommendations';
 import { useQuoteRequest } from '../hooks/useQuoteRequest';
 import { useAuth } from '../hooks/useAuth';
-import { useAuthMode } from './RecommendationsWrapper';
+import { useAuthMode } from '../contexts/AuthModeContext';
 import type { DeviceRecommendation } from '../models';
 import { RoomVisualization } from './RoomVisualization';
 import { auth, db } from '../lib/firebase';
@@ -69,7 +69,11 @@ const DEVICE_ICONS: Record<string, React.ReactNode> = {
 /**
  * Premium, interactive AI recommendation form component.
  */
-export const DeviceRecommendationsForm: React.FC = () => {
+interface DeviceRecommendationsFormProps {
+  forcedTab?: 'consultant' | 'health';
+}
+
+export const DeviceRecommendationsForm: React.FC<DeviceRecommendationsFormProps> = ({ forcedTab }) => {
   const {
     step,
     formData,
@@ -88,7 +92,13 @@ export const DeviceRecommendationsForm: React.FC = () => {
     acceptedAt
   } = useDeviceRecommendations();
 
-  const [activeTab, setActiveTab] = useState<'consultant' | 'health'>('consultant');
+  const [activeTab, setActiveTab] = useState<'consultant' | 'health'>(forcedTab || 'consultant');
+
+  useEffect(() => {
+    if (forcedTab) {
+      setActiveTab(forcedTab);
+    }
+  }, [forcedTab]);
   const [savingId, setSavingId] = React.useState<string | null>(null);
   const [savedIds, setSavedIds] = React.useState<Set<string>>(new Set());
   
@@ -384,22 +394,6 @@ export const DeviceRecommendationsForm: React.FC = () => {
             </div>
           )}
 
-          <div className="mt-8 flex gap-4 border-b border-white/10">
-            <button 
-              onClick={() => setActiveTab('consultant')}
-              className={`pb-4 px-2 font-bold transition-all relative ${activeTab === 'consultant' ? 'text-white' : 'text-white/60 hover:text-white/80'}`}
-            >
-              AI Consultant
-              {activeTab === 'consultant' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 bg-yellow-400 rounded-full" />}
-            </button>
-            <button 
-              onClick={() => setActiveTab('health')}
-              className={`pb-4 px-2 font-bold transition-all relative ${activeTab === 'health' ? 'text-white' : 'text-white/60 hover:text-white/80'}`}
-            >
-              Device Health
-              {activeTab === 'health' && <motion.div layoutId="activeTab" className="absolute bottom-0 left-0 right-0 h-1 bg-yellow-400 rounded-full" />}
-            </button>
-          </div>
         </div>
 
         <div className="p-8">
