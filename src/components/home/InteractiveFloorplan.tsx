@@ -1,13 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Tv, Flame, Lock, Sun, Car,
   ShieldCheck, Monitor, Users, Server, Briefcase,
   Moon, UtensilsCrossed, Droplets, DoorOpen,
-  Home, Building2, Building, X, ArrowRight, Zap, CheckCircle, Loader2, MessageSquare
+  Home, Building2, Building, X, ArrowRight, Zap, CheckCircle, Loader2, MessageSquare,
+  Upload, ImagePlus, GripVertical, Plus, Trash2, Sparkles, Pencil
 } from 'lucide-react';
-import { submitSpaceRequest, useQuoteRequest, type SpaceType, type SpaceRequestPayload } from '../../hooks/useQuoteRequest';
-import { useDevices } from '../../contexts/DevicesContext';
+import { submitSpaceRequest, useQuoteRequest, type SpaceRequestPayload } from '../../hooks/useQuoteRequest';
+
+// Redefine SpaceType locally to include 'custom' without modifying the shared hook
+type LocalSpaceType = 'home' | 'office' | 'apartment' | 'custom';
+import { useDevices, type CustomFloorplanHotspot } from '../../contexts/DevicesContext';
 import { hotspotReveal } from '../../lib/animate';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Hotspot {
@@ -18,6 +23,13 @@ interface Hotspot {
   description: string;
   icon: React.ComponentType<{ className?: string }>;
   tags: string[];
+}
+
+interface CustomHotspot extends Hotspot {
+  isAiGenerated?: boolean;
+  roomType?: string;
+  editable?: boolean;
+  detectedFeatures?: string[];
 }
 
 interface SpaceConfig {
@@ -226,9 +238,19 @@ const SPACES: Record<SpaceType, SpaceConfig> = {
       },
     ],
   },
+
+  custom: {
+    label: 'Custom',
+    sublabel: 'Upload Your Floorplan',
+    icon: Upload,
+    svgWalls: [],
+    svgDoors: [],
+    svgRooms: [],
+    hotspots: [],
+  },
 };
 
-const SPACE_TYPES: SpaceType[] = ['home', 'office', 'apartment'];
+const SPACE_TYPES: SpaceType[] = ['home', 'office', 'apartment', 'custom'];
 
 // ─── SVG Blueprint ─────────────────────────────────────────────────────────────
 const BlueprintSVG: React.FC<{ config: SpaceConfig }> = ({ config }) => (
@@ -253,22 +275,202 @@ const BlueprintSVG: React.FC<{ config: SpaceConfig }> = ({ config }) => (
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function InteractiveFloorplan() {
-  const [activeSpace, setActiveSpace] = useState<SpaceType>('home');
+  const [activeSpace, setActiveSpace] = useState<LocalSpaceType>('home');
   const [activeSpot, setActiveSpot] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>({
     open: false, submitting: false, success: false,
     email: '', phone: '',
   });
-  const { showNotification } = useDevices();
+  
+  // Local UI state
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggingHotspotId, setDraggingHotspotId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const floorplanContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Custom Hotspot Editing state
+  const [isEditingHotspot, setIsEditingHotspot] = useState(false);
+  const [editFields, setEditFields] = useState({
+    title: '',
+    description: '',
+    tags: ''
+  });
+
+  // Pull ALL custom floorplan state and methods from context
+  const {
+    showNotification,
+    customFloorplanImage,
+    setCustomFloorplanImage,
+    customFloorplanHotspots,
+    setCustomFloorplanHotspots,
+    addCustomFloorplanHotspot,
+    updateCustomFloorplanHotspot,
+    deleteCustomFloorplanHotspot,
+    clearCustomFloorplan,
+    analyzeFloorplanWithAI,
+    isAnalyzingFloorplan,
+    floorplanAnalysisError,
+  } = useDevices();
+
   const { whatsappStatus, notifyQuoteAction } = useQuoteRequest();
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   const config = SPACES[activeSpace];
-  const currentHotspot = config.hotspots.find(h => h.id === activeSpot) ?? null;
 
-  const handleSpaceChange = (space: SpaceType) => {
+  // Helper to get icon component by name string
+  const getIconByName = (iconName: string): React.ComponentType<{ className?: string }> => {
+    const icons: Record<string, React.ComponentType<{ className?: string }>> = {
+      Tv, Moon, UtensilsCrossed, Droplets, Car, Lock, Sun, ShieldCheck,
+      Flame, Zap, Building, Building2, Home, Monitor, Users, Server, Briefcase,
+      DoorOpen, X, ArrowRight, CheckCircle, Loader2, MessageSquare, Upload, ImagePlus, Plus, Trash2, Sparkles
+    };
+    return icons[iconName] || Zap;
+  };
+
+  // Convert context hotspots (icon as string) to component format (icon as React component)
+  const customHotspots: CustomHotspot[] = useMemo(() => {
+    return (customFloorplanHotspots || []).map(h => ({
+      ...h,
+      icon: getIconByName(h.icon)
+    }));
+  }, [customFloorplanHotspots]);
+  
+  const currentHotspot = activeSpace === 'custom' 
+    ? customHotspots.find(h => h.id === activeSpot) ?? null
+    : config.hotspots.find(h => h.id === activeSpot) ?? null;
+
+  const handleSpaceChange = (space: LocalSpaceType) => {
     setActiveSpace(space);
     setActiveSpot(null);
+    setIsEditingHotspot(false);
+  };
+
+  // ─── Custom Floorplan Handlers ───────────────────────────────────────────────
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      showNotification({ message: 'Please select an image file (JPEG or PNG)', type: 'error' });
+      return;
+    }
+
+    // Validate file size (10MB max)
+    if (file.size > 10 * 1024 * 1024) {
+      showNotification({ message: 'Image size should be less than 10MB', type: 'error' });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        // Store image in context
+        setCustomFloorplanImage(result);
+        // Clear previous hotspots in context
+        setCustomFloorplanHotspots([]);
+        showNotification({
+          message: 'Floorplan uploaded! Click "Analyze with AI" to detect rooms.',
+          type: 'success'
+        });
+      }
+    };
+    reader.onerror = () => {
+      showNotification({ message: 'Failed to read the image file. Please try again.', type: 'error' });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Delegate to context's AI analysis (handles both demo-mode and real OpenAI)
+  const handleAnalyzeFloorplan = async (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (!customFloorplanImage) return;
+    await analyzeFloorplanWithAI(customFloorplanImage);
+  };
+
+
+
+
+  // Drag repositioning via context updater
+  const handleHotspotDrag = (hotspotId: string, newX: number, newY: number) => {
+    updateCustomFloorplanHotspot(hotspotId, {
+      x: Math.max(0, Math.min(100, newX)),
+      y: Math.max(0, Math.min(100, newY)),
+    });
+  };
+
+  // --- Hotspot Customization ---
+  
+  const handleStartEdit = () => {
+    if (!currentHotspot) return;
+    setEditFields({
+      title: currentHotspot.title,
+      description: currentHotspot.description,
+      tags: currentHotspot.tags.join(', ')
+    });
+    setIsEditingHotspot(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingHotspot(false);
+  };
+
+  const handleSaveEdit = () => {
+    if (!activeSpot || activeSpace !== 'custom') return;
+    
+    const updatedTags = editFields.tags
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0);
+
+    updateCustomFloorplanHotspot(activeSpot, {
+      title: editFields.title || 'Untitled Space',
+      description: editFields.description || 'No description provided.',
+      tags: updatedTags
+    });
+    
+    setIsEditingHotspot(false);
+    showNotification({ message: 'Hotspot updated successfully', type: 'success' });
+  };
+
+  const handleDeleteHotspot = (hotspotId: string) => {
+    deleteCustomFloorplanHotspot(hotspotId);
+    if (activeSpot === hotspotId) setActiveSpot(null);
+    showNotification({ message: 'Hotspot removed', type: 'info' });
+  };
+
+  // Add new hotspot via context
+  const handleAddCustomHotspot = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    const newHotspot: CustomFloorplanHotspot = {
+      id: `custom-${Date.now()}`,
+      x: 50,
+      y: 50,
+      title: 'Custom Room',
+      description: 'Add your custom automation description here.',
+      icon: 'Zap',
+      tags: ['Custom'],
+      isAiGenerated: false,
+      editable: true
+    };
+    addCustomFloorplanHotspot(newHotspot);
+    setActiveSpot(newHotspot.id);
+    showNotification({ message: 'New hotspot added! Drag it to position or click to edit.', type: 'info' });
+  };
+
+  // Clear floorplan via context
+  const handleClearFloorplan = (e?: React.MouseEvent) => {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (confirm('Are you sure you want to remove the uploaded floorplan and all hotspots?')) {
+      clearCustomFloorplan();
+      setActiveSpot(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   };
 
   const openModal = () => setModal(m => ({ ...m, open: true, success: false }));
@@ -292,7 +494,7 @@ export default function InteractiveFloorplan() {
 
     setModal(m => ({ ...m, submitting: true }));
     try {
-      const payload: SpaceRequestPayload = {
+      const payload: any = {
         email: modal.email.trim(),
         phone: modal.phone.trim(),
         spaceType: activeSpace,
@@ -302,7 +504,7 @@ export default function InteractiveFloorplan() {
       };
 
       // 1. Submit to Firestore (Trigger backend)
-      await submitSpaceRequest(payload);
+      await submitSpaceRequest(payload as any);
 
       // 2. Also trigger WhatsApp notification via backend proxy if phone is provided
       if (modal.phone.trim()) {
@@ -333,6 +535,8 @@ export default function InteractiveFloorplan() {
     if (activeSpot && panelRef.current) {
       hotspotReveal(panelRef.current);
     }
+    // Always exit edit mode when switching spots
+    setIsEditingHotspot(false);
   }, [activeSpot]);
 
   // Close panel + modal on Escape key
@@ -404,55 +608,317 @@ export default function InteractiveFloorplan() {
           {SPACES[activeSpace].sublabel}
         </p>
 
+        {/* Hidden file input for custom floorplan */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+
         {/* Main interactive area */}
         <div className="flex flex-col lg:flex-row gap-8 items-start justify-center">
 
-          {/* SVG Blueprint with Hotspots */}
-          <div className="relative w-full max-w-3xl aspect-[4/3] bg-white dark:bg-gray-800/40 border border-gray-300 dark:border-white/10 rounded-3xl overflow-hidden backdrop-blur-lg shadow-2xl flex-shrink-0">
-            <BlueprintSVG config={config} />
+          {/* Floorplan Display - SVG or Custom Image */}
+          <div 
+            ref={floorplanContainerRef}
+            className="relative w-full max-w-3xl aspect-[4/3] bg-white/80 dark:bg-gray-800/20 border border-gray-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden backdrop-blur-xl shadow-2xl transition-all duration-700 flex-shrink-0"
+          >
+            {/* Ambient Background Gradient for the Container */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-teal-500/5 to-indigo-500/5 pointer-events-none" />
 
-            {/* Hotspot buttons */}
-            {config.hotspots.map((spot) => {
-              const isActive = activeSpot === spot.id;
-              return (
-                <div
-                  key={spot.id}
-                  className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-20 group/spot"
-                  style={{ left: `${spot.x}%`, top: `${spot.y}%` }}
-                  onClick={() => setActiveSpot(isActive ? null : spot.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      setActiveSpot(isActive ? null : spot.id);
-                    }
-                  }}
-                  tabIndex={0}
-                  role="button"
-                  aria-pressed={isActive}
-                  aria-label={`${isActive ? 'Close' : 'View details for'} ${spot.title}`}
-                >
-                  <div className={`relative flex items-center justify-center transition-all duration-300 ${isActive ? 'scale-125' : 'hover:scale-110'}`}>
-                    {/* Ping ring — hidden when active */}
-                    {!isActive && (
-                      <div className="absolute inset-0 rounded-full bg-teal-400 animate-ping opacity-75" />
+            {activeSpace === 'custom' ? (
+              // Custom Floorplan View
+              customFloorplanImage ? (
+                <>
+                  {/* Uploaded Floorplan Image */}
+                  <img 
+                    src={customFloorplanImage}
+                    alt="Custom Floorplan"
+                    className={`w-full h-full object-contain bg-gray-100 dark:bg-gray-900 transition-opacity duration-500 ${isAnalyzingFloorplan ? 'opacity-30 blur-sm' : 'opacity-100'}`}
+                  />
+                  
+                  {/* AI Analysis Loading Overlay */}
+                  <AnimatePresence>
+                    {isAnalyzingFloorplan && (
+                      <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-40 bg-white/40 dark:bg-black/40 backdrop-blur-md flex flex-col items-center justify-center gap-6"
+                      >
+                        <div className="relative">
+                           <div className="w-20 h-20 rounded-full border-4 border-teal/20 border-t-teal animate-spin" />
+                           <Sparkles className="absolute inset-0 m-auto w-8 h-8 text-teal animate-pulse" />
+                        </div>
+                        <div className="text-center">
+                          <h4 className="text-xl font-bold text-charcoal dark:text-white mb-1">AI analyzing your space...</h4>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Identifying rooms and suggesting smart automations</p>
+                        </div>
+                      </motion.div>
                     )}
-                    {/* Core dot */}
-                    <div className={`relative w-10 h-10 rounded-full flex items-center justify-center border-[3px] transition-all duration-300 ${
-                      isActive
-                        ? 'bg-teal border-teal-200 shadow-[0_0_30px_rgba(0,150,136,1)]'
-                        : 'bg-white dark:bg-gray-900 border-teal/70 shadow-[0_0_15px_rgba(0,150,136,0.5)] group-hover/spot:bg-teal-50 dark:group-hover/spot:bg-teal-900 group-hover/spot:border-teal'
-                    }`}>
-                      <div className={`w-2.5 h-2.5 rounded-full transition-colors duration-300 ${isActive ? 'bg-white' : 'bg-teal'}`} />
-                    </div>
+                  </AnimatePresence>
+
+                  {/* Custom Hotspots */}
+                  {customHotspots.map((spot) => {
+                    const isActive = activeSpot === spot.id;
+                    const IconComponent = spot.icon;
+                    return (
+                      <div
+                        key={spot.id}
+                        className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-20 group/spot"
+                        style={{ left: `${spot.x}%`, top: `${spot.y}%` }}
+                        onClick={() => !isDragging && setActiveSpot(isActive ? null : spot.id)}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setIsDragging(false);
+                          setDraggingHotspotId(spot.id);
+                        }}
+                        onMouseMove={(e) => {
+                          if (draggingHotspotId === spot.id && floorplanContainerRef.current) {
+                            setIsDragging(true);
+                            const rect = floorplanContainerRef.current.getBoundingClientRect();
+                            const newX = ((e.clientX - rect.left) / rect.width) * 100;
+                            const newY = ((e.clientY - rect.top) / rect.height) * 100;
+                            handleHotspotDrag(spot.id, newX, newY);
+                          }
+                        }}
+                        onMouseUp={() => {
+                          setDraggingHotspotId(null);
+                          setTimeout(() => setIsDragging(false), 50);
+                        }}
+                        onMouseLeave={() => {
+                          if (draggingHotspotId === spot.id) {
+                            setDraggingHotspotId(null);
+                            setTimeout(() => setIsDragging(false), 50);
+                          }
+                        }}
+                        tabIndex={0}
+                        role="button"
+                        aria-pressed={isActive}
+                        aria-label={`${isActive ? 'Close' : 'View details for'} ${spot.title}`}
+                      >
+                        <div className={`relative flex items-center justify-center transition-all duration-300 ${isActive ? 'scale-125' : 'hover:scale-110'} ${isDragging && draggingHotspotId === spot.id ? 'cursor-grabbing' : 'cursor-grab'}`}>
+                          {/* Ping ring — only for AI generated, hidden when active */}
+                          {spot.isAiGenerated && !isActive && (
+                            <div className="absolute inset-0 rounded-full bg-teal-400 animate-ping opacity-75" />
+                          )}
+                          {/* Core dot with icon */}
+                          <div className={`relative w-10 h-10 rounded-full flex items-center justify-center border-[3px] transition-all duration-300 ${
+                            isActive
+                              ? 'bg-teal border-teal-200 shadow-[0_0_30px_rgba(0,150,136,1)]'
+                              : spot.isAiGenerated
+                                ? 'bg-white dark:bg-gray-900 border-teal/70 shadow-[0_0_15px_rgba(0,150,136,0.5)] group-hover/spot:bg-teal-50 dark:group-hover/spot:bg-teal-900 group-hover/spot:border-teal'
+                                : 'bg-amber-100 dark:bg-amber-900 border-amber/70 shadow-[0_0_15px_rgba(245,158,11,0.5)] group-hover/spot:bg-amber-50 dark:group-hover/spot:bg-amber-900 group-hover/spot:border-amber'
+                          }`}>
+                            <IconComponent className={`w-5 h-5 ${isActive ? 'text-white' : spot.isAiGenerated ? 'text-teal' : 'text-amber-600'}`} />
+                          </div>
+                          
+                          {/* Delete button on hover/active */}
+                          {(isActive || draggingHotspotId === spot.id) && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteHotspot(spot.id);
+                              }}
+                              className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg z-30"
+                              aria-label="Delete hotspot"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              ) : (
+                // Upload Prompt for Custom Tab
+                <div className="w-full h-full flex flex-col items-center justify-center p-12 bg-gray-50/50 dark:bg-gray-900/30">
+                  <div 
+                    className="w-full max-w-lg border-2 border-dashed border-teal/20 hover:border-teal/50 dark:border-white/10 dark:hover:border-teal/30 rounded-[2.5rem] p-16 flex flex-col items-center justify-center gap-6 cursor-pointer hover:bg-white/40 dark:hover:bg-white/5 transition-all duration-500 group-upload relative overflow-hidden"
+                    onClick={() => fileInputRef.current?.click()}
+
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) {
+                        const fakeEvent = { target: { files: e.dataTransfer.files } } as React.ChangeEvent<HTMLInputElement>;
+                        handleFileSelect(fakeEvent);
+                      }
+                    }}
+                  >
+                      <div className="w-20 h-20 rounded-3xl bg-teal/5 border border-teal/10 flex items-center justify-center group-hover-upload:scale-110 group-hover-upload:rotate-3 transition-transform duration-500">
+                        <ImagePlus size={32} className="text-teal" />
+                      </div>
+                      <div className="text-center relative z-10">
+                        <p className="text-charcoal dark:text-white font-bold text-xl mb-1">
+                          Upload your floorplan
+                        </p>
+                        <p className="text-gray-500 dark:text-gray-400 text-sm font-light">
+                          Drag & drop your architectural drawing or <span className="text-teal font-semibold">browse files</span>
+                        </p>
+                        <div className="flex items-center justify-center gap-4 mt-6">
+                           <span className="px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-full text-[10px] font-bold tracking-widest uppercase text-gray-400">JPG</span>
+                           <span className="px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-full text-[10px] font-bold tracking-widest uppercase text-gray-400">PNG</span>
+                           <span className="px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-full text-[10px] font-bold tracking-widest uppercase text-gray-400">WEBP</span>
+                        </div>
+                      </div>
+                      
+                      {/* Decorative elements */}
+                      <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-teal-500/10 rounded-full blur-2xl group-hover-upload:bg-teal-500/20 transition-all duration-500" />
+                      <div className="absolute -top-12 -left-12 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl group-hover-upload:bg-indigo-500/20 transition-all duration-500" />
                   </div>
                 </div>
-              );
-            })}
+              )
+
+            ) : (
+              // Default SVG Blueprint for Home, Office, Apartment
+              <>
+                <BlueprintSVG config={config} />
+
+                {/* Standard Hotspot buttons */}
+                {config.hotspots.map((spot) => {
+                  const isActive = activeSpot === spot.id;
+                  return (
+                    <div
+                      key={spot.id}
+                      className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-20 group/spot"
+                      style={{ left: `${spot.x}%`, top: `${spot.y}%` }}
+                      onClick={() => setActiveSpot(isActive ? null : spot.id)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setActiveSpot(isActive ? null : spot.id);
+                        }
+                      }}
+                      tabIndex={0}
+                      role="button"
+                      aria-pressed={isActive}
+                      aria-label={`${isActive ? 'Close' : 'View details for'} ${spot.title}`}
+                    >
+                      <div className={`relative flex items-center justify-center transition-all duration-300 ${isActive ? 'scale-125' : 'hover:scale-110'}`}>
+                        {/* Ping ring — hidden when active */}
+                        {!isActive && (
+                          <div className="absolute inset-0 rounded-full bg-teal-400 animate-ping opacity-75" />
+                        )}
+                        {/* Core dot */}
+                        <div className={`relative w-10 h-10 rounded-full flex items-center justify-center border-[3px] transition-all duration-300 ${
+                          isActive
+                            ? 'bg-teal border-teal-200 shadow-[0_0_30px_rgba(0,150,136,1)]'
+                            : 'bg-white dark:bg-gray-900 border-teal/70 shadow-[0_0_15px_rgba(0,150,136,0.5)] group-hover/spot:bg-teal-50 dark:group-hover/spot:bg-teal-900 group-hover/spot:border-teal'
+                        }`}>
+                          <div className={`w-2.5 h-2.5 rounded-full transition-colors duration-300 ${isActive ? 'bg-white' : 'bg-teal'}`} />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
 
-          {/* Info Panel */}
-          <div className="w-full lg:w-[420px] flex-shrink-0">
-            {currentHotspot ? (
+          {/* Custom Floorplan Controls - Only show for custom tab */}
+          {activeSpace === 'custom' && customFloorplanImage && (
+            <div className="w-full lg:w-[420px] flex-shrink-0 space-y-4">
+              {/* Analysis Error */}
+              {floorplanAnalysisError && !isAnalyzingFloorplan && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-6">
+                  <div className="flex items-center gap-2 text-red-600 dark:text-red-400 mb-2">
+                    <X className="w-5 h-5" />
+                    <span className="font-semibold">Analysis failed</span>
+                  </div>
+                  <p className="text-sm text-red-500 dark:text-red-400 mb-3">{floorplanAnalysisError}</p>
+                  <button
+                    type="button"
+                    onClick={handleAnalyzeFloorplan}
+                    className="text-sm bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-4 py-2 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
+
+              {/* Control Buttons */}
+              <div className="bg-white dark:bg-gray-800/60 border border-gray-200 dark:border-white/10 rounded-2xl p-6 shadow-lg">
+                <h4 className="font-semibold text-charcoal dark:text-white mb-4 flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-teal" />
+                  Floorplan Controls
+                </h4>
+
+                <div className="space-y-3">
+                  {/* Analyze Button — only when no hotspots yet */}
+                  {customHotspots.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={handleAnalyzeFloorplan}
+                      disabled={isAnalyzingFloorplan}
+                      className="w-full py-3 px-4 bg-teal hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal/20"
+                    >
+                      {isAnalyzingFloorplan ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing…</>
+                      ) : (
+                        <><Sparkles className="w-4 h-4" /> Analyze with AI</>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Re-analyze when hotspots already exist */}
+                  {customHotspots.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleAnalyzeFloorplan}
+                      disabled={isAnalyzingFloorplan}
+                      className="w-full py-2 px-4 bg-teal/10 hover:bg-teal/20 disabled:opacity-50 disabled:cursor-not-allowed text-teal rounded-xl font-semibold transition-all flex items-center justify-center gap-2 text-sm border border-teal/20"
+                    >
+                      {isAnalyzingFloorplan ? (
+                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Re-analyzing…</>
+                      ) : (
+                        <><Sparkles className="w-3.5 h-3.5" /> Re-analyze with AI</>
+                      )}
+                    </button>
+                  )}
+
+                  {/* Add Custom Hotspot */}
+                  <button
+                    type="button"
+                    onClick={handleAddCustomHotspot}
+                    disabled={isAnalyzingFloorplan}
+                    className="w-full py-3 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-charcoal dark:text-white rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" /> Add Custom Hotspot
+                  </button>
+
+                  {/* Hotspot Count Badge */}
+                  {customHotspots.length > 0 && (
+                    <div className="text-center text-sm text-gray-500 dark:text-gray-400 py-1">
+                      {customHotspots.length} hotspot{customHotspots.length !== 1 ? 's' : ''}
+                      {' · '}
+                      {customHotspots.filter(h => h.isAiGenerated).length} AI-generated
+                    </div>
+                  )}
+
+                  {/* Remove Floorplan */}
+                  <button
+                    type="button"
+                    onClick={handleClearFloorplan}
+                    disabled={isAnalyzingFloorplan}
+                    className="w-full py-2 px-4 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-medium transition-all flex items-center justify-center gap-2 text-sm"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Remove Floorplan
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Info Panel - for non-custom tabs or when custom hotspot selected */}
+          {(activeSpace !== 'custom' || (activeSpace === 'custom' && activeSpot)) && (
+            <div className="w-full lg:w-[420px] flex-shrink-0">
+              {currentHotspot ? (
               <div
                 ref={panelRef}
                 key={currentHotspot.id}
@@ -467,52 +933,136 @@ export default function InteractiveFloorplan() {
                   <X className="w-4 h-4" />
                 </button>
 
-                {/* Icon */}
-                <div className="w-14 h-14 bg-gradient-to-br from-teal/20 to-teal/5 text-teal rounded-2xl flex items-center justify-center mb-5 border border-teal/30 shadow-[0_0_20px_rgba(0,150,136,0.2)]">
-                  <currentHotspot.icon className="w-7 h-7" />
-                </div>
+                {/* Info Panel Content */}
+                {isEditingHotspot ? (
+                  /* EDIT MODE */
+                  <div className="space-y-4">
+                    <h4 className="text-lg font-bold text-teal flex items-center gap-2 mb-2">
+                      <Pencil className="w-4 h-4" /> Edit Hotspot
+                    </h4>
+                    
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Room Title</label>
+                      <input 
+                        type="text"
+                        value={editFields.title}
+                        onChange={e => setEditFields({ ...editFields, title: e.target.value })}
+                        className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-charcoal dark:text-white focus:outline-none focus:ring-2 focus:ring-teal/50"
+                        placeholder="e.g. Living Room"
+                      />
+                    </div>
 
-                {/* Title + accent */}
-                <h3 className="text-2xl font-extrabold text-charcoal dark:text-white mb-2 leading-tight">{currentHotspot.title}</h3>
-                <div className="h-1 w-10 bg-teal rounded-full mb-4" />
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Description</label>
+                      <textarea 
+                        value={editFields.description}
+                        onChange={e => setEditFields({ ...editFields, description: e.target.value })}
+                        className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-charcoal dark:text-white focus:outline-none focus:ring-2 focus:ring-teal/50 h-24 resize-none"
+                        placeholder="What happens in this space?"
+                      />
+                    </div>
 
-                {/* Description */}
-                <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-5 font-light">{currentHotspot.description}</p>
+                    <div>
+                      <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Tags (comma separated)</label>
+                      <input 
+                        type="text"
+                        value={editFields.tags}
+                        onChange={e => setEditFields({ ...editFields, tags: e.target.value })}
+                        className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-charcoal dark:text-white focus:outline-none focus:ring-2 focus:ring-teal/50"
+                        placeholder="Smart TV, Motion Sensor..."
+                      />
+                    </div>
 
-                {/* Feature tags */}
-                <div className="flex flex-wrap gap-2 mb-7">
-                  {currentHotspot.tags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="px-3 py-1 bg-teal/10 border border-teal/20 text-teal-700 dark:text-teal-300 text-xs font-semibold rounded-full"
+                    <div className="flex gap-3 pt-2">
+                      <button
+                        onClick={handleSaveEdit}
+                        className="flex-1 py-3 bg-teal text-white rounded-xl font-bold hover:bg-teal-600 transition-all shadow-lg shadow-teal/20"
+                      >
+                        Save Changes
+                      </button>
+                      <button
+                        onClick={handleCancelEdit}
+                        className="px-6 py-3 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  /* VIEW MODE */
+                  <>
+                    {/* Icon */}
+                    <div className="flex items-start justify-between mb-5">
+                      <div className="w-14 h-14 bg-gradient-to-br from-teal/20 to-teal/5 text-teal rounded-2xl flex items-center justify-center border border-teal/30 shadow-[0_0_20px_rgba(0,150,136,0.2)]">
+                        <currentHotspot.icon className="w-7 h-7" />
+                      </div>
+                      
+                      {activeSpace === 'custom' && (
+                        <button 
+                          onClick={handleStartEdit}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 hover:bg-teal/10 hover:text-teal text-gray-500 dark:text-gray-400 rounded-lg text-xs font-bold transition-all"
+                          title="Edit this room"
+                        >
+                          <Pencil className="w-3.5 h-3.5" /> Edit
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Title + accent */}
+                    <h3 className="text-2xl font-extrabold text-charcoal dark:text-white mb-2 leading-tight">{currentHotspot.title}</h3>
+                    <div className="h-1 w-10 bg-teal rounded-full mb-4" />
+
+                    {/* Description */}
+                    <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-5 font-light">{currentHotspot.description}</p>
+
+                    {/* Feature tags */}
+                    <div className="flex flex-wrap gap-2 mb-7">
+                      {currentHotspot.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="px-3 py-1 bg-teal/10 border border-teal/20 text-teal-700 dark:text-teal-300 text-xs font-semibold rounded-full"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* CTA */}
+                    <button
+                      onClick={openModal}
+                      className="inline-flex items-center gap-2 text-teal font-semibold hover:text-teal-700 dark:hover:text-teal-300 group/link transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded-lg"
                     >
-                      {tag}
-                    </span>
-                  ))}
-                </div>
-
-                {/* CTA */}
-                <button
-                  onClick={openModal}
-                  className="inline-flex items-center gap-2 text-teal font-semibold hover:text-teal-700 dark:hover:text-teal-300 group/link transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded-lg"
-                >
-                  Plan this space
-                  <ArrowRight className="w-4 h-4 transform group-hover/link:translate-x-1.5 transition-transform" />
-                </button>
+                      Plan this space
+                      <ArrowRight className="w-4 h-4 transform group-hover/link:translate-x-1.5 transition-transform" />
+                    </button>
+                  </>
+                )}
               </div>
             ) : (
               /* Placeholder when no hotspot is selected */
-              <div className="relative bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 p-10 rounded-[2rem] flex flex-col items-center justify-center text-center backdrop-blur-md shadow-inner min-h-[320px]">
-                <div className="w-16 h-16 bg-white dark:bg-gray-800/60 border border-gray-300 dark:border-gray-700/60 rounded-full flex items-center justify-center mb-5 shadow-xl">
-                  <Zap className="w-8 h-8 text-teal/40 animate-pulse" />
+              <div className="relative overflow-hidden bg-gray-50/50 dark:bg-gray-800/20 border border-gray-200 dark:border-white/5 p-10 rounded-[2.5rem] flex flex-col items-center justify-center text-center backdrop-blur-md shadow-inner min-h-[360px] group-placeholder">
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 bg-teal/20 rounded-full blur-2xl group-hover-placeholder:scale-150 transition-transform duration-1000" />
+                  <div className="relative w-20 h-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-[1.5rem] flex items-center justify-center shadow-2xl transform group-hover-placeholder:rotate-12 transition-transform duration-500">
+                    <Zap className="w-10 h-10 text-teal animate-pulse" />
+                  </div>
                 </div>
-                <h3 className="text-xl font-bold text-gray-600 dark:text-gray-400 mb-2">Select a Space</h3>
-                <p className="text-gray-500 dark:text-gray-500 font-light leading-relaxed max-w-[240px]">
-                  Click a pulsing hotspot on the blueprint to explore automation possibilities.
+                <h3 className="text-2xl font-bold text-charcoal dark:text-white mb-3">Explore Your Space</h3>
+                <p className="text-gray-500 dark:text-gray-400 font-light leading-relaxed max-w-[280px]">
+                  Select a pulsing hotspot on the floorplan to discover how <span className="text-teal font-medium">Smile Smart Home</span> enhances your lifestyle.
                 </p>
+                {activeSpace === 'custom' && !customFloorplanImage && (
+                   <button 
+                     onClick={() => fileInputRef.current?.click()}
+                     className="mt-8 px-6 py-2.5 bg-teal/10 hover:bg-teal/20 text-teal text-sm font-bold rounded-xl transition-all"
+                   >
+                     Upload Floorplan First
+                   </button>
+                )}
               </div>
             )}
           </div>
+          )}
         </div>
       </div>
 

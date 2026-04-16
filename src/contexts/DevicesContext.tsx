@@ -67,6 +67,21 @@ export type DeviceDoc = {
   health?: DeviceHealth;
 };
 
+// Custom Floorplan Hotspot Type
+export interface CustomFloorplanHotspot {
+  id: string;
+  x: number;
+  y: number;
+  title: string;
+  description: string;
+  icon: string; // Icon name as string for serialization
+  tags: string[];
+  isAiGenerated?: boolean;
+  roomType?: string;
+  editable?: boolean;
+  detectedFeatures?: string[];
+}
+
 // Personality Quiz Types
 export type QuizAnswerValue = 'A' | 'B' | 'C' | 'D';
 
@@ -598,6 +613,18 @@ interface DevicesContextValue {
   personalityTypes: Record<string, PersonalityType>;
   personalityDeviceRecommendations: Record<string, DeviceRecommendation[]>;
   calculatePersonality: (answers: Record<number, QuizAnswerValue>) => PersonalityType;
+  // Custom Floorplan
+  customFloorplanImage: string | null;
+  customFloorplanHotspots: CustomFloorplanHotspot[];
+  isAnalyzingFloorplan: boolean;
+  floorplanAnalysisError: string | null;
+  setCustomFloorplanImage: (image: string | null) => void;
+  setCustomFloorplanHotspots: (hotspots: CustomFloorplanHotspot[]) => void;
+  addCustomFloorplanHotspot: (hotspot: CustomFloorplanHotspot) => void;
+  updateCustomFloorplanHotspot: (id: string, updates: Partial<CustomFloorplanHotspot>) => void;
+  deleteCustomFloorplanHotspot: (id: string) => void;
+  clearCustomFloorplan: () => void;
+  analyzeFloorplanWithAI: (imageBase64: string) => Promise<void>;
 }
 
 export const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -738,6 +765,12 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // ── User-Added Devices State ──────────────────────────────────────────────
   const [addedDevices, setAddedDevices] = useState<DevicePlacementMarker[]>([]);
+
+  // ── Custom Floorplan State ───────────────────────────────────────────────
+  const [customFloorplanImage, setCustomFloorplanImage] = useState<string | null>(null);
+  const [customFloorplanHotspots, setCustomFloorplanHotspots] = useState<CustomFloorplanHotspot[]>([]);
+  const [isAnalyzingFloorplan, setIsAnalyzingFloorplan] = useState<boolean>(false);
+  const [floorplanAnalysisError, setFloorplanAnalysisError] = useState<string | null>(null);
 
   // Update device position after drag
   const updateDevicePosition = useCallback((deviceName: string, x: number, y: number) => {
@@ -1509,6 +1542,207 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }, []);
 
+  // ── Custom Floorplan Functions ────────────────────────────────────────────
+  const addCustomFloorplanHotspot = useCallback((hotspot: CustomFloorplanHotspot) => {
+    setCustomFloorplanHotspots(prev => [...prev, hotspot]);
+  }, []);
+
+  const updateCustomFloorplanHotspot = useCallback((id: string, updates: Partial<CustomFloorplanHotspot>) => {
+    setCustomFloorplanHotspots(prev => prev.map(h => 
+      h.id === id ? { ...h, ...updates } : h
+    ));
+  }, []);
+
+  const deleteCustomFloorplanHotspot = useCallback((id: string) => {
+    setCustomFloorplanHotspots(prev => prev.filter(h => h.id !== id));
+  }, []);
+
+  const clearCustomFloorplan = useCallback(() => {
+    setCustomFloorplanImage(null);
+    setCustomFloorplanHotspots([]);
+    setFloorplanAnalysisError(null);
+  }, []);
+
+  // Client-side AI analysis for floorplan (direct API call)
+  const analyzeFloorplanWithAI = useCallback(async (imageBase64: string) => {
+    setIsAnalyzingFloorplan(true);
+    setFloorplanAnalysisError(null);
+
+    try {
+      // Check for OpenAI API key from environment
+      const OPENAI_API_KEY = (import.meta as any).env?.PUBLIC_OPENAI_API_KEY as string | undefined;
+      
+      // DEMO MODE: Generate mock hotspots if no API key
+      if (!OPENAI_API_KEY) {
+        console.log('[DevicesContext] DEMO MODE - Generating mock hotspots');
+        
+        const mockHotspots: CustomFloorplanHotspot[] = [
+          {
+            id: `demo-living-${Date.now()}`,
+            x: 30,
+            y: 40,
+            title: 'Living Room',
+            description: 'Smart TV integration with voice-controlled lighting and automated blinds. Perfect for movie nights with ambient RGB lighting.',
+            icon: 'Tv',
+            tags: ['Smart TV', 'Ambient Lighting', 'Voice Control'],
+            roomType: 'living',
+            isAiGenerated: true,
+            editable: true
+          },
+          {
+            id: `demo-bedroom-${Date.now()}`,
+            x: 70,
+            y: 25,
+            title: 'Master Bedroom',
+            description: 'Sunrise simulation with smart bedside lamps and automated curtains. Sleep mode dims all lights and locks doors at bedtime.',
+            icon: 'Moon',
+            tags: ['Sunrise Alarm', 'Sleep Mode', 'Smart Curtains'],
+            roomType: 'bedroom',
+            isAiGenerated: true,
+            editable: true
+          },
+          {
+            id: `demo-kitchen-${Date.now()}`,
+            x: 25,
+            y: 75,
+            title: 'Kitchen',
+            description: 'Smart appliances with voice-controlled lighting and safety alerts. Automated coffee maker starts brewing when you wake up.',
+            icon: 'UtensilsCrossed',
+            tags: ['Smart Appliances', 'Safety Alerts', 'Voice Control'],
+            roomType: 'kitchen',
+            isAiGenerated: true,
+            editable: true
+          },
+          {
+            id: `demo-bathroom-${Date.now()}`,
+            x: 60,
+            y: 70,
+            title: 'Bathroom',
+            description: 'Leak detection sensors and smart mirror with weather display. Automated exhaust fan activates based on humidity.',
+            icon: 'Droplets',
+            tags: ['Leak Detection', 'Smart Mirror', 'Auto Ventilation'],
+            roomType: 'bathroom',
+            isAiGenerated: true,
+            editable: true
+          }
+        ];
+
+        setCustomFloorplanHotspots(mockHotspots);
+        showNotification({
+          message: `Demo mode: Added ${mockHotspots.length} sample hotspots. Drag them to match your floorplan!`,
+          type: 'success'
+        });
+        return;
+      }
+
+      // REAL AI ANALYSIS via OpenAI API (client-side direct call)
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a smart home consultant. Analyze floorplan images and identify rooms with smart device suggestions. Return ONLY valid JSON:
+{
+  "hotspots": [
+    {
+      "id": "unique-id",
+      "x": 50,
+      "y": 30,
+      "title": "Room Name",
+      "description": "Smart home description",
+      "icon": "Tv",
+      "tags": ["Tag1"],
+      "roomType": "living"
+    }
+  ],
+  "detectedRooms": ["living room"],
+  "detectedFeatures": ["door"],
+  "confidence": 0.92
+}
+Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, Droplets, Car, Lock, Sun, ShieldCheck.`
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: 'Analyze this floorplan and suggest smart home device placements. Return valid JSON only.'
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: imageBase64.startsWith('data:') ? imageBase64 : `data:image/jpeg;base64,${imageBase64}`
+                  }
+                }
+              ]
+            }
+          ],
+          max_tokens: 2000,
+          temperature: 0.3
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`AI analysis failed: ${response.status}`);
+      }
+
+      const aiResponse = await response.json();
+      const content = aiResponse.choices?.[0]?.message?.content;
+
+      if (!content) {
+        throw new Error('No analysis content received');
+      }
+
+      // Parse JSON from AI response
+      let parsedResult;
+      try {
+        const jsonMatch = content.match(/```json\s*([\s\S]*?)\s*```/) || content.match(/```\s*([\s\S]*?)\s*```/);
+        const jsonString = jsonMatch ? jsonMatch[1] : content;
+        parsedResult = JSON.parse(jsonString);
+      } catch (parseError) {
+        console.error('[DevicesContext] JSON parse error:', parseError);
+        throw new Error('Failed to parse AI analysis');
+      }
+
+      // Map AI hotspots to CustomFloorplanHotspot format
+      const mappedHotspots: CustomFloorplanHotspot[] = (parsedResult.hotspots || []).map((h: any, index: number) => ({
+        id: h.id || `ai-${Date.now()}-${index}`,
+        x: Math.max(0, Math.min(100, h.x || 50)),
+        y: Math.max(0, Math.min(100, h.y || 50)),
+        title: h.title || 'Room',
+        description: h.description || 'Smart home automation area',
+        icon: h.icon || 'Zap',
+        tags: h.tags || ['Smart Home'],
+        roomType: h.roomType || 'room',
+        isAiGenerated: true,
+        editable: true,
+        detectedFeatures: parsedResult.detectedFeatures || []
+      }));
+
+      setCustomFloorplanHotspots(mappedHotspots);
+      showNotification({
+        message: `AI analysis complete! Found ${parsedResult.detectedRooms?.length || 0} rooms with ${mappedHotspots.length} hotspots.`,
+        type: 'success'
+      });
+
+    } catch (err: any) {
+      console.error('[DevicesContext] Floorplan analysis error:', err);
+      setFloorplanAnalysisError(err?.message || 'Analysis failed');
+      showNotification({
+        message: err?.message || 'Failed to analyze floorplan',
+        type: 'error'
+      });
+    } finally {
+      setIsAnalyzingFloorplan(false);
+    }
+  }, [showNotification]);
+
   const value = useMemo(() => ({
     devices,
     planLeads,
@@ -1574,7 +1808,19 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     quizQuestions: QUIZ_QUESTIONS,
     personalityTypes: PERSONALITY_TYPES,
     personalityDeviceRecommendations: PERSONALITY_DEVICE_RECOMMENDATIONS,
-    calculatePersonality
+    calculatePersonality,
+    // Custom Floorplan
+    customFloorplanImage,
+    customFloorplanHotspots,
+    isAnalyzingFloorplan,
+    floorplanAnalysisError,
+    setCustomFloorplanImage,
+    setCustomFloorplanHotspots,
+    addCustomFloorplanHotspot,
+    updateCustomFloorplanHotspot,
+    deleteCustomFloorplanHotspot,
+    clearCustomFloorplan,
+    analyzeFloorplanWithAI
   }), [
     devices, planLeads, contactSubmissions, reports, filteredPlanLeads,
     filteredContactSubmissions, filteredReports, searchQuery, filterCriteria,
@@ -1589,7 +1835,12 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     activeConsultationId, consultationLoading, startLiveConsultation,
     userPlannerLeads, currentUser, loginWithGoogle, notification,
     showNotification, hideNotification,
-    criticalError, showCriticalError, hideCriticalError
+    criticalError, showCriticalError, hideCriticalError,
+    // Custom Floorplan dependencies
+    customFloorplanImage, customFloorplanHotspots, isAnalyzingFloorplan, floorplanAnalysisError,
+    setCustomFloorplanImage, setCustomFloorplanHotspots, addCustomFloorplanHotspot,
+    updateCustomFloorplanHotspot, deleteCustomFloorplanHotspot, clearCustomFloorplan,
+    analyzeFloorplanWithAI
   ]);
 
   return (
