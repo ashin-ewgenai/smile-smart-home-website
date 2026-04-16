@@ -2,7 +2,7 @@ import React, { useEffect, useRef, createContext, useContext, useState } from 'r
 import { DevicesProvider, useDevices } from '../contexts/DevicesContext';
 import { DeviceRecommendationsForm } from './DeviceRecommendationsForm';
 import { PersonalityQuiz } from './PersonalityQuiz';
-import { Activity, Shield, AlertTriangle, TrendingUp, TrendingDown, Users, Sparkles, CheckCircle, Info, AlertCircle, X, Heart } from 'lucide-react';
+import { Activity, Shield, AlertTriangle, TrendingUp, TrendingDown, Users, Sparkles, CheckCircle, Info, AlertCircle, X, Heart, Zap, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { AuthModeProvider, useAuthMode } from '../contexts/AuthModeContext';
@@ -263,6 +263,43 @@ const WrapperContent: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
+      
+      {/* Promotional Banner for Savings Calculator */}
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ delay: 0.5 }}
+        className="max-w-4xl mx-auto px-4 mt-6 mb-12"
+      >
+        <a 
+          href="/energy-calculator"
+          className="block group relative overflow-hidden rounded-[2rem] p-8 bg-slate-900 text-white shadow-2xl transition-all hover:scale-[1.01]"
+        >
+          <div className="absolute top-0 right-0 p-8 text-teal opacity-10 group-hover:opacity-20 transition-opacity transform group-hover:scale-110">
+            <Zap size={100} />
+          </div>
+          
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="text-center md:text-left">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal/20 text-teal border border-teal/20 text-[10px] font-black uppercase tracking-widest mb-4">
+                <Sparkles size={12} />
+                Exclusive Feature
+              </div>
+              <h3 className="text-2xl font-black mb-2 flex items-center justify-center md:justify-start gap-2">
+                Calculate Real-Time Savings
+                <ChevronRight size={24} className="text-teal group-hover:translate-x-1 transition-transform" />
+              </h3>
+              <p className="text-gray-400 text-sm max-w-md">
+                Find out exactly how much you can save on your annual bills with Smile's AI auto-optimization.
+              </p>
+            </div>
+            
+            <div className="shrink-0 flex items-center justify-center w-20 h-20 rounded-2xl bg-teal text-white shadow-lg shadow-teal/20 group-hover:rotate-12 transition-transform">
+              <TrendingUp size={40} />
+            </div>
+          </div>
+        </a>
+      </motion.div>
 
       {/* ── Global Notification UI (Strictly Top-Right) ── */}
       <AnimatePresence>

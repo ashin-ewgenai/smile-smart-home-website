@@ -82,6 +82,13 @@ export interface CustomFloorplanHotspot {
   detectedFeatures?: string[];
 }
 
+// Savings Data Type
+export interface SavingsData {
+  annualSavings: number;
+  co2Reduction: number;
+  roiMonths: number;
+}
+
 // Personality Quiz Types
 export type QuizAnswerValue = 'A' | 'B' | 'C' | 'D';
 
@@ -625,6 +632,9 @@ interface DevicesContextValue {
   deleteCustomFloorplanHotspot: (id: string) => void;
   clearCustomFloorplan: () => void;
   analyzeFloorplanWithAI: (imageBase64: string) => Promise<void>;
+  // Energy Savings
+  savingsData: SavingsData | null;
+  calculateSavings: (monthlyBill: number, homeSize: number, applianceCount: number) => void;
 }
 
 export const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -788,6 +798,48 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // ── User Planning Leads State ───────────────────────────────────────────
   const [adminAccepted, setAdminAccepted] = useState<boolean>(false);
   const [userPlannerLeads, setUserPlannerLeads] = useState<PlannerLead[]>([]);
+
+  // ── Energy Savings State ────────────────────────────────────────────────
+  const [savingsData, setSavingsData] = useState<SavingsData | null>(null);
+
+  const calculateSavings = useCallback((monthlyBill: number, homeSize: number, applianceCount: number) => {
+    // Basic validation
+    if (monthlyBill <= 0 || homeSize <= 0) return;
+
+    const annualBill = monthlyBill * 12;
+    
+    // Efficiency factors (based on Smile Smart device specs)
+    const lightingEfficiency = 0.62; 
+    const hvacEfficiency = 0.25;     
+    const applianceEfficiency = 0.18; 
+
+    // Dynamic Distribution based on home profile
+    // Larger homes have more HVAC/Lighting percentage
+    const hvacShare = 0.35 + (Math.min(homeSize, 10000) / 10000) * 0.15; // 35% to 50%
+    const lightingShare = 0.15 + (Math.min(homeSize, 5000) / 5000) * 0.05; // 15% to 20%
+    const standbyShare = 0.05 + (Math.min(applianceCount, 50) / 50) * 0.10; // 5% to 15%
+
+    const lightingSavings = annualBill * lightingShare * lightingEfficiency;
+    const hvacSavings = annualBill * hvacShare * hvacEfficiency;
+    const standbySavings = annualBill * standbyShare * applianceEfficiency;
+    
+    const totalAnnualSavings = Math.round(lightingSavings + hvacSavings + standbySavings);
+    
+    // CO2 reduction: ~0.85kg CO2 per kWh. Assuming avg cost per kWh is ₹7
+    const kwhSavedAnnual = totalAnnualSavings / 7;
+    const co2Reduction = Math.round(kwhSavedAnnual * 0.85); 
+    
+    // Dynamic ROI: More appliances = higher initial cost but potentially better efficiency
+    // Est cost: ₹15,000 base + ₹1,500 per device
+    const estimatedCost = 15000 + (applianceCount * 1500);
+    const roiMonths = Math.max(6, Math.round((estimatedCost / (totalAnnualSavings / 12))));
+    
+    setSavingsData({
+      annualSavings: totalAnnualSavings,
+      co2Reduction,
+      roiMonths
+    });
+  }, []);
 
   // ── Global Notification State ──────────────────────────────────────────
   const [notification, setNotification] = useState<NotificationState>({
@@ -1820,7 +1872,10 @@ Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, D
     updateCustomFloorplanHotspot,
     deleteCustomFloorplanHotspot,
     clearCustomFloorplan,
-    analyzeFloorplanWithAI
+    analyzeFloorplanWithAI,
+    // Energy Savings
+    savingsData,
+    calculateSavings
   }), [
     devices, planLeads, contactSubmissions, reports, filteredPlanLeads,
     filteredContactSubmissions, filteredReports, searchQuery, filterCriteria,
@@ -1840,7 +1895,9 @@ Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, D
     customFloorplanImage, customFloorplanHotspots, isAnalyzingFloorplan, floorplanAnalysisError,
     setCustomFloorplanImage, setCustomFloorplanHotspots, addCustomFloorplanHotspot,
     updateCustomFloorplanHotspot, deleteCustomFloorplanHotspot, clearCustomFloorplan,
-    analyzeFloorplanWithAI
+    analyzeFloorplanWithAI,
+    // Energy Savings deps
+    savingsData, calculateSavings
   ]);
 
   return (

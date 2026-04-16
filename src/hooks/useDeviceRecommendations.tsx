@@ -31,7 +31,10 @@ export function useDeviceRecommendations() {
     clearVisualization,
     uploadAndAnalyzeRoom,
     userPlannerLeads,
-    showNotification
+    showNotification,
+    // Energy Savings from Context
+    savingsData,
+    calculateSavings
   } = useDevices();
 
   const [adminAccepted, setAdminAccepted] = useState<boolean>(false);
@@ -99,6 +102,7 @@ export function useDeviceRecommendations() {
     });
   };
 
+
   return {
     step,
     setStep,
@@ -129,6 +133,9 @@ export function useDeviceRecommendations() {
     clearVisualization,
     uploadAndAnalyzeRoom,
     adminAccepted,
-    acceptedAt
+    acceptedAt,
+    // Savings Calculator
+    calculateSavings,
+    savingsData
   };
 }
