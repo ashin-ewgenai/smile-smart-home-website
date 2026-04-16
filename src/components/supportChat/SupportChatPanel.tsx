@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { auth, db, functions, storage, uploadFile } from '../../lib/firebase';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit, updateDoc, deleteField, where, deleteDoc, writeBatch } from 'firebase/firestore';
@@ -119,6 +120,16 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const msgsUnsubRef = useRef<null | (() => void)>(null);
   // File input for image sharing with human agents only (no OCR)
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Voice Assistant State ────────────────────────────────────────────────
+  const [isMuted, setIsMuted] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(false);
+  const recognitionRef = useRef<any>(null);
+  const synthRef = useRef<SpeechSynthesis | null>(null);
+  const lastSpokenTsRef = useRef<number>(0);
+  // Holds the voice transcript so send() can read it synchronously before React state flushes
+  const voiceTranscriptRef = useRef<string>('');
   
   // Auto-scroll to bottom when messages change
   const scrollToBottom = () => {
@@ -128,6 +139,120 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  // ── Voice: browser capability detection (runs once on mount) ────────────
+  useEffect(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition && 'speechSynthesis' in window) {
+      setVoiceSupported(true);
+      synthRef.current = window.speechSynthesis;
+    }
+  }, []);
+
+  // ── Voice: speak a piece of text via SpeechSynthesis ────────────────────
+  const speakText = useCallback(
+    (text: string) => {
+      if (isMuted || !synthRef.current) return;
+      synthRef.current.cancel();
+      // Strip markdown symbols and leading emoji for cleaner TTS
+      const clean = text
+        .replace(/[#*`_~>\[\]]/g, '')
+        .replace(/^[\p{Emoji}\s]+/u, '')
+        .trim();
+      if (!clean) return;
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.lang = 'en-US';
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      synthRef.current.speak(utterance);
+    },
+    [isMuted]
+  );
+
+  // ── Voice: auto-speak newest assistant reply when not muted ──────────────
+  useEffect(() => {
+    const lastAssistant = [...messages]
+      .reverse()
+      .find(
+        (m) =>
+          (m.role === 'assistant' || m.role === 'agent') &&
+          m.content &&
+          !m.uploading
+      );
+    if (!lastAssistant || lastAssistant.ts === lastSpokenTsRef.current) return;
+    lastSpokenTsRef.current = lastAssistant.ts;
+    speakText(lastAssistant.content!);
+  }, [messages, speakText]);
+
+  // ── Voice: start microphone listening ────────────────────────────────────
+  const startListening = useCallback(() => {
+    const SpeechRecognition =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition || isListening || !isAuthenticated) return;
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onerror = () => setIsListening(false);
+
+    recognition.onresult = (event: any) => {
+      const transcript: string = event.results[0][0].transcript.trim();
+      if (!transcript) return;
+
+      // Show transcript in input field so user can see what was heard
+      setInput(transcript);
+
+      // Store in ref so send() can read it synchronously (React state batches
+      // updates, so `input` would still be the old value if called immediately)
+      voiceTranscriptRef.current = transcript;
+
+      // Brief pause (600 ms) so the user can see what was captured, then send
+      setTimeout(() => {
+        // sendVoiceMessage reads from the ref, not from React input state
+        sendVoiceMessage(transcript);
+        setInput('');
+        voiceTranscriptRef.current = '';
+      }, 600);
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  }, [isListening, isAuthenticated]);  // sendVoiceMessage added after send() is defined
+
+  // ── Voice: stop microphone listening ─────────────────────────────────────
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop();
+    setIsListening(false);
+  }, []);
+
+  // ── sendVoiceMessage: thin wrapper that calls send() with a voice transcript.
+  // Defined here (after startListening, before it is referenced in onresult
+  // timeout) so the closure captures the final send() reference.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const sendVoiceMessage = useCallback(
+    (text: string) => {
+      send(text);
+    },
+    // `send` is redeclared each render so we intentionally omit it to avoid
+    // an infinite-update loop — the ref pattern keeps this safe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    []
+  );
+
+  // ── Voice: cleanup recognition and TTS on unmount ────────────────────────
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      synthRef.current?.cancel();
+    };
+  }, []);
 
   const botNeedsTicket = !claimed && !providedTicketId;
 
@@ -1086,10 +1211,13 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     return explicitPatterns.test(text);
   };
 
-  const send: () => Promise<void> = async () => {
-    const content = input.trim();
+  // ── Core send function — accepts an optional voiceText so voice input can
+  // bypass the React-state batching delay. When voiceText is provided the
+  // input field is already cleared by the caller (recognition.onresult).
+  const send = async (voiceText?: string): Promise<void> => {
+    const content = (voiceText ?? input).trim();
     if (!content || isSending) return;
-    setInput('');
+    if (!voiceText) setInput('');
     setIsSending(true);
 
     const wantsHuman = shouldEscalateToHuman(content);
@@ -2112,6 +2240,54 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
           </button>
+
+          {/* ── Voice: Mute / Unmute TTS button ─── */}
+          {voiceSupported && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsMuted((v) => !v);
+                synthRef.current?.cancel();
+              }}
+              className={`inline-flex items-center justify-center h-10 w-10 rounded-full transition-all duration-200 shadow-sm border ${
+                isMuted
+                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700'
+                  : 'bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-700 hover:bg-teal-100 dark:hover:bg-teal-900/50'
+              }`}
+              title={isMuted ? 'Unmute voice assistant' : 'Mute voice assistant'}
+              aria-label={isMuted ? 'Unmute voice assistant' : 'Mute voice assistant'}
+              aria-pressed={!isMuted}
+            >
+              {isMuted ? (
+                <VolumeX className="h-5 w-5" />
+              ) : (
+                <Volume2 className="h-5 w-5" />
+              )}
+            </button>
+          )}
+
+          {/* ── Voice: Microphone input button ─── */}
+          {voiceSupported && (
+            <button
+              type="button"
+              onClick={isListening ? stopListening : startListening}
+              disabled={!isAuthenticated}
+              className={`inline-flex items-center justify-center h-10 w-10 rounded-full transition-all duration-200 shadow-sm border ${
+                isListening
+                  ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-700 animate-pulse'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
+              }`}
+              title={isListening ? 'Stop listening' : 'Start voice input'}
+              aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+              aria-pressed={isListening}
+            >
+              {isListening ? (
+                <MicOff className="h-5 w-5" />
+              ) : (
+                <Mic className="h-5 w-5" />
+              )}
+            </button>
+          )}
           <div className="flex-1 relative">
             <input
               type="text"
