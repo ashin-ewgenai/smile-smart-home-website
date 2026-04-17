@@ -290,6 +290,7 @@ export default function InteractiveFloorplan() {
   
   // Custom Hotspot Editing state
   const [isEditingHotspot, setIsEditingHotspot] = useState(false);
+  const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
   const [editFields, setEditFields] = useState({
     title: '',
     description: '',
@@ -308,6 +309,7 @@ export default function InteractiveFloorplan() {
     deleteCustomFloorplanHotspot,
     clearCustomFloorplan,
     analyzeFloorplanWithAI,
+    generateRoomDetailsWithAI,
     isAnalyzingFloorplan,
     floorplanAnalysisError,
   } = useDevices();
@@ -412,6 +414,28 @@ export default function InteractiveFloorplan() {
       tags: currentHotspot.tags.join(', ')
     });
     setIsEditingHotspot(true);
+  };
+
+  const handleGenerateAIDescription = async () => {
+    if (!editFields.title.trim()) {
+      showNotification({
+        message: 'Please enter a room title first!',
+        type: 'warning'
+      });
+      return;
+    }
+
+    setIsGeneratingDescription(true);
+    try {
+      const { description, tags } = await generateRoomDetailsWithAI(editFields.title);
+      setEditFields(prev => ({ 
+        ...prev, 
+        description,
+        tags: tags.join(', ')
+      }));
+    } finally {
+      setIsGeneratingDescription(false);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -552,8 +576,8 @@ export default function InteractiveFloorplan() {
   }, [modal.submitting]);
 
   return (
-    <section
-      className="py-24 bg-soft-gray dark:bg-gray-900 border-t border-gray-200 dark:border-white/5 overflow-hidden relative"
+    <section 
+      className="py-24 pb-32 mb-24 bg-soft-gray dark:bg-gray-900 border-t border-gray-200 dark:border-white/5 relative"
       id="interactive-tour"
       aria-label="Interactive Smart Home Tour"
     >
@@ -618,7 +642,7 @@ export default function InteractiveFloorplan() {
         />
 
         {/* Main interactive area */}
-        <div className="flex flex-col lg:flex-row gap-8 items-start justify-center">
+        <div className="flex flex-col lg:flex-row gap-8 items-start justify-center px-4 sm:px-6 lg:px-12">
 
           {/* Floorplan Display - SVG or Custom Image */}
           <div 
@@ -821,9 +845,12 @@ export default function InteractiveFloorplan() {
             )}
           </div>
 
-          {/* Custom Floorplan Controls - Only show for custom tab */}
-          {activeSpace === 'custom' && customFloorplanImage && (
-            <div className="w-full lg:w-[420px] flex-shrink-0 space-y-4">
+          {/* Right Sidebar Column (Controls + Info) */}
+          <div className="w-full lg:w-[380px] flex-shrink-0 lg:sticky lg:top-8 self-start space-y-6">
+            
+            {/* Custom Floorplan Controls - Only show for custom tab */}
+            {activeSpace === 'custom' && customFloorplanImage && (
+              <div className="space-y-4">
               {/* Analysis Error */}
               {floorplanAnalysisError && !isAnalyzingFloorplan && (
                 <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-6">
@@ -915,15 +942,16 @@ export default function InteractiveFloorplan() {
             </div>
           )}
 
-          {/* Info Panel - for non-custom tabs or when custom hotspot selected */}
-          {(activeSpace !== 'custom' || (activeSpace === 'custom' && activeSpot)) && (
-            <div className="w-full lg:w-[420px] flex-shrink-0">
-              {currentHotspot ? (
+            {/* Info Panel - for non-custom tabs or when custom hotspot selected */}
+            {(activeSpace !== 'custom' || (activeSpace === 'custom' && activeSpot)) && (
+              currentHotspot ? (
               <div
                 ref={panelRef}
                 key={currentHotspot.id}
-                className="relative bg-white dark:bg-white/5 backdrop-blur-2xl border border-gray-200 dark:border-white/10 p-8 rounded-[2rem] shadow-2xl"
+                className={`relative bg-white dark:bg-white/5 backdrop-blur-2xl border border-gray-200 dark:border-white/10 rounded-[2.5rem] shadow-2xl max-h-[80vh] flex flex-col transition-all duration-300 ${isEditingHotspot ? 'p-6' : 'p-8'}`}
               >
+                {/* Scrollable Content Area */}
+                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-6">
                 {/* Close button */}
                 <button
                   onClick={() => setActiveSpot(null)}
@@ -942,7 +970,9 @@ export default function InteractiveFloorplan() {
                     </h4>
                     
                     <div>
-                      <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Room Title</label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Room Title</label>
+                      </div>
                       <input 
                         type="text"
                         value={editFields.title}
@@ -953,13 +983,36 @@ export default function InteractiveFloorplan() {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Description</label>
-                      <textarea 
-                        value={editFields.description}
-                        onChange={e => setEditFields({ ...editFields, description: e.target.value })}
-                        className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-charcoal dark:text-white focus:outline-none focus:ring-2 focus:ring-teal/50 h-24 resize-none"
-                        placeholder="What happens in this space?"
-                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</label>
+                        <button
+                          type="button"
+                          onClick={handleGenerateAIDescription}
+                          disabled={isGeneratingDescription}
+                          className="flex items-center gap-1.5 text-[10px] font-bold text-teal hover:text-teal-600 transition-colors uppercase tracking-widest disabled:opacity-50"
+                        >
+                          {isGeneratingDescription ? (
+                            <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Thinking...</>
+                          ) : (
+                            <><Sparkles className="w-2.5 h-2.5" /> Generate with AI</>
+                          )}
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <textarea 
+                          value={editFields.description}
+                          onChange={e => setEditFields({ ...editFields, description: e.target.value })}
+                          className={`w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-charcoal dark:text-white focus:outline-none focus:ring-2 focus:ring-teal/50 h-28 resize-none transition-all ${isGeneratingDescription ? 'opacity-50 blur-[1px]' : ''}`}
+                          placeholder="What happens in this space?"
+                        />
+                        {isGeneratingDescription && (
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <div className="flex flex-col items-center gap-2">
+                               <Sparkles className="w-5 h-5 text-teal animate-pulse" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div>
@@ -1035,34 +1088,35 @@ export default function InteractiveFloorplan() {
                       Plan this space
                       <ArrowRight className="w-4 h-4 transform group-hover/link:translate-x-1.5 transition-transform" />
                     </button>
-                  </>
-                )}
-              </div>
-            ) : (
-              /* Placeholder when no hotspot is selected */
-              <div className="relative overflow-hidden bg-gray-50/50 dark:bg-gray-800/20 border border-gray-200 dark:border-white/5 p-10 rounded-[2.5rem] flex flex-col items-center justify-center text-center backdrop-blur-md shadow-inner min-h-[360px] group-placeholder">
-                <div className="relative mb-6">
-                  <div className="absolute inset-0 bg-teal/20 rounded-full blur-2xl group-hover-placeholder:scale-150 transition-transform duration-1000" />
-                  <div className="relative w-20 h-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-[1.5rem] flex items-center justify-center shadow-2xl transform group-hover-placeholder:rotate-12 transition-transform duration-500">
-                    <Zap className="w-10 h-10 text-teal animate-pulse" />
-                  </div>
+                  </>)}
                 </div>
-                <h3 className="text-2xl font-bold text-charcoal dark:text-white mb-3">Explore Your Space</h3>
-                <p className="text-gray-500 dark:text-gray-400 font-light leading-relaxed max-w-[280px]">
-                  Select a pulsing hotspot on the floorplan to discover how <span className="text-teal font-medium">Smile Smart Home</span> enhances your lifestyle.
-                </p>
-                {activeSpace === 'custom' && !customFloorplanImage && (
-                   <button 
-                     onClick={() => fileInputRef.current?.click()}
-                     className="mt-8 px-6 py-2.5 bg-teal/10 hover:bg-teal/20 text-teal text-sm font-bold rounded-xl transition-all"
-                   >
-                     Upload Floorplan First
-                   </button>
-                )}
-              </div>
-            )}
+              </div>)
+            : (
+              /* Placeholder when no hotspot is selected & Not custom floorplan */
+              activeSpace !== 'custom' && (
+                <div className="relative overflow-hidden bg-gray-50/50 dark:bg-gray-800/20 border border-gray-200 dark:border-white/5 p-10 rounded-[2.5rem] flex flex-col items-center justify-center text-center backdrop-blur-md shadow-inner min-h-[360px] group-placeholder">
+                  <div className="relative mb-6">
+                    <div className="absolute inset-0 bg-teal/20 rounded-full blur-2xl group-hover-placeholder:scale-150 transition-transform duration-1000" />
+                    <div className="relative w-20 h-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-[1.5rem] flex items-center justify-center shadow-2xl transform group-hover-placeholder:rotate-12 transition-transform duration-500">
+                      <Zap className="w-10 h-10 text-teal animate-pulse" />
+                    </div>
+                  </div>
+                  <h3 className="text-2xl font-bold text-charcoal dark:text-white mb-3">Explore Your Space</h3>
+                  <p className="text-gray-500 dark:text-gray-400 font-light leading-relaxed max-w-[280px]">
+                    Select a pulsing hotspot on the floorplan to discover how <span className="text-teal font-medium">Smile Smart Home</span> enhances your lifestyle.
+                  </p>
+                  {activeSpace === 'custom' && !customFloorplanImage && (
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mt-8 px-6 py-2.5 bg-teal/10 hover:bg-teal/20 text-teal text-sm font-bold rounded-xl transition-all"
+                    >
+                      Upload Floorplan First
+                    </button>
+                  )}
+                </div>
+              )
+            ))}
           </div>
-          )}
         </div>
       </div>
 

@@ -632,6 +632,7 @@ interface DevicesContextValue {
   deleteCustomFloorplanHotspot: (id: string) => void;
   clearCustomFloorplan: () => void;
   analyzeFloorplanWithAI: (imageBase64: string) => Promise<void>;
+  generateRoomDetailsWithAI: (roomTitle: string) => Promise<{ description: string; tags: string[] }>;
   // Energy Savings
   savingsData: SavingsData | null;
   calculateSavings: (monthlyBill: number, homeSize: number, applianceCount: number) => void;
@@ -1795,6 +1796,60 @@ Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, D
     }
   }, [showNotification]);
 
+  const generateRoomDetailsWithAI = useCallback(async (roomTitle: string) => {
+    try {
+      const OPENAI_API_KEY = (import.meta as any).env?.PUBLIC_OPENAI_API_KEY as string | undefined;
+      
+      if (!OPENAI_API_KEY) {
+        return {
+          description: `A premium smart home automation setup for your ${roomTitle}, featuring intelligent lighting and integrated comfort controls.`,
+          tags: ['Smart Lighting', 'Climate Control', 'Voice Assistant']
+        };
+      }
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are a professional smart home consultant. Generate automation details for a specific room. Return ONLY a JSON object: {"description": "concise description < 150 chars", "tags": ["Device 1", "Device 2", "Device 3"]}. Focus on comfort, security, and convenience.'
+            },
+            {
+              role: 'user',
+              content: `Generate smart home automation details for a "${roomTitle}".`
+            }
+          ],
+          response_format: { type: "json_object" },
+          max_tokens: 200,
+          temperature: 0.7
+        })
+      });
+
+      if (!response.ok) throw new Error('AI generation failed');
+      
+      const aiResponse = await response.json();
+      const content = JSON.parse(aiResponse.choices?.[0]?.message?.content);
+      
+      return {
+        description: content.description || `Premium automation for your ${roomTitle}.`,
+        tags: content.tags || ['Smart Home', 'Automation']
+      };
+    } catch (err) {
+      console.error('[DevicesContext] Room details generation error:', err);
+      return {
+        description: `Professional smart home automation features for your ${roomTitle}.`,
+        tags: ['Smart Lighting', 'Voice Control']
+      };
+    }
+  }, []);
+
+
   const value = useMemo(() => ({
     devices,
     planLeads,
@@ -1873,6 +1928,7 @@ Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, D
     deleteCustomFloorplanHotspot,
     clearCustomFloorplan,
     analyzeFloorplanWithAI,
+    generateRoomDetailsWithAI,
     // Energy Savings
     savingsData,
     calculateSavings

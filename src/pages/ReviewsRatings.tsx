@@ -22,23 +22,23 @@ const StarRating = ({ rating, setRating, interactive = false }: { rating: number
   const [hover, setHover] = useState(0);
 
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1.5">
       {[1, 2, 3, 4, 5].map((star) => (
         <motion.button
           key={star}
-          whileHover={interactive ? { scale: 1.2 } : {}}
+          whileHover={interactive ? { scale: 1.15, rotate: 5 } : {}}
           whileTap={interactive ? { scale: 0.9 } : {}}
           onClick={() => interactive && setRating?.(star)}
           onMouseEnter={() => interactive && setHover(star)}
           onMouseLeave={() => interactive && setHover(0)}
-          className={`focus:outline-none transition-colors ${interactive ? 'cursor-pointer' : 'cursor-default'}`}
+          className={`focus:outline-none transition-all ${interactive ? 'cursor-pointer' : 'cursor-default'}`}
           type="button"
         >
           <Star
-            size={24}
-            fill={(hover || rating) >= star ? "#F59E0B" : "transparent"}
-            color={(hover || rating) >= star ? "#F59E0B" : "#D1D5DB"}
-            className="transition-colors duration-200"
+            size={interactive ? 28 : 18}
+            fill={(hover || rating) >= star ? "#009688" : "transparent"}
+            color={(hover || rating) >= star ? "#009688" : "#94A3B8"}
+            className={`transition-all duration-300 ${(hover || rating) >= star ? 'drop-shadow-[0_0_8px_rgba(0,150,136,0.3)]' : ''}`}
           />
         </motion.button>
       ))}
@@ -145,9 +145,9 @@ const ReviewsRatingsPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 font-sans text-charcoal dark:text-gray-100 pb-20">
+    <div className="min-h-screen bg-white dark:bg-charcoal font-sans text-charcoal dark:text-gray-100 pb-20">
       {/* Header / Hero */}
-      <section className="relative py-20 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 overflow-hidden">
+      <section className="relative py-20 bg-white dark:bg-charcoal border-b border-slate-100 dark:border-white/10 overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-[0.03] dark:opacity-[0.05] pointer-events-none">
           <svg width="100%" height="100%"><pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="1"/></pattern><rect width="100%" height="100%" fill="url(#grid)" /></svg>
         </div>
@@ -158,10 +158,10 @@ const ReviewsRatingsPage = () => {
             animate={{ opacity: 1, y: 0 }}
             className="text-center"
           >
-            <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-teal to-blue-600 bg-clip-text text-transparent">
+            <h1 className="text-4xl md:text-display font-black mb-4 bg-gradient-to-r from-teal to-blue-500 bg-clip-text text-transparent italic">
               Customer Experiences
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto text-lg">
+            <p className="text-slate-500 dark:text-gray-400 max-w-2xl mx-auto text-lg font-medium">
               We take pride in our work and value your feedback. Read about how we've transformed homes and share your own story.
             </p>
           </motion.div>
@@ -177,13 +177,13 @@ const ReviewsRatingsPage = () => {
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="p-8 rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl shadow-gray-200/50 dark:shadow-none text-center"
+                className="p-8 rounded-3xl glass-surface border border-slate-100 dark:border-white/10 shadow-soft text-center"
               >
                 <div className="w-16 h-16 bg-teal/10 text-teal rounded-full flex items-center justify-center mx-auto mb-6">
                   <User size={32} />
                 </div>
-                <h2 className="text-xl font-bold mb-2">Share Your Experience</h2>
-                <p className="text-gray-500 dark:text-gray-400 mb-6">
+                <h2 className="text-xl font-black mb-2 dark:text-white">Share Your Experience</h2>
+                <p className="text-slate-500 dark:text-gray-400 mb-6">
                   Please log in to submit a review and upload photos of your installation.
                 </p>
                 <button
@@ -193,7 +193,7 @@ const ReviewsRatingsPage = () => {
                     sessionStorage.setItem('authReturnTo', '/reviews');
                     (window as any).__authOpen?.('login');
                   }}
-                  className="inline-flex items-center justify-center px-6 py-3 bg-teal text-white font-semibold rounded-xl hover:bg-teal-600 transition-all w-full shadow-lg shadow-teal/20"
+                  className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-teal to-blue-500 text-white font-black rounded-xl hover:scale-[1.02] transition-all w-full shadow-lg shadow-teal/20"
                 >
                   Log In to Review
                 </button>
@@ -207,13 +207,13 @@ const ReviewsRatingsPage = () => {
                 <div className="w-20 h-20 bg-green-500 text-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-500/30">
                   <CheckCircle2 size={40} />
                 </div>
-                <h2 className="text-2xl font-bold text-green-800 dark:text-green-400 mb-2">Thank You!</h2>
-                <p className="text-green-700 dark:text-green-500/80">
+                <h2 className="text-2xl font-black text-green-800 dark:text-green-400 mb-2">Thank You!</h2>
+                <p className="text-green-700 dark:text-green-500/80 font-medium">
                   Your review has been submitted successfully and is now live.
                 </p>
                 <button 
                   onClick={() => setIsSuccess(false)}
-                  className="mt-8 text-sm font-semibold text-green-700 underline underline-offset-4 hover:text-green-800"
+                  className="mt-8 text-sm font-black text-green-700 underline underline-offset-4 hover:text-green-800"
                 >
                   Submit another review
                 </button>
@@ -223,9 +223,9 @@ const ReviewsRatingsPage = () => {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 onSubmit={handleSubmit}
-                className="p-8 rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl shadow-gray-200/50 dark:shadow-none"
+                className="p-8 rounded-3xl glass-surface border border-slate-100 dark:border-white/10 shadow-soft"
               >
-                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
+                <h2 className="text-2xl font-black mb-6 flex items-center gap-3 dark:text-white">
                   <span className="w-8 h-8 rounded-lg bg-teal/10 text-teal flex items-center justify-center">
                     <MessageSquare size={18} />
                   </span>
@@ -234,25 +234,25 @@ const ReviewsRatingsPage = () => {
 
                 <div className="space-y-6">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">How would you rate our service?</label>
+                    <label className="block text-sm font-black text-slate-600 dark:text-gray-400 uppercase tracking-wide mb-2">How would you rate our service?</label>
                     <StarRating rating={rating} setRating={setRating} interactive />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Detailed Review</label>
+                    <label className="block text-sm font-black text-slate-600 dark:text-gray-400 uppercase tracking-wide mb-2">Detailed Review</label>
                     <textarea 
                       value={comment}
                       onChange={(e) => setComment(e.target.value)}
                       placeholder="Tell us about the installation, the technician, and how your new smart home devices are working..."
-                      className="w-full h-32 px-4 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 focus:ring-2 focus:ring-teal focus:border-transparent transition-all outline-none resize-none"
+                      className="pill-textarea w-full"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Add Photos or Videos</label>
+                    <label className="block text-sm font-black text-slate-600 dark:text-gray-400 uppercase tracking-wide mb-2">Add Photos or Videos</label>
                     <div 
                       onClick={() => fileInputRef.current?.click()}
-                      className="group cursor-pointer border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl p-6 text-center hover:border-teal hover:bg-teal/5 transition-all"
+                      className="group cursor-pointer border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl p-6 text-center hover:border-teal hover:bg-teal/5 transition-all"
                     >
                       <input 
                         type="file" 
@@ -262,11 +262,11 @@ const ReviewsRatingsPage = () => {
                         accept="image/*,video/*"
                         className="hidden"
                       />
-                      <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 text-gray-400 group-hover:text-teal group-hover:bg-teal/10 rounded-xl flex items-center justify-center mx-auto mb-4 transition-colors">
+                      <div className="w-12 h-12 bg-slate-50 dark:bg-white/5 text-slate-400 group-hover:text-teal group-hover:bg-teal/10 rounded-xl flex items-center justify-center mx-auto mb-4 transition-colors">
                         <Upload size={24} />
                       </div>
-                      <p className="text-sm font-medium">Click to upload or drag and drop</p>
-                      <p className="text-xs text-gray-400 mt-1">Up to 8 files (images or videos)</p>
+                      <p className="text-sm font-black dark:text-gray-300">Click to upload or drag and drop</p>
+                      <p className="text-xs text-slate-400 mt-1 font-medium">Up to 8 files (images or videos)</p>
                     </div>
                     
                     {files.length > 0 && (
@@ -279,7 +279,7 @@ const ReviewsRatingsPage = () => {
 
                   <button 
                     disabled={isSubmitting}
-                    className="w-full py-4 bg-teal text-white font-bold rounded-xl hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-teal/20 flex items-center justify-center gap-2"
+                    className="w-full py-4 bg-gradient-to-r from-teal to-blue-500 text-white font-black rounded-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-teal/20 flex items-center justify-center gap-2"
                   >
                     {isSubmitting ? (
                       <>
@@ -299,25 +299,25 @@ const ReviewsRatingsPage = () => {
         {/* Right Column: Reviews List */}
         <div className="lg:col-span-7">
           <div className="mb-8 flex items-center justify-between">
-            <h2 className="text-2xl font-bold">Community Feedback</h2>
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Showing {reviews.length} reviews
+            <h2 className="text-2xl font-black dark:text-white">Community Feedback</h2>
+            <div className="text-sm font-black text-slate-400 uppercase tracking-widest">
+              {reviews.length} Experiences
             </div>
           </div>
 
           <AnimatePresence mode="popLayout">
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                 <Loader2 className="animate-spin mb-4" size={40} />
-                <p>Loading the latest reviews...</p>
+                <p className="font-bold">Loading experiences...</p>
               </div>
             ) : reviews.length === 0 ? (
-              <div className="text-center py-20 bg-white dark:bg-gray-900 rounded-3xl border border-gray-200 dark:border-gray-800">
-                <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="text-center py-20 glass-surface rounded-3xl border border-slate-100 dark:border-white/10">
+                <div className="w-16 h-16 bg-slate-50 dark:bg-white/5 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-4">
                   <Star size={32} />
                 </div>
-                <h3 className="text-lg font-bold">No reviews yet</h3>
-                <p className="text-gray-500 max-w-xs mx-auto mt-2">
+                <h3 className="text-lg font-black dark:text-white">No reviews yet</h3>
+                <p className="text-slate-500 dark:text-gray-400 max-w-xs mx-auto mt-2 font-medium">
                   Be the first one to share your smart home transformation journey!
                 </p>
               </div>
@@ -329,25 +329,25 @@ const ReviewsRatingsPage = () => {
                     initial={{ opacity: 0, y: 30 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: idx * 0.1 }}
-                    className="p-6 md:p-8 rounded-3xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow"
+                    className="p-6 md:p-8 rounded-3xl glass-surface border border-slate-100 dark:border-white/10 shadow-soft"
                   >
                     <div className="flex items-start justify-between mb-6">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-teal/10 text-teal flex items-center justify-center font-bold text-lg">
+                        <div className="w-12 h-12 rounded-full bg-teal text-white flex items-center justify-center font-black text-lg shadow-lg shadow-teal/20">
                           {review.userName.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <h4 className="font-bold text-lg">{review.userName}</h4>
+                          <h4 className="font-black text-lg dark:text-white">{review.userName}</h4>
                           <StarRating rating={review.rating} />
                         </div>
                       </div>
-                      <div className="text-xs text-gray-400 flex items-center gap-1.5 bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded-full">
-                        <Calendar size={14} />
+                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 bg-slate-50 dark:bg-white/5 px-3 py-1.5 rounded-full border border-slate-100 dark:border-white/10">
+                        <Calendar size={12} className="text-teal" />
                         {review.createdAt ? new Date(review.createdAt as any).toLocaleDateString() : 'Just now'}
                       </div>
                     </div>
 
-                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-6 italic">
+                    <p className="text-slate-700 dark:text-gray-300 leading-relaxed mb-6 italic font-medium">
                       "{review.comment}"
                     </p>
 
@@ -356,7 +356,7 @@ const ReviewsRatingsPage = () => {
                         {review.media.map((item, mIdx) => (
                           <div 
                             key={mIdx} 
-                            className="relative group w-24 h-24 sm:w-32 sm:h-32 rounded-2xl overflow-hidden cursor-pointer"
+                            className="relative group w-24 h-24 sm:w-32 sm:h-32 rounded-2xl overflow-hidden cursor-pointer border border-slate-100 dark:border-white/10"
                             onClick={() => window.open(item.url, '_blank')}
                           >
                             <img 

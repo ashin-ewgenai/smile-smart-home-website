@@ -126,7 +126,7 @@ const CalculatorContent: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="text-4xl md:text-6xl font-black text-slate-900 dark:text-white mb-6 leading-tight"
+          className="text-4xl md:text-display font-black text-slate-900 dark:text-white mb-6 leading-tight"
         >
           Watch Your Bills <span className="bg-gradient-to-r from-teal to-blue-500 bg-clip-text text-transparent italic">Shrink.</span>
         </motion.h1>
@@ -134,7 +134,7 @@ const CalculatorContent: React.FC = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="text-slate-500 dark:text-slate-400 text-lg max-w-2xl mx-auto"
+          className="text-slate-500 dark:text-gray-400 text-lg max-w-2xl mx-auto"
         >
           Input your current energy usage and see how Smile's AI-driven smart devices can optimize your home efficiency and reduce your carbon footprint.
         </motion.p>
@@ -146,7 +146,7 @@ const CalculatorContent: React.FC = () => {
           initial={{ opacity: 0, x: -30 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.3 }}
-          className="lg:col-span-5 bg-white dark:bg-charcoal rounded-[2rem] p-8 md:p-10 border border-slate-100 dark:border-gray-800 shadow-2xl shadow-slate-200/50 dark:shadow-none relative overflow-hidden"
+          className="lg:col-span-5 glass-surface rounded-[2rem] p-8 md:p-10 relative overflow-hidden"
         >
           <div className="absolute top-0 right-0 p-8 opacity-[0.03] dark:opacity-[0.05] pointer-events-none">
             <Calculator size={160} />
@@ -176,7 +176,7 @@ const CalculatorContent: React.FC = () => {
                 step="500"
                 value={inputs.monthlyBill}
                 onChange={handleInputChange}
-                className="w-full h-1.5 bg-slate-100 dark:bg-gray-800 rounded-lg appearance-none cursor-pointer accent-teal border-none outline-none focus:ring-0"
+                className="w-full h-1.5 bg-slate-100 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-teal border-none outline-none focus:ring-0"
               />
               <p className="text-[10px] text-slate-400 mt-2 font-bold uppercase">Average urban home: ₹3,500 - ₹8,000</p>
             </div>
@@ -197,7 +197,7 @@ const CalculatorContent: React.FC = () => {
                 step="100"
                 value={inputs.homeSize}
                 onChange={handleInputChange}
-                className="w-full h-1.5 bg-slate-100 dark:bg-gray-800 rounded-lg appearance-none cursor-pointer accent-teal border-none outline-none focus:ring-0"
+                className="w-full h-1.5 bg-slate-100 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-teal border-none outline-none focus:ring-0"
               />
             </div>
 
@@ -217,14 +217,14 @@ const CalculatorContent: React.FC = () => {
                 step="1"
                 value={inputs.applianceCount}
                 onChange={handleInputChange}
-                className="w-full h-1.5 bg-slate-100 dark:bg-gray-800 rounded-lg appearance-none cursor-pointer accent-teal border-none outline-none focus:ring-0"
+                className="w-full h-1.5 bg-slate-100 dark:bg-white/10 rounded-lg appearance-none cursor-pointer accent-teal border-none outline-none focus:ring-0"
               />
             </div>
 
             <button 
               onClick={runCalculation}
               disabled={isCalculating}
-              className="w-full py-5 rounded-2xl bg-gradient-to-r from-teal to-blue-600 text-white font-black text-lg shadow-xl shadow-teal/30 hover:shadow-teal/40 transform hover:scale-[1.02] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+              className="w-full py-5 rounded-2xl bg-gradient-to-r from-teal to-blue-500 text-white font-black text-lg shadow-xl shadow-teal/30 hover:shadow-teal/40 transform hover:scale-[1.02] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
             >
               {isCalculating ? (
                 <>
@@ -252,14 +252,14 @@ const CalculatorContent: React.FC = () => {
           transition={{ delay: 0.4 }}
           className="lg:col-span-7"
         >
-          <div className="bg-slate-900 rounded-[2rem] p-8 md:p-12 text-white shadow-2xl relative overflow-hidden h-full flex flex-col">
+          <div className="bg-white dark:bg-charcoal/40 backdrop-blur-3xl rounded-[2rem] p-8 md:p-12 text-slate-900 dark:text-white shadow-2xl relative overflow-hidden h-full flex flex-col border border-white/40 dark:border-white/10">
             {/* Background Accent */}
-            <div className="absolute -top-24 -right-24 w-64 h-64 bg-teal/20 blur-[100px]" />
-            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-600/20 blur-[100px]" />
+            <div className="absolute -top-24 -right-24 w-64 h-64 bg-teal/10 blur-[100px]" />
+            <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-600/10 blur-[100px]" />
 
             <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-12 items-center flex-1">
               <div>
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-white border border-white/10 text-[10px] font-black uppercase tracking-widest mb-8">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 dark:bg-white/10 text-slate-800 dark:text-white border border-slate-200 dark:border-white/10 text-[10px] font-black uppercase tracking-widest mb-8">
                   <TrendingUp size={12} className="text-teal" />
                   Projected Annual Efficiency
                 </div>
@@ -271,22 +271,22 @@ const CalculatorContent: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
-                    <div className="w-12 h-12 rounded-xl bg-teal/20 text-teal flex items-center justify-center shrink-0">
+                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10">
+                    <div className="w-12 h-12 rounded-xl bg-teal/10 text-teal flex items-center justify-center shrink-0">
                       <Leaf size={24} />
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">Carbon Neutrality</div>
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Carbon Neutrality</div>
                       <div className="text-lg font-black">{savingsData?.co2Reduction || '0'} kg CO2 / year</div>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/5 border border-white/10">
-                    <div className="w-12 h-12 rounded-xl bg-blue-500/20 text-blue-500 flex items-center justify-center shrink-0">
+                  <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10">
+                    <div className="w-12 h-12 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
                       <TrendingUp size={24} />
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">Return on Investment</div>
+                      <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">Return on Investment</div>
                       <div className="text-lg font-black">{savingsData?.roiMonths || '0'} Months Avg.</div>
                     </div>
                   </div>
@@ -299,26 +299,26 @@ const CalculatorContent: React.FC = () => {
                   maxValue={inputs.monthlyBill * 12 * 0.4} 
                   label="Efficiency Score" 
                 />
-                <p className="text-center text-xs text-gray-500 max-w-[200px] font-medium leading-relaxed mt-4">
+                <p className="text-center text-xs text-slate-400 max-w-[200px] font-medium leading-relaxed mt-4">
                   Based on AI optimization of climate, lighting, and appliance standby power.
                 </p>
               </div>
             </div>
 
-            <div className="relative z-10 mt-12 pt-12 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="relative z-10 mt-12 pt-12 border-t border-slate-100 dark:border-white/10 flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-full bg-teal text-white flex items-center justify-center font-bold">
                   S
                 </div>
                 <div className="text-sm">
-                  <span className="font-black">Smile AI</span> is monitoring this simulation
+                  <span className="font-black text-slate-800 dark:text-white">Smile AI</span> is monitoring this simulation
                 </div>
               </div>
               <a 
-                href="/services" 
-                className="group flex items-center gap-2 text-teal font-black text-sm uppercase tracking-widest hover:text-white transition-colors"
+                href="/portfolio" 
+                className="group flex items-center gap-2 text-teal font-black text-sm uppercase tracking-widest hover:text-blue-500 transition-colors"
               >
-                Explore Smart Devices
+                Explore Smart Portfolio
                 <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </a>
             </div>
@@ -353,13 +353,13 @@ const CalculatorContent: React.FC = () => {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 + (i * 0.1) }}
-            className="p-8 rounded-3xl bg-white dark:bg-charcoal border border-slate-100 dark:border-gray-800 shadow-lg"
+            className="p-8 rounded-3xl bg-white/60 dark:bg-charcoal/60 backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-soft"
           >
             <div className={`w-14 h-14 rounded-2xl bg-${item.color}/10 text-${item.color} flex items-center justify-center mb-6`}>
               {item.icon}
             </div>
             <h4 className="text-xl font-black mb-3 text-slate-800 dark:text-white">{item.title}</h4>
-            <p className="text-slate-500 dark:text-slate-400 text-sm leading-relaxed">{item.desc}</p>
+            <p className="text-slate-500 dark:text-gray-400 text-sm leading-relaxed">{item.desc}</p>
           </motion.div>
         ))}
       </div>
