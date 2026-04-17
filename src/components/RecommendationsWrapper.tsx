@@ -7,6 +7,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 
 import { AuthModeProvider, useAuthMode } from '../contexts/AuthModeContext';
 import AdminRevenueDashboard from './AdminRevenueDashboard';
+import { useDeviceRecommendations } from '../hooks/useDeviceRecommendations';
+import { quoteTemplates } from '../data/quoteTemplates';
 
 /**
  * Custom SVG Sparkline for Health History
@@ -129,6 +131,7 @@ type RecommendationTab = 'personality-quiz' | 'consultant' | 'health' | 'revenue
 
 const WrapperContent: React.FC = () => {
   const { recommendations, visualizationData, showNotification, hideNotification, notification, error, isAdmin } = useDevices();
+  const { selectedTemplateId, applyTemplate } = useDeviceRecommendations();
   const modalRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<RecommendationTab>('personality-quiz');
 
@@ -183,6 +186,36 @@ const WrapperContent: React.FC = () => {
   return (
     <div className="relative">
       <AdminOverview />
+
+      {selectedTemplateId && activeTab === 'consultant' && (
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="max-w-4xl mx-auto px-4 mb-4"
+        >
+          <div className="bg-teal-500/10 border border-teal-500/20 rounded-2xl p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-teal-500 flex items-center justify-center text-white shadow-lg shadow-teal-500/20">
+                <Sparkles size={20} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-teal-900 dark:text-teal-100">
+                  Quick Bundle Active: {quoteTemplates.find(t => t.id === selectedTemplateId)?.name}
+                </h4>
+                <p className="text-xs text-teal-700/70 dark:text-teal-300/60">
+                  Customizing from the {quoteTemplates.find(t => t.id === selectedTemplateId)?.name.toLowerCase()}...
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={() => applyTemplate('')}
+              className="px-3 py-1.5 bg-white dark:bg-charcoal text-teal-600 rounded-lg text-xs font-bold border border-teal-500/20 hover:bg-teal-50 transition-colors"
+            >
+              Clear Template
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       {/* Tab Switcher for Recommendation Tools */}
       <div className="max-w-4xl mx-auto px-4 mb-4">

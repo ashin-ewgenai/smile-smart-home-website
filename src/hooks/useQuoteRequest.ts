@@ -41,7 +41,8 @@ export interface NotifyParams {
   phone?: string,
   name?: string,
   details?: any,
-  pdfBase64?: string
+  pdfBase64?: string,
+  templateId?: string
 }
 
 export interface NotifyResult {
@@ -304,6 +305,8 @@ export function useQuoteRequest() {
           name: params.name || 'Valued Customer',
           quote_id: params.quoteId,
           total: params.details?.totalAmount || 'Contact us for details',
+          template_id: params.templateId || 'None',
+          template_name: params.details?.templateName || params.templateId || '',
         };
 
         await emailjs.send(

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { doc, onSnapshot, collection, query, where, orderBy, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useDevices } from '../contexts/DevicesContext';
-import type { RecommendationRequest } from '../models';
+import type { RecommendationRequest, DeviceRecommendation } from '../models';
+import { quoteTemplates } from '../data/quoteTemplates';
 
 /**
  * Hook for managing the recommendation form state and API interaction.
@@ -10,7 +11,7 @@ import type { RecommendationRequest } from '../models';
 export function useDeviceRecommendations() {
   const { 
     fetchRecommendations, 
-    recommendations, 
+    recommendations: contextRecommendations, 
     recommendationLoading, 
     error, 
     saveRecommendationToQuote, 
@@ -39,6 +40,17 @@ export function useDeviceRecommendations() {
 
   const [adminAccepted, setAdminAccepted] = useState<boolean>(false);
   const [acceptedAt, setAcceptedAt] = useState<any>(null);
+
+  // Predefined Templates state
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [localRecommendations, setLocalRecommendations] = useState<DeviceRecommendation[]>([]);
+
+  // Sync local recommendations with context unless a template is selected
+  useEffect(() => {
+    if (!selectedTemplateId) {
+      setLocalRecommendations(contextRecommendations);
+    }
+  }, [contextRecommendations, selectedTemplateId]);
 
   // Use useEffect to subscribe to acceptance status changes in real-time
   useEffect(() => {
@@ -76,6 +88,30 @@ export function useDeviceRecommendations() {
     setFormData(prev => ({ ...prev, ...data }));
   };
 
+  const applyTemplate = (templateId: string) => {
+    const template = quoteTemplates.find(t => t.id === templateId);
+    if (!template) return;
+
+    setSelectedTemplateId(templateId);
+    
+    // Create recommendation objects from template devices
+    // Since we don't have full device details here, we'll create representative mocks
+    // that match the DeviceRecommendation interface
+    const templateDevices: DeviceRecommendation[] = template.devices.map(deviceName => ({
+      name: deviceName,
+      category: 'Smart Bundle',
+      reason: `Included in the ${template.name}`,
+      estimatedPrice: 0 // Prices will be determined by admin
+    }));
+
+    setLocalRecommendations(templateDevices);
+    
+    // Auto-fill form data if applicable
+    if (template.propertyType) updateFormData({ houseSize: template.propertyType });
+    
+    setStep(4); // Jump to results
+  };
+
   const nextStep = () => setStep(prev => prev + 1);
   const prevStep = () => setStep(prev => prev - 1);
 
@@ -88,12 +124,14 @@ export function useDeviceRecommendations() {
       return;
     }
 
+    setSelectedTemplateId(null); // Clear template if manual AI search is used
     await fetchRecommendations(formData);
     nextStep(); // Move to results step
   };
 
   const resetForm = () => {
     setStep(1);
+    setSelectedTemplateId(null);
     setFormData({
       houseSize: '',
       budget: 1500,
@@ -112,7 +150,7 @@ export function useDeviceRecommendations() {
     prevStep,
     handleSubmit,
     resetForm,
-    recommendations,
+    recommendations: localRecommendations,
     loading: recommendationLoading,
     error,
     saveRecommendationToQuote,
@@ -136,6 +174,10 @@ export function useDeviceRecommendations() {
     acceptedAt,
     // Savings Calculator
     calculateSavings,
-    savingsData
+    savingsData,
+    // Templates
+    selectedTemplateId,
+    applyTemplate,
+    quoteTemplates
   };
 }

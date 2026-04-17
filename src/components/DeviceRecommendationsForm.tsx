@@ -89,7 +89,13 @@ export const DeviceRecommendationsForm: React.FC<DeviceRecommendationsFormProps>
     uid,
     devices,
     adminAccepted,
-    acceptedAt
+    acceptedAt,
+    calculateSavings,
+    savingsData,
+    // Templates
+    selectedTemplateId,
+    applyTemplate,
+    quoteTemplates
   } = useDeviceRecommendations();
 
   const [activeTab, setActiveTab] = useState<'consultant' | 'health'>(forcedTab || 'consultant');
@@ -719,6 +725,30 @@ export const DeviceRecommendationsForm: React.FC<DeviceRecommendationsFormProps>
 
                 {step === 1 && uid && (
                   <div className="space-y-6">
+                    {/* Quick Templates Section */}
+                    <div className="bg-teal/5 dark:bg-teal/10 rounded-2xl p-5 border border-teal/10 mb-8">
+                      <div className="flex items-center gap-3 mb-4 text-teal">
+                        <Sparkles size={20} />
+                        <h4 className="font-bold text-sm uppercase tracking-wider">Quick Bundles</h4>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {quoteTemplates.map((template) => (
+                          <button
+                            key={template.id}
+                            onClick={() => applyTemplate(template.id)}
+                            className={`p-3 rounded-xl border-2 text-left transition-all hover:shadow-md ${
+                              selectedTemplateId === template.id
+                                ? 'border-teal bg-white dark:bg-gray-800 shadow-sm'
+                                : 'border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900/50'
+                            }`}
+                          >
+                            <div className="font-bold text-xs text-slate-800 dark:text-white mb-0.5">{template.name}</div>
+                            <p className="text-[9px] text-slate-500 dark:text-slate-400 line-clamp-1">{template.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <div className="flex items-center gap-3 text-slate-700 dark:text-gray-300 mb-4">
                       <div className="p-2 bg-teal-100 dark:bg-teal-900/30 rounded-lg text-teal">
                         <Home size={24} />
@@ -833,7 +863,11 @@ export const DeviceRecommendationsForm: React.FC<DeviceRecommendationsFormProps>
                     <div className="flex items-center justify-between mb-6">
                       <div>
                         <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><CheckCircle2 className="text-emerald-500" /> Your Custom Smart Plan</h3>
-                        <p className="text-slate-500 italic">Based on your {formData.houseSize} and ₹{formData.budget} budget.</p>
+                        <p className="text-slate-500 italic">
+                           {selectedTemplateId 
+                              ? `Based on your selected ${quoteTemplates.find(t => t.id === selectedTemplateId)?.name} template.` 
+                              : `Based on your ${formData.houseSize} and ₹${formData.budget} budget.`}
+                        </p>
                       </div>
                       <button onClick={resetForm} className="text-teal hover:text-teal/80 text-sm font-bold bg-teal/5 dark:bg-teal-900/20 px-4 py-2 rounded-lg">New Plan</button>
                     </div>
@@ -977,7 +1011,8 @@ export const DeviceRecommendationsForm: React.FC<DeviceRecommendationsFormProps>
                                   quoteId: `AI-${Date.now()}`,
                                   email: recipientEmail,
                                   phone: recipientPhone,
-                                  details: { budget: formData.budget, houseSize: formData.houseSize }
+                                  templateId: selectedTemplateId || undefined,
+                                  details: { budget: formData.budget, houseSize: formData.houseSize, templateId: selectedTemplateId }
                                 });
                               }}
                               className="w-full btn-primary py-2.5 flex items-center justify-center gap-2 shadow-lg"
