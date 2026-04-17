@@ -20,6 +20,8 @@ import AdminContactSubmissions from './pages/AdminContactSubmissions';
 import AdminReviews from './pages/AdminReviews';
 import { DevicesProvider } from '../../../contexts/DevicesContext';
 
+import AdminRevenueDashboard from '../../AdminRevenueDashboard';
+
 const RequireAdmin: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [ready, setReady] = useState(false);
   const [allowed, setAllowed] = useState(false);
@@ -106,6 +108,7 @@ const AdminApp: React.FC = () => {
               <Route path="/plan-leads" element={<PlanLeads />} />
               <Route path="/support/*" element={<AdminSupportApp />} />
               <Route path="/reviews" element={<AdminReviews />} />
+              <Route path="/revenue-analytics" element={<AdminRevenueDashboard />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </DashboardLayout>

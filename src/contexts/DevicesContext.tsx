@@ -130,14 +130,14 @@ export const getFriendlyErrorMessage = (err: any): string => {
   if (typeof window !== 'undefined' && !window.navigator.onLine) {
     return "No internet connection. Please check your network and try again.";
   }
-  
+
   if (typeof err === 'string') {
     if (err.toLowerCase().includes('internal')) return "Our secondary services are briefly busy. Please try again soon.";
     return err;
   }
 
   const code = err?.code || (err?.message?.includes('internal') ? 'internal' : 'unknown');
-  
+
   switch (code) {
     case 'internal':
       return "Our secondary services are briefly busy. Please try again in a few moments.";
@@ -485,7 +485,7 @@ export const PERSONALITY_DEVICE_RECOMMENDATIONS: Record<string, DeviceRecommenda
 // Quiz scoring function
 export function calculatePersonality(answers: Record<number, QuizAnswerValue>): PersonalityType {
   const answerValues = Object.values(answers);
-  
+
   const scores: Record<string, number> = {
     comfort_maximizer: 0,
     security_guardian: 0,
@@ -716,8 +716,8 @@ const Snackbar: React.FC<{
           backdrop-blur-2xl border p-4 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.1)] flex items-start gap-4 pointer-events-auto
           ${type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-900 dark:text-red-100' :
             type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-900 dark:text-emerald-100' :
-            type === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-900 dark:text-amber-100' :
-            'bg-teal-500/10 border-teal-500/20 text-teal-900 dark:text-teal-100'}
+              type === 'warning' ? 'bg-amber-500/10 border-amber-500/20 text-amber-900 dark:text-amber-100' :
+                'bg-teal-500/10 border-teal-500/20 text-teal-900 dark:text-teal-100'}
         `}>
           <div className="mt-0.5 shrink-0">
             {type === 'error' && <AlertCircle className="w-5 h-5 text-red-500" />}
@@ -728,7 +728,7 @@ const Snackbar: React.FC<{
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold leading-relaxed">{message}</p>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="mt-0.5 opacity-40 hover:opacity-100 transition-opacity p-1 -mr-1 rounded-lg hover:bg-black/5 dark:hover:bg-white/10"
             aria-label="Close notification"
@@ -785,8 +785,8 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Update device position after drag
   const updateDevicePosition = useCallback((deviceName: string, x: number, y: number) => {
-    setAddedDevices(prev => prev.map(device => 
-      device.deviceName === deviceName 
+    setAddedDevices(prev => prev.map(device =>
+      device.deviceName === deviceName
         ? { ...device, x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) }
         : device
     ));
@@ -808,11 +808,11 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (monthlyBill <= 0 || homeSize <= 0) return;
 
     const annualBill = monthlyBill * 12;
-    
+
     // Efficiency factors (based on Smile Smart device specs)
-    const lightingEfficiency = 0.62; 
-    const hvacEfficiency = 0.25;     
-    const applianceEfficiency = 0.18; 
+    const lightingEfficiency = 0.62;
+    const hvacEfficiency = 0.25;
+    const applianceEfficiency = 0.18;
 
     // Dynamic Distribution based on home profile
     // Larger homes have more HVAC/Lighting percentage
@@ -823,18 +823,18 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const lightingSavings = annualBill * lightingShare * lightingEfficiency;
     const hvacSavings = annualBill * hvacShare * hvacEfficiency;
     const standbySavings = annualBill * standbyShare * applianceEfficiency;
-    
+
     const totalAnnualSavings = Math.round(lightingSavings + hvacSavings + standbySavings);
-    
+
     // CO2 reduction: ~0.85kg CO2 per kWh. Assuming avg cost per kWh is ₹7
     const kwhSavedAnnual = totalAnnualSavings / 7;
-    const co2Reduction = Math.round(kwhSavedAnnual * 0.85); 
-    
+    const co2Reduction = Math.round(kwhSavedAnnual * 0.85);
+
     // Dynamic ROI: More appliances = higher initial cost but potentially better efficiency
     // Est cost: ₹15,000 base + ₹1,500 per device
     const estimatedCost = 15000 + (applianceCount * 1500);
     const roiMonths = Math.max(6, Math.round((estimatedCost / (totalAnnualSavings / 12))));
-    
+
     setSavingsData({
       annualSavings: totalAnnualSavings,
       co2Reduction,
@@ -858,11 +858,11 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   });
 
 
-  const showNotification = useCallback((params: { 
-    message: React.ReactNode; 
-    type?: NotificationType; 
-    mode?: NotificationMode; 
-    title?: string 
+  const showNotification = useCallback((params: {
+    message: React.ReactNode;
+    type?: NotificationType;
+    mode?: NotificationMode;
+    title?: string
   }) => {
     setNotification({
       message: params.message,
@@ -884,9 +884,9 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setNotification(prev => ({ ...prev, isOpen: false }));
   }, []);
 
-  const showCriticalError = useCallback(({ title, message, onRetry }: { 
-    title: string; 
-    message: string; 
+  const showCriticalError = useCallback(({ title, message, onRetry }: {
+    title: string;
+    message: string;
     onRetry?: () => void;
   }) => {
     setCriticalError({ isOpen: true, title, message, onRetry });
@@ -946,7 +946,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const analyzeFn = httpsCallable<any, RoomVisualizationResult>(functions, 'analyzeRoomWithAI');
       const result = await analyzeFn({ imageUrl: roomPhotoUrl, deviceNames: [deviceName], uid: currentUid });
       const data = result.data;
-      
+
       if (data.markers && data.markers.length > 0) {
         // Return the first (and only) marker
         return data.markers[0];
@@ -968,15 +968,15 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return;
     }
     if (!uid) {
-      showNotification({ 
-        message: 'Please sign in to use Room Visualizer.', 
+      showNotification({
+        message: 'Please sign in to use Room Visualizer.',
         type: 'warning'
       });
       return;
     }
     if (!window.navigator.onLine) {
-      showNotification({ 
-        message: 'No internet connection. Please check your network and try again.', 
+      showNotification({
+        message: 'No internet connection. Please check your network and try again.',
         type: 'error'
       });
       return;
@@ -1003,7 +1003,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       // Verify UID again right before the call to ensure no closure stale context
       const currentUid = uid || auth.currentUser?.uid;
       if (!currentUid) {
-         throw new Error("No user ID found. Please refresh and try again.");
+        throw new Error("No user ID found. Please refresh and try again.");
       }
 
       console.log("Calling analyzeRoomWithAI with UID:", currentUid);
@@ -1035,7 +1035,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.error("AI Room Analysis Failed:", err);
       const msg = getFriendlyErrorMessage(err);
       setVisualizationError(msg);
-      showCriticalError({ 
+      showCriticalError({
         title: 'Analysis Failed',
         message: msg,
         onRetry: () => uploadAndAnalyzeRoom(deviceNames)
@@ -1134,30 +1134,30 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
         const u1 = onSnapshot(collection(db, 'Planner_Leads'), snap => {
           setPlanLeads(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as PlannerLead)));
           setAdminLoading(false);
-        }, (err) => { 
+        }, (err) => {
           console.debug('Planner_Leads collection snapshot failed (expected for non-admins):', err);
           setAdminLoading(false);
-        }); 
+        });
         const u2 = onSnapshot(collection(db, 'contactRequests'), snap => {
           setContactSubmissions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as ContactRequest)));
           setAdminLoading(false);
-        }, (err) => { 
+        }, (err) => {
           console.debug('contactRequests collection snapshot failed (expected for non-admins):', err);
           setAdminLoading(false);
         });
         const u3 = onSnapshot(collection(db, 'Support_Tickets'), snap => {
           setReports(snap.docs.map(doc => {
             const data = doc.data();
-            return { 
-              id: doc.id, 
-              ...data, 
+            return {
+              id: doc.id,
+              ...data,
               userUid: data.uid,
               createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : (data.createdAt || null),
               adminRepliedAt: data.adminRepliedAt?.toDate ? data.adminRepliedAt.toDate() : (data.adminRepliedAt || null)
             } as unknown as SupportTicket;
           }));
           setAdminLoading(false);
-        }, (err) => { 
+        }, (err) => {
           console.debug('Support_Tickets collection snapshot failed (expected for non-admins):', err);
           setAdminLoading(false);
         });
@@ -1183,29 +1183,29 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       setUserPlannerLeads([]);
       return;
     }
-    
+
     const userEmail = auth.currentUser?.email?.trim();
     if (!userEmail && !uid) return;
 
     // Remove orderBy to avoid 'missing index' errors for composite 'or' queries.
     // We will sort in memory for maximum reliability.
     const q = query(
-      collection(db, 'Planner_Leads'), 
+      collection(db, 'Planner_Leads'),
       or(
-        where('uid', '==', uid), 
+        where('uid', '==', uid),
         ...(userEmail ? [
           where('email', '==', userEmail.toLowerCase()),
-          where('email', '==', userEmail) 
+          where('email', '==', userEmail)
         ] : [])
       )
     );
-    
+
     const unsub = onSnapshot(q, (snap) => {
       const leads = snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      
+
       // Deduplicate by ID just in case
       const uniqueLeads = Array.from(new Map(leads.map(l => [l.id, l])).values());
-      
+
       // Update global acceptance status
       setAdminAccepted(uniqueLeads.some(l => l.status === 'accepted' || l.status === 'Accepted' || l.adminAccepted === true));
 
@@ -1225,10 +1225,10 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const isFloorplanItem = useCallback((item: any): boolean => {
     if (!item) return false;
-    return item.type === 'floorplan' || 
-           item.source === 'interactive_floorplan' || 
-           item.relatedToFloorplan === true ||
-           (item.message || '').startsWith('[Floorplan Request');
+    return item.type === 'floorplan' ||
+      item.source === 'interactive_floorplan' ||
+      item.relatedToFloorplan === true ||
+      (item.message || '').startsWith('[Floorplan Request');
   }, []);
 
   const passesDate = (timestamp: any, range: string) => {
@@ -1247,7 +1247,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (searchQuery) {
       const lower = searchQuery.toLowerCase();
       list = list.filter(p => (
-        (p.email || '').toLowerCase().includes(lower) || 
+        (p.email || '').toLowerCase().includes(lower) ||
         ((p.formData?.email as string) || '').toLowerCase().includes(lower) ||
         (p.name || '').toLowerCase().includes(lower)
       ));
@@ -1268,8 +1268,8 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (searchQuery) {
       const lower = searchQuery.toLowerCase();
       list = list.filter(c => (
-        (c.email || '').toLowerCase().includes(lower) || 
-        (c.fullName || '').toLowerCase().includes(lower) || 
+        (c.email || '').toLowerCase().includes(lower) ||
+        (c.fullName || '').toLowerCase().includes(lower) ||
         (c.message || '').toLowerCase().includes(lower)
       ));
     }
@@ -1289,8 +1289,8 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (searchQuery) {
       const lower = searchQuery.toLowerCase();
       list = list.filter(r => (
-        (r.subject || '').toLowerCase().includes(lower) || 
-        (r.title || '').toLowerCase().includes(lower) || 
+        (r.subject || '').toLowerCase().includes(lower) ||
+        (r.title || '').toLowerCase().includes(lower) ||
         (r.description || '').toLowerCase().includes(lower)
       ));
     }
@@ -1342,7 +1342,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
         deviceDocs.push(...snap.docs);
       }
 
-      const userDevicesMap = new Map(userDevicesSnap.docs.map(d => [ (d.data() as any).sourceDeviceId, d.data() ]));
+      const userDevicesMap = new Map(userDevicesSnap.docs.map(d => [(d.data() as any).sourceDeviceId, d.data()]));
       const results = deviceDocs.map((d) => {
         const deviceData = d.data() as any;
         const userDeviceData: any = userDevicesMap.get(d.id) || {};
@@ -1412,8 +1412,8 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const saveScene = useCallback(async (scene: any) => {
     if (!uid) throw new Error('Must be logged in to save scenes.');
     if (!window.navigator.onLine) {
-      showNotification({ 
-        message: 'No internet connection. Please check your network and try again.', 
+      showNotification({
+        message: 'No internet connection. Please check your network and try again.',
         type: 'error'
       });
       return;
@@ -1427,8 +1427,8 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     } catch (err: any) {
       console.error('Failed to save scene:', err);
       const msg = getFriendlyErrorMessage(err);
-      showNotification({ 
-        message: msg, 
+      showNotification({
+        message: msg,
         type: 'error'
       });
       throw err;
@@ -1441,8 +1441,8 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     console.log('[deleteScene] Called with sceneId:', sceneId, 'uid:', uid);
     if (!uid) throw new Error('Must be logged in to delete scenes.');
     if (!window.navigator.onLine) {
-      showNotification({ 
-        message: 'No internet connection. Please check your network and try again.', 
+      showNotification({
+        message: 'No internet connection. Please check your network and try again.',
         type: 'error'
       });
       return;
@@ -1459,8 +1459,8 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       console.error('[deleteScene] Error:', err);
       console.error('[deleteScene] Error code:', err.code, 'message:', err.message);
       const msg = getFriendlyErrorMessage(err);
-      showNotification({ 
-        message: msg, 
+      showNotification({
+        message: msg,
         type: 'error'
       });
       throw err;
@@ -1473,7 +1473,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setRecommendationLoading(true);
     try {
       const getRecommendations = httpsCallable<any, { recommendations: DeviceRecommendation[] }>(functions, 'chatWithOpenAI');
-      const response = await getRecommendations({ 
+      const response = await getRecommendations({
         recommendations: { houseSize: params.houseSize, priority: params.securityNeeds, budget: params.budget }
       });
       setRecommendations(response.data.recommendations);
@@ -1492,7 +1492,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const pCol = collection(db, 'Planner_Leads');
       const email = auth.currentUser?.email || 'anonymous';
       const emailKey = email.trim().toLowerCase();
-      
+
       await setDoc(doc(db, 'Planner_Leads', `${emailKey}_ai_${Date.now()}`), {
         email: emailKey,
         uid: uid,
@@ -1537,9 +1537,9 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const updateItemStatus = useCallback(async (collectionName: string, id: string, newStatus: string) => {
     try {
       const docRef = doc(db, collectionName, id);
-      const updateData: any = { 
-        status: newStatus, 
-        updatedAt: serverTimestamp() 
+      const updateData: any = {
+        status: newStatus,
+        updatedAt: serverTimestamp()
       };
 
       // Handle Admin Acceptance logic in frontend for real-time responsiveness
@@ -1558,9 +1558,9 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const updateItemDragIndex = useCallback(async (collectionName: string, id: string, newDragIndex: number) => {
     try {
       const docRef = doc(db, collectionName, id);
-      await updateDoc(docRef, { 
-        dragIndex: newDragIndex, 
-        updatedAt: serverTimestamp() 
+      await updateDoc(docRef, {
+        dragIndex: newDragIndex,
+        updatedAt: serverTimestamp()
       });
     } catch (err: any) {
       console.error(`Drag index update failed:`, err);
@@ -1601,7 +1601,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, []);
 
   const updateCustomFloorplanHotspot = useCallback((id: string, updates: Partial<CustomFloorplanHotspot>) => {
-    setCustomFloorplanHotspots(prev => prev.map(h => 
+    setCustomFloorplanHotspots(prev => prev.map(h =>
       h.id === id ? { ...h, ...updates } : h
     ));
   }, []);
@@ -1624,11 +1624,11 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     try {
       // Check for OpenAI API key from environment
       const OPENAI_API_KEY = (import.meta as any).env?.PUBLIC_OPENAI_API_KEY as string | undefined;
-      
+
       // DEMO MODE: Generate mock hotspots if no API key
       if (!OPENAI_API_KEY) {
         console.log('[DevicesContext] DEMO MODE - Generating mock hotspots');
-        
+
         const mockHotspots: CustomFloorplanHotspot[] = [
           {
             id: `demo-living-${Date.now()}`,
@@ -1799,7 +1799,7 @@ Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, D
   const generateRoomDetailsWithAI = useCallback(async (roomTitle: string) => {
     try {
       const OPENAI_API_KEY = (import.meta as any).env?.PUBLIC_OPENAI_API_KEY as string | undefined;
-      
+
       if (!OPENAI_API_KEY) {
         return {
           description: `A premium smart home automation setup for your ${roomTitle}, featuring intelligent lighting and integrated comfort controls.`,
@@ -1832,10 +1832,10 @@ Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, D
       });
 
       if (!response.ok) throw new Error('AI generation failed');
-      
+
       const aiResponse = await response.json();
       const content = JSON.parse(aiResponse.choices?.[0]?.message?.content);
-      
+
       return {
         description: content.description || `Premium automation for your ${roomTitle}.`,
         tags: content.tags || ['Smart Home', 'Automation']
@@ -1894,10 +1894,10 @@ Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, D
     setRoomPhoto,
     clearVisualization,
     uploadAndAnalyzeRoom,
-    addedDevices, 
-    addDevice, 
-    removeDevice, 
-    updateDevicePosition, 
+    addedDevices,
+    addDevice,
+    removeDevice,
+    updateDevicePosition,
     analyzeSingleDevice,
     activeConsultationId,
     consultationLoading,
@@ -1940,7 +1940,7 @@ Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, D
     saveRecommendationToQuote, updateItemStatus, updateItemDragIndex,
     scenes, sceneLoading, fetchScenes, saveScene, deleteScene,
     adminHealthStats, isAdmin, roomPhoto, roomPhotoUrl,
-        roomPhotoPreview, uploadProgress, uploadError, uploadLoading,
+    roomPhotoPreview, uploadProgress, uploadError, uploadLoading,
     visualizationLoading, visualizationData, visualizationError,
     setRoomPhoto, clearVisualization, uploadAndAnalyzeRoom,
     activeConsultationId, consultationLoading, startLiveConsultation,

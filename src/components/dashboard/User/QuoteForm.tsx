@@ -9,7 +9,9 @@ import { addDoc, collection, serverTimestamp, onSnapshot, query, where, orderBy,
 import type { DocumentData } from 'firebase/firestore';
 import { estimationQuoteDoc, estimationQuotesCollection, type EstimationQuote, adminNotificationsCollection } from '@/models/Collections';
 import { useQuoteRequest } from '@/hooks/useQuoteRequest';
-import { MessageCircle, CheckCircle2, Loader2, Zap } from 'lucide-react';
+import { MessageCircle, CheckCircle2, Loader2, Zap, Package } from 'lucide-react';
+import { quoteTemplates } from '../../../data/quoteTemplates';
+import { motion, AnimatePresence as FramerAnimatePresence } from 'framer-motion';
 
 // ... (existing imports)
 
@@ -43,6 +45,7 @@ interface FormData {
   // Common
   details?: string;
   whatsappNumber?: string;
+  templateId?: string;
 }
 
 type QuoteFormProps = {
@@ -168,7 +171,9 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     locationState: '',
     locationDistrict: '',
     whatsappNumber: '',
+    templateId: '',
   });
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
   const { notifyQuoteAction, whatsappStatus } = useQuoteRequest();
   const [waManualLink, setWaManualLink] = useState<string | null>(null);
   // Device options fetched from Firestore (fallback to static options if fetch fails)
@@ -584,6 +589,27 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     setCurrentStep(prev => Math.min(prev + 1, 4));
   };
 
+  const handleTemplateSelect = (templateId: string) => {
+    const template = quoteTemplates.find(t => t.id === templateId);
+    if (!template) return;
+
+    setSelectedTemplateId(templateId);
+    setFormData(prev => ({
+      ...prev,
+      quoteType: 'New Installation',
+      propertyType: template.propertyType || '',
+      numberOfRooms: template.numberOfRooms || 1,
+      devicesRequired: template.devices,
+      templateId: templateId,
+      timeline: 'Flexible',
+      budget: template.estimatedPrice || ''
+    }));
+    
+    // Move to step 3 so the user can add Location manually 
+    setCurrentStep(3);
+    showToast(`${template.name} loaded with default timeline & budget! Please add your location.`);
+  };
+
   const handlePrev = () => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
@@ -738,6 +764,7 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
         budgetCurrency: 'INR',
         whatsappNumber: formData.whatsappNumber || null,
         phone: formData.whatsappNumber || null, // Backend alias
+        templateId: formData.templateId || null,
         ...(formData.details && formData.details.trim().length > 0 ? { details: formData.details.trim() } : {}),
       };
 
@@ -778,7 +805,8 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
             email: userEmail || '',
             phone: formData.whatsappNumber,
             name: 'Valued Customer',
-            details: { budget: formData.budget, type: formData.quoteType }
+            templateId: formData.templateId,
+            details: { budget: formData.budget, type: formData.quoteType, templateId: formData.templateId }
           });
           if (waRes?.whatsappLink) setWaManualLink(waRes.whatsappLink);
         } catch (waErr) {
@@ -906,7 +934,60 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
     switch (currentStep) {
       case 1:
         return (
-          <div className="space-y-4 max-[500px]:w-[95%] max-[500px]:mx-auto">
+          <div className="space-y-6 max-[500px]:w-[95%] max-[500px]:mx-auto">
+            {/* Quick Bundles Header */}
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-teal/20 to-cyan-500/20 rounded-2xl blur opacity-25 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
+                <div className="flex items-center gap-3 text-teal mb-4">
+                  <div className="p-2 bg-teal/10 rounded-xl">
+                    <Package size={24} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold dark:text-white">Quick Bundles</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Select a pre-configured setup to save time.</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {quoteTemplates.map((template) => (
+                    <button
+                      key={template.id}
+                      type="button"
+                      onClick={() => handleTemplateSelect(template.id)}
+                      className={`group/btn relative text-left p-4 rounded-xl border-2 transition-all hover:shadow-md ${
+                        selectedTemplateId === template.id 
+                          ? 'border-teal bg-teal/5 ring-4 ring-teal/10' 
+                          : 'border-slate-100 dark:border-gray-800 hover:border-teal/30 bg-slate-50/50 dark:bg-gray-900/40'
+                      }`}
+                    >
+                      <div className="font-bold text-sm text-slate-800 dark:text-white mb-1 group-hover/btn:text-teal transition-colors">
+                        {template.name}
+                      </div>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed mb-2">
+                        {template.description}
+                      </p>
+                      <div className="flex items-center justify-between mt-auto pt-1">
+                        <span className="text-[10px] font-bold text-teal">{template.estimatedPrice}</span>
+                        <div className="opacity-0 group-hover/btn:opacity-100 transition-opacity">
+                          <Package size={12} className="text-teal" />
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="relative py-2">
+              <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                <div className="w-full border-t border-gray-200 dark:border-gray-800"></div>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white dark:bg-gray-900 px-4 text-gray-500 tracking-widest font-black">Or Customize From Scratch</span>
+              </div>
+            </div>
+
             <h3 className="text-lg font-semibold text-charcoal dark:text-white">Select Quote Type</h3>
             <div className="space-y-2">
               {QUOTE_TYPES.map((type) => (

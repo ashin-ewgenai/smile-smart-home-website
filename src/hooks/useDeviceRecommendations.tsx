@@ -5,19 +5,34 @@ import { useDevices } from '../contexts/DevicesContext';
 import type { RecommendationRequest, DeviceRecommendation } from '../models';
 import { quoteTemplates } from '../data/quoteTemplates';
 
+const DEVICE_PRICES: Record<string, number> = {
+  'Smart Color Bulb': 1500,
+  'Smart Plug Set (4-pack)': 2400,
+  'Floodlight Camera': 8500,
+  'Pro Smart Lock': 12000,
+  'Motion Sensor Pro': 3200,
+  'Video Doorbell Elite': 6800,
+  'Smart Home Hub Ultra': 9500,
+  'Learning Thermostat': 8900,
+  'In-Wall Dimmer': 2800,
+  'Ambiance Light Strip': 4500,
+  'Motorized Curtains': 15000,
+  'Smart Speaker System': 8900
+};
+
 /**
  * Hook for managing the recommendation form state and API interaction.
  */
 export function useDeviceRecommendations() {
-  const { 
-    fetchRecommendations, 
-    recommendations: contextRecommendations, 
-    recommendationLoading, 
-    error, 
-    saveRecommendationToQuote, 
-    uid, 
-    devices, 
-    adminHealthStats, 
+  const {
+    fetchRecommendations,
+    recommendations: contextRecommendations,
+    recommendationLoading,
+    error,
+    saveRecommendationToQuote,
+    uid,
+    devices,
+    adminHealthStats,
     fetchAdminHealthOverview,
     // Room Visualization
     roomPhoto,
@@ -40,6 +55,7 @@ export function useDeviceRecommendations() {
 
   const [adminAccepted, setAdminAccepted] = useState<boolean>(false);
   const [acceptedAt, setAcceptedAt] = useState<any>(null);
+  const [lastInteractionTime, setLastInteractionTime] = useState<number>(Date.now());
 
   // Predefined Templates state
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
@@ -55,7 +71,7 @@ export function useDeviceRecommendations() {
   // Use useEffect to subscribe to acceptance status changes in real-time
   useEffect(() => {
     if (!uid) return;
-    
+
     // Find the most recent AI Consultant request for this user
     const q = query(
       collection(db, 'Planner_Leads'),
@@ -67,14 +83,30 @@ export function useDeviceRecommendations() {
 
     const unsubscribe = onSnapshot(q, (snap) => {
       if (!snap.empty) {
-        const data = snap.docs[0].data();
-        setAdminAccepted(!!data.adminAccepted);
-        setAcceptedAt(data.acceptedAt || null);
+        const doc = snap.docs[0];
+        const data = doc.data();
+
+        // Convert updatedAt to milliseconds for comparison
+        // Firestore timestamps have toDate()
+        const updatedAt = data.updatedAt?.toDate?.()?.getTime() || 0;
+
+        // Only show acceptance if it's from a lead updated/created AFTER our last interaction
+        if (updatedAt >= lastInteractionTime) {
+          setAdminAccepted(!!data.adminAccepted);
+          setAcceptedAt(data.acceptedAt || null);
+        } else {
+          // If the most recent lead is OLD, don't show its acceptance status
+          setAdminAccepted(false);
+          setAcceptedAt(null);
+        }
+      } else {
+        setAdminAccepted(false);
+        setAcceptedAt(null);
       }
     });
 
     return () => unsubscribe();
-  }, [uid]);
+  }, [uid, lastInteractionTime]);
 
   const [step, setStep] = useState<number>(1);
   const [formData, setFormData] = useState<RecommendationRequest>({
@@ -93,7 +125,7 @@ export function useDeviceRecommendations() {
     if (!template) return;
 
     setSelectedTemplateId(templateId);
-    
+
     // Create recommendation objects from template devices
     // Since we don't have full device details here, we'll create representative mocks
     // that match the DeviceRecommendation interface
@@ -101,14 +133,16 @@ export function useDeviceRecommendations() {
       name: deviceName,
       category: 'Smart Bundle',
       reason: `Included in the ${template.name}`,
-      estimatedPrice: 0 // Prices will be determined by admin
+      estimatedPrice: DEVICE_PRICES[deviceName] || 0
     }));
 
     setLocalRecommendations(templateDevices);
-    
+
     // Auto-fill form data if applicable
     if (template.propertyType) updateFormData({ houseSize: template.propertyType });
-    
+
+    setAdminAccepted(false);
+    setLastInteractionTime(Date.now());
     setStep(4); // Jump to results
   };
 
@@ -125,6 +159,8 @@ export function useDeviceRecommendations() {
     }
 
     setSelectedTemplateId(null); // Clear template if manual AI search is used
+    setAdminAccepted(false);
+    setLastInteractionTime(Date.now());
     await fetchRecommendations(formData);
     nextStep(); // Move to results step
   };
@@ -132,6 +168,8 @@ export function useDeviceRecommendations() {
   const resetForm = () => {
     setStep(1);
     setSelectedTemplateId(null);
+    setAdminAccepted(false);
+    setLastInteractionTime(Date.now());
     setFormData({
       houseSize: '',
       budget: 1500,
