@@ -6,6 +6,7 @@ import { Activity, Shield, AlertTriangle, TrendingUp, TrendingDown, Users, Spark
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { AuthModeProvider, useAuthMode } from '../contexts/AuthModeContext';
+import AdminRevenueDashboard from './AdminRevenueDashboard';
 
 /**
  * Custom SVG Sparkline for Health History
@@ -124,10 +125,10 @@ const AdminOverview: React.FC = () => {
   );
 };
 
-type RecommendationTab = 'personality-quiz' | 'consultant' | 'health';
+type RecommendationTab = 'personality-quiz' | 'consultant' | 'health' | 'revenue';
 
 const WrapperContent: React.FC = () => {
-  const { recommendations, visualizationData, showNotification, hideNotification, notification, error } = useDevices();
+  const { recommendations, visualizationData, showNotification, hideNotification, notification, error, isAdmin } = useDevices();
   const modalRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<RecommendationTab>('personality-quiz');
 
@@ -221,6 +222,20 @@ const WrapperContent: React.FC = () => {
             <Activity size={18} />
             Device Health
           </button>
+
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('revenue')}
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                activeTab === 'revenue'
+                  ? 'bg-teal text-white shadow-md'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border-l border-slate-100 dark:border-gray-800'
+              }`}
+            >
+              <TrendingUp size={18} />
+              Revenue Analytics
+            </button>
+          )}
         </div>
       </div>
 
@@ -259,6 +274,20 @@ const WrapperContent: React.FC = () => {
               transition={{ duration: 0.2 }}
             >
               <DeviceRecommendationsForm forcedTab="health" />
+            </motion.div>
+          )}
+
+          {activeTab === 'revenue' && (
+            <motion.div
+              key="revenue"
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.98 }}
+              transition={{ duration: 0.2 }}
+            >
+              <div className="bg-white dark:bg-charcoal rounded-[3rem] p-6 shadow-2xl border border-slate-100 dark:border-gray-800">
+                <AdminRevenueDashboard />
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

@@ -1,0 +1,22 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import AdminApp from '../../../components/dashboard/Admin/AdminApp';
+---
+
+<Layout title="Revenue Analytics - Admin Dashboard | Smile Smart Homes">
+  <AdminApp client:only="react" />
+</Layout>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      const userEmail = localStorage.getItem('userEmail');
+      const raw = localStorage.getItem('userRole') || '';
+      const role = raw.toLowerCase().replace(/[_-]+/g, ' ').trim();
+      const allowed = !!userEmail && (role === 'admin' || role === 'super admin');
+      if (!allowed) window.location.href = '/admin_login';
+    } catch (e) {
+      window.location.href = '/admin_login';
+    }
+  });
+</script>
