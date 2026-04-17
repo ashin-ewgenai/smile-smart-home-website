@@ -178,9 +178,17 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
                 // Only mark active after mount to avoid SSR/client mismatch
                 active={(() => {
                   if (!mounted) return false;
+                  // Get the current path relative to the basename if inRouter is true
                   const path = inRouter ? location?.pathname : window.location.pathname;
                   if (!path) return false;
-                  return it.key === 'dashboard' ? path === it.match : path.startsWith(it.match);
+                  
+                  // items[i].match are absolute (e.g. /dashboard/user/support-tickets)
+                  // For SPA mode (inRouter), we must compare against relative paths.
+                  const relativeMatch = inRouter && it.match.startsWith(base) 
+                    ? (it.match.slice(base.length) || '/') 
+                    : it.match;
+
+                  return it.key === 'dashboard' ? path === relativeMatch : path.startsWith(relativeMatch);
                 })()}
                 icon={it.icon}
               />

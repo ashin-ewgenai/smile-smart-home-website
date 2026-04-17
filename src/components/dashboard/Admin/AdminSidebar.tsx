@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Users, LayoutDashboard, FilePlus, Cpu, UserCircle2, BarChart2, MessageCircle, Star, TrendingUp } from 'lucide-react';
+import { Settings, Users, LayoutDashboard, FilePlus, Cpu, UserCircle2, BarChart2, MessageCircle, Star, TrendingUp, Clock } from 'lucide-react';
 import { Link, useInRouterContext, useLocation } from 'react-router-dom';
 
 const linkBase = 'block px-3 py-2 rounded-full text-sm font-medium text-gray-800 dark:text-white hover:bg-gray-100/70 dark:hover:bg-gray-800/60';
