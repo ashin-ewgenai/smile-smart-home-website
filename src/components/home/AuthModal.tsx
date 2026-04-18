@@ -81,9 +81,26 @@ export default function AuthModal() {
   }, []);
 
   useEffect(() => {
-    // lock scroll when open
-    if (open) document.documentElement.classList.add('overflow-hidden');
-    else document.documentElement.classList.remove('overflow-hidden');
+    // Lock body scroll when modal is open
+    if (open) {
+      const scrollY = window.scrollY;
+      document.body.dataset.scrollY = String(scrollY);
+      document.documentElement.classList.add('modal-open');
+      document.body.style.top = `-${scrollY}px`;
+    } else {
+      const scrollY = document.body.dataset.scrollY || '0';
+      document.documentElement.classList.remove('modal-open');
+      document.body.style.top = '';
+      delete document.body.dataset.scrollY;
+      window.scrollTo(0, parseInt(scrollY, 10));
+    }
+    return () => {
+      const scrollY = document.body.dataset.scrollY || '0';
+      document.documentElement.classList.remove('modal-open');
+      document.body.style.top = '';
+      delete document.body.dataset.scrollY;
+      window.scrollTo(0, parseInt(scrollY, 10));
+    };
   }, [open]);
 
 
@@ -361,17 +378,20 @@ export default function AuthModal() {
         }
       }}
     >
-      <div className="relative w-[92vw] max-w-xl max-h-[90vh]">
-        <div className="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl ring-1 ring-black/10 dark:ring-white/10 overflow-auto">
+      <div className="relative w-[92vw] max-w-xl h-[85vh] flex flex-col bg-white dark:bg-gray-900 rounded-2xl shadow-2xl ring-1 ring-black/10 dark:ring-white/10 overflow-hidden">
+        {/* Fixed Header with Close Button */}
+        <div className="sticky top-0 flex items-center justify-end p-3 sm:p-4 flex-shrink-0 bg-white dark:bg-gray-900 z-10">
           <button
             onClick={() => { resetFormFields(); setOpen(null); }}
-            className="absolute top-3 right-3 inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60"
+            className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal/60 transition-colors"
             aria-label="Close"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5"><path fillRule="evenodd" d="M6.72 6.72a.75.75 0 011.06 0L12 10.94l4.22-4.22a.75.75 0 111.06 1.06L13.06 12l4.22 4.22a.75.75 0 11-1.06 1.06L12 13.06l-4.22 4.22a.75.75 0 11-1.06-1.06L10.94 12 6.72 7.78a.75.75 0 010-1.06z" clipRule="evenodd"/></svg>
           </button>
+        </div>
 
-          <div className="p-6 sm:p-8">
+        {/* Scrollable Content Area */}
+        <div className="flex-1 px-6 pb-6 sm:px-8 sm:pb-8 overflow-y-auto overflow-x-hidden" style={{ overscrollBehavior: 'contain' }}>
             {/* Auth Mode Toggle */}
             <div className="flex rounded-xl bg-gray-100 dark:bg-gray-800 p-1 mb-6">
               <button
@@ -630,6 +650,5 @@ export default function AuthModal() {
           </div>
         </div>
       </div>
-    </div>
   );
 }

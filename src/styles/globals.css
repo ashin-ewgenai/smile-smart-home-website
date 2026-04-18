@@ -227,6 +227,21 @@
 }
 
 @layer utilities {
+  /* Modal scroll lock - disables body scroll when modal is open */
+  html.modal-open {
+    overflow: hidden !important;
+    height: 100% !important;
+  }
+  
+  html.modal-open body {
+    overflow: hidden !important;
+    position: fixed;
+    width: 100%;
+    height: 100%;
+    touch-action: none;
+    overscroll-behavior: none;
+  }
+
   /* Custom animations for interactive components */
   @keyframes pulse-slow {
     0%, 100% {
