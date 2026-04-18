@@ -18,8 +18,13 @@ export default defineConfig({
   vite: {
     resolve: {
       alias: {
-        '@': fileURLToPath(new URL('./src', import.meta.url))
+        '@': fileURLToPath(new URL('./src', import.meta.url)),
+        'react-router-dom': fileURLToPath(new URL('./node_modules/react-router-dom/dist/index.mjs', import.meta.url))
       }
+    },
+    optimizeDeps: {
+      include: ['react-router-dom'],
+      exclude: []
     },
     server: {
       proxy: {
