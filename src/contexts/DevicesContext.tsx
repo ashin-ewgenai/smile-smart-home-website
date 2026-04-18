@@ -17,7 +17,7 @@
  */
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, type User, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { collection, getDocs, onSnapshot, query, where, or, orderBy, Timestamp, addDoc, setDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, where, or, orderBy, limit, Timestamp, addDoc, setDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db, functions, uploadRoomPhoto } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -636,6 +636,10 @@ interface DevicesContextValue {
   // Energy Savings
   savingsData: SavingsData | null;
   calculateSavings: (monthlyBill: number, homeSize: number, applianceCount: number) => void;
+  // Service History
+  serviceHistory: any[];
+  serviceHistoryLoading: boolean;
+  fetchServiceHistory: (options?: { userEmail?: string; uid?: string; limitCount?: number }) => any;
 }
 
 export const DevicesContext = createContext<DevicesContextValue | undefined>(undefined);
@@ -799,6 +803,99 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // ── User Planning Leads State ───────────────────────────────────────────
   const [adminAccepted, setAdminAccepted] = useState<boolean>(false);
   const [userPlannerLeads, setUserPlannerLeads] = useState<PlannerLead[]>([]);
+
+  // ── Service History State ───────────────────────────────────────────────
+  const [serviceHistory, setServiceHistory] = useState<any[]>([]);
+  const [serviceHistoryLoading, setServiceHistoryLoading] = useState<boolean>(false);
+
+  const fetchServiceHistory = useCallback(async (options: { userEmail?: string; uid?: string; limitCount?: number } = {}) => {
+    const { userEmail, uid, limitCount = 20 } = options;
+    setServiceHistoryLoading(true);
+    try {
+      const unsubscribers: (() => void)[] = [];
+      const sources: Record<string, any[]> = {};
+
+      const updateEvents = () => {
+        const allEvents = Object.values(sources).flat();
+        allEvents.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+        setServiceHistory(allEvents.slice(0, limitCount * 2));
+        setServiceHistoryLoading(false);
+      };
+
+      const processSnap = (snap: any, type: string, mapper: (doc: any) => any) => {
+        sources[type] = snap.docs.map((doc: any) => mapper({ id: doc.id, ...doc.data() }));
+        updateEvents();
+      };
+
+      // Support Tickets
+      const supportQ = query(collection(db, 'Support_Tickets'), ...(uid ? [where('uid', '==', uid)] : []), orderBy('createdAt', 'desc'), limit(limitCount));
+      unsubscribers.push(onSnapshot(supportQ, (snap) => processSnap(snap, 'support', (data) => ({
+        id: data.id, type: 'support', title: data.subject || 'Support Ticket', description: data.description || '', status: data.status || 'open',
+        timestamp: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()), customerEmail: data.userEmail || ''
+      }))));
+
+      // Planner Leads
+      const leadsQ = query(collection(db, 'Planner_Leads'), ...(userEmail ? [where('email', '==', userEmail)] : []), orderBy('createdAt', 'desc'), limit(limitCount));
+      unsubscribers.push(onSnapshot(leadsQ, (snap) => processSnap(snap, 'installation', (data) => ({
+        id: data.id, type: 'installation', title: 'Project Lead', description: `House Size: ${data.formData?.houseSize || 'N/A'}`, status: data.status || 'new',
+        timestamp: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()), customerEmail: data.email || ''
+      }))));
+
+      // 3. Quotes
+      const quotesQ = query(collection(db, 'quotes'), ...(userEmail ? [where('customerEmail', '==', userEmail)] : []), orderBy('createdAt', 'desc'), limit(limitCount));
+      unsubscribers.push(onSnapshot(quotesQ, (snap) => processSnap(snap, 'quote', (data) => ({
+        id: data.id, type: 'quote', title: 'Quote Request', description: data.details || 'New quote request', status: data.status || 'pending',
+        timestamp: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()), customerEmail: data.customerEmail || ''
+      }))));
+
+      // 4. Estimation Quote (Billing)
+      const billingQ = query(collection(db, 'Estimation_Quote'), ...(userEmail ? [where('customerEmail', '==', userEmail)] : []), orderBy('issueDate', 'desc'), limit(limitCount));
+      unsubscribers.push(onSnapshot(billingQ, (snap) => processSnap(snap, 'billing', (data) => ({
+        id: data.id, type: 'billing', title: 'Bill Generated', description: `Total: ₹${data.grandTotal || 0}`, status: data.status || 'Draft',
+        timestamp: data.issueDate?.toDate ? data.issueDate.toDate() : new Date(data.issueDate || Date.now()), customerEmail: data.customerEmail || ''
+      }))));
+
+      // 5. Contact Requests
+      const contactQ = query(collection(db, 'contactRequests'), ...(userEmail ? [where('email', '==', userEmail)] : []), orderBy('createdAt', 'desc'), limit(limitCount));
+      unsubscribers.push(onSnapshot(contactQ, (snap) => processSnap(snap, 'interaction', (data) => ({
+        id: data.id, type: 'interaction', title: 'Contact Request', description: `Service: ${data.service || 'General inquiry'}`, status: data.status || 'new',
+        timestamp: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()), customerEmail: data.email || ''
+      }))));
+
+      // 6. Reviews
+      const reviewsQ = query(collection(db, 'Reviews'), ...(uid ? [where('uid', '==', uid)] : []), orderBy('createdAt', 'desc'), limit(limitCount));
+      unsubscribers.push(onSnapshot(reviewsQ, (snap) => processSnap(snap, 'interaction', (data) => ({
+        id: data.id, type: 'interaction', title: 'Site Review', description: `Rating: ${data.rating}/5 - ${data.comment?.slice(0, 50)}...`, status: data.status || 'approved',
+        timestamp: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()), customerEmail: data.userName || ''
+      }))));
+
+      // 7. Request Service (Maintenance)
+      const reqServiceQ = query(collection(db, 'Request_service'), ...(uid ? [where('uid', '==', uid)] : []), orderBy('createdAt', 'desc'), limit(limitCount));
+      unsubscribers.push(onSnapshot(reqServiceQ, (snap) => processSnap(snap, 'maintenance', (data) => ({
+        id: data.id, type: 'maintenance', title: 'Service Request', description: data.service || 'System maintenance', status: data.status || 'open',
+        timestamp: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()), customerEmail: data.uid || ''
+      }))));
+
+      // 8. User Scenes
+      const scenesQ = query(collection(db, 'User_Scenes'), ...(uid ? [where('uid', '==', uid)] : []), orderBy('createdAt', 'desc'), limit(limitCount));
+      unsubscribers.push(onSnapshot(scenesQ, (snap) => processSnap(snap, 'setup', (data) => ({
+        id: data.id, type: 'setup', title: 'Scene Created', description: `Name: ${data.name}`, status: 'active',
+        timestamp: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()), customerEmail: ''
+      }))));
+
+      // 9. User Devices (Added)
+      const userDevicesQ = query(collection(db, 'User_Devices'), ...(uid ? [where('uid', '==', uid)] : []), orderBy('UpdatedAt', 'desc'), limit(limitCount));
+      unsubscribers.push(onSnapshot(userDevicesQ, (snap) => processSnap(snap, 'setup', (data) => ({
+        id: data.id, type: 'setup', title: 'Device Integrated', description: `Device: ${data.deviceName || data.name || 'Smart Device'}`, status: data.status || 'Resolved',
+        timestamp: data.UpdatedAt?.toDate ? data.UpdatedAt.toDate() : new Date(data.UpdatedAt || Date.now()), customerEmail: ''
+      }))));
+
+      return () => unsubscribers.forEach(u => u());
+    } catch (err) {
+      console.error('Error fetching service history:', err);
+      setServiceHistoryLoading(false);
+    }
+  }, []);
 
   // ── Energy Savings State ────────────────────────────────────────────────
   const [savingsData, setSavingsData] = useState<SavingsData | null>(null);
@@ -1931,7 +2028,11 @@ Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, D
     generateRoomDetailsWithAI,
     // Energy Savings
     savingsData,
-    calculateSavings
+    calculateSavings,
+    // Service History
+    serviceHistory,
+    serviceHistoryLoading,
+    fetchServiceHistory
   }), [
     devices, planLeads, contactSubmissions, reports, filteredPlanLeads,
     filteredContactSubmissions, filteredReports, searchQuery, filterCriteria,
@@ -1953,7 +2054,9 @@ Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, D
     updateCustomFloorplanHotspot, deleteCustomFloorplanHotspot, clearCustomFloorplan,
     analyzeFloorplanWithAI,
     // Energy Savings deps
-    savingsData, calculateSavings
+    savingsData, calculateSavings,
+    // Service History deps
+    serviceHistory, serviceHistoryLoading, fetchServiceHistory
   ]);
 
   return (
