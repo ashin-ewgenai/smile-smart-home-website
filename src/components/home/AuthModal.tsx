@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { auth, db } from '../../lib/firebase';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { getDoc, setDoc } from 'firebase/firestore';
@@ -23,6 +23,7 @@ export default function AuthModal() {
   const [fullName, setFullName] = useState('');
   const { loginWithGoogle, signupWithEmail } = useAuth();
   const { showNotification, showCriticalError } = useDevices();
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // basic client-side validators and error mapping
   function validEmail(v: string) {
@@ -397,7 +398,17 @@ export default function AuthModal() {
         </div>
 
         {/* Scrollable Content Area */}
-        <div className="flex-1 px-6 pb-6 sm:px-8 sm:pb-8 overflow-y-auto overflow-x-hidden" style={{ overscrollBehavior: 'contain' }}>
+        <div
+          ref={contentRef}
+          className="flex-1 px-6 pb-6 sm:px-8 sm:pb-8 overflow-y-auto overflow-x-hidden"
+          style={{ overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', touchAction: 'auto' }}
+          onWheel={(e) => {
+            if (contentRef.current) {
+              e.preventDefault();
+              contentRef.current.scrollTop += e.deltaY;
+            }
+          }}
+        >
             {/* Auth Mode Toggle */}
             <div className="flex rounded-xl bg-gray-100 dark:bg-gray-800 p-1 mb-6">
               <button
