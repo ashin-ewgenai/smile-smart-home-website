@@ -78,6 +78,12 @@ export default function AuthModal() {
       // Clear it so it doesn't persist for future auth flows
       sessionStorage.removeItem('authReturnTo');
     }
+    // Check if we should auto-open the modal (from auth gate redirect)
+    const openModal = sessionStorage.getItem('authOpenModal');
+    if (openModal === 'login' || openModal === 'signup') {
+      setOpen(openModal);
+      sessionStorage.removeItem('authOpenModal');
+    }
   }, []);
 
   useEffect(() => {

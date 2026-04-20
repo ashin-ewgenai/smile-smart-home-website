@@ -9,6 +9,7 @@ import { httpsCallable } from 'firebase/functions';
 interface SupportChatPanelProps {
   ticketId?: string; // if undefined, chat will prompt user to raise a ticket first (bot mode)
   raiseTicketsHref?: string; // optional link target for the "Raise Tickets" page
+  isAuthenticated?: boolean; // passed from parent to avoid auth state flicker
 }
 
 interface TicketData {
@@ -74,9 +75,11 @@ type ChatMsg = {
   uploading?: boolean;
 };
 
-const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedTicketId, raiseTicketsHref }) => {
+const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedTicketId, raiseTicketsHref, isAuthenticated: isAuthenticatedProp }) => {
   const [uid, setUid] = useState<string | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  // Use prop if provided (from parent GuardedSupportChat), otherwise use local state
+  const [isAuthenticatedLocal, setIsAuthenticated] = useState<boolean>(false);
+  const isAuthenticated = isAuthenticatedProp !== undefined ? isAuthenticatedProp : isAuthenticatedLocal;
   // Global status kept if needed for future banners, but routing is claim-only
   const [statusOnline, setStatusOnline] = useState<boolean>(false);
   const [claimed, setClaimed] = useState<boolean>(false);
@@ -128,8 +131,10 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const lastSpokenTsRef = useRef<number>(0);
-  // Holds the voice transcript so send() can read it synchronously before React state flushes
-  const voiceTranscriptRef = useRef<string>('');
+  // Stable ref to the send function — allows recognition.onresult to invoke
+  // send() even though it is declared later in the component (avoids
+  // use-before-declaration with const).
+  const sendRef = useRef<(voiceText?: string) => Promise<void>>(() => Promise.resolve());
   
   // Auto-scroll to bottom when messages change
   const scrollToBottom = () => {
@@ -206,25 +211,22 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       const transcript: string = event.results[0][0].transcript.trim();
       if (!transcript) return;
 
-      // Show transcript in input field so user can see what was heard
+      // Show the transcript in the input field so the user can see what was heard
       setInput(transcript);
 
-      // Store in ref so send() can read it synchronously (React state batches
-      // updates, so `input` would still be the old value if called immediately)
-      voiceTranscriptRef.current = transcript;
-
-      // Brief pause (600 ms) so the user can see what was captured, then send
+      // After a short pause (600 ms) clear the field and dispatch the message.
+      // We read sendRef.current at call-time — it always points to the latest
+      // send() regardless of when recognition fires, solving the
+      // use-before-declaration problem with const.
       setTimeout(() => {
-        // sendVoiceMessage reads from the ref, not from React input state
-        sendVoiceMessage(transcript);
         setInput('');
-        voiceTranscriptRef.current = '';
+        sendRef.current(transcript);
       }, 600);
     };
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [isListening, isAuthenticated]);  // sendVoiceMessage added after send() is defined
+  }, [isListening, isAuthenticated]);
 
   // ── Voice: stop microphone listening ─────────────────────────────────────
   const stopListening = useCallback(() => {
@@ -232,19 +234,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     setIsListening(false);
   }, []);
 
-  // ── sendVoiceMessage: thin wrapper that calls send() with a voice transcript.
-  // Defined here (after startListening, before it is referenced in onresult
-  // timeout) so the closure captures the final send() reference.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const sendVoiceMessage = useCallback(
-    (text: string) => {
-      send(text);
-    },
-    // `send` is redeclared each render so we intentionally omit it to avoid
-    // an infinite-update loop — the ref pattern keeps this safe.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
-  );
+
 
   // ── Voice: cleanup recognition and TTS on unmount ────────────────────────
   useEffect(() => {
@@ -372,13 +362,20 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     return () => unsubAuth();
   }, []);
 
-  // Anonymous sign-in bridge removed: require full Firebase Auth session
-
   // Read support availability (informational only)
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'support_status', 'global'), (snap) => {
-      setStatusOnline(Boolean(snap.data()?.online));
-    });
+    const unsub = onSnapshot(
+      doc(db, 'support_status', 'global'),
+      (snap) => {
+        setStatusOnline(Boolean(snap.data()?.online));
+      },
+      (error) => {
+        // Gracefully handle permission errors during auth initialization
+        console.warn('[SupportChatPanel] support_status listener error:', error.message);
+        // Default to offline status if we can't read it
+        setStatusOnline(false);
+      }
+    );
     return () => unsub();
   }, []);
 
@@ -1219,6 +1216,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     if (!content || isSending) return;
     if (!voiceText) setInput('');
     setIsSending(true);
+    // Keep the ref up-to-date so voice recognition can always call the latest send()
+    sendRef.current = send;
 
     const wantsHuman = shouldEscalateToHuman(content);
 

@@ -1,6 +1,13 @@
 import { auth } from '../../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 
+// Extend Window interface for React auth coordination
+declare global {
+  interface Window {
+    __reactAuthHandled?: boolean;
+  }
+}
+
 // Add loading styles
 const addLoadingStyles = () => {
   const style = document.createElement('style');
@@ -54,10 +61,12 @@ const isAdmin = () => {
   }
 };
 
-// Redirect unauthenticated visitors of the user dashboard to /login.
+// Redirect unauthenticated visitors of the user dashboard to home with auth modal.
 // This replaces prior localStorage-based gates to ensure Firebase Auth is the source of truth.
 (function initAuthGate() {
   if (typeof window === 'undefined') return;
+
+  console.log('[AuthGate] Initializing for path:', window.location.pathname);
 
   let handled = false;
   let overlay: HTMLElement | null = null;
@@ -83,15 +92,24 @@ const isAdmin = () => {
   };
   
   const redirectToLogin = () => {
+    console.log('[AuthGate] Redirecting to login (home page with modal)');
     if (handled) return;
     handled = true;
     cleanup();
     try {
-      window.location.href = '/login';
-    } catch {}
+      // Store current URL for post-login redirect
+      const currentPath = window.location.pathname + window.location.search;
+      sessionStorage.setItem('authReturnTo', currentPath);
+      // Open auth modal on home page (modal will auto-open via sessionStorage check)
+      sessionStorage.setItem('authOpenModal', 'login');
+      window.location.href = '/';
+    } catch {
+      window.location.href = '/';
+    }
   };
 
   const redirectToAdmin = () => {
+    console.log('[AuthGate] Redirecting to admin dashboard');
     if (handled) return;
     handled = true;
     cleanup();
@@ -103,31 +121,64 @@ const isAdmin = () => {
   // Show loading overlay immediately
   initOverlay();
 
-  // If we already have a currentUser synchronously, check role
-  if (auth.currentUser) {
-    if (isAdmin()) {
-      redirectToAdmin();
-    } else {
-      cleanup();
+  // Helper to check auth with small delay for Firebase persistence
+  const checkAuthWithDelay = async () => {
+    // First sync check
+    if (auth.currentUser) {
+      console.log('[AuthGate] User already authenticated:', auth.currentUser.uid);
+      if (isAdmin()) {
+        redirectToAdmin();
+      } else {
+        console.log('[AuthGate] Regular user, allowing access');
+        cleanup();
+      }
+      return;
     }
-    return;
-  }
+    
+    // Wait for Firebase to restore auth from persistence
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Check again after delay
+    if (auth.currentUser) {
+      console.log('[AuthGate] User authenticated after delay:', auth.currentUser.uid);
+      if (isAdmin()) {
+        redirectToAdmin();
+      } else {
+        console.log('[AuthGate] Regular user, allowing access after delay');
+        cleanup();
+      }
+      return;
+    }
+    
+    console.log('[AuthGate] Waiting for auth state...');
 
-  // Wait for the initial auth state to resolve, then decide.
-  const unsub = onAuthStateChanged(auth, (user) => {
-    unsub();
-    if (!user) {
-      redirectToLogin();
-    } else if (isAdmin()) {
-      redirectToAdmin();
-    } else {
-      cleanup();
-    }
-  });
+    // Wait for the initial auth state to resolve, then decide.
+    const unsub = onAuthStateChanged(auth, (user) => {
+      console.log('[AuthGate] Auth state resolved:', user ? 'authenticated' : 'not authenticated');
+      unsub();
+      if (!user) {
+        redirectToLogin();
+      } else if (isAdmin()) {
+        redirectToAdmin();
+      } else {
+        console.log('[AuthGate] Regular user authenticated, allowing access');
+        cleanup();
+      }
+    });
+  };
+  
+  checkAuthWithDelay();
 
   // Safety timeout: If auth doesn't respond in time, fall back to localStorage hint.
+  // Increased to 10 seconds to allow React app time to initialize and handle auth
   setTimeout(() => {
     if (handled) return;
+    // Check if React app has marked the page as handled
+    if (window.__reactAuthHandled) {
+      console.log('[AuthGate] React app handled auth, skipping redirect');
+      cleanup();
+      return;
+    }
     if (!auth.currentUser) {
       redirectToLogin();
     } else if (isAdmin()) {
@@ -135,5 +186,5 @@ const isAdmin = () => {
     } else {
       cleanup();
     }
-  }, 4000);
+  }, 10000);
 })();
