@@ -3,9 +3,10 @@ import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import { Save, User, Mail, Phone, MapPin, Calendar, Home, Camera } from 'lucide-react';
 import { collection, doc, getDoc, getDocs, query, setDoc, where, Timestamp } from 'firebase/firestore';
-import { auth, db, storage, firebaseApp, uploadFile } from '../../../lib/firebase';
+import { auth, db, uploadFile } from '../../../lib/firebase';
 import { COLLECTION_USER_DEVICES } from '../../../models/Collections';
 import { useNavigate } from 'react-router-dom';
+import ProfileImageUpload from '../../ProfileImageUpload';
 
 // Helper function to safely convert Firestore Timestamp to Date
 const toDate = (value: unknown): Date | null => {
@@ -52,9 +53,8 @@ const UserProfile: React.FC = () => {
   const [deviceCount, setDeviceCount] = useState<number>(0);
   const [profilePicUrl, setProfilePicUrl] = useState<string>('');
   const [picStatus, setPicStatus] = useState<string>('');
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isImageUploadOpen, setIsImageUploadOpen] = useState<boolean>(false);
   const phoneInputRef = useRef<HTMLInputElement | null>(null);
-  const previewUrlRef = useRef<string | null>(null);
 
   // Fetch user's device count
   const fetchDeviceCount = useCallback(async () => {
@@ -146,51 +146,27 @@ const UserProfile: React.FC = () => {
     setUserData({ ...userData, phoneNumber: value });
   };
 
-  // Handle profile picture selection & upload (moved to component scope)
-  const onPickFile = () => {
-    fileInputRef.current?.click();
-  };
-
-  const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    try {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      setPicStatus('Uploading photo...');
-      
-      // Immediate local preview so the user sees the selected image instantly
-      try {
-        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-        const localUrl = URL.createObjectURL(file);
-        previewUrlRef.current = localUrl;
-        setProfilePicUrl(localUrl);
-      } catch {}
-
-      const uid = auth.currentUser?.uid || localStorage.getItem('userId');
-      if (!uid) {
-        setPicStatus('You must be signed in to upload a photo.');
-        return;
-      }
-
-      const url = await uploadFile(file, `profile/${uid}`, {
-        onProgress: (pct) => setPicStatus(`Uploading... ${pct}%`),
-        allowedTypes: ['image/jpeg', 'image/png', 'image/jpg']
-      });
-
-      // Save URL to Firestore (Accounts/{uid} profilePic)
-      const userDocRef = doc(db, 'Accounts', uid);
-      await setDoc(userDocRef, { profilePic: url, updatedAt: new Date() }, { merge: true });
-
-      // Replace local preview with the permanent download URL
-      setProfilePicUrl(url);
-      try { if (previewUrlRef.current) { URL.revokeObjectURL(previewUrlRef.current); previewUrlRef.current = null; } } catch {}
-      setPicStatus('Profile photo updated successfully.');
-      setTimeout(() => setPicStatus(''), 2500);
-    } catch (error: any) {
-      const msg = error?.message || 'Failed to upload profile photo.';
-      setPicStatus(`Error: ${msg}`);
-    } finally {
-      if (e.target) e.target.value = '';
+  // Handle profile picture upload from cropped image
+  const handleProfileImageUpload = async (croppedFile: File): Promise<void> => {
+    const uid = auth.currentUser?.uid || localStorage.getItem('userId');
+    if (!uid) {
+      setPicStatus('You must be signed in to upload a photo.');
+      throw new Error('User not authenticated');
     }
+
+    const url = await uploadFile(croppedFile, `profile/${uid}`, {
+      onProgress: (pct) => setPicStatus(`Uploading... ${pct}%`),
+      allowedTypes: ['image/jpeg', 'image/png', 'image/jpg']
+    });
+
+    // Save URL to Firestore (Accounts/{uid} profilePic)
+    const userDocRef = doc(db, 'Accounts', uid);
+    await setDoc(userDocRef, { profilePic: url, updatedAt: new Date() }, { merge: true });
+
+    // Update the profile picture URL
+    setProfilePicUrl(url);
+    setPicStatus('Profile photo updated successfully.');
+    setTimeout(() => setPicStatus(''), 2500);
   };
 
   // Handle form submission
@@ -301,19 +277,12 @@ const UserProfile: React.FC = () => {
             )}
             <button
               type="button"
-              onClick={onPickFile}
+              onClick={() => setIsImageUploadOpen(true)}
               className="absolute bottom-0 right-0 mb-1 mr-1 inline-flex items-center justify-center h-8 w-8 rounded-full bg-black/70 text-white hover:bg-black/80 focus:outline-none border border-white/20"
               title="Change photo"
             >
               <Camera className="h-4 w-4" />
             </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/jpg"
-              className="hidden"
-              onChange={onFileChange}
-            />
           </div>
           <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-1">{userData.FullName || 'User'}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Smart Home User</p>
@@ -484,6 +453,14 @@ const UserProfile: React.FC = () => {
           </form>
         </div>
       </div>
+
+      {/* Profile Image Upload Modal */}
+      <ProfileImageUpload
+        isOpen={isImageUploadOpen}
+        onClose={() => setIsImageUploadOpen(false)}
+        onUpload={handleProfileImageUpload}
+        currentImageUrl={profilePicUrl}
+      />
     </div>
   );
 };
