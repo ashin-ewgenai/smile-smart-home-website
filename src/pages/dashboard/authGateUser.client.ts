@@ -136,7 +136,7 @@ const isAdmin = () => {
     }
     
     // Wait for Firebase to restore auth from persistence
-    await new Promise(resolve => setTimeout(resolve, 300));
+    await new Promise(resolve => setTimeout(resolve, 800));
     
     // Check again after delay
     if (auth.currentUser) {

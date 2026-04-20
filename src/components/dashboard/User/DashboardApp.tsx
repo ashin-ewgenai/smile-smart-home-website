@@ -128,7 +128,7 @@ const DashboardApp: React.FC = () => {
       }
       
       // Wait a bit for Firebase to initialize from persistence
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Check again after delay
       const userAfterDelay = auth.currentUser;
