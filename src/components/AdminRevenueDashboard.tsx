@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   BarChart, Bar, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
@@ -27,6 +27,11 @@ const AdminRevenueDashboard: React.FC = () => {
   });
 
   const { setServiceFilters } = useDevices();
+
+  // Sync initial date range to service filters in context
+  useEffect(() => {
+    setServiceFilters({ startDate: dateRange.start, endDate: dateRange.end });
+  }, []);
 
   const {
     totalRevenue, billRevenue, leadRevenue, confirmedQuotes, totalQuotes, averageDealValue, conversionRate,
@@ -75,7 +80,7 @@ const AdminRevenueDashboard: React.FC = () => {
             Includes Confirmed Bills & Accepted Leads
             {debugInfo && (
               <span className="ml-4 text-[10px] text-slate-400 font-normal">
-                (System sync: {debugInfo.rawEstimations} bills | {debugInfo.rawLeads} leads found)
+                (System sync: {debugInfo.rawEstimations} bills | {debugInfo.rawQuotes || 0} formal quotes | {debugInfo.rawLeads} leads found)
               </span>
             )}
           </p>
@@ -322,7 +327,7 @@ const AdminRevenueDashboard: React.FC = () => {
               Real-time Feed
             </div>
           </div>
-          <ServiceHistoryTimeline />
+          <ServiceHistoryTimeline hideFilters={true} />
         </motion.div>
       )}
     </div>

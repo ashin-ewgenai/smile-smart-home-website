@@ -24,6 +24,7 @@ export interface RevenueStats {
 export function useRevenueAnalytics(dateRange: { start: Date; end: Date }) {
   const [estimations, setEstimations] = useState<(EstimationQuote & { id: string })[]>([]);
   const [acceptedLeads, setAcceptedLeads] = useState<any[]>([]);
+  const [availableQuotes, setAvailableQuotes] = useState<any[]>([]);
   const [totalQuotesCount, setTotalQuotesCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -31,19 +32,25 @@ export function useRevenueAnalytics(dateRange: { start: Date; end: Date }) {
   useEffect(() => {
     setLoading(true);
     
-    // 1. Confirmed Bills
+    // 1. Confirmed Bills (Official estimations)
     const q1 = query(
       collection(db, 'Estimation_Quote'),
       where('status', 'in', ['Confirmed', 'confirmed'])
     );
 
-    // 2. Accepted Leads
+    // 2. Accepted/Confirmed Leads (Home Planner, Floorplan, AI Consultant)
     const q2 = query(
       collection(db, 'Planner_Leads'),
-      where('status', 'in', ['accepted', 'Accepted'])
+      where('status', 'in', ['accepted', 'Accepted', 'confirmed', 'Confirmed'])
     );
 
-    // 3. Static count
+    // 3. Formally Confirmed Quotes (Flat collection used by EstimationTool)
+    const q3 = query(
+      collection(db, 'quotes'),
+      where('status', 'in', ['confirmed', 'Confirmed', 'approved', 'Approved'])
+    );
+
+    // 4. Static count for conversion metric
     getDocs(collection(db, 'quotes')).then(snap => {
       setTotalQuotesCount(snap.size);
     }).catch(err => console.warn('Quotes count fetch failed:', err));
@@ -58,79 +65,104 @@ export function useRevenueAnalytics(dateRange: { start: Date; end: Date }) {
       if (loading) setLoading(false);
     }, err => setError(err));
 
+    const unsub3 = onSnapshot(q3, (snap) => {
+      setAvailableQuotes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      if (loading) setLoading(false);
+    }, err => setError(err));
+
     return () => {
       unsub1();
       unsub2();
+      unsub3();
     };
   }, []);
 
   const stats = useMemo(() => {
-    // Process Estimations
-    const filteredEstimations = estimations.filter(est => {
-      if (!est.issueDate) return false;
-      const date = (est.issueDate as any).toDate ? (est.issueDate as any).toDate() : new Date(est.issueDate as any);
-      return date >= dateRange.start && date <= dateRange.end;
-    });
+    // Helper to get consistent date from various formats
+    const getDate = (obj: any): Date | null => {
+      if (!obj) return null;
+      // Handle Firestore Timestamp
+      if (obj.toDate) return obj.toDate();
+      // Handle local snapshots with pending server timestamps
+      if (typeof obj === 'object' && obj.nanoseconds !== undefined) return new Date(); 
+      const d = new Date(obj);
+      return isNaN(d.getTime()) ? null : d;
+    };
 
-    // Process Leads
-    const filteredLeads = acceptedLeads.filter(lead => {
-      // For leads, we use updatedAt/acceptedAt as the primary date, 
-      // because that represents the "Sale" (Acceptance) date.
-      const ts = lead.acceptedAt || lead.updatedAt || lead.createdAt;
-      if (!ts) return false;
-      const date = ts.toDate ? ts.toDate() : new Date(ts);
-      return date >= dateRange.start && date <= dateRange.end;
-    });
+    // Helper to parse amount from various fields
+    const parseAmount = (item: any): number => {
+      const rawValue = 
+        item.grandTotal || 
+        item.budget || 
+        item.totalAmount || 
+        item.estimatedPrice || 
+        item.total ||
+        item.formData?.budget || 
+        item.formData?.totalAmount || 
+        item.formData?.estimatedPrice ||
+        0;
+      
+      if (typeof rawValue === 'number') return rawValue;
+      return parseFloat(String(rawValue).replace(/[^0-9.]/g, '')) || 0;
+    };
 
-    // Deduplication & Merging
-    const processedEmails = new Set<string>();
+    const isWithinRange = (date: Date | null) => 
+      date && date >= dateRange.start && date <= dateRange.end;
+
+    // Process everything into a tiered structure to avoid double counting
+    // Tier 1: Official Bills (Estimation_Quote)
+    // Tier 2: Confirmed Quotes (quotes collection)
+    // Tier 3: Accepted Leads (Planner_Leads)
+    
+    const processedQuoteIds = new Set<string>(); // IDs from 'quotes' collection
+    const unifiedSales: { amount: number; date: Date; items?: any[]; source: string }[] = [];
+    
     let billRevenue = 0;
     let leadRevenue = 0;
-    const unifiedSales: { amount: number; date: Date; items?: any[] }[] = [];
 
-    // Prioritize confirmed bills
-    filteredEstimations.forEach(est => {
-      const email = (est.customerEmail || '').toLowerCase();
-      const date = (est.issueDate as any).toDate ? (est.issueDate as any).toDate() : new Date(est.issueDate as any);
-      const amount = est.grandTotal || 0;
-      
-      unifiedSales.push({
-        amount,
-        date,
-        items: est.items
-      });
-      billRevenue += amount;
-      if (email && email !== 'anonymous') processedEmails.add(email);
+    // 1. Process Estimations (Highest priority)
+    estimations.forEach(est => {
+      const date = getDate(est.issueDate);
+      if (isWithinRange(date)) {
+        const amount = parseAmount(est);
+        unifiedSales.push({ amount, date: date!, items: est.items, source: 'bill' });
+        billRevenue += amount;
+        
+        // Track which formal quotes and leads this bill covers
+        if (est.originalQuoteId) processedQuoteIds.add(est.originalQuoteId);
+        if (est.leadId) processedQuoteIds.add(est.leadId); // Trace back to lead if linked
+      }
     });
 
-    // Add accepted leads if no bill exists for that user
-    filteredLeads.forEach(lead => {
-      const email = (lead.email || lead.formData?.email || '').toLowerCase();
-      
-      // We skip deduplication if the email is generic/anonymous
-      const isDuplicate = email && email !== 'anonymous' && processedEmails.has(email);
-      
-      if (!isDuplicate) {
-        const ts = lead.acceptedAt || lead.updatedAt || lead.createdAt;
-        const date = ts.toDate ? ts.toDate() : new Date(ts);
-        
-        // Extract value from any possible field
-        const rawValue = 
-          lead.formData?.budget || 
-          lead.formData?.totalAmount || 
-          lead.formData?.estimatedPrice || 
-          lead.estimatedPrice || 
-          lead.totalAmount ||
-          0;
-          
-        const amount = typeof rawValue === 'number' ? rawValue : parseFloat(String(rawValue).replace(/[^0-9.]/g, '')) || 0;
-        
-        unifiedSales.push({
-          amount,
-          date
-        });
+    // 2. Process Confirmed Quotes (Medium priority)
+    availableQuotes.forEach(quote => {
+      if (processedQuoteIds.has(quote.id)) return; // Already counted as a Bill
+
+      // Use a local fallback for the date to ensure "lively" updates before serverTimestamp settles
+      const date = getDate(quote.confirmedAt || quote.updatedAt || quote.createdAt) || new Date();
+      if (isWithinRange(date)) {
+        const amount = parseAmount(quote);
+        unifiedSales.push({ amount, date: date!, source: 'quote' });
         leadRevenue += amount;
-        if (email && email !== 'anonymous') processedEmails.add(email);
+        
+        processedQuoteIds.add(quote.id);
+        if (quote.leadId) processedQuoteIds.add(quote.leadId); // Trace back to lead if linked
+      }
+    });
+
+    // 3. Process Accepted Leads (Lowest priority)
+    acceptedLeads.forEach(lead => {
+      // If this lead has been converted to a formal quote or bill that we already counted, skip it
+      if (processedQuoteIds.has(lead.id)) return;
+
+      // Use a local fallback for the date to ensure "lively" updates before serverTimestamp settles
+      const date = getDate(lead.acceptedAt || lead.updatedAt || lead.createdAt) || new Date();
+      if (isWithinRange(date)) {
+        const amount = parseAmount(lead);
+        unifiedSales.push({ amount, date: date!, source: 'lead' });
+        leadRevenue += amount;
+        
+        processedQuoteIds.add(lead.id); // Mark as processed
       }
     });
 
@@ -138,7 +170,7 @@ export function useRevenueAnalytics(dateRange: { start: Date; end: Date }) {
     const monthMap: Record<string, number> = {};
     const deviceMap: Record<string, { count: number; revenue: number }> = {};
 
-    // Generate all months in the date range to ensure a continuous line chart
+    // Generate all months in the date range
     const current = new Date(dateRange.start.getFullYear(), dateRange.start.getMonth(), 1);
     const stop = new Date(dateRange.end.getFullYear(), dateRange.end.getMonth(), 1);
     
@@ -187,10 +219,11 @@ export function useRevenueAnalytics(dateRange: { start: Date; end: Date }) {
       error,
       debugInfo: {
         rawEstimations: estimations.length,
-        rawLeads: acceptedLeads.length
+        rawLeads: acceptedLeads.length,
+        rawQuotes: availableQuotes.length
       }
     };
-  }, [estimations, acceptedLeads, totalQuotesCount, dateRange.start.getTime(), dateRange.end.getTime(), loading, error]);
+  }, [estimations, acceptedLeads, availableQuotes, totalQuotesCount, dateRange.start.getTime(), dateRange.end.getTime(), loading, error]);
 
   return stats;
 }
