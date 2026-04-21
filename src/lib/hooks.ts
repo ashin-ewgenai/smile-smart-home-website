@@ -17,23 +17,42 @@ export function useReducedMotion(): boolean {
 }
 
 export function useDarkMode() {
-  const [isDark, setIsDark] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
-    const stored = localStorage.getItem('darkMode');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const initial = stored ? JSON.parse(stored) : true;
-    
-    setIsDark(initial);
-    document.documentElement.classList.toggle('dark', initial);
+    const getInitialTheme = (): 'light' | 'dark' => {
+      if (typeof localStorage !== 'undefined' && localStorage.getItem('theme')) {
+        return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
+      }
+      if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        return 'dark';
+      }
+      return 'light';
+    };
+
+    const initial = getInitialTheme();
+    setTheme(initial);
+    document.documentElement.classList.toggle('dark', initial === 'dark');
+
+    // Listener for theme changes in other islands/tabs
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'theme') {
+        const newTheme = e.newValue === 'dark' ? 'dark' : 'light';
+        setTheme(newTheme);
+        document.documentElement.classList.toggle('dark', newTheme === 'dark');
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const toggleDarkMode = () => {
-    const newValue = !isDark;
-    setIsDark(newValue);
-    localStorage.setItem('darkMode', JSON.stringify(newValue));
-    document.documentElement.classList.toggle('dark', newValue);
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    localStorage.setItem('theme', newTheme);
+    document.documentElement.classList.toggle('dark', newTheme === 'dark');
   };
 
-  return { isDark, toggleDarkMode };
-}
+  return { isDark: theme === 'dark', toggleDarkMode };
+}

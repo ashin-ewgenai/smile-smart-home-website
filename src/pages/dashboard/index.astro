@@ -1,0 +1,33 @@
+---
+import Layout from '../../layouts/Layout.astro';
+---
+
+<Layout title="Redirecting... | Smile Smart Homes">
+  <div class="min-h-screen flex items-center justify-center bg-white dark:bg-charcoal">
+    <div class="text-center">
+      <div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-teal border-t-transparent mb-4"></div>
+      <p class="text-slate-500 dark:text-slate-400 font-bold">Taking you to your dashboard...</p>
+    </div>
+  </div>
+
+  <script>
+    // Logic to redirect based on user role
+    const userRole = localStorage.getItem('userRole');
+    const userEmail = localStorage.getItem('userEmail');
+
+    if (!userEmail) {
+      window.location.href = '/admin_login';
+    } else {
+      const roleNorm = (userRole || '').toLowerCase().replace(/[_-]+/g, ' ').trim();
+      const isAdmin = roleNorm === 'admin' || roleNorm === 'super admin';
+
+      if (isAdmin) {
+        // If admin, go to admin dashboard
+        window.location.href = '/dashboard/admin';
+      } else {
+        // Otherwise go to user dashboard
+        window.location.href = '/dashboard/user';
+      }
+    }
+  </script>
+</Layout>

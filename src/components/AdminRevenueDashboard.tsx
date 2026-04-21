@@ -11,8 +11,10 @@ import { useRevenueAnalytics } from '../hooks/useRevenueAnalytics';
 import * as ReactRouter from 'react-router-dom';
 import ServiceHistoryTimeline from './ServiceHistoryTimeline';
 import { useDevices } from '../contexts/DevicesContext';
+import { useDarkMode } from '../lib/hooks';
 
 const AdminRevenueDashboard: React.FC = () => {
+  const { isDark } = useDarkMode();
   const location = typeof ReactRouter.useLocation === 'function' ? ReactRouter.useLocation() : { search: '' };
   const search = location.search || '';
   const queryParams = new URLSearchParams(search);
@@ -230,12 +232,12 @@ const AdminRevenueDashboard: React.FC = () => {
                           borderRadius: '24px',
                           border: 'none',
                           boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)',
-                          backgroundColor: 'rgb(31 41 55)', // dark gray 800
+                          backgroundColor: isDark ? 'rgb(31 41 55)' : 'rgb(255 255 255)',
                           padding: '16px',
-                          color: '#fff'
+                          color: isDark ? '#fff' : '#1f2937'
                         }}
                         itemStyle={{ fontWeight: '900', color: '#14b8a6', fontSize: '14px' }}
-                        labelStyle={{ fontWeight: '800', color: '#94a3b8', marginBottom: '8px', fontSize: '11px', textTransform: 'uppercase' }}
+                        labelStyle={{ fontWeight: '800', color: isDark ? '#94a3b8' : '#64748b', marginBottom: '8px', fontSize: '11px', textTransform: 'uppercase' }}
                         formatter={(value: number) => [formatCurrency(Math.round(value)), 'Total Revenue']}
                       />
                       <Area type="monotone" dataKey="amount" stroke="#14b8a6" strokeWidth={5} fillOpacity={1} fill="url(#colorRev)" />
