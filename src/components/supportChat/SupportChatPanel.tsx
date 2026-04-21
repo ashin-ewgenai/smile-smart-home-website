@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+import { Mic, MicOff, Volume2, VolumeX, AudioLines } from 'lucide-react';
+import { useAuthMode, AuthModeProvider } from '../../contexts/AuthModeContext';
 import { Link } from 'react-router-dom';
 import { auth, db, functions, storage, uploadFile } from '../../lib/firebase';
 import { addDoc, collection, doc, getDoc, getDocs, onSnapshot, orderBy, query, serverTimestamp, setDoc, limit, updateDoc, deleteField, where, deleteDoc, writeBatch } from 'firebase/firestore';
@@ -75,7 +76,15 @@ type ChatMsg = {
   uploading?: boolean;
 };
 
-const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedTicketId, raiseTicketsHref, isAuthenticated: isAuthenticatedProp }) => {
+const SupportChatPanel: React.FC<SupportChatPanelProps> = (props) => {
+  return (
+    <AuthModeProvider>
+      <SupportChatPanelInternal {...props} />
+    </AuthModeProvider>
+  );
+};
+
+const SupportChatPanelInternal: React.FC<SupportChatPanelProps> = ({ ticketId: providedTicketId, raiseTicketsHref, isAuthenticated: isAuthenticatedProp }) => {
   const [uid, setUid] = useState<string | null>(null);
   // Use prop if provided (from parent GuardedSupportChat), otherwise use local state
   const [isAuthenticatedLocal, setIsAuthenticated] = useState<boolean>(false);
@@ -124,10 +133,16 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   // File input for image sharing with human agents only (no OCR)
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ── Voice Assistant State ────────────────────────────────────────────────
-  const [isMuted, setIsMuted] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(false);
+  // ── Voice Assistant State (Global via AuthModeContext) ────────────────────
+  const { 
+    isMuted, 
+    setIsMuted, 
+    isListening, 
+    setIsListening, 
+    isSpeaking, 
+    setIsSpeaking, 
+    voiceSupported 
+  } = useAuthMode();
   const recognitionRef = useRef<any>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const lastSpokenTsRef = useRef<number>(0);
@@ -145,16 +160,12 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     scrollToBottom();
   }, [messages]);
 
-  // ── Voice: browser capability detection (runs once on mount) ────────────
+  // ── Voice: synth initialization (runs once on mount) ────────────────────
   useEffect(() => {
-    const SpeechRecognition =
-      (window as any).SpeechRecognition ||
-      (window as any).webkitSpeechRecognition;
-    if (SpeechRecognition && 'speechSynthesis' in window) {
-      setVoiceSupported(true);
+    if (voiceSupported && 'speechSynthesis' in window) {
       synthRef.current = window.speechSynthesis;
     }
-  }, []);
+  }, [voiceSupported]);
 
   // ── Voice: speak a piece of text via SpeechSynthesis ────────────────────
   const speakText = useCallback(
@@ -171,6 +182,11 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       utterance.lang = 'en-US';
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
+
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
+
       synthRef.current.speak(utterance);
     },
     [isMuted]
@@ -178,6 +194,7 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
   // ── Voice: auto-speak newest assistant reply when not muted ──────────────
   useEffect(() => {
+    if (isMuted) return;
     const lastAssistant = [...messages]
       .reverse()
       .find(
@@ -187,16 +204,18 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           !m.uploading
       );
     if (!lastAssistant || lastAssistant.ts === lastSpokenTsRef.current) return;
+    
+    // We only update the ref if we are actually going to speak
     lastSpokenTsRef.current = lastAssistant.ts;
     speakText(lastAssistant.content!);
-  }, [messages, speakText]);
+  }, [messages, speakText, isMuted]);
 
   // ── Voice: start microphone listening ────────────────────────────────────
   const startListening = useCallback(() => {
     const SpeechRecognition =
       (window as any).SpeechRecognition ||
       (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition || isListening || !isAuthenticated) return;
+    if (!SpeechRecognition || isListening || isMuted || !isAuthenticated) return;
 
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
@@ -214,19 +233,18 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
       // Show the transcript in the input field so the user can see what was heard
       setInput(transcript);
 
-      // After a short pause (600 ms) clear the field and dispatch the message.
+      // After a short pause (600 ms) dispatch the message.
       // We read sendRef.current at call-time — it always points to the latest
       // send() regardless of when recognition fires, solving the
       // use-before-declaration problem with const.
       setTimeout(() => {
-        setInput('');
         sendRef.current(transcript);
       }, 600);
     };
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [isListening, isAuthenticated]);
+  }, [isListening, isMuted, isAuthenticated]);
 
   // ── Voice: stop microphone listening ─────────────────────────────────────
   const stopListening = useCallback(() => {
@@ -1108,8 +1126,20 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
           }
           list = deduped;
         } catch {}
+
+        // ── Optimistic UI Merge ──
+        // Preserve local "uploading" messages that might not have reached Firestore yet
+        setMessages((prev) => {
+          const optimistic = prev.filter(m => m.uploading);
+          if (optimistic.length === 0) return list;
+          
+          // Filter out optimistic messages that are now present in the server list
+          const serverContents = new Set(list.map(m => String(m.content || '').trim()));
+          const remainingOptimistic = optimistic.filter(m => !serverContents.has(String(m.content || '').trim()));
+          
+          return [...list, ...remainingOptimistic];
+        });
       } catch {}
-      setMessages(list);
 
       // Restore chat context based on loaded messages
       if (list.length > 0 && !hasInitialized.current) {
@@ -1214,10 +1244,9 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
   const send = async (voiceText?: string): Promise<void> => {
     const content = (voiceText ?? input).trim();
     if (!content || isSending) return;
-    if (!voiceText) setInput('');
+    if (voiceText) setInput('');
+    else if (!voiceText) setInput('');
     setIsSending(true);
-    // Keep the ref up-to-date so voice recognition can always call the latest send()
-    sendRef.current = send;
 
     const wantsHuman = shouldEscalateToHuman(content);
 
@@ -1461,6 +1490,8 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
     // unified: no legacy branch; authenticated users handled above; unauthenticated triage handled earlier.
   };
+  // Keep the ref up-to-date so voice recognition can always call the latest send()
+  sendRef.current = send;
 
   // Removed manual serial verification handling and callable usage
 
@@ -2242,27 +2273,37 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
 
           {/* ── Voice: Mute / Unmute TTS button ─── */}
           {voiceSupported && (
-            <button
-              type="button"
-              onClick={() => {
-                setIsMuted((v) => !v);
-                synthRef.current?.cancel();
-              }}
-              className={`inline-flex items-center justify-center h-10 w-10 rounded-full transition-all duration-200 shadow-sm border ${
-                isMuted
-                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700'
-                  : 'bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-700 hover:bg-teal-100 dark:hover:bg-teal-900/50'
-              }`}
-              title={isMuted ? 'Unmute voice assistant' : 'Mute voice assistant'}
-              aria-label={isMuted ? 'Unmute voice assistant' : 'Mute voice assistant'}
-              aria-pressed={!isMuted}
-            >
-              {isMuted ? (
-                <VolumeX className="h-5 w-5" />
-              ) : (
-                <Volume2 className="h-5 w-5" />
+            <div className="relative">
+              {isSpeaking && !isMuted && (
+                <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-teal-500"></span>
+                </span>
               )}
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMuted(!isMuted);
+                  if (!isMuted) synthRef.current?.cancel();
+                }}
+                className={`inline-flex items-center justify-center h-10 w-10 rounded-full transition-all duration-200 shadow-sm border ${
+                  isMuted
+                    ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700'
+                    : 'bg-teal-50 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400 border-teal-200 dark:border-teal-700 hover:bg-teal-100 dark:hover:bg-teal-900/50'
+                } ${isSpeaking && !isMuted ? 'border-teal-400 dark:border-teal-500 ring-2 ring-teal-500/20' : ''}`}
+                title={isMuted ? 'Unmute voice assistant' : 'Mute voice assistant'}
+                aria-label={isMuted ? 'Unmute voice assistant' : 'Mute voice assistant'}
+                aria-pressed={!isMuted}
+              >
+                {isMuted ? (
+                  <VolumeX className="h-5 w-5" />
+                ) : isSpeaking ? (
+                  <AudioLines className="h-5 w-5 animate-pulse" />
+                ) : (
+                  <Volume2 className="h-5 w-5" />
+                )}
+              </button>
+            </div>
           )}
 
           {/* ── Voice: Microphone input button ─── */}
@@ -2270,17 +2311,19 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
             <button
               type="button"
               onClick={isListening ? stopListening : startListening}
-              disabled={!isAuthenticated}
+              disabled={!isAuthenticated || (isMuted && !isListening)}
               className={`inline-flex items-center justify-center h-10 w-10 rounded-full transition-all duration-200 shadow-sm border ${
                 isListening
                   ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border-red-200 dark:border-red-700 animate-pulse'
+                  : isMuted
+                  ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700 cursor-not-allowed opacity-60'
                   : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:bg-gray-200 dark:hover:bg-gray-700'
               }`}
-              title={isListening ? 'Stop listening' : 'Start voice input'}
-              aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+              title={isMuted ? 'Voice input disabled while muted' : isListening ? 'Stop listening' : 'Start voice input'}
+              aria-label={isMuted ? 'Voice input disabled while muted' : isListening ? 'Stop listening' : 'Start voice input'}
               aria-pressed={isListening}
             >
-              {isListening ? (
+              {isMuted && !isListening ? (
                 <MicOff className="h-5 w-5" />
               ) : (
                 <Mic className="h-5 w-5" />
@@ -2313,5 +2356,6 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = ({ ticketId: providedT
     </section>
   );
 };
+
 
 export default SupportChatPanel;
