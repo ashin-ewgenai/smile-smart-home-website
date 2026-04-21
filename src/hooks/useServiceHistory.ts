@@ -44,7 +44,10 @@ export function useServiceHistory(options: UseServiceHistoryOptions = {}) {
     const unsubscribers: (() => void)[] = [];
     const sources: Record<string, ServiceEvent[]> = {};
 
-    const updateEvents = () => {
+    const initialized = new Set<ServiceEventType>();
+    const updateEvents = (type: ServiceEventType) => {
+      initialized.add(type);
+      
       const allEvents = Object.values(sources).flat();
       // Chronological sort: Newest first
       allEvents.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
@@ -54,24 +57,36 @@ export function useServiceHistory(options: UseServiceHistoryOptions = {}) {
       setHasMore(mightHaveMore);
       
       setEvents(allEvents);
-      setLoading(false);
+
+      // Only stop loading when all 5 sources have emitted at least once
+      if (initialized.size >= 5) {
+        setLoading(false);
+      }
     };
 
     const processSnapshot = (snap: any, type: ServiceEventType, mapper: (data: any) => ServiceEvent) => {
       const mapped = snap.docs.map((doc: any) => mapper({ id: doc.id, ...doc.data() }));
       sources[type] = mapped;
-      updateEvents();
+      updateEvents(type);
     };
 
-    // Shared Date Filters
+    // Shared Date Filters - Fix: Inclusive end date
     const dateFilters = [];
     if (startDate) dateFilters.push(where('createdAt', '>=', startDate));
-    if (endDate) dateFilters.push(where('createdAt', '<=', endDate));
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      dateFilters.push(where('createdAt', '<=', end));
+    }
 
     // Special case for Billing where field name is issueDate
     const billingDateFilters = [];
     if (startDate) billingDateFilters.push(where('issueDate', '>=', startDate));
-    if (endDate) billingDateFilters.push(where('issueDate', '<=', endDate));
+    if (endDate) {
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+      billingDateFilters.push(where('issueDate', '<=', end));
+    }
 
     try {
       // 1. Support Tickets
@@ -95,6 +110,7 @@ export function useServiceHistory(options: UseServiceHistoryOptions = {}) {
       }, (err) => {
         console.warn('[useServiceHistory] Support_Tickets query failed:', err);
         setError(err);
+        updateEvents('support');
       }));
 
       // 2. Planner Leads (Installation)
@@ -115,7 +131,10 @@ export function useServiceHistory(options: UseServiceHistoryOptions = {}) {
           timestamp: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()),
           customerEmail: data.email || data.formData?.email || ''
         }));
-      }, (err) => console.warn('[useServiceHistory] Planner_Leads query failed:', err)));
+      }, (err) => {
+        console.warn('[useServiceHistory] Planner_Leads query failed:', err);
+        updateEvents('installation');
+      }));
 
       // 3. Quotes
       const quotesQ = query(
@@ -135,7 +154,10 @@ export function useServiceHistory(options: UseServiceHistoryOptions = {}) {
           timestamp: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()),
           customerEmail: data.customerEmail || ''
         }));
-      }, (err) => console.warn('[useServiceHistory] quotes query failed:', err)));
+      }, (err) => {
+        console.warn('[useServiceHistory] quotes query failed:', err);
+        updateEvents('quote');
+      }));
 
       // 4. Billing (Estimation_Quote)
       const billingQ = query(
@@ -155,7 +177,10 @@ export function useServiceHistory(options: UseServiceHistoryOptions = {}) {
           timestamp: data.issueDate?.toDate ? data.issueDate.toDate() : new Date(data.issueDate || Date.now()),
           customerEmail: data.customerEmail || ''
         }));
-      }, (err) => console.warn('[useServiceHistory] Estimation_Quote query failed:', err)));
+      }, (err) => {
+        console.warn('[useServiceHistory] Estimation_Quote query failed:', err);
+        updateEvents('billing');
+      }));
 
       // 5. Interaction (Request_service)
       const serviceQ = query(
@@ -175,7 +200,10 @@ export function useServiceHistory(options: UseServiceHistoryOptions = {}) {
           timestamp: data.createdAt?.toDate ? data.createdAt.toDate() : new Date(data.createdAt || Date.now()),
           customerEmail: data.userEmail || ''
         }));
-      }, (err) => console.warn('[useServiceHistory] Request_service query failed:', err)));
+      }, (err) => {
+        console.warn('[useServiceHistory] Request_service query failed:', err);
+        updateEvents('interaction');
+      }));
 
     } catch (err: any) {
       console.error('[useServiceHistory] Query setup failed:', err);

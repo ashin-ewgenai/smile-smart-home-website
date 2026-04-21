@@ -7,7 +7,11 @@ import {
 import { useDevices } from '../contexts/DevicesContext';
 import { useNavigate } from 'react-router-dom';
 
-const ServiceHistoryTimeline: React.FC = () => {
+interface ServiceHistoryTimelineProps {
+  hideFilters?: boolean;
+}
+
+const ServiceHistoryTimeline: React.FC<ServiceHistoryTimelineProps> = ({ hideFilters = false }) => {
   const { 
     serviceHistory: events, 
     serviceHistoryLoading: loading, 
@@ -68,67 +72,91 @@ const ServiceHistoryTimeline: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      {/* Filtering Header */}
-      <div className="flex flex-col xl:flex-row gap-6 justify-between items-start xl:items-center bg-white/50 dark:bg-gray-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-gray-800 backdrop-blur-xl shadow-xl">
-        <div className="flex flex-col md:flex-row gap-4 w-full xl:w-auto">
-          {/* Search */}
-          <div className="relative flex-1 md:w-64 group">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal transition-colors" size={18} />
-            <input 
-              type="text"
-              placeholder="SEARCH EVENTS..."
-              className="w-full bg-white dark:bg-charcoal border border-slate-100 dark:border-gray-800 rounded-2xl py-3 pl-12 pr-4 text-[10px] font-black uppercase tracking-[0.2em] focus:ring-2 focus:ring-teal/20 focus:border-teal transition-all outline-none"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-
-          {/* Date Range Picker */}
-          <div className="flex items-center gap-3 px-4 py-2 bg-white dark:bg-charcoal border border-slate-100 dark:border-gray-800 rounded-2xl">
-            <Calendar size={16} className="text-teal" />
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                className="bg-transparent border-none p-0 text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 focus:ring-0 cursor-pointer"
-                value={serviceFilters.startDate?.toISOString().split('T')[0] || ''}
-                onChange={(e) => setServiceFilters({ ...serviceFilters, startDate: e.target.value ? new Date(e.target.value) : null })}
-              />
-              <span className="text-slate-300">/</span>
-              <input
-                type="date"
-                className="bg-transparent border-none p-0 text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 focus:ring-0 cursor-pointer"
-                value={serviceFilters.endDate?.toISOString().split('T')[0] || ''}
-                onChange={(e) => setServiceFilters({ ...serviceFilters, endDate: e.target.value ? new Date(e.target.value) : null })}
+      {/* Filtering Header - Conditionally Hidden */}
+      {!hideFilters && (
+        <div className="flex flex-col xl:flex-row gap-6 justify-between items-start xl:items-center bg-white/50 dark:bg-gray-900/50 p-6 rounded-[2rem] border border-slate-100 dark:border-gray-800 backdrop-blur-xl shadow-xl">
+          <div className="flex flex-col md:flex-row gap-4 w-full xl:w-auto">
+            {/* Search */}
+            <div className="relative flex-1 md:w-64 group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-teal transition-colors" size={18} />
+              <input 
+                type="text"
+                placeholder="SEARCH EVENTS..."
+                className="w-full bg-white dark:bg-charcoal border border-slate-100 dark:border-gray-800 rounded-2xl py-3 pl-12 pr-4 text-[10px] font-black uppercase tracking-[0.2em] focus:ring-2 focus:ring-teal/20 focus:border-teal transition-all outline-none"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
               />
             </div>
-            {(serviceFilters.startDate || serviceFilters.endDate) && (
-              <button 
-                onClick={() => setServiceFilters({ startDate: null, endDate: null })}
-                className="text-rose-500 hover:text-rose-600"
+
+            {/* Date Range Picker */}
+            <div className="flex items-center gap-3 px-4 py-2 bg-white dark:bg-charcoal border border-slate-100 dark:border-gray-800 rounded-2xl">
+              <Calendar size={16} className="text-teal" />
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  className="bg-transparent border-none p-0 text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 focus:ring-0 cursor-pointer"
+                  value={serviceFilters.startDate?.toISOString().split('T')[0] || ''}
+                  onChange={(e) => setServiceFilters({ ...serviceFilters, startDate: e.target.value ? new Date(e.target.value) : null })}
+                />
+                <span className="text-slate-300">/</span>
+                <input
+                  type="date"
+                  className="bg-transparent border-none p-0 text-[10px] font-black uppercase text-slate-600 dark:text-slate-300 focus:ring-0 cursor-pointer"
+                  value={serviceFilters.endDate?.toISOString().split('T')[0] || ''}
+                  onChange={(e) => setServiceFilters({ ...serviceFilters, endDate: e.target.value ? new Date(e.target.value) : null })}
+                />
+              </div>
+              {(serviceFilters.startDate || serviceFilters.endDate) && (
+                <button 
+                  onClick={() => setServiceFilters({ startDate: null, endDate: null })}
+                  className="text-rose-500 hover:text-rose-600"
+                >
+                  <Filter size={14} className="rotate-45" />
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {/* Type Filter Chips */}
+          <div className="flex flex-wrap items-center gap-2">
+            {(['all', 'support', 'installation', 'billing', 'interaction'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTypeFilter(t)}
+                className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 border ${
+                  typeFilter === t 
+                    ? 'bg-teal text-white shadow-lg shadow-teal/20 border-teal' 
+                    : 'bg-white dark:bg-charcoal text-slate-400 border-slate-100 dark:border-gray-800 hover:border-teal/50'
+                }`}
               >
-                <Filter size={14} className="rotate-45" />
+                {t}
               </button>
-            )}
+            ))}
           </div>
         </div>
-        
-        {/* Type Filter Chips */}
-        <div className="flex flex-wrap items-center gap-2">
-          {(['all', 'support', 'installation', 'billing', 'interaction'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTypeFilter(t)}
-              className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 border ${
-                typeFilter === t 
-                  ? 'bg-teal text-white shadow-lg shadow-teal/20 border-teal' 
-                  : 'bg-white dark:bg-charcoal text-slate-400 border-slate-100 dark:border-gray-800 hover:border-teal/50'
-              }`}
-            >
-              {t}
-            </button>
-          ))}
+      )}
+
+      {/* Filter Status Message */}
+      {(serviceFilters.startDate || serviceFilters.endDate || typeFilter !== 'all' || search) && (
+        <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.2em] text-teal px-6 py-3 bg-teal/5 rounded-2xl border border-teal/10 w-fit">
+          <Filter size={14} />
+          <span>
+            {search ? `SEARCHING: "${search}" | ` : ''}
+            {typeFilter !== 'all' ? `TYPE: ${typeFilter} | ` : ''}
+            FILTERING: {serviceFilters.startDate ? serviceFilters.startDate.toLocaleDateString() : 'BEGINNING'} TO {serviceFilters.endDate ? serviceFilters.endDate.toLocaleDateString() : 'NOW'}
+          </span>
+          <button 
+            onClick={() => {
+              setServiceFilters({ startDate: null, endDate: null });
+              setTypeFilter('all');
+              setSearch('');
+            }}
+            className="ml-2 text-rose-500 hover:text-rose-600 transition-colors"
+          >
+            CLEAR FILTERS
+          </button>
         </div>
-      </div>
+      )}
 
       {/* Timeline List */}
       <div className="relative pl-8 space-y-8 before:absolute before:left-[15px] before:top-2 before:bottom-2 before:w-px before:bg-gradient-to-b before:from-teal/50 before:via-slate-200 dark:before:via-gray-800 before:to-transparent">

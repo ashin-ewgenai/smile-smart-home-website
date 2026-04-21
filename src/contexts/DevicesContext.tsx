@@ -18,7 +18,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { onAuthStateChanged, type User, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { collection, getDocs, onSnapshot, query, where, or, orderBy, limit, Timestamp, addDoc, setDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { auth, db, functions, uploadRoomPhoto } from '../lib/firebase';
+import { auth, db, functions, uploadRoomPhoto, storage } from '../lib/firebase';
+import { getDownloadURL, listAll, ref as sRef } from 'firebase/storage';
 import { httpsCallable } from 'firebase/functions';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, CheckCircle, Info, AlertTriangle, X } from 'lucide-react';
@@ -115,6 +116,14 @@ export interface PersonalityType {
   borderColor: string;
   recommendedCategories: string[];
   automationScenarios: string[];
+}
+
+export interface UserProfile {
+  name: string;
+  avatarUrl: string | null;
+  email: string | null;
+  role: string;
+  deviceCount: number;
 }
 
 export interface QuizResult {
@@ -607,6 +616,8 @@ interface DevicesContextValue {
   // Planning Leads for current user
   userPlannerLeads: PlannerLead[];
   currentUser: User | null;
+  userProfile: UserProfile | null;
+  profileLoading: boolean;
   loginWithGoogle: () => Promise<User>;
   // Global Notification
   notification: NotificationState;
@@ -754,6 +765,11 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
   const [role, setRole] = useState<string | null>(null);
+  const isAdmin = useMemo(() => {
+    if (!role) return false;
+    const r = role.toLowerCase();
+    return r === 'admin' || r === 'super admin';
+  }, [role]);
   const [devices, setDevices] = useState<DeviceDoc[]>([]);
   const [planLeads, setPlanLeads] = useState<PlannerLead[]>([]);
   const [contactSubmissions, setContactSubmissions] = useState<ContactRequest[]>([]);
@@ -808,6 +824,8 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // ── User Planning Leads State ───────────────────────────────────────────
   const [adminAccepted, setAdminAccepted] = useState<boolean>(false);
   const [userPlannerLeads, setUserPlannerLeads] = useState<PlannerLead[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState<boolean>(true);
 
   // ── Service History Logic ───────────────────────────────────────────────
   const [serviceLimit, setServiceLimit] = useState(20);
@@ -1137,31 +1155,71 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return () => unsub();
   }, []);
 
-  // Fetch user role
+
+  // -- User Data Sync (Role & Profile) --
   useEffect(() => {
     if (!uid) {
       setRole(null);
+      setUserProfile(null);
+      setProfileLoading(false);
       return;
     }
-    const unsub = onSnapshot(doc(db, 'Accounts', uid), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setRole(data.Role || 'User');
-      } else {
-        setRole('User');
+
+    setProfileLoading(true);
+
+    const unsub = onSnapshot(doc(db, 'Accounts', uid), async (snap) => {
+      try {
+        const user = auth.currentUser;
+        let name = user?.displayName || localStorage.getItem('userName') || 'User';
+        let avatarUrl = user?.photoURL || null;
+        let resolvedRole = 'User';
+        const email = user?.email || localStorage.getItem('userEmail') || null;
+
+        if (snap.exists()) {
+          const data = snap.data();
+          resolvedRole = data.Role || 'User';
+          if (data.name) name = data.name;
+          if (data.profilePic && typeof data.profilePic === 'string' && data.profilePic.startsWith('http')) {
+            avatarUrl = data.profilePic;
+          }
+        }
+
+        setRole(resolvedRole);
+
+        // 2) Resolve Avatar from Storage if not in Firestore/Auth
+        if (!avatarUrl && user) {
+          try {
+            const folderRef = sRef(storage, `profile/${user.uid}`);
+            const listing = await listAll(folderRef);
+            if (listing.items.length > 0) {
+              const sorted = listing.items.sort((a, b) => a.name.localeCompare(b.name));
+              avatarUrl = await getDownloadURL(sorted[sorted.length - 1]);
+            }
+          } catch (e) {
+            console.debug('[DevicesContext] Storage avatar fallback omitted:', e);
+          }
+        }
+
+        setUserProfile({
+          name,
+          avatarUrl,
+          email,
+          role: resolvedRole,
+          deviceCount: devices.length // Still present in the object, but updated reactively
+        });
+      } catch (err) {
+        console.error('[DevicesContext] Sync error:', err);
+      } finally {
+        setProfileLoading(false);
       }
     }, (err) => {
-      console.warn('Failed to fetch user role (expected for new or guest accounts):', err);
+      console.warn('[DevicesContext] Account sync failed:', err);
       setRole('User');
+      setProfileLoading(false);
     });
-    return () => unsub();
-  }, [uid]);
 
-  const isAdmin = useMemo(() => {
-    if (!role) return false;
-    const r = role.toLowerCase();
-    return r === 'admin' || r === 'super admin';
-  }, [role]);
+    return () => unsub();
+  }, [uid, devices.length]); // Decoupled from 'role' to prevent loops
 
   useEffect(() => {
     let unsubs: (() => void)[] = [];
@@ -1942,6 +2000,8 @@ Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, D
     startLiveConsultation,
     userPlannerLeads,
     currentUser,
+    userProfile,
+    profileLoading,
     loginWithGoogle,
     notification,
     showNotification,
@@ -2001,7 +2061,9 @@ Coordinates x and y must be 0-100. Available icons: Tv, Moon, UtensilsCrossed, D
     // Energy Savings deps
     savingsData, calculateSavings,
     // Service History deps
-    serviceHistory, serviceHistoryLoading, serviceHasMore, loadMoreServiceHistory, serviceFilters, setServiceFilters, fetchServiceHistory
+    serviceHistory, serviceHistoryLoading, serviceHasMore, loadMoreServiceHistory, serviceFilters, setServiceFilters, fetchServiceHistory,
+    // Profile deps
+    userProfile, profileLoading
   ]);
 
   return (
