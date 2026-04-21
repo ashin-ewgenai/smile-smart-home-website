@@ -6,6 +6,7 @@ import { auth, db, storage } from '../../../lib/firebase';
 import { userNotificationsCollection, userDevicesCollection, createWarrantyExpiryNotification, userNotificationDoc } from '../../../models/Collections';
 import { handleLogout } from './LogoutHandler';
 import { getDownloadURL, listAll, ref as storageRef } from 'firebase/storage';
+import { useDevices } from '../../../contexts/DevicesContext';
 
 interface DashboardNavbarProps {
   userType: 'admin' | 'user';
@@ -16,87 +17,19 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
-  const [hasUnread, setHasUnread] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('hasUnreadNotifications') === '1';
-    } catch {
-      return false;
-    }
-  });
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
-  // Safely use location only in browser environment
+  const [hasUnread, setHasUnread] = useState(false);
+  
+  const { userProfile, profileLoading } = useDevices();
+  const userNameDisplay = userProfile?.name || userName;
+  const avatarUrl = userProfile?.avatarUrl || null;
+
   const location = typeof window !== 'undefined' ? useLocation() : { pathname: '' };
   const navigate = useNavigate();
 
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
-  };
+  const toggleMobileMenu = () => setIsMobileMenuOpen(!isMobileMenuOpen);
+  const toggleProfileDropdown = () => setIsProfileDropdownOpen(!isProfileDropdownOpen);
 
-  const toggleProfileDropdown = () => {
-    setIsProfileDropdownOpen(!isProfileDropdownOpen);
-  };
-
-  // Get actual user name from localStorage
-  const [actualUserName, setActualUserName] = useState(userName);
-  
-  useEffect(() => {
-    const email = localStorage.getItem('userEmail');
-    if (email) {
-      // Extract name from email (simple approach)
-      const name = email.split('@')[0];
-      // Capitalize first letter
-      setActualUserName(name.charAt(0).toUpperCase() + name.slice(1));
-    }
-  }, []);
-
-  // Resolve and watch avatar URL (Firestore -> Storage -> Auth photoURL)
-  useEffect(() => {
-    let unsub: any;
-    try {
-      unsub = auth.onAuthStateChanged(async (user) => {
-        try {
-          if (!user?.uid) { setAvatarUrl(null); return; }
-          // 1) Firestore Accounts/{uid}.profilePic
-          try {
-            const snap = await getDoc(doc(db, 'Accounts', user.uid));
-            const url = (snap.exists() ? (snap.data() as any)?.profilePic : undefined) as string | undefined;
-            if (url && typeof url === 'string' && url.startsWith('http')) {
-              try { console.debug('[DashboardNavbar] Avatar from Firestore:', url); } catch {}
-              setAvatarUrl(url);
-              return;
-            }
-          } catch {}
-          // 2) Storage profile/{uid}/ latest
-          try {
-            const folderRef = storageRef(storage, `profile/${user.uid}`);
-            const listing = await listAll(folderRef);
-            const items = listing.items || [];
-            if (items.length > 0) {
-              const sorted = items.slice().sort((a, b) => a.name.localeCompare(b.name));
-              const latest = sorted[sorted.length - 1];
-              const url = await getDownloadURL(latest);
-              try { console.debug('[DashboardNavbar] Avatar from Storage:', { path: latest.fullPath, url }); } catch {}
-              setAvatarUrl(url);
-              return;
-            }
-          } catch {}
-          // 3) Auth photoURL
-          if (user.photoURL) {
-            try { console.debug('[DashboardNavbar] Avatar from Auth photoURL:', user.photoURL); } catch {}
-            setAvatarUrl(user.photoURL);
-            return;
-          }
-          // Fallback
-          setAvatarUrl(null);
-        } catch {
-          setAvatarUrl(null);
-        }
-      });
-    } catch {}
-    return () => { try { if (unsub) unsub(); } catch {} };
-  }, []);
-
-  // Initialize dark mode from storage or media preference
+  // Initialize dark mode
   useEffect(() => {
     try {
       const stored = localStorage.getItem('darkMode');
@@ -108,53 +41,20 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
     } catch {}
   }, []);
 
-  // Listen for unread user notifications to toggle red dot on bell icon
+  // saftey fallback for hasUnread
   useEffect(() => {
-    let unsubAuth: any;
-    let unsubNotif: any;
-    try {
-      unsubAuth = auth.onAuthStateChanged((user) => {
-        // Cleanup previous listener
-        try { if (unsubNotif) unsubNotif(); } catch {}
-        if (!user?.uid) {
-          setHasUnread(false);
-          try { localStorage.setItem('hasUnreadNotifications', '0'); } catch {}
-          return;
-        }
-        try {
-          const uq = query(
-            userNotificationsCollection(db),
-            where('uid', '==', user.uid),
-            where('status', '==', 'unread'),
-            limit(1)
-          );
-          unsubNotif = onSnapshot(uq, (snap) => {
-            const anyUnread = !snap.empty;
-            // Debug logs are safe; remove if too chatty
-            try { console.debug('[UserNavbar] notif snapshot size:', snap.size, 'hasUnread:', anyUnread); } catch {}
-            setHasUnread(anyUnread);
-            try { localStorage.setItem('hasUnreadNotifications', anyUnread ? '1' : '0'); } catch {}
-          }, (err) => {
-            try { console.warn('[UserNavbar] notif listener error', err); } catch {}
-            setHasUnread(false);
-            try { localStorage.setItem('hasUnreadNotifications', '0'); } catch {}
-          });
-        } catch {
-          setHasUnread(false);
-          try { localStorage.setItem('hasUnreadNotifications', '0'); } catch {}
-        }
-      });
-      return () => {
-        try { if (unsubNotif) unsubNotif(); } catch {}
-        try { if (unsubAuth) unsubAuth(); } catch {}
-      };
-    } catch {
-      setHasUnread(false);
-      try { localStorage.setItem('hasUnreadNotifications', '0'); } catch {}
-    }
+    if (!auth.currentUser?.uid) return;
+    const uq = query(
+      userNotificationsCollection(db),
+      where('uid', '==', auth.currentUser.uid),
+      where('status', '==', 'unread'),
+      limit(1)
+    );
+    const unsubNotif = onSnapshot(uq, (snap) => {
+      setHasUnread(!snap.empty);
+    });
+    return () => unsubNotif();
   }, []);
-
-  
 
   const toggleDarkMode = () => {
     const next = !darkMode;
@@ -163,6 +63,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
     if (next) document.documentElement.classList.add('dark');
     else document.documentElement.classList.remove('dark');
   };
+
 
 
   return (
@@ -259,7 +160,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({ userType, userName })
                   aria-labelledby="user-menu"
                 >
                   <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200 border-b border-gray-200 dark:border-gray-700">
-                    <p className="font-medium">{actualUserName}</p>
+                    <p className="font-medium">{userNameDisplay}</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400 capitalize">{userType}</p>
                   </div>
                   <Link 

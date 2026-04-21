@@ -138,6 +138,16 @@ export function useRevenueAnalytics(dateRange: { start: Date; end: Date }) {
     const monthMap: Record<string, number> = {};
     const deviceMap: Record<string, { count: number; revenue: number }> = {};
 
+    // Generate all months in the date range to ensure a continuous line chart
+    const current = new Date(dateRange.start.getFullYear(), dateRange.start.getMonth(), 1);
+    const stop = new Date(dateRange.end.getFullYear(), dateRange.end.getMonth(), 1);
+    
+    while (current <= stop) {
+      const mStr = current.toLocaleString('default', { month: 'short', year: 'numeric' });
+      monthMap[mStr] = 0;
+      current.setMonth(current.getMonth() + 1);
+    }
+
     unifiedSales.forEach(sale => {
       const month = sale.date.toLocaleString('default', { month: 'short', year: 'numeric' });
       monthMap[month] = (monthMap[month] || 0) + sale.amount;

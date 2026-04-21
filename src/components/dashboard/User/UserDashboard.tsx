@@ -84,7 +84,7 @@ interface UserDashboardProps {
 const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { userPlannerLeads } = useDevices();
+  const { userPlannerLeads, userProfile, profileLoading, loading: devicesLoading } = useDevices();
   const [isNavigating, setIsNavigating] = useState(false);
   const [activeRequestTab, setActiveRequestTab] = useState<'smart_home_planner' | 'floorplan' | 'ai_consultant'>('smart_home_planner');
   const [iconOn, setIconOn] = useState(false);
@@ -94,8 +94,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   }, []);
   const [displayedDeviceCount, setDisplayedDeviceCount] = useState(0);
 
-  // Get actual user name from Firestore or localStorage
-  const [actualUserName, setActualUserName] = useState(userName);
+  const actualUserName = userProfile?.name || userName;
+  const deviceCount = userProfile?.deviceCount || 0;
   const [serviceRequestOpen, setServiceRequestOpen] = useState(false);
   const [serviceFilter, setServiceFilter] = useState<'all' | 'tv' | 'internet' | 'warranty' | 'installation' | 'maintenance' | 'troubleshooting'>('all');
   const [deviceFilter, setDeviceFilter] = useState<'all' | string>('all');
@@ -134,26 +134,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   const [reqSuccess, setReqSuccess] = useState<string>('');
   const [reqError, setReqError] = useState<string>('');
   const [userDeviceOptions, setUserDeviceOptions] = useState<Device[]>([]);
-  const [deviceCount, setDeviceCount] = useState<number>(0);
   
-  // Fetch user's device count
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        try {
-          const userDevicesRef = collection(db, 'User_Devices');
-          const userDevicesQuery = query(userDevicesRef, where('uid', '==', user.uid));
-          const querySnapshot = await getDocs(userDevicesQuery);
-          setDeviceCount(querySnapshot.size);
-        } catch (error) {
-          console.error('Error fetching device count:', error);
-        }
-      }
-    });
-    
-    return () => unsubscribe();
-  }, []);
-
   // Animate the visible device count from 0 to the current deviceCount
   useEffect(() => {
     const end = Math.max(0, deviceCount);
@@ -375,54 +356,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
     };
   }, [reqDevice, setupFirebaseListeners]);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadUserName() {
-      try {
-        const user = auth.currentUser;
-        // Prefer Firestore users/{uid}.name, then auth.displayName, then localStorage fallback, then email local-part
-        if (user?.uid) {
-          try {
-            const snap = await getDoc(userDoc(db, user.uid));
-            const name = (snap.exists() ? (snap.data() as any)?.name : undefined) as string | undefined;
-            const display = (name && name.trim()) || user.displayName || localStorage.getItem('userName') || '';
-            if (!cancelled) {
-              if (display && display.trim()) {
-                setActualUserName(display.trim());
-                return;
-              }
-              const email = user.email || localStorage.getItem('userEmail') || '';
-              const local = (email.split('@')[0] || '').trim();
-              const fallback = local ? local.charAt(0).toUpperCase() + local.slice(1) : 'there';
-              setActualUserName(fallback);
-            }
-          } catch {
-            // Firestore failed; try displayName/email/localStorage
-            if (!cancelled) {
-              const display = user.displayName || localStorage.getItem('userName') || '';
-              if (display) {
-                setActualUserName(display);
-                return;
-              }
-              const email = user.email || localStorage.getItem('userEmail') || '';
-              const local = (email.split('@')[0] || '').trim();
-              const fallback = local ? local.charAt(0).toUpperCase() + local.slice(1) : 'there';
-              setActualUserName(fallback);
-            }
-          }
-        } else {
-          // Not signed in yet; attempt localStorage cached name
-          const cached = localStorage.getItem('userName');
-          if (!cancelled && cached) setActualUserName(cached);
-        }
-      } catch {}
-    }
-    void loadUserName();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Help/TicketCenter modal is now globally managed in DashboardLayout
-
   // Reset success/error banner each time the Request Service modal opens
   useEffect(() => {
     if (serviceRequestOpen) {
@@ -441,12 +374,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
   const [typeCounts, setTypeCounts] = useState<Record<string, number>>({});
   const [typeCountsLoading, setTypeCountsLoading] = useState<boolean>(false);
-
-  // Track auth state so we can read user subcollection
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUid(u?.uid ?? null));
-    return () => unsub();
-  }, []);
 
   // Request Status modal state and data fetching
   const [requestStatusOpen, setRequestStatusOpen] = useState(false);
@@ -744,13 +671,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
           {/* Help button moved to navbar; retained space for layout consistency */}
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center items-center h-64">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-teal-500"></div>
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6 mb-6">
               {/* Device Stats Card */}
               <div className="bg-white dark:bg-gray-800 rounded-[24px] shadow-md p-4 sm:p-6 border border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between mb-4">
@@ -1072,9 +993,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ userName }) => {
                 </div>
               </div>
             </div>
-          </>
-        )}
-
+      
         <RequestStatusModal
           open={requestStatusOpen}
           onClose={() => setRequestStatusOpen(false)}
