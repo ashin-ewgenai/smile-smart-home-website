@@ -10,6 +10,7 @@ import { motion } from 'framer-motion';
 import { useRevenueAnalytics } from '../hooks/useRevenueAnalytics';
 import * as ReactRouter from 'react-router-dom';
 import ServiceHistoryTimeline from './ServiceHistoryTimeline';
+import { useDevices } from '../contexts/DevicesContext';
 
 const AdminRevenueDashboard: React.FC = () => {
   const location = typeof ReactRouter.useLocation === 'function' ? ReactRouter.useLocation() : { search: '' };
@@ -23,10 +24,17 @@ const AdminRevenueDashboard: React.FC = () => {
     end: new Date()
   });
 
+  const { setServiceFilters } = useDevices();
+
   const {
     totalRevenue, billRevenue, leadRevenue, confirmedQuotes, totalQuotes, averageDealValue, conversionRate,
     revenueByMonth, topDevices, loading, error, debugInfo
   } = useRevenueAnalytics(dateRange);
+
+  const handleDateChange = (start: Date, end: Date) => {
+    setDateRange({ start, end });
+    setServiceFilters({ startDate: start, endDate: end });
+  };
 
   // Helper for currency formatting
   const formatCurrency = (val: number) =>
@@ -103,7 +111,7 @@ const AdminRevenueDashboard: React.FC = () => {
                 className="bg-transparent border-none p-0 text-sm font-black text-slate-700 dark:text-slate-200 focus:ring-0 cursor-pointer min-w-[110px]"
                 value={dateRange.start.toISOString().split('T')[0]}
                 onClick={(e) => (e.target as any).showPicker?.()}
-                onChange={(e) => setDateRange(prev => ({ ...prev, start: new Date(e.target.value) }))}
+                onChange={(e) => handleDateChange(new Date(e.target.value), dateRange.end)}
               />
               <span className="text-slate-300 dark:text-gray-600 font-black">/</span>
               <input
@@ -111,7 +119,7 @@ const AdminRevenueDashboard: React.FC = () => {
                 className="bg-transparent border-none p-0 text-sm font-black text-slate-700 dark:text-slate-200 focus:ring-0 cursor-pointer min-w-[110px]"
                 value={dateRange.end.toISOString().split('T')[0]}
                 onClick={(e) => (e.target as any).showPicker?.()}
-                onChange={(e) => setDateRange(prev => ({ ...prev, end: new Date(e.target.value) }))}
+                onChange={(e) => handleDateChange(dateRange.start, new Date(e.target.value))}
               />
             </div>
           </div>
