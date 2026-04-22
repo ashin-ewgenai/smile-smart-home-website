@@ -630,6 +630,7 @@ export interface EstimationQuote {
   warranty?: string;
   deliveryTimeline?: string;
   notes?: string;
+  numDevices?: number;
   createdAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
   createdByUid?: string;
@@ -670,6 +671,7 @@ export function estimationQuotePayload(data: Partial<EstimationQuote>): Estimati
     warranty: data.warranty || '',
     deliveryTimeline: data.deliveryTimeline || '',
     notes: data.notes || '',
+    numDevices: data.numDevices || 0,
     createdAt: data.createdAt || Timestamp.now(),
     updatedAt: Timestamp.now(),
     createdByUid: data.createdByUid || '',

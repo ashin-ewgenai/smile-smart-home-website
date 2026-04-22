@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { doc, getDoc, getDocs, query, where, limit } from 'firebase/firestore';
+import { doc, getDoc, getDocs, query, where, limit, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { quoteDoc, type QuoteItem, estimationQuoteDoc, estimationQuotesCollection, type EstimationQuote } from '@/models/Collections';
 import { useAuth } from '@/lib/useAuth';
+import { CheckCircle2, ShieldCheck, Zap, Sparkles, ShoppingBag, ArrowRight } from 'lucide-react';
 
 interface Props {
   quoteId: string;
@@ -15,7 +16,7 @@ const Field: React.FC<{ label: string; value?: FieldValue }> = ({ label, value }
   return (
     <div>
       <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">{label}</h3>
-      <p className="mt-1 text-gray-900 dark:text-white">{display}</p>
+      <p className="mt-1 text-gray-900 dark:text-white font-medium">{display}</p>
     </div>
   );
 };
@@ -59,6 +60,26 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
   const [loading, setLoading] = useState(true);
   const [estimation, setEstimation] = useState<EstimationQuoteWithId | null>(null);
   const [estLoading, setEstLoading] = useState(false);
+  const [isAccepting, setIsAccepting] = useState(false);
+
+  const handleAcceptQuote = async () => {
+    if (!estimation?.id) return;
+    setIsAccepting(true);
+    try {
+      const estRef = doc(db, 'Estimation_Quote', estimation.id);
+      await updateDoc(estRef, {
+        status: 'confirmed',
+        acceptedAt: new Date().toISOString()
+      });
+      alert('Thank you! Your quote has been accepted. We will contact you shortly to finalize the installation.');
+      window.location.reload();
+    } catch (error) {
+      console.error('Error accepting quote:', error);
+      alert('Failed to accept quote. Please try again or contact support.');
+    } finally {
+      setIsAccepting(false);
+    }
+  };
 
   const isEstimationForQuote = React.useCallback((est: Partial<EstimationQuote> | null | undefined, docId?: string, expectedId?: string) => {
     if (!est) return false;
@@ -68,10 +89,8 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
     return false;
   }, [quoteId]);
 
-  // Handle wheel events for scrollable content
   const onContentWheel = React.useCallback((e: React.WheelEvent<HTMLDivElement>) => {
     const el = e.currentTarget;
-    // Do NOT call preventDefault to avoid passive listener issues
     el.scrollTop += e.deltaY;
   }, []);
 
@@ -89,7 +108,7 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
             if (snap.exists()) {
               fetched = snap.data() as QuoteItem;
             }
-          } catch {}
+          } catch { }
         }
 
         if (!fetched) {
@@ -99,394 +118,191 @@ const QuoteDetails: React.FC<Props> = ({ quoteId }) => {
             if (rootSnap.exists()) {
               fetched = rootSnap.data() as any as QuoteItem;
             }
-          } catch {}
+          } catch { }
         }
 
-        if (!active) return;
-        setData(fetched);
-      } finally {
-        if (active) setLoading(false);
+        if (active) {
+          setData(fetched);
+          setLoading(false);
+        }
+      } catch (err) {
+        if (active) {
+          setLoading(false);
+        }
       }
     };
     run();
     return () => { active = false; };
-  }, [user, quoteId]);
+  }, [quoteId, user]);
 
-  // Fetch admin-created estimation quote linked to this quote
   useEffect(() => {
     let active = true;
-    const fetchEstimation = async () => {
-      if (!user) {
-        console.log('[QuoteDetails] No authenticated user; estimation fetch skipped', { quoteId });
-      }
-      if (!data) {
-        console.log('[QuoteDetails] No quote data; skipping estimation fetch', { quoteId });
-        setEstimation(null);
-        return;
-      }
-      setEstimation(null);
+    const run = async () => {
+      if (!quoteId) return;
       setEstLoading(true);
       try {
-        console.log('[QuoteDetails] Fetching estimation for quote', { quoteId, estimationQuoteId: data.estimationQuoteId, data, user: user?.uid });
-        // 1) If the user quote stores a direct reference to estimation
-        if (data.estimationQuoteId) {
-          const esnap = await getDoc(estimationQuoteDoc(db, data.estimationQuoteId));
+        const q = query(estimationQuotesCollection(db), where('quoteId', '==', quoteId), limit(1));
+        const snap = await getDocs(q);
+        if (!active) return;
+        if (!snap.empty) {
+          setEstimation({ ...snap.docs[0].data(), id: snap.docs[0].id });
+        } else {
+          const q2 = query(estimationQuotesCollection(db), where('originalQuoteId', '==', quoteId), limit(1));
+          const snap2 = await getDocs(q2);
           if (!active) return;
-          if (esnap.exists()) {
-            console.log('[QuoteDetails] Estimation found via direct estimationQuoteId');
-            const payload = esnap.data() as EstimationQuote;
-            if (isEstimationForQuote(payload, esnap.id, data.estimationQuoteId)) {
-              setEstimation({ id: esnap.id, ...payload });
-              return;
-            }
-          }
-          console.log('[QuoteDetails] No estimation via estimationQuoteId');
-        }
-
-        // 2) Fallback: direct lookup by quoteId (documents stored at /Estimation_Quote/{quoteId})
-        try {
-          const directSnap = await getDoc(estimationQuoteDoc(db, quoteId));
-          if (!active) return;
-          if (directSnap.exists()) {
-            console.log('[QuoteDetails] Estimation found via direct document id Estimation_Quote');
-            const payload = directSnap.data() as EstimationQuote;
-            if (isEstimationForQuote(payload, directSnap.id, data.estimationQuoteId)) {
-              setEstimation({ id: directSnap.id, ...payload });
-              return;
-            }
-          }
-        } catch (err) {
-          console.warn('[QuoteDetails] Error fetching direct estimation doc', err);
-        }
-
-        // 3) Fallback: query by quoteId field
-        try {
-          const qExact = query(
-            estimationQuotesCollection(db),
-            where('quoteId', '==', quoteId),
-            limit(1)
-          );
-          const rExact = await getDocs(qExact);
-          if (!active) return;
-          if (!rExact.empty) {
-            console.log('[QuoteDetails] Estimation found via quoteId field in Estimation_Quote');
-            const docSnap = rExact.docs[0];
-            const payload = docSnap.data() as EstimationQuote;
-            if (isEstimationForQuote(payload, docSnap.id, data.estimationQuoteId)) {
-              setEstimation({ id: docSnap.id, ...payload });
-              return;
-            }
-          }
-        } catch (err) {
-          console.warn('[QuoteDetails] Error querying estimationQuotesCollection by quoteId', err);
-        }
-
-        // 4) Fallback: try by originalQuoteId matching this quoteId
-        try {
-          const q1 = query(
-            estimationQuotesCollection(db),
-            where('originalQuoteId', '==', quoteId),
-            limit(1)
-          );
-          const r1 = await getDocs(q1);
-          if (!active) return;
-          if (!r1.empty) {
-            console.log('[QuoteDetails] Estimation found via originalQuoteId in Estimation_Quote');
-            const docSnap = r1.docs[0];
-            const payload = docSnap.data() as EstimationQuote;
-            if (isEstimationForQuote(payload, docSnap.id, data.estimationQuoteId)) {
-              setEstimation({ id: docSnap.id, ...payload });
-              return;
-            }
-          }
-        } catch (err) {
-          console.warn('[QuoteDetails] Error querying estimationQuotesCollection by originalQuoteId', err);
-        }
-
-        // 5) Fallback: try by customerEmail if available
-        const email = (data as any).userEmail || (data as any).customerEmail;
-        if (email) {
-          try {
-            const q2 = query(
-              estimationQuotesCollection(db),
-              where('customerEmail', '==', email),
-              limit(5)
-            );
-            const r2 = await getDocs(q2);
-            if (!active) return;
-            for (const docSnap of r2.docs) {
-              const payload = docSnap.data() as EstimationQuote;
-              if (isEstimationForQuote(payload, docSnap.id, data.estimationQuoteId)) {
-                console.log('[QuoteDetails] Estimation found via customerEmail in Estimation_Quote');
-                setEstimation({ id: docSnap.id, ...payload });
-                return;
-              }
-            }
-          } catch (err) {
-            console.warn('[QuoteDetails] Error querying estimationQuotesCollection by customerEmail', err);
+          if (!snap2.empty) {
+            setEstimation({ ...snap2.docs[0].data(), id: snap2.docs[0].id });
           }
         }
-
-        // 6) Fallback: match by customer UID if available
-        const customerUid = (data as any).userUid || (data as any).uid;
-        if (customerUid) {
-          try {
-            const q3 = query(
-              estimationQuotesCollection(db),
-              where('uid', '==', customerUid),
-              limit(5)
-            );
-            const r3 = await getDocs(q3);
-            if (!active) return;
-            for (const docSnap of r3.docs) {
-              const payload = docSnap.data() as EstimationQuote;
-              if (isEstimationForQuote(payload, docSnap.id, data.estimationQuoteId)) {
-                console.log('[QuoteDetails] Estimation found via uid in Estimation_Quote');
-                setEstimation({ id: docSnap.id, ...payload });
-                return;
-              }
-            }
-          } catch (err) {
-            console.warn('[QuoteDetails] Error querying estimationQuotesCollection by uid', err);
-          }
-        }
-
-        console.debug('[QuoteDetails] No estimation found after all fallbacks');
-        setEstimation(null);
+      } catch (err) {
+        console.error('Error fetching estimation:', err);
       } finally {
         if (active) setEstLoading(false);
       }
     };
-    fetchEstimation();
+    run();
     return () => { active = false; };
-  }, [data, quoteId, user, isEstimationForQuote]);
+  }, [quoteId]);
 
   if (loading) {
     return (
-      <div className="p-6">
-        <div className="animate-pulse h-6 w-40 bg-gray-200 dark:bg-gray-700 rounded mb-6" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-16 bg-gray-100 dark:bg-gray-800 rounded" />
-          ))}
-        </div>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-500"></div>
       </div>
     );
   }
 
-  if (!user) {
-    return <div className="p-6 text-gray-700 dark:text-gray-200">Please sign in to view the quote.</div>;
-  }
-
   if (!data) {
-    return <div className="p-6 text-gray-700 dark:text-gray-200">Quote not found.</div>;
+    return (
+      <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
+        <p className="text-gray-500 dark:text-gray-400">Quote details not found.</p>
+      </div>
+    );
   }
 
   return (
-    <div 
-      className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 max-h-[80vh] overflow-y-auto custom-scrollbar"
+    <div
+      className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden max-h-[80vh] flex flex-col"
       onWheel={onContentWheel}
-      onWheelCapture={onContentWheel}
-      tabIndex={0}
     >
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Quote Details</h2>
-        <div className="h-1 w-20 bg-indigo-600 rounded" />
+      <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex justify-between items-center">
+        <h2 className="text-lg font-bold text-gray-900 dark:text-white">Quote Details</h2>
+        <span className="text-xs font-mono text-gray-400">#{quoteId}</span>
       </div>
 
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <Field label="Status" value={data.status || 'submitted'} />
-          <Field label="Area / Location" value={data.area || data.location} />
-          <Field label="Square Feet" value={data.sqft ?? 'N/A'} />
-          <Field label="Created" value={data.createdAt && (data.createdAt as any).toDate ? (data.createdAt as any).toDate().toLocaleString() : 'N/A'} />
+      <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Field label="Service Type" value={data.quoteType} />
+          <Field label="Status" value={data.status} />
+          <Field label="Created At" value={formatDateTime(data.createdAt)} />
+          <Field label="Customer Email" value={data.customerEmail} />
+          <Field label="Property Type" value={data.propertyType} />
+          <Field label="Rooms" value={data.numberOfRooms} />
         </div>
 
-        {data.details && (
+        {data.additionalNotes && (
           <div>
-            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">Details</h3>
-            <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-md">
-              <p className="text-gray-900 dark:text-gray-200 whitespace-pre-line">{data.details}</p>
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Additional Notes</h3>
+            <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700 text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+              {data.additionalNotes}
             </div>
           </div>
         )}
 
-        {/* Estimation Quote Section */}
-        <div className="mt-8">
-          <div className="mb-3">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Admin Estimation</h3>
-            <div className="h-1 w-16 bg-indigo-500 rounded mt-1" />
-          </div>
-
-          {estLoading && (
-            <div className="text-gray-600 dark:text-gray-300">Loading estimation...</div>
-          )}
-
-          {!estLoading && !estimation && (
-            <div className="text-gray-600 dark:text-gray-300">No estimation available yet.</div>
-          )}
-
-          {!estLoading && estimation && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Field label="Estimation Doc ID" value={estimation.id || 'N/A'} />
-                <Field label="Estimation Ref" value={(estimation as any).quoteId || 'N/A'} />
-                <Field label="Status" value={estimation.status} />
-                <Field label="Customer Email" value={estimation.customerEmail} />
-                <Field label="Original Quote ID" value={estimation.originalQuoteId || 'N/A'} />
-                <Field label="Issue Date" value={formatDateTime(estimation.issueDate)} />
-                <Field label="Expiry Date" value={formatDateTime(estimation.expiryDate)} />
-                <Field label="Grand Total" value={formatCurrency(estimation.grandTotal)} />
-              </div>
-
-              {Array.isArray(estimation.items) && estimation.items.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Line Items</h4>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-gray-500 dark:text-gray-300">
-                          <th className="py-2 pr-4">Item</th>
-                          <th className="py-2 pr-4 hidden md:table-cell">Description</th>
-                          <th className="py-2 pr-4">Qty</th>
-                          <th className="py-2 pr-4">Unit</th>
-                          <th className="py-2 pr-4 hidden lg:table-cell">Discount</th>
-                          <th className="py-2 pr-4 hidden lg:table-cell">Tax %</th>
-                          <th className="py-2">Total</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {estimation.items.map((it) => {
-                          const qty = Number(it.quantity) || 0;
-                          const unit = Number(it.unitPrice) || 0;
-                          const base = Math.max(0, qty * unit);
-                          const disc = Number(it.discount) || 0;
-                          // If discount is <= 100, treat as percent; otherwise treat as absolute amount
-                          const discountAmount = disc > 0 ? (disc <= 100 ? (base * disc) / 100 : Math.min(disc, base)) : 0;
-                          const line = Math.max(0, base - discountAmount);
-                          const tax = (line * (Number(it.taxPercent) || 0)) / 100;
-                          const total = line + tax;
-                          return (
-                            <tr key={it.id} className="text-gray-900 dark:text-gray-100">
-                              <td className="py-2 pr-4">{it.name}</td>
-                              <td className="py-2 pr-4 hidden md:table-cell">{it.description}</td>
-                              <td className="py-2 pr-4">{it.quantity}</td>
-                              <td className="py-2 pr-4">{formatCurrency(it.unitPrice)}</td>
-                              <td className="py-2 pr-4 hidden lg:table-cell">{(Number(it.discount) || 0) <= 100 ? `${Number(it.discount) || 0}%` : formatCurrency(Number(it.discount) || 0)}</td>
-                              <td className="py-2 pr-4 hidden lg:table-cell">{typeof it.taxPercent === 'number' ? `${it.taxPercent}%` : 'N/A'}</td>
-                              <td className="py-2">{formatCurrency(total)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Field label="Subtotal" value={formatCurrency(estimation.subtotal)} />
-                <Field label="Taxes" value={formatCurrency(estimation.taxes)} />
-                <Field label="Shipping Charges" value={formatCurrency(estimation.shippingCharges)} />
-                <Field label="Installation Charges" value={formatCurrency(estimation.installationCharges)} />
-                <Field label="Overall Discount" value={formatCurrency(estimation.overallDiscount)} />
-                <Field label="Tax Type" value={estimation.taxType || 'N/A'} />
-                <Field label="Tax Percent" value={typeof estimation.taxPercent === 'number' ? `${estimation.taxPercent}%` : 'N/A'} />
-                <Field label="Created At" value={formatDateTime(estimation.createdAt)} />
-                <Field label="Updated At" value={formatDateTime(estimation.updatedAt)} />
-                <Field label="Created By Email" value={estimation.createdByEmail || 'N/A'} />
-                <Field label="Created By UID" value={estimation.createdByUid || 'N/A'} />
-              </div>
-
-              {Array.isArray(estimation.taxBreakdown) && estimation.taxBreakdown.length > 0 && (
-                <div>
-                  <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Tax Breakdown</h4>
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead>
-                        <tr className="text-left text-gray-500 dark:text-gray-300">
-                          <th className="py-2 pr-4">Name</th>
-                          <th className="py-2 pr-4">Percent</th>
-                          <th className="py-2">Amount</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {estimation.taxBreakdown.map((entry, idx) => (
-                          <tr key={idx} className="text-gray-900 dark:text-gray-100">
-                            <td className="py-2 pr-4">{(entry as any).name || (entry as any).taxType || `Tax ${idx + 1}`}</td>
-                            <td className="py-2 pr-4">{typeof (entry as any).percent === 'number' ? `${(entry as any).percent}%` : typeof (entry as any).taxPercent === 'number' ? `${(entry as any).taxPercent}%` : 'N/A'}</td>
-                            <td className="py-2">{formatCurrency((entry as any).amount ?? (entry as any).taxes)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {(estimation.paymentTerms || estimation.warranty || estimation.deliveryTimeline || estimation.notes) && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Field label="Payment Terms" value={estimation.paymentTerms} />
-                  <Field label="Warranty" value={estimation.warranty} />
-                  <Field label="Delivery Timeline" value={estimation.deliveryTimeline} />
-                  {estimation.notes && (
-                    <div className="md:col-span-2">
-                      <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-1">Notes</h4>
-                      <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded text-gray-900 dark:text-gray-100 whitespace-pre-line">{estimation.notes}</div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Attachments */}
-              {(() => {
-                const raw = (estimation as any)?.attachments as any;
-                const list: string[] = Array.isArray(raw)
-                  ? raw.filter((u) => typeof u === 'string' && u.trim().length > 0)
-                  : (typeof raw === 'string' && raw.trim().length > 0)
-                    ? [raw]
-                    : [];
-                return list.length > 0 ? (
-                  <div>
-                    <h4 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Attachments</h4>
-                    <ul className="space-y-2">
-                      {list.map((url, idx) => {
-                        const name = (() => {
-                          try {
-                            const u = new URL(url);
-                            const last = u.pathname.split('/').pop() || '';
-                            return decodeURIComponent(last) || `Attachment ${idx + 1}`;
-                          } catch {
-                            const last = url.split('?')[0].split('#')[0].split('/').pop() || '';
-                            return last || `Attachment ${idx + 1}`;
-                          }
-                        })();
-                        return (
-                          <li key={idx} className="flex items-center justify-between gap-3 p-2 rounded bg-gray-50 dark:bg-gray-700/50">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 text-gray-500">
-                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66L9.88 18.05a2 2 0 01-2.83-2.83l8.49-8.49" />
-                              </svg>
-                              <span className="truncate text-sm text-gray-900 dark:text-gray-100" title={name}>{name}</span>
-                            </div>
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="shrink-0 px-2 py-1 text-xs rounded bg-indigo-600 text-white hover:bg-indigo-500"
-                            >
-                              View
-                            </a>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  </div>
-                ) : null;
-              })()}
+        {(data.devicesRequired?.length ?? 0) > 0 && (
+          <div>
+            <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-3">Required Devices</h3>
+            <div className="flex flex-wrap gap-2">
+              {data.devicesRequired?.map((device: string, index: number) => (
+                <span key={index} className="px-3 py-1 bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 rounded-full text-sm font-medium border border-teal-100 dark:border-teal-800">
+                  {device}
+                </span>
+              ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {estLoading ? (
+          <div className="text-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-500 mx-auto"></div>
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">Loading estimation details...</p>
+          </div>
+        ) : estimation ? (
+          <div className="pt-8 border-t border-gray-100 dark:border-gray-700">
+            <div className="flex items-center gap-2 mb-6">
+              <div className="h-8 w-1 bg-teal-500 rounded-full" />
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Official Estimation</h3>
+              <span className={`ml-auto px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${estimation.status === 'confirmed' ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' :
+                  estimation.status === 'paid' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300' :
+                    'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300'
+                }`}>
+                {estimation.status}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+              <div className="p-4 bg-teal-50 dark:bg-teal-900/20 rounded-xl border border-teal-100 dark:border-teal-900/30">
+                <p className="text-xs text-teal-600 dark:text-teal-400 uppercase font-bold mb-1">Grand Total</p>
+                <p className="text-2xl font-black text-teal-700 dark:text-teal-300">{formatCurrency(estimation.grandTotal)}</p>
+              </div>
+              <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold mb-1">Payment Terms</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-white">{estimation.paymentTerms || 'Standard'}</p>
+              </div>
+              <div className="p-4 bg-gray-50 dark:bg-gray-900/50 rounded-xl border border-gray-100 dark:border-gray-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400 uppercase font-bold mb-1">Warranty</p>
+                <p className="text-sm font-bold text-gray-900 dark:text-white">{estimation.warranty || 'Standard'}</p>
+              </div>
+            </div>
+
+            {Array.isArray(estimation.items) && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-gray-100 dark:border-gray-800">
+                      <th className="py-3 text-xs font-black text-gray-400 uppercase tracking-wider">Item</th>
+                      <th className="py-3 text-xs font-black text-gray-400 uppercase tracking-wider text-right">Qty</th>
+                      <th className="py-3 text-xs font-black text-gray-400 uppercase tracking-wider text-right">Price</th>
+                      <th className="py-3 text-xs font-black text-gray-400 uppercase tracking-wider text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50 dark:divide-gray-800/50">
+                    {estimation.items.map((item, idx) => (
+                      <tr key={idx} className="group hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                        <td className="py-4">
+                          <p className="text-sm font-bold text-gray-900 dark:text-white">{item.name}</p>
+                          {item.description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{item.description}</p>}
+                        </td>
+                        <td className="py-4 text-sm text-gray-600 dark:text-gray-400 text-right">{item.quantity}</td>
+                        <td className="py-4 text-sm text-gray-600 dark:text-gray-400 text-right">{formatCurrency(item.unitPrice)}</td>
+                        <td className="py-4 text-sm font-bold text-gray-900 dark:text-white text-right">
+                          {formatCurrency((item.quantity || 0) * (item.unitPrice || 0))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {estimation.status === 'pending' && (
+              <div className="mt-8 flex justify-end">
+                <button
+                  onClick={handleAcceptQuote}
+                  disabled={isAccepting}
+                  className="px-8 py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-2"
+                >
+                  {isAccepting ? 'Processing...' : 'Accept & Secure Quote'}
+                  <CheckCircle2 size={18} />
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="p-8 bg-gray-50 dark:bg-gray-900/30 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 text-center">
+            <p className="text-gray-500 dark:text-gray-400 italic">Official estimation is being prepared by our team.</p>
+          </div>
+        )}
       </div>
     </div>
   );

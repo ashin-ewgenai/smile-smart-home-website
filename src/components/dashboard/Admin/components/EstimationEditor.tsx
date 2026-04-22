@@ -39,7 +39,8 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
       paymentTerms: estimation.paymentTerms || '',
       warranty: estimation.warranty || '',
       deliveryTimeline: estimation.deliveryTimeline || '',
-      notes: estimation.notes || ''
+      notes: estimation.notes || '',
+      numDevices: estimation.numDevices || 0
     };
     setDraft(d);
   }, [estimation]);
@@ -78,7 +79,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
         }
       } else {
         const d = snap.docs[0].data() as any;
-        unitPrice = Number(d.price || d.unitPrice || 0);
+        unitPrice = Number(d.price || d.unitPrice || d.Price || d.UnitPrice || 0);
         description = String(d.description || '');
       }
     } catch { }
@@ -189,6 +190,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
         warranty: draft.warranty,
         deliveryTimeline: draft.deliveryTimeline,
         notes: draft.notes,
+        numDevices: draft.numDevices,
       });
 
       const batch = writeBatch(db);
@@ -363,6 +365,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
         warranty: '',
         deliveryTimeline: selected.data?.timeline || '',
         notes: '',
+        numDevices: selected.data?.devicesRequired?.length || selected.data?.numberOfRooms || 0,
         attachments: [] as string[]
       });
     };
@@ -617,6 +620,15 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                 className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
                 value={Number(draft.installationCharges || 0)}
                 onChange={(e) => setDraft((p: any) => ({ ...p, installationCharges: Number(e.target.value) }))}
+              />
+            </div>
+            <div>
+              <div className="text-gray-400 text-sm mb-1">Amount of Devices</div>
+              <input
+                type="number"
+                className="w-full bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 border border-gray-300 dark:border-gray-700 rounded px-3 py-2"
+                value={Number(draft.numDevices || 0)}
+                onChange={(e) => setDraft((p: any) => ({ ...p, numDevices: Number(e.target.value) }))}
               />
             </div>
           </div>
