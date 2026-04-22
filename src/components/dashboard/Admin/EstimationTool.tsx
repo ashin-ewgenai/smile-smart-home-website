@@ -4,10 +4,9 @@ import EstimatePDF from './EstimatePDF';
 import { useSearchParams } from 'react-router-dom';
 import { Clock, FilePlus, MessageCircle } from 'lucide-react';
 import emailjs from '@emailjs/browser';
-import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc, where, limit, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref } from 'firebase/storage';
+import { collection, getDocs, query, orderBy, Timestamp, doc, updateDoc, setDoc, getDoc, where, limit, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
 import { auth, db, storage, uploadFile } from '../../../lib/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { getDownloadURL, listAll, ref as sRef } from 'firebase/storage';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { estimationQuotesCollection, estimationQuoteDoc, estimationQuotePayload, accountsCollection, userNotificationsCollection } from '../../../models/Collections';
 import QuoteDetails from './QuoteDetails';
@@ -663,40 +662,52 @@ const EstimationTool: React.FC = () => {
     if (!selectedQuote?.id) return;
     try {
       setSaving(true);
-      
-      // Update in quotes collection
-      await updateDoc(doc(db, 'quotes', selectedQuote.id), {
+      const batch = writeBatch(db);
+
+      // 1. Update original quotes collection
+      const quoteRef = doc(db, 'quotes', selectedQuote.id);
+      batch.update(quoteRef, {
         status: 'Paid',
         updatedAt: Timestamp.now()
       });
 
-      // Update in Estimation_Quote collection
-      const estimationId = selectedQuote.id; 
+      // 2. Update Estimation_Quote collection
+      // Try by ID first (standard if they are synced)
+      const estimationId = selectedQuote.id;
       const estimationQuoteRef = estimationQuoteDoc(db, estimationId);
       
       try {
-        await updateDoc(estimationQuoteRef, {
-          status: 'Paid',
-          updatedAt: Timestamp.now()
-        });
-      } catch (e) {
-        // Fallback: try searching for Estimation_Quote by originalQuoteId
-        const q = query(collection(db, 'Estimation_Quote'), where('originalQuoteId', '==', selectedQuote.id));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          await updateDoc(doc(db, 'Estimation_Quote', snap.docs[0].id), {
+        // We can't easily check existence inside a batch without a get, 
+        // so we'll do a quick check or just use the fallback if needed.
+        const eSnap = await getDoc(estimationQuoteRef);
+        if (eSnap.exists()) {
+          batch.update(estimationQuoteRef, {
             status: 'Paid',
             updatedAt: Timestamp.now()
           });
+        } else {
+          // Fallback: search by originalQuoteId
+          const q = query(collection(db, 'Estimation_Quote'), where('originalQuoteId', '==', selectedQuote.id));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            batch.update(doc(db, 'Estimation_Quote', snap.docs[0].id), {
+              status: 'Paid',
+              updatedAt: Timestamp.now()
+            });
+          }
         }
+      } catch (e) {
+        console.warn('Estimation update check failed:', e);
       }
 
+      await batch.commit();
+      
       alert('Quote marked as Paid and moved to Paid tab!');
       setSelectedQuote(null);
       await fetchQuotes();
     } catch (error) {
       console.error('Failed to mark as Paid:', error);
-      alert('Failed to update status. Please try again.');
+      alert('Failed to update status atomically. Please try again.');
     } finally {
       setSaving(false);
     }

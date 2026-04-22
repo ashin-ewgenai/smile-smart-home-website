@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { setDoc, Timestamp, getDocs, query, collection, where, getDoc, doc, limit } from 'firebase/firestore';
+import { setDoc, Timestamp, getDocs, query, collection, where, getDoc, doc, limit, updateDoc, writeBatch } from 'firebase/firestore';
 import { auth, db, storage, uploadFile } from '../../../../lib/firebase';
 import { estimationQuoteDoc, estimationQuotePayload } from '../../../../models/Collections';
 import { ref } from 'firebase/storage';
@@ -191,12 +191,39 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
         notes: draft.notes,
       });
 
-      await setDoc(estimationQuoteDoc(db, payload.quoteId), payload);
+      const batch = writeBatch(db);
+      
+      // 1. Save estimation quote
+      const estDocRef = estimationQuoteDoc(db, payload.quoteId);
+      batch.set(estDocRef, payload);
+
+      // 2. Sync status to original quote if moving to Confirmed/Paid
+      if (statusForEstimation === 'Confirmed' || statusForEstimation === 'Paid') {
+        const quoteRef = doc(db, 'quotes', selected.id);
+        batch.update(quoteRef, {
+          status: statusForEstimation.toLowerCase(), // Store lowercase for consistency in quotes col
+          estimationQuoteId: payload.quoteId,
+          hasEstimation: true,
+          updatedAt: Timestamp.now()
+        });
+      } else {
+        // Just add reference for Draft/Pending
+        const quoteRef = doc(db, 'quotes', selected.id);
+        batch.update(quoteRef, {
+          estimationQuoteId: payload.quoteId,
+          hasEstimation: true,
+          updatedAt: Timestamp.now()
+        });
+      }
+
+      await batch.commit();
+
       const savedObj = { id: payload.quoteId, ...payload };
       onSaved?.(savedObj);
+      alert(statusForEstimation === 'Paid' ? 'Quote marked as Paid and synchronized!' : 'Estimation saved successfully!');
     } catch (e) {
       console.error('Failed to save estimation:', e);
-      alert('Failed to save estimation.');
+      alert('Failed to save estimation or sync status.');
     } finally {
       setSaving(false);
     }
