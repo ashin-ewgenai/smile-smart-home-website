@@ -13,61 +13,46 @@ export interface RevenueStats {
   conversionRate: number;
   revenueByMonth: { month: string; amount: number }[];
   topDevices: { name: string; count: number; revenue: number }[];
+  funnelData: { stage: string; value: number; color: string; percentage: number }[];
   loading: boolean;
   error: Error | null;
   debugInfo?: {
     rawEstimations: number;
     rawLeads: number;
+    rawQuotes: number;
   };
 }
 
 export function useRevenueAnalytics(dateRange: { start: Date; end: Date }) {
   const [estimations, setEstimations] = useState<(EstimationQuote & { id: string })[]>([]);
-  const [acceptedLeads, setAcceptedLeads] = useState<any[]>([]);
-  const [availableQuotes, setAvailableQuotes] = useState<any[]>([]);
-  const [totalQuotesCount, setTotalQuotesCount] = useState(0);
+  const [leads, setLeads] = useState<any[]>([]);
+  const [quotes, setQuotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     setLoading(true);
-    
-    // 1. Confirmed Bills (Official estimations)
-    const q1 = query(
-      collection(db, 'Estimation_Quote'),
-      where('status', 'in', ['Confirmed', 'confirmed'])
-    );
 
-    // 2. Accepted/Confirmed Leads (Home Planner, Floorplan, AI Consultant)
-    const q2 = query(
-      collection(db, 'Planner_Leads'),
-      where('status', 'in', ['accepted', 'Accepted', 'confirmed', 'Confirmed'])
-    );
+    // 1. All official estimations
+    const q1 = collection(db, 'Estimation_Quote');
 
-    // 3. Formally Confirmed Quotes (Flat collection used by EstimationTool)
-    const q3 = query(
-      collection(db, 'quotes'),
-      where('status', 'in', ['confirmed', 'Confirmed', 'approved', 'Approved'])
-    );
+    // 2. All Leads (Home Planner, Floorplan, AI Consultant)
+    const q2 = collection(db, 'Planner_Leads');
 
-    // 4. Static count for conversion metric
-    getDocs(collection(db, 'quotes')).then(snap => {
-      setTotalQuotesCount(snap.size);
-    }).catch(err => console.warn('Quotes count fetch failed:', err));
+    // 3. All Formally Created Quotes
+    const q3 = collection(db, 'quotes');
 
     const unsub1 = onSnapshot(q1, (snap) => {
       setEstimations(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as any)));
-      if (loading) setLoading(false);
     }, err => setError(err));
 
     const unsub2 = onSnapshot(q2, (snap) => {
-      setAcceptedLeads(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      if (loading) setLoading(false);
+      setLeads(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     }, err => setError(err));
 
     const unsub3 = onSnapshot(q3, (snap) => {
-      setAvailableQuotes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-      if (loading) setLoading(false);
+      setQuotes(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
     }, err => setError(err));
 
     return () => {
@@ -81,99 +66,122 @@ export function useRevenueAnalytics(dateRange: { start: Date; end: Date }) {
     // Helper to get consistent date from various formats
     const getDate = (obj: any): Date | null => {
       if (!obj) return null;
-      // Handle Firestore Timestamp
       if (obj.toDate) return obj.toDate();
-      // Handle local snapshots with pending server timestamps
-      if (typeof obj === 'object' && obj.nanoseconds !== undefined) return new Date(); 
+      if (typeof obj === 'object' && obj.nanoseconds !== undefined) return new Date();
       const d = new Date(obj);
       return isNaN(d.getTime()) ? null : d;
     };
 
-    // Helper to parse amount from various fields
     const parseAmount = (item: any): number => {
-      const rawValue = 
-        item.grandTotal || 
-        item.budget || 
-        item.totalAmount || 
-        item.estimatedPrice || 
+      const rawValue =
+        item.grandTotal ||
+        item.budget ||
+        item.totalAmount ||
+        item.estimatedPrice ||
         item.total ||
-        item.formData?.budget || 
-        item.formData?.totalAmount || 
+        item.formData?.budget ||
+        item.formData?.totalAmount ||
         item.formData?.estimatedPrice ||
         0;
-      
+
       if (typeof rawValue === 'number') return rawValue;
       return parseFloat(String(rawValue).replace(/[^0-9.]/g, '')) || 0;
     };
 
-    const isWithinRange = (date: Date | null) => 
+    const isWithinRange = (date: Date | null) =>
       date && date >= dateRange.start && date <= dateRange.end;
 
-    // Process everything into a tiered structure to avoid double counting
-    // Tier 1: Official Bills (Estimation_Quote)
-    // Tier 2: Confirmed Quotes (quotes collection)
-    // Tier 3: Accepted Leads (Planner_Leads)
-    
-    const processedQuoteIds = new Set<string>(); // IDs from 'quotes' collection
+    // Filters for revenue aggregation (Accepted/Confirmed/Paid)
+    const confirmedEstimations = estimations.filter(e => isWithinRange(getDate(e.issueDate)) && ['Confirmed', 'confirmed', 'Paid', 'paid'].includes(e.status));
+    const confirmedQuotes = quotes.filter(q => ['confirmed', 'Confirmed', 'approved', 'Approved', 'Paid', 'paid'].includes(q.status));
+    const acceptedLeads = leads.filter(l => ['accepted', 'Accepted', 'confirmed', 'Confirmed'].includes(l.status));
+
+    const processedQuoteIds = new Set<string>();
     const unifiedSales: { amount: number; date: Date; items?: any[]; source: string }[] = [];
-    
+
     let billRevenue = 0;
     let leadRevenue = 0;
 
-    // 1. Process Estimations (Highest priority)
-    estimations.forEach(est => {
+    // 1. Process Estimations
+    confirmedEstimations.forEach(est => {
       const date = getDate(est.issueDate);
-      if (isWithinRange(date)) {
-        const amount = parseAmount(est);
-        unifiedSales.push({ amount, date: date!, items: est.items, source: 'bill' });
-        billRevenue += amount;
-        
-        // Track which formal quotes and leads this bill covers
-        if (est.originalQuoteId) processedQuoteIds.add(est.originalQuoteId);
-        if (est.leadId) processedQuoteIds.add(est.leadId); // Trace back to lead if linked
-      }
+      const amount = parseAmount(est);
+      unifiedSales.push({ amount, date: date!, items: est.items, source: 'bill' });
+      billRevenue += amount;
+      if (est.originalQuoteId) processedQuoteIds.add(est.originalQuoteId);
+      if (est.leadId) processedQuoteIds.add(est.leadId);
     });
 
-    // 2. Process Confirmed Quotes (Medium priority)
-    availableQuotes.forEach(quote => {
-      if (processedQuoteIds.has(quote.id)) return; // Already counted as a Bill
-
-      // Use a local fallback for the date to ensure "lively" updates before serverTimestamp settles
+    // 2. Process Quotes
+    confirmedQuotes.forEach(quote => {
+      if (processedQuoteIds.has(quote.id)) return;
       const date = getDate(quote.confirmedAt || quote.updatedAt || quote.createdAt) || new Date();
       if (isWithinRange(date)) {
         const amount = parseAmount(quote);
         unifiedSales.push({ amount, date: date!, source: 'quote' });
         leadRevenue += amount;
-        
         processedQuoteIds.add(quote.id);
-        if (quote.leadId) processedQuoteIds.add(quote.leadId); // Trace back to lead if linked
+        if (quote.leadId) processedQuoteIds.add(quote.leadId);
       }
     });
 
-    // 3. Process Accepted Leads (Lowest priority)
+    // 3. Process Leads
     acceptedLeads.forEach(lead => {
-      // If this lead has been converted to a formal quote or bill that we already counted, skip it
       if (processedQuoteIds.has(lead.id)) return;
-
-      // Use a local fallback for the date to ensure "lively" updates before serverTimestamp settles
       const date = getDate(lead.acceptedAt || lead.updatedAt || lead.createdAt) || new Date();
       if (isWithinRange(date)) {
         const amount = parseAmount(lead);
         unifiedSales.push({ amount, date: date!, source: 'lead' });
         leadRevenue += amount;
-        
-        processedQuoteIds.add(lead.id); // Mark as processed
+        processedQuoteIds.add(lead.id);
       }
     });
+
+    // Funnel Data Calculation (Deduplicated by Email/ID to ensure accurate progression)
+    const getEmails = (list: any[]) => new Set(list.map(i => (i.customerEmail || i.email || i.id || '').toLowerCase()).filter(Boolean));
+
+    const leadsInRange = leads.filter(l => isWithinRange(getDate(l.createdAt || l.updatedAt)));
+    const quotesInRange = quotes.filter(q => isWithinRange(getDate(q.createdAt || q.updatedAt)));
+    const billsInRange = estimations.filter(e => isWithinRange(getDate(e.issueDate || e.createdAt)));
+
+    // Unique Customers at each stage
+    const uniqueLeads = getEmails(leadsInRange);
+    const uniqueQuotes = getEmails(quotesInRange);
+    const uniqueBills = getEmails(billsInRange.filter(e => ['Confirmed', 'confirmed', 'Paid', 'paid'].includes(e.status)));
+    const uniquePaid = getEmails(billsInRange.filter(e => ['Paid', 'paid'].includes(e.status)));
+    
+    // "Accepted" Leads are considered "Converted" to the finalized/quote stage
+    const uniqueAcceptedLeads = getEmails(leadsInRange.filter(l => ['accepted', 'Accepted', 'confirmed', 'Confirmed'].includes(l.status)));
+
+    // 1. Leads Captured: Anyone who entered the system (Leads + Direct Quotes + Direct Bills)
+    const stage1Set = new Set([...uniqueLeads, ...uniqueQuotes, ...uniqueBills]);
+    const leadsCaptured = stage1Set.size;
+
+    // 2. Quotes Created: Formal quotes OR Accepted Leads
+    const stage2Set = new Set([...uniqueQuotes, ...uniqueAcceptedLeads]);
+    const quotesCreated = stage2Set.size;
+
+    // 3. Bills Finalized: Confirmed/Paid Bills OR Accepted Leads (Finalized intent)
+    const stage3Set = new Set([...uniqueBills, ...uniqueAcceptedLeads]);
+    const billsFinalized = stage3Set.size;
+
+    // 4. Payment Received: Only those who paid
+    const stage4Set = uniquePaid;
+    const paymentReceived = stage4Set.size;
+
+    const funnelData = [
+      { stage: 'Leads Captured', value: leadsCaptured, color: '#0ea5e9', percentage: 100 },
+      { stage: 'Quotes Created', value: quotesCreated, color: '#6366f1', percentage: leadsCaptured > 0 ? (quotesCreated / leadsCaptured) * 100 : 0 },
+      { stage: 'Bills Finalized', value: billsFinalized, color: '#14b8a6', percentage: quotesCreated > 0 ? (billsFinalized / quotesCreated) * 100 : 0 },
+      { stage: 'Payment Received', value: paymentReceived, color: '#10b981', percentage: billsFinalized > 0 ? (paymentReceived / billsFinalized) * 100 : 0 },
+    ];
 
     let totalRevenue = billRevenue + leadRevenue;
     const monthMap: Record<string, number> = {};
     const deviceMap: Record<string, { count: number; revenue: number }> = {};
 
-    // Generate all months in the date range
     const current = new Date(dateRange.start.getFullYear(), dateRange.start.getMonth(), 1);
     const stop = new Date(dateRange.end.getFullYear(), dateRange.end.getMonth(), 1);
-    
     while (current <= stop) {
       const mStr = current.toLocaleString('default', { month: 'short', year: 'numeric' });
       monthMap[mStr] = 0;
@@ -183,7 +191,6 @@ export function useRevenueAnalytics(dateRange: { start: Date; end: Date }) {
     unifiedSales.forEach(sale => {
       const month = sale.date.toLocaleString('default', { month: 'short', year: 'numeric' });
       monthMap[month] = (monthMap[month] || 0) + sale.amount;
-
       sale.items?.forEach(item => {
         const name = item.name || 'Unknown Device';
         deviceMap[name] = deviceMap[name] || { count: 0, revenue: 0 };
@@ -203,27 +210,15 @@ export function useRevenueAnalytics(dateRange: { start: Date; end: Date }) {
 
     const confirmedCount = unifiedSales.length;
     const averageDealValue = confirmedCount > 0 ? totalRevenue / confirmedCount : 0;
-    const conversionRate = totalQuotesCount > 0 ? (confirmedCount / totalQuotesCount) * 100 : 0;
+    const conversionRate = quotes.length > 0 ? (confirmedCount / quotes.length) * 100 : 0;
 
     return {
-      totalRevenue,
-      billRevenue,
-      leadRevenue,
-      confirmedQuotes: confirmedCount,
-      totalQuotes: totalQuotesCount,
-      averageDealValue,
-      conversionRate,
-      revenueByMonth,
-      topDevices,
-      loading,
-      error,
-      debugInfo: {
-        rawEstimations: estimations.length,
-        rawLeads: acceptedLeads.length,
-        rawQuotes: availableQuotes.length
-      }
+      totalRevenue, billRevenue, leadRevenue, confirmedQuotes: confirmedCount,
+      totalQuotes: quotes.length, averageDealValue, conversionRate,
+      revenueByMonth, topDevices, funnelData, loading, error,
+      debugInfo: { rawEstimations: estimations.length, rawLeads: leads.length, rawQuotes: quotes.length }
     };
-  }, [estimations, acceptedLeads, availableQuotes, totalQuotesCount, dateRange.start.getTime(), dateRange.end.getTime(), loading, error]);
+  }, [estimations, leads, quotes, dateRange.start.getTime(), dateRange.end.getTime(), loading, error]);
 
   return stats;
 }

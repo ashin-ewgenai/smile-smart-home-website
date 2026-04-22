@@ -129,7 +129,7 @@ export interface ContactRequest {
    * Kanban stage for contactRequests. 
    * NOTE: Requires a composite index for (status, createdAt) if querying both.
    */
-  status?: ContactSubmissionStage | string; 
+  status?: ContactSubmissionStage | string;
   /** Persistent vertical order in Kanban column */
   dragIndex?: number;
   /** Unified tracking for admin dashboard */
@@ -603,7 +603,7 @@ export interface EstimationQuote {
   originalQuoteId?: string; // Reference to the original quote in 'quotes' collection
   customerEmail: string;
   uid?: string; // UID from Accounts for the customer
-  status: 'Pending' | 'Confirmed' | 'Draft' | string;
+  status: 'Pending' | 'Confirmed' | 'Paid' | 'Draft' | string;
   issueDate: Date | Timestamp | null;
   expiryDate?: Date | Timestamp | null;
   attachments?: string[];

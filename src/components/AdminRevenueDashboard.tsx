@@ -4,7 +4,8 @@ import {
 } from 'recharts';
 import {
   TrendingUp, IndianRupee, Target, Calendar, Filter,
-  ArrowUpRight, ArrowDownRight, Package, CreditCard, Activity, Sparkles, Loader2
+  ArrowUpRight, ArrowDownRight, Package, CreditCard, Activity, Sparkles, Loader2,
+  Filter as FunnelIcon, ChevronRight
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRevenueAnalytics } from '../hooks/useRevenueAnalytics';
@@ -35,7 +36,7 @@ const AdminRevenueDashboard: React.FC = () => {
 
   const {
     totalRevenue, billRevenue, leadRevenue, confirmedQuotes, totalQuotes, averageDealValue, conversionRate,
-    revenueByMonth, topDevices, loading, error, debugInfo
+    revenueByMonth, topDevices, funnelData, loading, error, debugInfo
   } = useRevenueAnalytics(dateRange);
 
   const handleDateChange = (start: Date, end: Date) => {
@@ -252,8 +253,81 @@ const AdminRevenueDashboard: React.FC = () => {
               </div>
             </div>
 
-            {/* Top Products */}
+            {/* Lifecycle Funnel */}
             <div className="glass-surface rounded-[2.5rem] p-8 border border-slate-100 dark:border-gray-800 shadow-2xl overflow-hidden min-h-[440px] flex flex-col">
+              <div className="flex items-center justify-between mb-10">
+                <div>
+                  <h3 className="text-2xl font-black text-slate-800 dark:text-white">Lifecycle Funnel</h3>
+                  <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Lead to Payment conversion</p>
+                </div>
+                <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-500">
+                  <FunnelIcon size={20} />
+                </div>
+              </div>
+              
+              <div className="flex-1 flex flex-col justify-center gap-4">
+                {funnelData.map((stage, idx) => (
+                  <div key={idx} className="relative group">
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                        {stage.stage}
+                      </span>
+                      <span className="text-sm font-black text-slate-800 dark:text-white">
+                        {stage.value}
+                      </span>
+                    </div>
+                    <div className="h-6 bg-slate-50 dark:bg-gray-900/50 rounded-full overflow-hidden border border-slate-100 dark:border-gray-800 relative">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(stage.value / (funnelData[0].value || 1)) * 100}%` }}
+                        transition={{ duration: 1, delay: idx * 0.1 }}
+                        className="h-full rounded-full flex items-center justify-end px-3"
+                        style={{ backgroundColor: stage.color }}
+                      >
+                        {stage.percentage < 100 && stage.percentage > 0 && (
+                          <span className="text-[9px] font-black text-white bg-black/20 px-1.5 py-0.5 rounded-full">
+                            {stage.percentage.toFixed(0)}%
+                          </span>
+                        )}
+                      </motion.div>
+                    </div>
+                    
+                    {/* Connection Indicator */}
+                    {idx < funnelData.length - 1 && (
+                      <div className="flex justify-center -my-1 relative z-20">
+                        <div className="w-px h-6 bg-slate-200 dark:bg-gray-800 flex items-center justify-center">
+                          <ChevronRight size={10} className="rotate-90 text-slate-300 dark:text-gray-600" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                
+                {/* Total Conversion Metric */}
+                <div className="mt-6 p-4 rounded-3xl bg-teal/10 border border-teal/10 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-teal text-white">
+                      <Activity size={16} />
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-teal/70">Success Rate</p>
+                      <p className="text-xl font-black text-teal">
+                        {funnelData[0].value > 0 ? ((funnelData[3].value / funnelData[0].value) * 100).toFixed(1) : 0}%
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Pipeline</p>
+                    <p className="text-sm font-black text-slate-600 dark:text-slate-300">
+                      {formatCurrency(totalRevenue)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Top Products */}
+            <div className="glass-surface rounded-[2.5rem] p-8 border border-slate-100 dark:border-gray-800 shadow-2xl overflow-hidden min-h-[440px] flex flex-col lg:col-span-2">
               <div className="flex items-center justify-between mb-10">
                 <div>
                   <h3 className="text-2xl font-black text-slate-800 dark:text-white">Top Performance</h3>
