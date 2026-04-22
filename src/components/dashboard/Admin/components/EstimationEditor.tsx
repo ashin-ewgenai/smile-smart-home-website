@@ -81,7 +81,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
         unitPrice = Number(d.price || d.unitPrice || 0);
         description = String(d.description || '');
       }
-    } catch {}
+    } catch { }
     return { unitPrice, description };
   }, []);
 
@@ -152,7 +152,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
     return { subtotal, taxes };
   };
 
-  const save = async (forceStatus?: 'Draft' | 'Pending' | 'Confirmed') => {
+  const save = async (forceStatus?: 'Draft' | 'Pending' | 'Confirmed' | 'Paid') => {
     if (!selected || selected.type !== 'quotes' || !draft) return;
     try {
       setSaving(true);
@@ -241,7 +241,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                 const det: any = snap.docs[0].data();
                 unitPrice = Number(det.price || det.unitPrice || 0);
               }
-            } catch {}
+            } catch { }
             return {
               id: `row-${Date.now()}-${idx}`,
               name: v,
@@ -269,7 +269,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                 const det: any = snap.docs[0].data();
                 unitPrice = Number(det.price || det.unitPrice || 0);
               }
-            } catch {}
+            } catch { }
             return {
               id: `row-${Date.now()}-${idx}`,
               name: v,
@@ -302,9 +302,9 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
                   description = det.description || description;
                   unitPrice = Number(det.price || det.unitPrice || unitPrice || 0);
                 }
-              } catch {}
+              } catch { }
               return {
-                id: `row-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+                id: `row-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
                 name,
                 description,
                 quantity: 1,
@@ -316,7 +316,7 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
             items = rows.length > 0 ? rows : [];
           }
         }
-      } catch {}
+      } catch { }
 
       setDraft({
         id: newId,
@@ -353,11 +353,11 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
         setUploading(false);
         return;
       }
-      
-      const uploadPromises = Array.from(files).map((file) => 
+
+      const uploadPromises = Array.from(files).map((file) =>
         uploadFile(file, `estimation_attachments/${quoteId}/${uid}`)
       );
-      
+
       const urls = await Promise.all(uploadPromises);
       setDraft((prev: any) => ({
         ...prev,
@@ -806,6 +806,15 @@ const EstimationEditor: React.FC<Props> = ({ selected, accountEmail, accountUid,
               >
                 {saving ? 'Saving...' : (estimation ? 'Save Changes' : 'Create Estimation')}
               </button>
+              {estimation && (estimation.status === 'Confirmed' || estimation.status === 'confirmed') && (
+                <button
+                  onClick={() => save('Paid')}
+                  disabled={saving || uploading}
+                  className="px-4 py-2 rounded bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-60 shadow-lg shadow-emerald-500/20"
+                >
+                  Mark as Paid
+                </button>
+              )}
             </div>
           </div>
         </div>

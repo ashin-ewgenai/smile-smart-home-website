@@ -20,10 +20,11 @@ interface QuoteDetailsProps {
     timeline?: string;
   };
   onCreateQuote: () => void;
+  onMarkAsPaid?: () => void;
   onBack?: () => void;
 }
 
-const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote, onBack }) => {
+const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote, onMarkAsPaid, onBack }) => {
   const formatDate = (date: Timestamp | null | undefined) => {
     if (!date?.toDate) return 'Date not available';
     try {
@@ -41,11 +42,17 @@ const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote, onBac
 
   const StatusBadge = ({ status }: { status?: string }) => {
     const s = (status || 'pending').toLowerCase();
-    const styles =
-      s === 'confirmed'
+    const isPaid = s === 'paid';
+    const isConfirmed = s === 'confirmed';
+    
+    const styles = isPaid
+      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+      : isConfirmed
         ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
         : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
-    const Icon = s === 'confirmed' ? CheckCircle : Clock;
+    
+    const Icon = isPaid ? CheckCircle : isConfirmed ? CheckCircle : Clock;
+    
     return (
       <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${styles} border border-white/20`}> 
         <Icon className="w-4 h-4 mr-1" />
@@ -204,7 +211,7 @@ const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote, onBac
           </div>
         )}
         
-        <div className="pt-4 border-t border-gray-200 dark:border-gray-800">
+        <div className="pt-4 border-t border-gray-200 dark:border-gray-800 flex flex-wrap gap-3">
           <button
             type="button"
             className="inline-flex items-center justify-center rounded-lg border border-transparent px-4 py-2 text-sm font-medium text-white shadow focus:outline-none focus:ring-2 focus:ring-offset-2 bg-teal-600 hover:bg-teal-700 focus:ring-teal-500"
@@ -213,6 +220,17 @@ const QuoteDetails: React.FC<QuoteDetailsProps> = ({ quote, onCreateQuote, onBac
             <FileText className="w-4 h-4 mr-2" />
             Create Estimation Quote
           </button>
+
+          {quote.status?.toLowerCase() === 'confirmed' && onMarkAsPaid && (
+            <button
+              type="button"
+              className="inline-flex items-center justify-center rounded-lg border border-transparent px-4 py-2 text-sm font-medium text-white shadow focus:outline-none focus:ring-2 focus:ring-offset-2 bg-emerald-600 hover:bg-emerald-700 focus:ring-emerald-500"
+              onClick={onMarkAsPaid}
+            >
+              <DollarSign className="w-4 h-4 mr-2" />
+              Mark as Paid
+            </button>
+          )}
         </div>
       </div>
     </div>

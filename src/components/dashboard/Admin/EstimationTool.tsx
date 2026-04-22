@@ -48,6 +48,7 @@ const EstimationTool: React.FC = () => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<'pending' | 'confirmed' | 'paid'>('pending');
   const [showPdfPreview, setShowPdfPreview] = useState(false);
 
   // Load quotes and handle URL parameters
@@ -113,7 +114,7 @@ const EstimationTool: React.FC = () => {
         unitPrice = Number(d.price || d.unitPrice || 0);
         description = String(d.description || '');
       }
-    } catch {}
+    } catch { }
     return { unitPrice, description };
   }, []);
 
@@ -280,11 +281,11 @@ const EstimationTool: React.FC = () => {
         return;
       }
       const quoteId = createForm.quoteId || `Q-${Date.now()}`;
-      
-      const uploadPromises = Array.from(files).map((file) => 
+
+      const uploadPromises = Array.from(files).map((file) =>
         uploadFile(file, `estimation_attachments/${quoteId}/${uid}`)
       );
-      
+
       const urls = await Promise.all(uploadPromises);
       setCreateForm((p) => ({ ...p, attachments: [...(p.attachments || []), ...urls] }));
     } catch (e: any) {
@@ -310,17 +311,17 @@ const EstimationTool: React.FC = () => {
 
   const handleSendQuote = async () => {
     if (!selectedQuote?.id) return;
-    
+
     try {
       // Update in both collections for compatibility
-      
+
       // Update original quotes collection
       const quoteRef = doc(db, 'quotes', selectedQuote.id);
       await updateDoc(quoteRef, {
         status: 'confirmed',
         updatedAt: Timestamp.now()
       });
-      
+
       // Update Estimation Quote collection if it exists
       try {
         const estimationQuoteRef = estimationQuoteDoc(db, selectedQuote.id);
@@ -331,20 +332,20 @@ const EstimationTool: React.FC = () => {
       } catch (estimationError) {
         // Estimation quote might not exist yet, that's okay
       }
-      
+
       // Update local state
-      setQuotes(quotes.map(quote => 
-        quote.id === selectedQuote.id 
-          ? { ...quote, status: 'confirmed' } 
+      setQuotes(quotes.map(quote =>
+        quote.id === selectedQuote.id
+          ? { ...quote, status: 'confirmed' }
           : quote
       ));
-      
+
       // Update selected quote in modal
       setSelectedQuote({
         ...selectedQuote,
         status: 'confirmed'
       });
-      
+
       alert('Quote has been confirmed and sent to the customer.');
     } catch (error) {
       alert('Failed to update quote status. Please try again.');
@@ -375,7 +376,7 @@ const EstimationTool: React.FC = () => {
     fetchPhone();
   }, [selectedQuote]);
 
-  const saveEstimationQuote = async (status: 'Draft' | 'Pending' | 'Confirmed') => {
+  const saveEstimationQuote = async (status: 'Draft' | 'Pending' | 'Confirmed' | 'Paid') => {
     if (!selectedQuote) {
       alert('No quote selected');
       return;
@@ -394,7 +395,7 @@ const EstimationTool: React.FC = () => {
 
     setSaving(true);
     try {
-      
+
       const estimationId = createForm.quoteId;
       // Resolve user UID from Accounts by email to store on estimation
       let resolvedUserUid: string | undefined = undefined;
@@ -403,7 +404,7 @@ const EstimationTool: React.FC = () => {
         if (!accSnap.empty) {
           resolvedUserUid = accSnap.docs[0].id;
         }
-      } catch {}
+      } catch { }
 
       const payload = estimationQuotePayload({
         quoteId: estimationId,
@@ -445,7 +446,7 @@ const EstimationTool: React.FC = () => {
 
       // Save estimation quote
       await setDoc(estimationQuoteDoc(db, estimationId), payload);
-      
+
       // Only update original quote status when sending to customer (Confirmed)
       if (status === 'Confirmed') {
         await updateDoc(doc(db, 'quotes', selectedQuote.id), {
@@ -459,7 +460,7 @@ const EstimationTool: React.FC = () => {
         if (resolvedUserUid) {
           await createUserNotification(resolvedUserUid, customerEmail, estimationId);
         }
-        
+
         // Send email notification with PDF to customer
         try {
           await sendEmailNotification(customerEmail, estimationId);
@@ -475,14 +476,14 @@ const EstimationTool: React.FC = () => {
           updatedAt: Timestamp.now()
         });
       }
-      
+
       alert(status === 'Draft' ? 'Quote saved as draft!' : 'Quote saved successfully!');
 
       // Refresh list and return to Pending Quotes view so user sees updates immediately
-      await fetchPendingQuotes();
+      await fetchQuotes();
       setShowCreateForm(false);
       setSelectedQuote(null);
-      
+
       if (status === 'Pending') {
         // Reset form and close modal
         setCreateForm({
@@ -529,16 +530,16 @@ const EstimationTool: React.FC = () => {
     try {
       console.log('[EstimationTool] --- STARTING PDF FLOW (HOSTED) ---');
       setSaving(true);
-      
+
       // 1. Generate PDF Blob
       const blob = await pdf(
-        <EstimatePDF 
-          createForm={createForm} 
-          items={items} 
+        <EstimatePDF
+          createForm={createForm}
+          items={items}
           totals={totals}
         />
       ).toBlob();
-      
+
       console.log(`[EstimationTool] PDF Blob generated. Size: ${Math.round(blob.size / 1024)} KB`);
 
       // 2. Upload to Firebase Storage
@@ -547,9 +548,9 @@ const EstimationTool: React.FC = () => {
         const pdfFile = new File([blob], `Estimation_${quoteId}.pdf`, { type: 'application/pdf' });
         const storagePath = `estimation_quotes/${quoteId}`;
         console.log(`[EstimationTool] Uploading to Storage: ${storagePath}...`);
-        pdfLink = await uploadFile(pdfFile, storagePath, { 
+        pdfLink = await uploadFile(pdfFile, storagePath, {
           allowedTypes: ['application/pdf'],
-          maxSizeMB: 5 
+          maxSizeMB: 5
         });
         console.log('[EstimationTool] Upload successful. Link:', pdfLink);
       } catch (uploadErr) {
@@ -587,7 +588,7 @@ const EstimationTool: React.FC = () => {
         alert('Final Step Failed: PDF saved to Cloud, but EmailJS refused to send.');
         throw emailjsErr;
       }
-      
+
       alert('Quote saved and sent successfully with bill link!');
     } catch (err: any) {
       console.error('[EstimationTool] CRITICAL ERROR in Email Flow:', err);
@@ -611,7 +612,7 @@ const EstimationTool: React.FC = () => {
 
       // Generate a unique notification ID
       const notificationId = `notification_${Date.now()}_${customerUid}`;
-      
+
       await setDoc(doc(userNotificationsCollection(db), notificationId), notificationData);
     } catch (error) {
       // Don't throw error to avoid breaking the main flow
@@ -619,8 +620,8 @@ const EstimationTool: React.FC = () => {
   };
 
 
-  // Reusable loader for Pending quotes
-  const fetchPendingQuotes = useCallback(async () => {
+  // Reusable loader for quotes
+  const fetchQuotes = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -639,9 +640,12 @@ const EstimationTool: React.FC = () => {
 
       setQuotes(
         quotesData.filter((quote) => {
-          const isPending = quote.status && quote.status.toLowerCase() === 'pending';
+          const currentStatus = (quote.status || 'pending').toLowerCase();
+          const matchesStatus = currentStatus === statusFilter;
           const isMaintenance = (quote.quoteType || '').toLowerCase() === 'maintenance';
-          return isPending && !isMaintenance;
+          
+          // Only show non-maintenance quotes that match the current filter
+          return matchesStatus && !isMaintenance;
         })
       );
     } catch (err) {
@@ -649,11 +653,54 @@ const EstimationTool: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [statusFilter]);
 
   useEffect(() => {
-    fetchPendingQuotes();
-  }, [fetchPendingQuotes]);
+    fetchQuotes();
+  }, [fetchQuotes]);
+
+  const handleMarkAsPaid = async () => {
+    if (!selectedQuote?.id) return;
+    try {
+      setSaving(true);
+      
+      // Update in quotes collection
+      await updateDoc(doc(db, 'quotes', selectedQuote.id), {
+        status: 'Paid',
+        updatedAt: Timestamp.now()
+      });
+
+      // Update in Estimation_Quote collection
+      const estimationId = selectedQuote.id; 
+      const estimationQuoteRef = estimationQuoteDoc(db, estimationId);
+      
+      try {
+        await updateDoc(estimationQuoteRef, {
+          status: 'Paid',
+          updatedAt: Timestamp.now()
+        });
+      } catch (e) {
+        // Fallback: try searching for Estimation_Quote by originalQuoteId
+        const q = query(collection(db, 'Estimation_Quote'), where('originalQuoteId', '==', selectedQuote.id));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          await updateDoc(doc(db, 'Estimation_Quote', snap.docs[0].id), {
+            status: 'Paid',
+            updatedAt: Timestamp.now()
+          });
+        }
+      }
+
+      alert('Quote marked as Paid and moved to Paid tab!');
+      setSelectedQuote(null);
+      await fetchQuotes();
+    } catch (error) {
+      console.error('Failed to mark as Paid:', error);
+      alert('Failed to update status. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -684,110 +731,193 @@ const EstimationTool: React.FC = () => {
               Quote Management
               <FilePlus className="h-6 w-6" aria-hidden="true" />
             </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Create and manage customer quotes</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage leads across the sales funnel</p>
+          </div>
+          <div className="flex bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+            {(['pending', 'confirmed', 'paid'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setStatusFilter(s)}
+                className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${
+                  statusFilter === s
+                    ? 'bg-white dark:bg-gray-700 text-teal-600 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                }`}
+              >
+                {s}
+              </button>
+            ))}
           </div>
           <div className="mt-1 sm:mt-0">
             <p className="text-sm text-gray-600 dark:text-gray-300 flex items-center gap-2 bg-teal-50 dark:bg-gray-800 px-3 py-1.5 rounded-full">
               {quotes.length > 0 && (
                 <Clock className="h-4 w-4" aria-hidden="true" />
               )}
-              {quotes.length} {quotes.length === 1 ? 'quote' : 'quotes'} pending
+              {quotes.length} {quotes.length === 1 ? 'quote' : 'quotes'} {statusFilter}
             </p>
           </div>
         </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-sm sm:text-base">
-        {showCreateForm ? (
-          <div className="lg:col-span-3">
-            <div className="bg-white/95 dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <div className="mb-6 flex items-start justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Create Estimation Quote</h2>
-                  <div className="h-1 w-20 bg-teal-500/70 rounded-full" />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowCreateForm(false)}
-                  className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
-                >
-                  Cancel
-                </button>
-              </div>
-              {validationError && (
-                <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-                  <div className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap">{validationError}</div>
-                </div>
-              )}
-
-              <div className="space-y-8">
-                {/* Quote Information */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Quote Information</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Quote ID</label>
-                      <input type="text" value={createForm.quoteId} readOnly className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm sm:text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Date of Issue</label>
-                      <input type="date" value={createForm.issueDate} onChange={(e) => setCreateForm({ ...createForm, issueDate: e.target.value })} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Expiry Date</label>
-                      <input type="date" value={createForm.expiryDate} onChange={(e) => setCreateForm({ ...createForm, expiryDate: e.target.value })} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Customer & quick fields */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Customer & Estimate</h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="col-span-1">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Customer Email</label>
-                      <input type="email" value={createForm.customerEmail} onChange={(e) => setCreateForm({ ...createForm, customerEmail: e.target.value })} placeholder="customer@example.com" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quote Context (Read-only from the original request) */}
-                {selectedQuote && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 text-sm sm:text-base">
+          {showCreateForm ? (
+            <div className="lg:col-span-3">
+              <div className="bg-white/95 dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+                <div className="mb-6 flex items-start justify-between">
                   <div>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Quote Context</h3>
-                    {(() => {
-                      const t = (selectedQuote.quoteType || '').toLowerCase();
-                      const budgetText = selectedQuote.budget ? `${selectedQuote.budgetCurrency || ''}${selectedQuote.budget}` : undefined;
-                      const loc = selectedQuote.location;
-                      const LocationBlock = loc ? (
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                          {loc.country && (
-                            <div>
-                              <div className="text-sm text-gray-500 dark:text-gray-400">Country</div>
-                              <div className="text-gray-900 dark:text-white">{loc.country}</div>
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Create Estimation Quote</h2>
+                    <div className="h-1 w-20 bg-teal-500/70 rounded-full" />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateForm(false)}
+                    className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-white"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {validationError && (
+                  <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
+                    <div className="text-sm text-red-700 dark:text-red-300 whitespace-pre-wrap">{validationError}</div>
+                  </div>
+                )}
+
+                <div className="space-y-8">
+                  {/* Quote Information */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Quote Information</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Quote ID</label>
+                        <input type="text" value={createForm.quoteId} readOnly className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300 shadow-sm sm:text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Date of Issue</label>
+                        <input type="date" value={createForm.issueDate} onChange={(e) => setCreateForm({ ...createForm, issueDate: e.target.value })} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Expiry Date</label>
+                        <input type="date" value={createForm.expiryDate} onChange={(e) => setCreateForm({ ...createForm, expiryDate: e.target.value })} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Customer & quick fields */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Customer & Estimate</h3>
+                    <div className="grid grid-cols-1 gap-4">
+                      <div className="col-span-1">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Customer Email</label>
+                        <input type="email" value={createForm.customerEmail} onChange={(e) => setCreateForm({ ...createForm, customerEmail: e.target.value })} placeholder="customer@example.com" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm sm:text-sm" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Quote Context (Read-only from the original request) */}
+                  {selectedQuote && (
+                    <div>
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Quote Context</h3>
+                      {(() => {
+                        const t = (selectedQuote.quoteType || '').toLowerCase();
+                        const budgetText = selectedQuote.budget ? `${selectedQuote.budgetCurrency || ''}${selectedQuote.budget}` : undefined;
+                        const loc = selectedQuote.location;
+                        const LocationBlock = loc ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            {loc.country && (
+                              <div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">Country</div>
+                                <div className="text-gray-900 dark:text-white">{loc.country}</div>
+                              </div>
+                            )}
+                            {loc.state && (
+                              <div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">State</div>
+                                <div className="text-gray-900 dark:text-white">{loc.state}</div>
+                              </div>
+                            )}
+                            {loc.district && (
+                              <div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">District</div>
+                                <div className="text-gray-900 dark:text-white">{loc.district}</div>
+                              </div>
+                            )}
+                          </div>
+                        ) : null;
+                        if (t.includes('custom')) {
+                          return (
+                            <div className="space-y-4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                {budgetText && (
+                                  <div>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">Budget</div>
+                                    <div className="text-gray-900 dark:text-white">{budgetText}</div>
+                                  </div>
+                                )}
+                                {selectedQuote.timeline && (
+                                  <div>
+                                    <div className="text-sm text-gray-500 dark:text-gray-400">Timeline</div>
+                                    <div className="text-gray-900 dark:text-white">{selectedQuote.timeline}</div>
+                                  </div>
+                                )}
+                              </div>
+                              {LocationBlock}
+                              {selectedQuote.customDetails && (
+                                <div>
+                                  <div className="text-sm text-gray-500 dark:text-gray-400">Custom Details</div>
+                                  <div className="text-gray-900 dark:text-white whitespace-pre-wrap">{selectedQuote.customDetails}</div>
+                                </div>
+                              )}
                             </div>
-                          )}
-                          {loc.state && (
-                            <div>
-                              <div className="text-sm text-gray-500 dark:text-gray-400">State</div>
-                              <div className="text-gray-900 dark:text-white">{loc.state}</div>
+                          );
+                        }
+                        if (t.includes('upgrade')) {
+                          const rooms = selectedQuote.newRoomsToAutomate || [];
+                          return (
+                            <div className="space-y-4">
+                              {rooms.length > 0 && (
+                                <div>
+                                  <div className="text-sm text-gray-500 dark:text-gray-400">New Rooms to Automate</div>
+                                  <div className="mt-2 flex flex-wrap gap-2">
+                                    {rooms.map((room, idx) => (
+                                      <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">{room}</span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                              {selectedQuote.timeline && (
+                                <div>
+                                  <div className="text-sm text-gray-500 dark:text-gray-400">Timeline</div>
+                                  <div className="text-gray-900 dark:text-white">{selectedQuote.timeline}</div>
+                                </div>
+                              )}
+                              {LocationBlock}
                             </div>
-                          )}
-                          {loc.district && (
-                            <div>
-                              <div className="text-sm text-gray-500 dark:text-gray-400">District</div>
-                              <div className="text-gray-900 dark:text-white">{loc.district}</div>
-                            </div>
-                          )}
-                        </div>
-                      ) : null;
-                      if (t.includes('custom')) {
+                          );
+                        }
+                        // New Installation or others
+                        const devices = selectedQuote.devicesRequired || [];
                         return (
                           <div className="space-y-4">
+                            {devices.length > 0 && (
+                              <div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">Devices Required</div>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  {devices.map((device, idx) => (
+                                    <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">{device}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                              {budgetText && (
+                              {selectedQuote.propertyType && (
                                 <div>
-                                  <div className="text-sm text-gray-500 dark:text-gray-400">Budget</div>
-                                  <div className="text-gray-900 dark:text-white">{budgetText}</div>
+                                  <div className="text-sm text-gray-500 dark:text-gray-400">Property Type</div>
+                                  <div className="text-gray-900 dark:text-white">{selectedQuote.propertyType}</div>
+                                </div>
+                              )}
+                              {(selectedQuote.numberOfRooms as any) && (
+                                <div>
+                                  <div className="text-sm text-gray-500 dark:text-gray-400">Number of Rooms</div>
+                                  <div className="text-gray-900 dark:text-white">{String(selectedQuote.numberOfRooms)}</div>
                                 </div>
                               )}
                               {selectedQuote.timeline && (
@@ -798,245 +928,153 @@ const EstimationTool: React.FC = () => {
                               )}
                             </div>
                             {LocationBlock}
-                            {selectedQuote.customDetails && (
-                              <div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">Custom Details</div>
-                                <div className="text-gray-900 dark:text-white whitespace-pre-wrap">{selectedQuote.customDetails}</div>
-                              </div>
-                            )}
                           </div>
                         );
-                      }
-                      if (t.includes('upgrade')) {
-                        const rooms = selectedQuote.newRoomsToAutomate || [];
-                        return (
-                          <div className="space-y-4">
-                            {rooms.length > 0 && (
-                              <div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">New Rooms to Automate</div>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  {rooms.map((room, idx) => (
-                                    <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">{room}</span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-                            {selectedQuote.timeline && (
-                              <div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">Timeline</div>
-                                <div className="text-gray-900 dark:text-white">{selectedQuote.timeline}</div>
-                              </div>
-                            )}
-                            {LocationBlock}
-                          </div>
-                        );
-                      }
-                      // New Installation or others
-                      const devices = selectedQuote.devicesRequired || [];
-                      return (
-                        <div className="space-y-4">
-                          {devices.length > 0 && (
-                            <div>
-                              <div className="text-sm text-gray-500 dark:text-gray-400">Devices Required</div>
-                              <div className="mt-2 flex flex-wrap gap-2">
-                                {devices.map((device, idx) => (
-                                  <span key={idx} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">{device}</span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            {selectedQuote.propertyType && (
-                              <div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">Property Type</div>
-                                <div className="text-gray-900 dark:text-white">{selectedQuote.propertyType}</div>
-                              </div>
-                            )}
-                            {(selectedQuote.numberOfRooms as any) && (
-                              <div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">Number of Rooms</div>
-                                <div className="text-gray-900 dark:text-white">{String(selectedQuote.numberOfRooms)}</div>
-                              </div>
-                            )}
-                            {selectedQuote.timeline && (
-                              <div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">Timeline</div>
-                                <div className="text-gray-900 dark:text-white">{selectedQuote.timeline}</div>
-                              </div>
-                            )}
-                          </div>
-                          {LocationBlock}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                )}
+                      })()}
+                    </div>
+                  )}
 
-                {/* Products & Services */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Products & Services</h3>
-                  <div className="overflow-x-auto -mx-4 sm:mx-0">
-                    <table className="min-w-full table-auto divide-y divide-gray-200 dark:divide-gray-700">
-                      <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
-                        <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
-                          <th className="px-2 py-2 min-w-[140px] text-left">Product/Service</th>
-                          <th className="px-2 py-2 min-w-[120px] text-left hidden sm:table-cell">Description</th>
-                          <th className="px-2 py-2 min-w-[60px] text-left">Qty</th>
-                          <th className="px-2 py-2 min-w-[80px] text-left">Price</th>
-                          <th className="px-2 py-2 min-w-[70px] text-left hidden md:table-cell">Discount (%)</th>
-                          <th className="px-2 py-2 min-w-[80px] text-left">Total</th>
-                          <th className="px-2 py-2 w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {items.map((r) => {
-                          const pre = Math.max(0, r.quantity * r.unitPrice);
-                          const discountPct = Math.max(0, Math.min(100, Number(r.discount) || 0));
-                          const discountAmount = (pre * discountPct) / 100;
-                          const line = Math.max(0, pre - discountAmount);
-                          const tax = (line * (r.taxPercent || 0)) / 100;
-                          const total = line + tax;
-                          return (
-                            <tr key={r.id} className="text-sm">
-                              <td className="px-2 py-2">
-                                <input
-                                  type="text"
-                                  placeholder="Product name"
-                                  className="w-full min-w-[120px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
-                                  value={r.name}
-                                  onChange={(e) => updateRow(r.id, { name: e.target.value })}
-                                  onBlur={async () => {
-                                    if (!r.name || !r.name.trim()) return;
-                                    try {
-                                      const det = await fetchDeviceDetails(r.name.trim());
-                                      const patch: Partial<LineItem> = {};
-                                      if ((!r.description || !r.description.trim()) && det.description) patch.description = det.description;
-                                      if (((Number(r.unitPrice) || 0) <= 0) && (det.unitPrice || 0) > 0) patch.unitPrice = det.unitPrice;
-                                      if (Object.keys(patch).length) updateRow(r.id, patch);
-                                    } catch {}
-                                  }}
-                                />
-                              </td>
-                              <td className="px-2 py-2 hidden sm:table-cell">
-                                <input
-                                  type="text"
-                                  placeholder="Description"
-                                  className="w-full min-w-[100px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
-                                  value={r.description}
-                                  onChange={(e) => updateRow(r.id, { description: e.target.value })}
-                                  onFocus={async () => {
-                                    if (!r.name?.trim()) return;
-                                    try {
-                                      const det = await fetchDeviceDetails(r.name.trim());
-                                      const patch: Partial<LineItem> = {};
-                                      if (det.description) patch.description = det.description;
-                                      if ((det.unitPrice || 0) > 0) patch.unitPrice = det.unitPrice;
-                                      if (Object.keys(patch).length) updateRow(r.id, patch);
-                                    } catch {}
-                                  }}
-                                />
-                              </td>
-                              <td className="px-2 py-2">
-                                <input
-                                  type="number"
-                                  min={1}
-                                  inputMode="numeric"
-                                  onFocus={(e) => e.currentTarget.select()}
-                                  className="no-spin w-full min-w-[50px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
-                                  value={r.quantity || ''}
-                                  onChange={(e) => updateRow(r.id, { quantity: e.target.value === '' ? 0 : Number(e.target.value) })}
-                                />
-                              </td>
-                              <td className="px-2 py-2">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  inputMode="decimal"
-                                  onFocus={async (e) => {
-                                    e.currentTarget.select();
-                                    if (!r.name?.trim()) return;
-                                    try {
-                                      const det = await fetchDeviceDetails(r.name.trim());
-                                      const patch: Partial<LineItem> = {};
-                                      if ((det.unitPrice || 0) > 0) patch.unitPrice = det.unitPrice;
-                                      if (det.description && !r.description?.trim()) patch.description = det.description;
-                                      if (Object.keys(patch).length) updateRow(r.id, patch);
-                                    } catch {}
-                                  }}
-                                  className="no-spin w-full min-w-[70px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
-                                  value={r.unitPrice || ''}
-                                  onChange={(e) => updateRow(r.id, { unitPrice: e.target.value === '' ? 0 : Number(e.target.value) })}
-                                />
-                              </td>
-                              <td className="px-2 py-2 hidden md:table-cell">
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  step="0.01"
-                                  inputMode="decimal"
-                                  placeholder="%"
-                                  onFocus={(e) => e.currentTarget.select()}
-                                  className="no-spin w-full min-w-[60px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
-                                  value={r.discount || ''}
-                                  onChange={(e) => updateRow(r.id, { discount: e.target.value === '' ? 0 : Number(e.target.value) })}
-                                />
-                              </td>
-                              <td className="px-2 py-2 whitespace-nowrap text-gray-900 dark:text-gray-100 font-medium">{total.toFixed(2)}</td>
-                              <td className="px-2 py-2 text-right">
-                                <button type="button" className="text-red-600 hover:text-red-700 p-1" onClick={() => removeRow(r.id)} aria-label="Delete row" title="Delete">
-                                  ×
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                  {/* Products & Services */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Products & Services</h3>
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <table className="min-w-full table-auto divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead className="bg-gray-50 dark:bg-gray-700 sticky top-0 z-10">
+                          <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">
+                            <th className="px-2 py-2 min-w-[140px] text-left">Product/Service</th>
+                            <th className="px-2 py-2 min-w-[120px] text-left hidden sm:table-cell">Description</th>
+                            <th className="px-2 py-2 min-w-[60px] text-left">Qty</th>
+                            <th className="px-2 py-2 min-w-[80px] text-left">Price</th>
+                            <th className="px-2 py-2 min-w-[70px] text-left hidden md:table-cell">Discount (%)</th>
+                            <th className="px-2 py-2 min-w-[80px] text-left">Total</th>
+                            <th className="px-2 py-2 w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                          {items.map((r) => {
+                            const pre = Math.max(0, r.quantity * r.unitPrice);
+                            const discountPct = Math.max(0, Math.min(100, Number(r.discount) || 0));
+                            const discountAmount = (pre * discountPct) / 100;
+                            const line = Math.max(0, pre - discountAmount);
+                            const tax = (line * (r.taxPercent || 0)) / 100;
+                            const total = line + tax;
+                            return (
+                              <tr key={r.id} className="text-sm">
+                                <td className="px-2 py-2">
+                                  <input
+                                    type="text"
+                                    placeholder="Product name"
+                                    className="w-full min-w-[120px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
+                                    value={r.name}
+                                    onChange={(e) => updateRow(r.id, { name: e.target.value })}
+                                    onBlur={async () => {
+                                      if (!r.name || !r.name.trim()) return;
+                                      try {
+                                        const det = await fetchDeviceDetails(r.name.trim());
+                                        const patch: Partial<LineItem> = {};
+                                        if ((!r.description || !r.description.trim()) && det.description) patch.description = det.description;
+                                        if (((Number(r.unitPrice) || 0) <= 0) && (det.unitPrice || 0) > 0) patch.unitPrice = det.unitPrice;
+                                        if (Object.keys(patch).length) updateRow(r.id, patch);
+                                      } catch { }
+                                    }}
+                                  />
+                                </td>
+                                <td className="px-2 py-2 hidden sm:table-cell">
+                                  <input
+                                    type="text"
+                                    placeholder="Description"
+                                    className="w-full min-w-[100px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
+                                    value={r.description}
+                                    onChange={(e) => updateRow(r.id, { description: e.target.value })}
+                                    onFocus={async () => {
+                                      if (!r.name?.trim()) return;
+                                      try {
+                                        const det = await fetchDeviceDetails(r.name.trim());
+                                        const patch: Partial<LineItem> = {};
+                                        if (det.description) patch.description = det.description;
+                                        if ((det.unitPrice || 0) > 0) patch.unitPrice = det.unitPrice;
+                                        if (Object.keys(patch).length) updateRow(r.id, patch);
+                                      } catch { }
+                                    }}
+                                  />
+                                </td>
+                                <td className="px-2 py-2">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    inputMode="numeric"
+                                    onFocus={(e) => e.currentTarget.select()}
+                                    className="no-spin w-full min-w-[50px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
+                                    value={r.quantity || ''}
+                                    onChange={(e) => updateRow(r.id, { quantity: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                  />
+                                </td>
+                                <td className="px-2 py-2">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    onFocus={async (e) => {
+                                      e.currentTarget.select();
+                                      if (!r.name?.trim()) return;
+                                      try {
+                                        const det = await fetchDeviceDetails(r.name.trim());
+                                        const patch: Partial<LineItem> = {};
+                                        if ((det.unitPrice || 0) > 0) patch.unitPrice = det.unitPrice;
+                                        if (det.description && !r.description?.trim()) patch.description = det.description;
+                                        if (Object.keys(patch).length) updateRow(r.id, patch);
+                                      } catch { }
+                                    }}
+                                    className="no-spin w-full min-w-[70px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
+                                    value={r.unitPrice || ''}
+                                    onChange={(e) => updateRow(r.id, { unitPrice: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                  />
+                                </td>
+                                <td className="px-2 py-2 hidden md:table-cell">
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={100}
+                                    step="0.01"
+                                    inputMode="decimal"
+                                    placeholder="%"
+                                    onFocus={(e) => e.currentTarget.select()}
+                                    className="no-spin w-full min-w-[60px] rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm"
+                                    value={r.discount || ''}
+                                    onChange={(e) => updateRow(r.id, { discount: e.target.value === '' ? 0 : Number(e.target.value) })}
+                                  />
+                                </td>
+                                <td className="px-2 py-2 whitespace-nowrap text-gray-900 dark:text-gray-100 font-medium">{total.toFixed(2)}</td>
+                                <td className="px-2 py-2 text-right">
+                                  <button type="button" className="text-red-600 hover:text-red-700 p-1" onClick={() => removeRow(r.id)} aria-label="Delete row" title="Delete">
+                                    ×
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-3">
+                      <button type="button" className="inline-flex justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={addRow}>
+                        Add Product/Service
+                      </button>
+                    </div>
                   </div>
-                  <div className="mt-3">
-                    <button type="button" className="inline-flex justify-center rounded-md border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={addRow}>
-                      Add Product/Service
-                    </button>
-                  </div>
-                </div>
 
-                {/* Pricing Summary */}
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Pricing Summary</h3>
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600 dark:text-gray-300">Subtotal</span>
-                        <span className="text-gray-900 dark:text-white font-medium">{totals.subtotal.toFixed(2)}</span>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Overall Discount (%)</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          step="0.01"
-                          inputMode="decimal"
-                          className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm"
-                          value={createForm.overallDiscountPercent || ''}
-                          onChange={(e) => setCreateForm({ ...createForm, overallDiscountPercent: e.target.value === '' ? 0 : Number(e.target.value) })}
-                        />
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tax Type</label>
-                          <select
-                            className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm"
-                            value={createForm.taxType}
-                            onChange={(e) => setCreateForm({ ...createForm, taxType: e.target.value as 'GST' | 'Custom' })}
-                          >
-                            <option value="GST">GST</option>
-                          </select>
+                  {/* Pricing Summary */}
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Pricing Summary</h3>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div className="space-y-3">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-300">Subtotal</span>
+                          <span className="text-gray-900 dark:text-white font-medium">{totals.subtotal.toFixed(2)}</span>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tax Percent</label>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Overall Discount (%)</label>
                           <input
                             type="number"
                             min={0}
@@ -1044,302 +1082,335 @@ const EstimationTool: React.FC = () => {
                             step="0.01"
                             inputMode="decimal"
                             className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm"
-                            value={createForm.taxPercent || ''}
-                            onChange={(e) => setCreateForm({ ...createForm, taxPercent: e.target.value === '' ? 0 : Number(e.target.value) })}
+                            value={createForm.overallDiscountPercent || ''}
+                            onChange={(e) => setCreateForm({ ...createForm, overallDiscountPercent: e.target.value === '' ? 0 : Number(e.target.value) })}
                           />
                         </div>
-                        <div className="flex flex-col justify-end">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600 dark:text-gray-300">Taxes</span>
-                            <span className="text-gray-900 dark:text-white font-medium">{totals.taxes.toFixed(2)}</span>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tax Type</label>
+                            <select
+                              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm"
+                              value={createForm.taxType}
+                              onChange={(e) => setCreateForm({ ...createForm, taxType: e.target.value as 'GST' | 'Custom' })}
+                            >
+                              <option value="GST">GST</option>
+                            </select>
                           </div>
-                        </div>
-                      </div>
-                      {/* Manage additional named taxes - moved here below tax type/percent */}
-                      <div className="mt-2 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Additional Taxes</span>
-                          <button
-                            type="button"
-                            onClick={() => setCreateForm((p) => ({ ...p, taxes: [...(p.taxes || []), { name: '', percent: 0 }] }))}
-                            className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
-                          >
-                            + Add Tax
-                          </button>
-                        </div>
-                        {(createForm.taxes || []).map((t, idx) => (
-                          <div key={idx} className="grid grid-cols-5 gap-2">
-                            <input
-                              type="text"
-                              placeholder="Tax name (e.g., SGST)"
-                              className="col-span-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm px-2 py-1.5"
-                              value={t.name}
-                              onChange={(e) => setCreateForm((p) => {
-                                const taxes = [...(p.taxes || [])];
-                                taxes[idx] = { ...taxes[idx], name: e.target.value };
-                                return { ...p, taxes };
-                              })}
-                            />
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tax Percent</label>
                             <input
                               type="number"
                               min={0}
                               max={100}
                               step="0.01"
                               inputMode="decimal"
-                              placeholder="%"
-                              className="col-span-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm px-2 py-1.5"
-                              value={t.percent || ''}
-                              onChange={(e) => setCreateForm((p) => {
-                                const taxes = [...(p.taxes || [])];
-                                taxes[idx] = { ...taxes[idx], percent: e.target.value === '' ? 0 : Number(e.target.value) };
-                                return { ...p, taxes };
-                              })}
+                              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm"
+                              value={createForm.taxPercent || ''}
+                              onChange={(e) => setCreateForm({ ...createForm, taxPercent: e.target.value === '' ? 0 : Number(e.target.value) })}
                             />
+                          </div>
+                          <div className="flex flex-col justify-end">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-600 dark:text-gray-300">Taxes</span>
+                              <span className="text-gray-900 dark:text-white font-medium">{totals.taxes.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        {/* Manage additional named taxes - moved here below tax type/percent */}
+                        <div className="mt-2 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Additional Taxes</span>
                             <button
                               type="button"
-                              className="col-span-1 text-xs px-2 py-1 rounded border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
-                              onClick={() => setCreateForm((p) => ({ ...p, taxes: (p.taxes || []).filter((_, i) => i !== idx) }))}
+                              onClick={() => setCreateForm((p) => ({ ...p, taxes: [...(p.taxes || []), { name: '', percent: 0 }] }))}
+                              className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
                             >
-                              Remove
+                              + Add Tax
                             </button>
                           </div>
-                        ))}
+                          {(createForm.taxes || []).map((t, idx) => (
+                            <div key={idx} className="grid grid-cols-5 gap-2">
+                              <input
+                                type="text"
+                                placeholder="Tax name (e.g., SGST)"
+                                className="col-span-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm px-2 py-1.5"
+                                value={t.name}
+                                onChange={(e) => setCreateForm((p) => {
+                                  const taxes = [...(p.taxes || [])];
+                                  taxes[idx] = { ...taxes[idx], name: e.target.value };
+                                  return { ...p, taxes };
+                                })}
+                              />
+                              <input
+                                type="number"
+                                min={0}
+                                max={100}
+                                step="0.01"
+                                inputMode="decimal"
+                                placeholder="%"
+                                className="col-span-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white text-sm px-2 py-1.5"
+                                value={t.percent || ''}
+                                onChange={(e) => setCreateForm((p) => {
+                                  const taxes = [...(p.taxes || [])];
+                                  taxes[idx] = { ...taxes[idx], percent: e.target.value === '' ? 0 : Number(e.target.value) };
+                                  return { ...p, taxes };
+                                })}
+                              />
+                              <button
+                                type="button"
+                                className="col-span-1 text-xs px-2 py-1 rounded border border-red-300 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-900/20"
+                                onClick={() => setCreateForm((p) => ({ ...p, taxes: (p.taxes || []).filter((_, i) => i !== idx) }))}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Shipping/Delivery Charges</label>
+                          <input type="number" min={0} step="0.01" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.shippingCharges || ''} onChange={(e) => setCreateForm({ ...createForm, shippingCharges: e.target.value === '' ? 0 : Number(e.target.value) })} />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Installation/Service Charges</label>
+                          <input type="number" min={0} step="0.01" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.installationCharges || ''} onChange={(e) => setCreateForm({ ...createForm, installationCharges: e.target.value === '' ? 0 : Number(e.target.value) })} />
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 dark:bg-gray-800 rounded-md p-4 flex items-center justify-between">
+                        <span className="text-base font-medium text-gray-900 dark:text-white">Grand Total</span>
+                        <span className="text-xl font-semibold text-teal-600">{totals.grand.toFixed(2)}</span>
+                      </div>
+                      {/* Payable Summary */}
+                      <div className="mt-2 bg-gray-50 dark:bg-gray-800 rounded-md p-4 space-y-1 text-sm">
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Total Price</span><span className="text-gray-900 dark:text-white">{totals.subtotal.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Discount</span><span className="text-gray-900 dark:text-white">-{totals.discountAmount.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Tax</span><span className="text-gray-900 dark:text-white">{totals.taxes.toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Shipping</span><span className="text-gray-900 dark:text-white">{createForm.shippingCharges.toFixed?.(2) ?? Number(createForm.shippingCharges).toFixed(2)}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Installation</span><span className="text-gray-900 dark:text-white">{createForm.installationCharges.toFixed?.(2) ?? Number(createForm.installationCharges).toFixed(2)}</span></div>
+                        <div className="flex justify-between font-semibold"><span className="text-gray-900 dark:text-white">Payable</span><span className="text-teal-600">{totals.grand.toFixed(2)}</span></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Terms & Conditions */}
+                  <div className="bg-white/95 dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+                      <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Terms & Conditions</h2>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-6">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Payment Terms</label>
+                        <select className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.paymentTerms} onChange={(e) => setCreateForm({ ...createForm, paymentTerms: e.target.value })}>
+                          <option value="">Not selected</option>
+                          <option>Advance 50% / Balance Net 15</option>
+                          <option>Advance 30% / Balance Net 30</option>
+                          <option>Net 15</option>
+                          <option>Net 30</option>
+                        </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Shipping/Delivery Charges</label>
-                        <input type="number" min={0} step="0.01" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.shippingCharges || ''} onChange={(e) => setCreateForm({ ...createForm, shippingCharges: e.target.value === '' ? 0 : Number(e.target.value) })} />
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Warranty / Support</label>
+                        <input type="text" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.warranty} onChange={(e) => setCreateForm({ ...createForm, warranty: e.target.value })} placeholder="e.g., 1 year standard warranty" />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Installation/Service Charges</label>
-                        <input type="number" min={0} step="0.01" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.installationCharges || ''} onChange={(e) => setCreateForm({ ...createForm, installationCharges: e.target.value === '' ? 0 : Number(e.target.value) })} />
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Delivery Timeline</label>
+                        <input type="text" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.deliveryTimeline} onChange={(e) => setCreateForm({ ...createForm, deliveryTimeline: e.target.value })} placeholder="e.g., 2-3 weeks from order" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
+                        <textarea rows={4} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.notes} onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })} />
                       </div>
                     </div>
-                    <div className="bg-gray-50 dark:bg-gray-800 rounded-md p-4 flex items-center justify-between">
-                      <span className="text-base font-medium text-gray-900 dark:text-white">Grand Total</span>
-                      <span className="text-xl font-semibold text-teal-600">{totals.grand.toFixed(2)}</span>
-                    </div>
-                    {/* Payable Summary */}
-                    <div className="mt-2 bg-gray-50 dark:bg-gray-800 rounded-md p-4 space-y-1 text-sm">
-                      <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Total Price</span><span className="text-gray-900 dark:text-white">{totals.subtotal.toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Discount</span><span className="text-gray-900 dark:text-white">-{totals.discountAmount.toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Tax</span><span className="text-gray-900 dark:text-white">{totals.taxes.toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Shipping</span><span className="text-gray-900 dark:text-white">{createForm.shippingCharges.toFixed?.(2) ?? Number(createForm.shippingCharges).toFixed(2)}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-600 dark:text-gray-300">Installation</span><span className="text-gray-900 dark:text-white">{createForm.installationCharges.toFixed?.(2) ?? Number(createForm.installationCharges).toFixed(2)}</span></div>
-                      <div className="flex justify-between font-semibold"><span className="text-gray-900 dark:text-white">Payable</span><span className="text-teal-600">{totals.grand.toFixed(2)}</span></div>
-                    </div>
                   </div>
-                </div>
 
-                {/* Terms & Conditions */}
-                <div className="bg-white/95 dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
-                  <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-                    <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Terms & Conditions</h2>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-6">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Payment Terms</label>
-                      <select className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.paymentTerms} onChange={(e) => setCreateForm({ ...createForm, paymentTerms: e.target.value })}>
-                        <option value="">Not selected</option>
-                        <option>Advance 50% / Balance Net 15</option>
-                        <option>Advance 30% / Balance Net 30</option>
-                        <option>Net 15</option>
-                        <option>Net 30</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Warranty / Support</label>
-                      <input type="text" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.warranty} onChange={(e) => setCreateForm({ ...createForm, warranty: e.target.value })} placeholder="e.g., 1 year standard warranty" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Delivery Timeline</label>
-                      <input type="text" className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.deliveryTimeline} onChange={(e) => setCreateForm({ ...createForm, deliveryTimeline: e.target.value })} placeholder="e.g., 2-3 weeks from order" />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
-                      <textarea rows={4} className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white shadow-sm sm:text-sm" value={createForm.notes} onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row flex-wrap gap-3">
-                  <button type="button" className="inline-flex justify-center rounded-full border border-transparent px-4 py-2 text-sm font-medium text-white shadow-soft focus:outline-none focus:ring-2 focus:ring-offset-2 bg-teal-600 hover:bg-teal-700 focus:ring-teal-500 disabled:opacity-50" onClick={() => {
-                    setValidationError(null);
-                    const missingFields: string[] = [];
-                    if (!createForm.quoteId.trim()) missingFields.push('Quote ID');
-                    if (!createForm.issueDate) missingFields.push('Date of Issue');
-                    const customerEmail = createForm.customerEmail;
-                    if (!customerEmail?.trim()) missingFields.push('Customer Email');
-                    if (!createForm.paymentTerms.trim()) missingFields.push('Payment Terms');
-                    if (items.length === 0 || items.every(item => !item.name.trim())) missingFields.push('At least one product/service item');
-                    const incompleteItems = items.filter(item => item.name.trim() && (!item.quantity || item.quantity <= 0 || !item.unitPrice || item.unitPrice <= 0));
-                    if (incompleteItems.length > 0) missingFields.push('Complete quantity and unit price for all items');
-                    if (missingFields.length > 0) { setValidationError(`• ${missingFields.join('\n• ')}`); (document.querySelector('.bg-white.dark\\:bg-gray-800') as HTMLElement | null)?.scrollIntoView({ behavior: 'smooth' }); return; }
-                    saveEstimationQuote('Confirmed');
-                  }} disabled={saving}>
-                    {saving ? 'Sending...' : 'Send to Customer'}
-                  </button>
-                  {customerPhone && (
-                    <div className="flex items-center gap-2 text-xs font-medium text-teal-600 dark:text-teal-400 py-2">
-                      <MessageCircle size={14} />
-                      WhatsApp will be sent to {customerPhone}
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => isPdfReady && setShowPdfPreview(true)}
-                    className={`inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium border ${isPdfReady ? 'text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700 cursor-not-allowed'}`}
-                    disabled={!isPdfReady}
-                    title={isPdfReady ? 'Preview and download PDF' : 'Fill required fields (Quote ID, Issue Date, Customer Email, Payment Terms, and at least one valid item)'}
-                  >
-                    Download PDF
-                  </button>
-                  <button type="button" className="inline-flex justify-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => setShowCreateForm(false)}>Cancel</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ) : selectedQuote ? (
-          <div className="lg:col-span-3">
-            <QuoteDetails 
-              quote={selectedQuote!} 
-              onBack={() => setSelectedQuote(null)}
-              onCreateQuote={() => {
-                if (!selectedQuote) return;
-                setShowCreateForm(true);
-                setCreateForm((prev) => ({
-                  ...prev,
-                  customerEmail: selectedQuote.customerEmail || '',
-                  numDevices: selectedQuote.devicesRequired?.length || 0,
-                  discount: 0,
-                  estimatedBudget: String(selectedQuote.budget ?? ''),
-                  // Prefill delivery timeline from quote when available
-                  deliveryTimeline: selectedQuote.timeline || prev.deliveryTimeline
-                }));
-                // Prefill items based on quote type
-                const t = (selectedQuote.quoteType || '').toLowerCase();
-                if (t.includes('upgrade')) {
-                  const rooms = selectedQuote.newRoomsToAutomate || [];
-                  if (rooms.length > 0) {
-                    setItems(rooms.map((room, idx) => ({ id: `row-${Date.now()}-${idx}`, name: room, description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 })));
-                  } else {
-                    setItems([{ id: `row-${Date.now()}`, name: '', description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 }]);
-                  }
-                } else if (t.includes('custom')) {
-                  const budgetNum = Number(selectedQuote.budget);
-                  setItems([
-                    {
-                      id: `row-${Date.now()}`,
-                      name: 'Custom Requirement',
-                      description: selectedQuote.customDetails || '',
-                      quantity: 1,
-                      unitPrice: Number.isFinite(budgetNum) ? budgetNum : 0,
-                      discount: 0,
-                      taxPercent: 0,
-                    },
-                  ]);
-                } else {
-                  // New Installation or others -> use devicesRequired
-                  const devices = selectedQuote.devicesRequired || [];
-                  if (devices.length > 0) {
-                    // Resolve prices asynchronously from Devices collection
-                    (async () => {
-                      const rows = await resolveDeviceItemsWithPrices(devices);
-                      setItems(rows);
-                    })();
-                  } else {
-                    setItems([{ id: `row-${Date.now()}`, name: '', description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 }]);
-                  }
-                }
-              }}
-            />
-          </div>
-        ) : (
-          <div className="lg:col-span-2">
-            <div className="bg-white/95 dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
-              <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
-                <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Pending Quotes</h2>
-              </div>
-              {quotes.length === 0 ? (
-                <div className="p-6 text-sm text-gray-600 dark:text-gray-400">No pending quotes.</div>
-              ) : (
-                <ul className="divide-y divide-gray-100 dark:divide-gray-800">
-                  {quotes.map((quote) => (
-                    <li
-                      key={quote.id}
-                      className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
-                      onClick={() => setSelectedQuote(quote)}
-                    >
-                      <div className="w-full flex items-center">
-                        <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-xs font-medium text-indigo-700 dark:text-indigo-300">
-                          {(quote.customerEmail || 'U').toString().charAt(0).toUpperCase()}
-                        </div>
-                        <div className="ml-3 sm:ml-4 min-w-0">
-                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{quote.customerEmail || 'No email provided'}</div>
-                          <div className="text-sm text-gray-500 break-words">{quote.quoteType || 'No type specified'} • {quote.propertyType || 'No property type'}</div>
-                        </div>
-                        <div className="hidden sm:block ml-auto">
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">{quote.status || 'Pending'}</span>
-                        </div>
+                  {/* Actions */}
+                  <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex flex-col sm:flex-row flex-wrap gap-3">
+                    <button type="button" className="inline-flex justify-center rounded-full border border-transparent px-4 py-2 text-sm font-medium text-white shadow-soft focus:outline-none focus:ring-2 focus:ring-offset-2 bg-teal-600 hover:bg-teal-700 focus:ring-teal-500 disabled:opacity-50" onClick={() => {
+                      setValidationError(null);
+                      const missingFields: string[] = [];
+                      if (!createForm.quoteId.trim()) missingFields.push('Quote ID');
+                      if (!createForm.issueDate) missingFields.push('Date of Issue');
+                      const customerEmail = createForm.customerEmail;
+                      if (!customerEmail?.trim()) missingFields.push('Customer Email');
+                      if (!createForm.paymentTerms.trim()) missingFields.push('Payment Terms');
+                      if (items.length === 0 || items.every(item => !item.name.trim())) missingFields.push('At least one product/service item');
+                      const incompleteItems = items.filter(item => item.name.trim() && (!item.quantity || item.quantity <= 0 || !item.unitPrice || item.unitPrice <= 0));
+                      if (incompleteItems.length > 0) missingFields.push('Complete quantity and unit price for all items');
+                      if (missingFields.length > 0) { setValidationError(`• ${missingFields.join('\n• ')}`); (document.querySelector('.bg-white.dark\\:bg-gray-800') as HTMLElement | null)?.scrollIntoView({ behavior: 'smooth' }); return; }
+                      saveEstimationQuote('Confirmed');
+                    }} disabled={saving}>
+                      {saving ? 'Sending...' : 'Send to Customer'}
+                    </button>
+                    {customerPhone && (
+                      <div className="flex items-center gap-2 text-xs font-medium text-teal-600 dark:text-teal-400 py-2">
+                        <MessageCircle size={14} />
+                        WhatsApp will be sent to {customerPhone}
                       </div>
-                      <div className="mt-2 sm:hidden">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">{quote.status || 'Pending'}</span>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        )}
-        {/* PDF Preview Modal */}
-        {showPdfPreview && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div className="absolute inset-0 bg-black/50" onClick={() => setShowPdfPreview(false)} />
-            <div className="relative z-10 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-[95vw] h-[90vh] max-w-6xl border border-gray-200 dark:border-gray-700 flex flex-col">
-              <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Estimate Preview</h3>
-                <div className="flex items-center gap-2">
-                  <PDFDownloadLink
-                    document={<EstimatePDF createForm={createForm} items={items} totals={totals} />}
-                    fileName={`${createForm.quoteId || 'estimate'}.pdf`}
-                  >
-                    {({ loading }) => (
-                      <button
-                        type="button"
-                        className="inline-flex justify-center rounded-full px-3 py-1.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700"
-                      >
-                        {loading ? 'Preparing…' : 'Download PDF'}
-                      </button>
                     )}
-                  </PDFDownloadLink>
-                  <button
-                    type="button"
-                    onClick={() => setShowPdfPreview(false)}
-                    className="inline-flex justify-center rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    Close
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => isPdfReady && setShowPdfPreview(true)}
+                      className={`inline-flex justify-center rounded-md px-4 py-2 text-sm font-medium border ${isPdfReady ? 'text-gray-700 dark:text-gray-200 border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' : 'text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-700 cursor-not-allowed'}`}
+                      disabled={!isPdfReady}
+                      title={isPdfReady ? 'Preview and download PDF' : 'Fill required fields (Quote ID, Issue Date, Customer Email, Payment Terms, and at least one valid item)'}
+                    >
+                      Download PDF
+                    </button>
+                    <button type="button" className="inline-flex justify-center rounded-full px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700" onClick={() => setShowCreateForm(false)}>Cancel</button>
+                  </div>
                 </div>
               </div>
-              <div className="flex-1 overflow-hidden">
-                <PDFViewer width="100%" height="100%" showToolbar>
-                  <EstimatePDF createForm={createForm} items={items} totals={totals} />
-                </PDFViewer>
+            </div>
+          ) : selectedQuote ? (
+            <div className="lg:col-span-3">
+              <QuoteDetails
+                quote={selectedQuote!}
+                onBack={() => setSelectedQuote(null)}
+                onMarkAsPaid={handleMarkAsPaid}
+                onCreateQuote={() => {
+                  if (!selectedQuote) return;
+                  setShowCreateForm(true);
+                  setCreateForm((prev) => ({
+                    ...prev,
+                    customerEmail: selectedQuote.customerEmail || '',
+                    numDevices: selectedQuote.devicesRequired?.length || 0,
+                    discount: 0,
+                    estimatedBudget: String(selectedQuote.budget ?? ''),
+                    // Prefill delivery timeline from quote when available
+                    deliveryTimeline: selectedQuote.timeline || prev.deliveryTimeline
+                  }));
+                  // Prefill items based on quote type
+                  const t = (selectedQuote.quoteType || '').toLowerCase();
+                  if (t.includes('upgrade')) {
+                    const rooms = selectedQuote.newRoomsToAutomate || [];
+                    if (rooms.length > 0) {
+                      setItems(rooms.map((room, idx) => ({ id: `row-${Date.now()}-${idx}`, name: room, description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 })));
+                    } else {
+                      setItems([{ id: `row-${Date.now()}`, name: '', description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 }]);
+                    }
+                  } else if (t.includes('custom')) {
+                    const budgetNum = Number(selectedQuote.budget);
+                    setItems([
+                      {
+                        id: `row-${Date.now()}`,
+                        name: 'Custom Requirement',
+                        description: selectedQuote.customDetails || '',
+                        quantity: 1,
+                        unitPrice: Number.isFinite(budgetNum) ? budgetNum : 0,
+                        discount: 0,
+                        taxPercent: 0,
+                      },
+                    ]);
+                  } else {
+                    // New Installation or others -> use devicesRequired
+                    const devices = selectedQuote.devicesRequired || [];
+                    if (devices.length > 0) {
+                      // Resolve prices asynchronously from Devices collection
+                      (async () => {
+                        const rows = await resolveDeviceItemsWithPrices(devices);
+                        setItems(rows);
+                      })();
+                    } else {
+                      setItems([{ id: `row-${Date.now()}`, name: '', description: '', quantity: 1, unitPrice: 0, discount: 0, taxPercent: 0 }]);
+                    }
+                  }
+                }}
+              />
+            </div>
+          ) : (
+            <div className="lg:col-span-2">
+              <div className="bg-white/95 dark:bg-gray-800 rounded-2xl shadow-sm overflow-hidden border border-gray-200 dark:border-gray-700">
+                <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+                  <h2 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white capitalize">{statusFilter} Quotes</h2>
+                </div>
+                {quotes.length === 0 ? (
+                  <div className="p-6 text-sm text-gray-600 dark:text-gray-400">No {statusFilter} quotes.</div>
+                ) : (
+                  <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {quotes.map((quote) => (
+                      <li
+                        key={quote.id}
+                        className="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer"
+                        onClick={() => setSelectedQuote(quote)}
+                      >
+                        <div className="w-full flex items-center">
+                          <div className="flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-indigo-100 dark:bg-indigo-900 flex items-center justify-center text-xs font-medium text-indigo-700 dark:text-indigo-300">
+                            {(quote.customerEmail || 'U').toString().charAt(0).toUpperCase()}
+                          </div>
+                          <div className="ml-3 sm:ml-4 min-w-0">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{quote.customerEmail || 'No email provided'}</div>
+                            <div className="text-sm text-gray-500 break-words">{quote.quoteType || 'No type specified'} • {quote.propertyType || 'No property type'}</div>
+                          </div>
+                          <div className="hidden sm:block ml-auto">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              statusFilter === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' :
+                              statusFilter === 'confirmed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                              'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                            }`}>{quote.status || 'Pending'}</span>
+                          </div>
+                        </div>
+                        <div className="mt-2 sm:hidden">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            statusFilter === 'paid' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200' :
+                            statusFilter === 'confirmed' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                            'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                          }`}>{quote.status || 'Pending'}</span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
-          </div>
-        )}
-        {/* Input UX helpers */}
-        <style>
-          {`
+          )}
+          {/* PDF Preview Modal */}
+          {showPdfPreview && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/50" onClick={() => setShowPdfPreview(false)} />
+              <div className="relative z-10 bg-white dark:bg-gray-800 rounded-xl shadow-lg w-[95vw] h-[90vh] max-w-6xl border border-gray-200 dark:border-gray-700 flex flex-col">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">Estimate Preview</h3>
+                  <div className="flex items-center gap-2">
+                    <PDFDownloadLink
+                      document={<EstimatePDF createForm={createForm} items={items} totals={totals} />}
+                      fileName={`${createForm.quoteId || 'estimate'}.pdf`}
+                    >
+                      {({ loading }) => (
+                        <button
+                          type="button"
+                          className="inline-flex justify-center rounded-full px-3 py-1.5 text-sm font-medium text-white bg-teal-600 hover:bg-teal-700"
+                        >
+                          {loading ? 'Preparing…' : 'Download PDF'}
+                        </button>
+                      )}
+                    </PDFDownloadLink>
+                    <button
+                      type="button"
+                      onClick={() => setShowPdfPreview(false)}
+                      className="inline-flex justify-center rounded-md px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                  <PDFViewer width="100%" height="100%" showToolbar>
+                    <EstimatePDF createForm={createForm} items={items} totals={totals} />
+                  </PDFViewer>
+                </div>
+              </div>
+            </div>
+          )}
+          {/* Input UX helpers */}
+          <style>
+            {`
             .no-spin::-webkit-outer-spin-button,
             .no-spin::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
             .no-spin { -moz-appearance: textfield; }
           `}
-        </style>
+          </style>
+        </div>
       </div>
-    </div>
     </div>
   );
 };
