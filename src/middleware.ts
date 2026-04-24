@@ -25,18 +25,19 @@ const getAdmin = async () => {
 export const onRequest: MiddlewareHandler = async (context, next) => {
   const { url, request } = context;
 
-  // ── Protected Endpoints Authentication ———————————————————————————————————
-  // Currently protecting health data and sensitive API routes.
+  // ── Protected Health Endpoints Authentication ——————————————————————————————
+  // Strict validation for /api/health to ensure only authenticated users access telemetry.
   if (url.pathname.startsWith('/api/health')) {
     const authHeader = request.headers.get('Authorization');
 
-    // Reject requests with missing or invalidly formatted headers
+    // 1. Reject requests with missing or malformed Authorization header
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.warn(`[Middleware] Blocked unauthenticated access to: ${url.pathname}`);
+      console.warn(`[Middleware] Blocked malformed/unauthenticated access to: ${url.pathname}`);
       return new Response(
         JSON.stringify({
           error: 'Unauthorized',
-          message: 'A valid Firebase Bearer token is required to access health data.',
+          message: 'Malformed request. A valid "Bearer <token>" header is strictly required for health endpoints.',
+          code: 'AUTH_MALFORMED'
         }),
         {
           status: 401,
@@ -45,30 +46,50 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
       );
     }
 
-    const idToken = authHeader.split('Bearer ')[1];
+    const idToken = authHeader.split('Bearer ')[1]?.trim();
+    
+    // 2. Reject empty tokens
+    if (!idToken) {
+      console.warn(`[Middleware] Blocked empty token access to: ${url.pathname}`);
+      return new Response(
+        JSON.stringify({
+          error: 'Unauthorized',
+          message: 'Token cannot be empty.',
+          code: 'TOKEN_EMPTY'
+        }),
+        {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        }
+      );
+    }
 
     try {
       /**
-       * ── Token Verification —————————————————————————————————————————————————
-       * verifyIdToken() validates the token with Firebase servers.
-       * Supports tokens from all providers (Email/Password, Google, etc.).
+       * ── Firebase Admin Token Verification ——————————————————————————————————
+       * Validates the token against Firebase Auth servers to ensure the request 
+       * originates from a valid, currently authenticated user session.
        */
       const adminAuth = await getAdmin();
       const decodedToken = await adminAuth.auth().verifyIdToken(idToken);
       
-      // Log authentication details for auditing and debugging
-      console.log(
-        `[Middleware] Verified ${decodedToken.email || 'user'} (${decodedToken.uid}) ` +
-        `via ${decodedToken.firebase.sign_in_provider}`
+      // Audit log for security tracking
+      console.info(
+        `[Middleware] Health Access: ${decodedToken.email || 'UID:' + decodedToken.uid} ` +
+        `verified via ${decodedToken.firebase.sign_in_provider}`
       );
 
-      // Successfully verified — proceed to the next handler
+      // Authentication successful — allow request to proceed
     } catch (error: any) {
-      console.warn(`[Middleware] Verification failed: ${error.message}`);
+      console.error(`[Middleware] Security verification failed: ${error.message}`);
+      
+      const isExpired = error.code === 'auth/id-token-expired';
+      
       return new Response(
         JSON.stringify({
           error: 'Unauthorized',
-          message: 'The provided authentication token is invalid or has expired.',
+          message: isExpired ? 'Your session has expired. Please sign in again.' : 'Invalid authentication token.',
+          code: isExpired ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID'
         }),
         {
           status: 401,

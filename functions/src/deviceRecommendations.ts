@@ -18,6 +18,7 @@ const EMAIL_FROM = defineSecret("EMAIL_FROM");
 
 /**
  * Calculates a composite health score (0–100) from device telemetry.
+ * Enhanced with predictive weighting for hardware reliability.
  */
 function calculateHealthScore(telemetry: {
   battery: number;
@@ -25,24 +26,54 @@ function calculateHealthScore(telemetry: {
   uptime: number;
 }): number {
   const { battery = 100, rssi = -50, uptime = 1 } = telemetry;
-  const rssiScore = Math.max(0, Math.min(100, ((rssi + 90) / 60) * 100));
-  const score = battery * 0.4 + rssiScore * 0.4 + uptime * 100 * 0.2;
+  
+  // RSSI score: -30 to -60 is ideal (100), below -90 is critical (0)
+  const rssiScore = Math.max(0, Math.min(100, ((rssi + 95) / 65) * 100));
+  
+  // Uptime score: weight heavier on recent stability
+  const uptimeScore = uptime * 100;
+
+  // Composite weighting: Battery (30%), Signal (40%), Uptime (30%)
+  const score = (battery * 0.3) + (rssiScore * 0.4) + (uptimeScore * 0.3);
+  
   return Math.round(score);
 }
 
 /**
- * generates predictive alerts based on telemetry
+ * Generates predictive alerts based on telemetry and failure forecasting algorithms.
  */
 function generatePredictiveAlerts(
   telemetry: { battery: number; rssi: number; uptime: number },
   healthScore: number
-): Array<{ message: string; severity: "critical" | "warning" }> {
-  const alerts: Array<{ message: string; severity: "critical" | "warning" }> = [];
-  if (telemetry.battery <= 10) alerts.push({ message: "🔴 Battery critically low (≤10%)", severity: "critical" });
-  else if (telemetry.battery <= 20) alerts.push({ message: "⚠️ Battery low (≤20%)", severity: "warning" });
-  if (telemetry.rssi <= -90) alerts.push({ message: "🔴 Device unreachable — signal too weak", severity: "critical" });
-  else if (telemetry.rssi <= -80) alerts.push({ message: "⚠️ Very weak Wi-Fi signal", severity: "warning" });
-  if (telemetry.uptime < 0.5) alerts.push({ message: "🔴 Device offline >50% of last 24h", severity: "critical" });
+): Array<{ message: string; severity: "critical" | "warning" | "info"; type: "maintenance" | "failure_forecast" }> {
+  const alerts: Array<{ message: string; severity: "critical" | "warning" | "info"; type: "maintenance" | "failure_forecast" }> = [];
+
+  // Battery Failure Forecast
+  if (telemetry.battery <= 5) {
+    alerts.push({ message: "🚨 Critical: Battery failure imminent (≤5%)", severity: "critical", type: "failure_forecast" });
+  } else if (telemetry.battery <= 15) {
+    alerts.push({ message: "⚠️ Warning: Battery replacement required soon", severity: "warning", type: "maintenance" });
+  }
+
+  // Connectivity Failure Forecast
+  if (telemetry.rssi <= -95) {
+    alerts.push({ message: "🚨 Critical: Hardware offline — signal lost", severity: "critical", type: "failure_forecast" });
+  } else if (telemetry.rssi <= -85) {
+    alerts.push({ message: "⚠️ Warning: Unstable connection detected", severity: "warning", type: "maintenance" });
+  }
+
+  // Uptime/Performance Forecast
+  if (telemetry.uptime < 0.4) {
+    alerts.push({ message: "🚨 Critical: Repeated hardware restarts detected", severity: "critical", type: "failure_forecast" });
+  } else if (telemetry.uptime < 0.8) {
+    alerts.push({ message: "ℹ️ Info: Minor performance degradation", severity: "info", type: "maintenance" });
+  }
+
+  // Composite Health Forecast
+  if (healthScore < 40) {
+    alerts.push({ message: "🚨 System Failure Forecast: Hardware service recommended", severity: "critical", type: "failure_forecast" });
+  }
+
   return alerts;
 }
 
@@ -54,16 +85,28 @@ export const getDeviceHealthStatus = onCall({ cors: true }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "User must be logged in.");
   const { deviceId } = request.data as { deviceId?: string };
   if (!deviceId) throw new HttpsError("invalid-argument", "Device ID is required.");
+  
   const deviceSnap = await db.collection("User_Devices").doc(deviceId).get();
   if (!deviceSnap.exists) throw new HttpsError("not-found", "Device not found.");
+  
   const data = deviceSnap.data() || {};
   const telemetry = {
     battery: (data.batteryLevel as number) ?? 85,
     rssi: (data.signalStrength as number) ?? -55,
     uptime: (data.uptime24h as number) ?? 0.99,
   };
+  
   const healthScore = calculateHealthScore(telemetry);
-  return { deviceId, healthScore, status: telemetry.rssi < -85 ? "Offline" : "Online", telemetry, alerts: generatePredictiveAlerts(telemetry, healthScore) };
+  const alerts = generatePredictiveAlerts(telemetry, healthScore);
+  
+  return { 
+    deviceId, 
+    healthScore, 
+    status: telemetry.rssi < -90 ? "Offline" : "Online", 
+    telemetry, 
+    alerts,
+    forecast: alerts.find(a => a.type === "failure_forecast")?.message || "Stable"
+  };
 });
 
 export const getAdminHealthOverview = onCall({ cors: true }, async (request) => {

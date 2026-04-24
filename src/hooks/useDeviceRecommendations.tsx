@@ -179,6 +179,15 @@ export function useDeviceRecommendations() {
   };
 
 
+  // Predictive Health Alerts Exposure
+  const criticalHealthAlerts = React.useMemo(() => {
+    return devices.filter(d => 
+      (d.health?.score || 100) < 50 || 
+      d.health?.forecast?.includes('Failure') ||
+      (d.health?.alerts && d.health.alerts.some(a => a.includes('🔴') || a.toLowerCase().includes('critical')))
+    );
+  }, [devices]);
+
   return {
     step,
     setStep,
@@ -194,6 +203,7 @@ export function useDeviceRecommendations() {
     saveRecommendationToQuote,
     uid,
     devices,
+    criticalHealthAlerts, // Exposed for real-time dashboard notifications
     adminHealthStats,
     fetchAdminHealthOverview,
     // Room Visualization
