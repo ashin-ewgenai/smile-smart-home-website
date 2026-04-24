@@ -136,7 +136,9 @@ const isAdmin = () => {
     }
     
     // Wait for Firebase to restore auth from persistence
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // Using a shorter delay and checking localStorage hint to prevent premature redirects
+    const hasAuthHint = !!localStorage.getItem('userId');
+    await new Promise(resolve => setTimeout(resolve, 400));
     
     // Check again after delay
     if (auth.currentUser) {
@@ -149,37 +151,62 @@ const isAdmin = () => {
       }
       return;
     }
+
+    // If we have no Firebase user yet but HAVE a localStorage hint, 
+    // wait longer for onAuthStateChanged instead of redirecting.
+    if (hasAuthHint) {
+      console.log('[AuthGate] Firebase Auth not ready yet but localStorage hint found. Waiting...');
+    } else {
+      console.log('[AuthGate] No Firebase user and no localStorage hint. Proceeding with caution.');
+    }
     
     console.log('[AuthGate] Waiting for auth state...');
 
-    // Wait for the initial auth state to resolve, then decide.
+    // Wait for the initial auth state to resolve.
     const unsub = onAuthStateChanged(auth, (user) => {
       console.log('[AuthGate] Auth state resolved:', user ? 'authenticated' : 'not authenticated');
-      unsub();
-      if (!user) {
-        redirectToLogin();
-      } else if (isAdmin()) {
-        redirectToAdmin();
+      
+      if (user) {
+        unsub();
+        if (isAdmin()) {
+          redirectToAdmin();
+        } else {
+          console.log('[AuthGate] Regular user authenticated, allowing access');
+          cleanup();
+        }
       } else {
-        console.log('[AuthGate] Regular user authenticated, allowing access');
-        cleanup();
+        // If we have no user yet...
+        if (hasAuthHint) {
+          console.log('[AuthGate] No user but hint found. Letting React app handle it.');
+          handled = true; // Mark as handled to prevent safety timeout
+          cleanup();
+          return;
+        }
+        
+        // No hint and no user: definitive redirect
+        unsub();
+        redirectToLogin();
       }
     });
   };
   
+  // Start the check
   checkAuthWithDelay();
 
   // Safety timeout: If auth doesn't respond in time, fall back to localStorage hint.
   // Increased to 10 seconds to allow React app time to initialize and handle auth
   setTimeout(() => {
     if (handled) return;
-    // Check if React app has marked the page as handled
-    if (window.__reactAuthHandled) {
-      console.log('[AuthGate] React app handled auth, skipping redirect');
+    
+    const hasAuthHint = !!localStorage.getItem('userId');
+    if (hasAuthHint) {
+      console.log('[AuthGate] Safety timeout reached but hint exists. Deferring to React.');
       cleanup();
       return;
     }
+
     if (!auth.currentUser) {
+      console.log('[AuthGate] Safety timeout: No user and no hint. Redirecting.');
       redirectToLogin();
     } else if (isAdmin()) {
       redirectToAdmin();

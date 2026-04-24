@@ -137,7 +137,7 @@ const authState = {
       const hintAuth = hint?.getAttribute('data-is-authed') === '1';
 
       const computeAuth = () => {
-        try { return !!localStorage.getItem('userEmail'); } catch { return hintAuth; }
+        try { return !!localStorage.getItem('userId'); } catch { return hintAuth; }
       };
 
       const firstFromEmail = (email) => {
@@ -156,9 +156,8 @@ const authState = {
           userTextEl.style.display = isAuthed ? 'inline-flex' : 'none';
           if (isAuthed && !userTextEl.textContent?.trim()) {
             try {
-              const email = localStorage.getItem('userEmail') || '';
-              const name = firstFromEmail(email);
-              userTextEl.textContent = name ? `Hi ${name}` : 'Hi there';
+              const uid = localStorage.getItem('userId') || '';
+              userTextEl.textContent = 'Hi there';
             } catch {}
           }
         }
@@ -189,8 +188,8 @@ const authState = {
     
     function updateGreeting() {
       try {
-        const email = localStorage.getItem('userEmail');
-        if (email) {
+        const uid = localStorage.getItem('userId');
+        if (uid) {
           const userText = document.querySelector('[data-auth="user-desktop"]');
           if (userText) {
             userText.textContent = `Hi ${firstFromEmail(email) || 'there'}`;

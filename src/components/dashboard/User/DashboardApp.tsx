@@ -22,6 +22,7 @@ import NotificationsPage from './NotificationsPage';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../../lib/firebase';
 import { DeviceHealthDashboard } from './DeviceHealthDashboard';
+import { useAuthMode, AuthModeProvider } from '../../../contexts/AuthModeContext';
 
 // Debug component to log routing information
 const RouteDebugger: React.FC = () => {
@@ -104,85 +105,17 @@ const NotificationsRoutePage: React.FC = () => (
   </section>
 );
 
-const DashboardApp: React.FC = () => {
-  const [authReady, setAuthReady] = useState(false);
-  const [isAuthed, setIsAuthed] = useState(false);
+const DashboardAppContent: React.FC = () => {
+  const { user, loading: authLoadingGlobal } = useAuthMode();
+  const isAuthed = !!user;
+  const authReady = !authLoadingGlobal;
 
   useEffect(() => {
-    console.log('[DashboardApp] Initializing auth state...');
-    
-    let isMounted = true;
-    
-    // Check for existing user first (sync check)
-    const checkAuth = async () => {
-      // First try sync check
-      const currentUser = auth.currentUser;
-      if (currentUser) {
-        console.log('[DashboardApp] User already authenticated (sync check):', currentUser.uid);
-        if (isMounted) {
-          setIsAuthed(true);
-          setAuthReady(true);
-          // Signal to auth gate that React handled auth
-          window.__reactAuthHandled = true;
-        }
-        return;
-      }
-      
-      // Wait a bit for Firebase to initialize from persistence
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Check again after delay
-      const userAfterDelay = auth.currentUser;
-      if (userAfterDelay) {
-        console.log('[DashboardApp] User authenticated after delay:', userAfterDelay.uid);
-        if (isMounted) {
-          setIsAuthed(true);
-          setAuthReady(true);
-          // Signal to auth gate that React handled auth
-          window.__reactAuthHandled = true;
-        }
-        return;
-      }
-      
-      // Subscribe to auth changes for any late updates
-      const unsub = onAuthStateChanged(auth, (user) => {
-        if (!isMounted) return;
-        console.log('[DashboardApp] Auth state changed:', user ? 'authenticated' : 'not authenticated');
-        setIsAuthed(!!user);
-        setAuthReady(true);
-        // Signal to auth gate that React handled auth
-        window.__reactAuthHandled = true;
-      });
-      
-      // Safety timeout
-      setTimeout(() => {
-        if (isMounted && !authReady) {
-          console.log('[DashboardApp] Auth timeout - final check');
-          setIsAuthed(!!auth.currentUser);
-          setAuthReady(true);
-          // Signal to auth gate that React handled auth
-          window.__reactAuthHandled = true;
-        }
-      }, 3000);
-      
-      return unsub;
-    };
-    
-    let unsubPromise: Promise<(() => void) | undefined> | null = null;
-    
-    checkAuth().then(unsub => {
-      if (unsub) {
-        unsubPromise = Promise.resolve(unsub);
-      }
-    });
-    
-    return () => {
-      isMounted = false;
-      if (unsubPromise) {
-        unsubPromise.then(unsub => unsub?.());
-      }
-    };
-  }, []);
+    if (authReady) {
+      console.log('[DashboardApp] Auth ready. Authenticated:', isAuthed);
+      window.__reactAuthHandled = true;
+    }
+  }, [authReady, isAuthed]);
 
   if (!authReady) {
     return (
@@ -215,23 +148,14 @@ const DashboardApp: React.FC = () => {
         </div>
       );
     }
-    if (!isAuthed) {
-      console.log('[GuardedSupportChat] Not authenticated, redirecting to home with auth modal');
-      // Store return URL and redirect to home to trigger auth gate
-      const currentPath = window.location.pathname + window.location.search;
-      sessionStorage.setItem('authReturnTo', currentPath);
-      sessionStorage.setItem('authOpenModal', 'login');
-      window.location.href = '/';
-      return (
-        <div className="flex items-center justify-center h-64">
-          <p className="text-gray-600 dark:text-gray-400">Redirecting to login...</p>
-        </div>
-      );
+    if (!isAuthed && authReady) {
+      console.log('[GuardedSupportChat] Not authenticated after definitive check');
     }
+
     console.log('[GuardedSupportChat] Rendering SupportChatPanel');
     return (
       <SupportChatErrorBoundary>
-        <SupportChatPanel raiseTicketsHref="/support-tickets" isAuthenticated={true} />
+        <SupportChatPanel raiseTicketsHref="/support-tickets" isAuthenticated={isAuthed} />
       </SupportChatErrorBoundary>
     );
   };
@@ -259,5 +183,11 @@ const DashboardApp: React.FC = () => {
     </BrowserRouter>
   );
 };
+
+const DashboardApp: React.FC = () => (
+  <AuthModeProvider>
+    <DashboardAppContent />
+  </AuthModeProvider>
+);
 
 export default DashboardApp;

@@ -85,10 +85,10 @@ const SupportChatPanel: React.FC<SupportChatPanelProps> = (props) => {
 };
 
 const SupportChatPanelInternal: React.FC<SupportChatPanelProps> = ({ ticketId: providedTicketId, raiseTicketsHref, isAuthenticated: isAuthenticatedProp }) => {
-  const [uid, setUid] = useState<string | null>(null);
-  // Use prop if provided (from parent GuardedSupportChat), otherwise use local state
-  const [isAuthenticatedLocal, setIsAuthenticated] = useState<boolean>(false);
-  const isAuthenticated = isAuthenticatedProp !== undefined ? isAuthenticatedProp : isAuthenticatedLocal;
+  const { user, loading: authLoadingGlobal } = useAuthMode();
+  const uid = user?.uid || null;
+  const isAuthenticated = !!user;
+  
   // Global status kept if needed for future banners, but routing is claim-only
   const [statusOnline, setStatusOnline] = useState<boolean>(false);
   const [claimed, setClaimed] = useState<boolean>(false);
@@ -371,14 +371,7 @@ const SupportChatPanelInternal: React.FC<SupportChatPanelProps> = ({ ticketId: p
 
   // Offline mode removed: Support Chat requires full Firebase Auth
 
-  useEffect(() => {
-    const unsubAuth = auth.onAuthStateChanged((user) => {
-      const u = user?.uid || null;
-      setUid(u);
-      setIsAuthenticated(!!u);
-    });
-    return () => unsubAuth();
-  }, []);
+  // Auth synchronization is handled by useAuthMode()
 
   // Read support availability (informational only)
   useEffect(() => {
@@ -1757,6 +1750,18 @@ const SupportChatPanelInternal: React.FC<SupportChatPanelProps> = ({ ticketId: p
       setMessages(prev => [...prev, { role: 'agent', content: 'Could not start a new chat right now. Please try again.', ts: Date.now() }]);
     }
   };
+
+  // If auth is still loading, show a spinner
+  if (authLoadingGlobal) {
+    return (
+      <section className="glass-surface rounded-2xl flex items-center justify-center p-12">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 border-4 border-teal-500/20 border-t-teal-500 rounded-full animate-spin" />
+          <p className="text-gray-600 dark:text-gray-400 font-medium">Verifying session...</p>
+        </div>
+      </section>
+    );
+  }
 
   // If not authenticated, show sign-in prompt
   if (!isAuthenticated) {

@@ -92,9 +92,8 @@ export const AuthModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               // Ignore
             }
           }
-
-          localStorage.removeItem('userId');
-          localStorage.removeItem('userEmail');
+          // Note: We don't remove userEmail/userId here to allow them to act as hints 
+          // during the next page load/initialization. They are cleared in the logout() function.
         }
       }
     });

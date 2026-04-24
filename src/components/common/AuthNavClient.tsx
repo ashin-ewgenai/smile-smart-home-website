@@ -115,7 +115,7 @@ export default function AuthNavClient() {
 
       // Persist minimal identity for pre-hydration script
       if (isAuthed) {
-        try { if (user.email) localStorage.setItem('userEmail', user.email); } catch {}
+        try { localStorage.setItem('userId', user.uid); } catch {}
       }
 
       // Desktop: show based on authentication (do not wait for role)
@@ -158,9 +158,9 @@ export default function AuthNavClient() {
       if (current) {
         void updateUI(current);
       } else {
-        const email = localStorage.getItem('userEmail');
-        if (email) {
-          const name = `Hi ${firstFromEmail(email) || 'there'}`;
+        const userId = localStorage.getItem('userId');
+        if (userId) {
+          const name = 'Hi there'; // Default since we don't have email/name hint here easily
           // Desktop based on authentication presence
           show(els.signIn, false);
           show(els.signUp, false);
@@ -184,9 +184,9 @@ export default function AuthNavClient() {
       // If Firebase briefly reports null but we have a stored email, avoid showing unauth state
       if (!user) {
         try {
-          const email = localStorage.getItem('userEmail');
-          if (email) {
-            const name = `Hi ${firstFromEmail(email) || 'there'}`;
+          const userId = localStorage.getItem('userId');
+          if (userId) {
+            const name = 'Hi there';
             // Desktop: keep authenticated UI visible
             show(els.signIn, false);
             show(els.signUp, false);
@@ -228,7 +228,7 @@ export default function AuthNavClient() {
         e.preventDefault();
         try {
           await signOut(auth);
-          try { localStorage.removeItem('userEmail'); } catch {}
+          try { localStorage.removeItem('userId'); } catch {}
           window.location.href = '/';
         } catch {}
       });
@@ -264,7 +264,7 @@ export default function AuthNavClient() {
         e.preventDefault();
         try {
           await signOut(auth);
-          try { localStorage.removeItem('userEmail'); } catch {}
+          try { localStorage.removeItem('userId'); } catch {}
           window.location.href = '/';
         } catch {}
       });

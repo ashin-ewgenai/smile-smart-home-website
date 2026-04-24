@@ -190,7 +190,7 @@ import Footer from './Footer.astro';
               <li class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40">
                 <h3 class="font-semibold text-charcoal dark:text-white">Raise a Support Ticket</h3>
                 <p class="text-sm text-gray-600 dark:text-gray-300">Track issues and get status updates from your dashboard.</p>
-                <a href="/dashboard/user/support-tickets" class="inline-block mt-2 px-4 py-2 rounded-lg bg-teal text-white hover:bg-teal/90">Go to Tickets</a>
+                <a href="/dashboard/user/support-tickets" data-astro-reload class="inline-block mt-2 px-4 py-2 rounded-lg bg-teal text-white hover:bg-teal/90">Go to Tickets</a>
               </li>
               <li class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40">
                 <h3 class="font-semibold text-charcoal dark:text-white">Request a New Quote</h3>
@@ -200,7 +200,7 @@ import Footer from './Footer.astro';
               <li class="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40">
                 <h3 class="font-semibold text-charcoal dark:text-white">Support Chat</h3>
                 <p class="text-sm text-gray-600 dark:text-gray-300">Start a real-time chat with our support team.</p>
-                <a href="/dashboard/user/support-chat" class="inline-block mt-2 px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700">Open Chat</a>
+                <a href="/dashboard/user/support-chat" data-astro-reload class="inline-block mt-2 px-4 py-2 rounded-lg bg-purple-600 text-white hover:bg-purple-700">Open Chat</a>
               </li>
             </ul>
           </div>
@@ -433,7 +433,7 @@ import Footer from './Footer.astro';
 
     function run(){
       let authed = false;
-      try { authed = !!localStorage.getItem('userEmail'); } catch {}
+      try { authed = !!localStorage.getItem('userId'); } catch {}
       update(authed);
     }
     document.addEventListener('DOMContentLoaded', run);
