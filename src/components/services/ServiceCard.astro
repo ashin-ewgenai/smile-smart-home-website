@@ -4,29 +4,66 @@ export interface Props {
   title: string;
   description: string;
   features: string[];
+  image?: string;
 }
 
-const { icon, title, description, features } = Astro.props;
+const { icon, title, description, features, image } = Astro.props;
 ---
 
-<div class="card p-6 reveal-on-scroll">
-  <div class="w-16 h-16 bg-teal/10 dark:bg-teal/20 rounded-xl flex items-center justify-center mb-6">
-    <div set:html={icon} class="w-8 h-8 text-teal"></div>
-  </div>
-  
-  <h3 class="text-2xl font-semibold text-charcoal dark:text-white mb-3">{title}</h3>
-  <p class="text-gray-600 dark:text-gray-300 mb-6">{description}</p>
-  
-  <ul class="space-y-2 mb-6">
-    {features.map(feature => (
-      <li class="flex items-center text-gray-600 dark:text-gray-300">
-        <svg class="w-4 h-4 text-teal mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-          <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+<div class="group relative card p-8 md:p-10 transition-all duration-700 hover:shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] hover:-translate-y-3 overflow-hidden reveal-on-scroll bg-white/40 dark:bg-charcoal/40 backdrop-blur-xl border border-white/20 dark:border-white/10 rounded-[2.5rem]">
+  <!-- 3D Visualization Overlay (Hover) -->
+  {image && (
+    <div class="absolute inset-0 z-0 opacity-0 group-hover:opacity-100 transition-opacity duration-1000 pointer-events-none">
+      <div class="absolute inset-0 bg-gradient-to-t from-white via-white/90 to-transparent dark:from-charcoal dark:via-charcoal/90 dark:to-transparent z-10" />
+      <img 
+        src={image} 
+        alt={`${title} Visualization`}
+        loading="lazy"
+        decoding="async"
+        class="w-full h-full object-cover scale-125 group-hover:scale-105 transition-transform duration-[1500ms] ease-out blur-[4px] group-hover:blur-0 saturate-[1.1] contrast-[1.05]"
+      />
+    </div>
+  )}
+
+  <div class="relative z-10">
+    <div class="w-16 h-16 bg-teal/5 dark:bg-teal/10 border border-teal/10 rounded-2xl flex items-center justify-center mb-8 transition-all duration-700 group-hover:bg-teal group-hover:text-white group-hover:scale-110 group-hover:rotate-6 shadow-xl shadow-teal/5">
+      <div set:html={icon} class="w-8 h-8 text-teal group-hover:text-white transition-colors"></div>
+    </div>
+    
+    <h3 class="text-3xl font-black text-charcoal dark:text-white mb-4 leading-[1.1] tracking-tight group-hover:text-teal transition-colors">
+      {title}
+    </h3>
+    <p class="text-slate-500 dark:text-slate-400 mb-10 leading-relaxed font-medium text-lg">
+      {description}
+    </p>
+    
+    <div class="space-y-6 mb-10">
+      <div class="h-px w-12 bg-teal/20" />
+      <ul class="space-y-5">
+        {features.map(feature => (
+          <li class="flex items-start text-xs font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">
+            <div class="mt-0.5 mr-4 p-1 rounded-full bg-teal/5 text-teal group-hover:bg-teal group-hover:text-white transition-all shadow-sm">
+              <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+            {feature}
+          </li>
+        ))}
+      </ul>
+    </div>
+    
+    <div class="pt-2">
+      <a 
+        href="/contact" 
+        class="inline-flex items-center gap-3 text-teal font-black text-xs uppercase tracking-[0.2em] hover:gap-5 transition-all group/btn"
+      >
+        <span>Detailed Blueprint</span>
+        <div class="w-8 h-px bg-teal/30 group-hover/btn:w-12 transition-all" />
+        <svg class="w-4 h-4 transform group-hover/btn:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M17 8l4 4m0 0l-4 4m4-4H3" />
         </svg>
-        {feature}
-      </li>
-    ))}
-  </ul>
-  
-  <a href="/contact" class="btn-primary w-full text-center btn-magnetic">Get Quote</a>
+      </a>
+    </div>
+  </div>
 </div>
