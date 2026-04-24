@@ -71,29 +71,42 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
        * originates from a valid, currently authenticated user session.
        */
       const adminAuth = await getAdmin();
+      if (!adminAuth) {
+        throw new Error('Firebase Admin not initialized');
+      }
+      
       const decodedToken = await adminAuth.auth().verifyIdToken(idToken);
       
       // Audit log for security tracking
       console.info(
-        `[Middleware] Health Access: ${decodedToken.email || 'UID:' + decodedToken.uid} ` +
-        `verified via ${decodedToken.firebase.sign_in_provider}`
+        `[Middleware] Authenticated Health Access: ${decodedToken.email || 'UID:' + decodedToken.uid} ` +
+        `via ${decodedToken.firebase.sign_in_provider}`
       );
 
       // Authentication successful — allow request to proceed
     } catch (error: any) {
-      console.error(`[Middleware] Security verification failed: ${error.message}`);
-      
       const isExpired = error.code === 'auth/id-token-expired';
+      const isNotAdmin = error.message?.includes('Firebase Admin not initialized');
+      
+      console.error(`[Middleware] Auth verification failed [${error.code || 'ERROR'}]: ${error.message}`);
       
       return new Response(
         JSON.stringify({
           error: 'Unauthorized',
-          message: isExpired ? 'Your session has expired. Please sign in again.' : 'Invalid authentication token.',
-          code: isExpired ? 'TOKEN_EXPIRED' : 'TOKEN_INVALID'
+          message: isExpired 
+            ? 'Your session has expired. Please sign in again.' 
+            : isNotAdmin 
+              ? 'Security service temporarily unavailable.' 
+              : 'Invalid authentication token.',
+          code: isExpired ? 'TOKEN_EXPIRED' : isNotAdmin ? 'SERVICE_UNAVAILABLE' : 'TOKEN_INVALID',
+          retryable: isExpired
         }),
         {
-          status: 401,
-          headers: { 'Content-Type': 'application/json' },
+          status: isNotAdmin ? 503 : 401,
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Auth-Error': error.code || 'unknown'
+          },
         }
       );
     }

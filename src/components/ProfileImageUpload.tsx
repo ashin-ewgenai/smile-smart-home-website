@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Cropper from 'react-easy-crop';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ZoomIn, ZoomOut, RotateCcw, Check, Upload, Loader2, ImageIcon, AlertCircle, RefreshCw, Maximize2, Minimize2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCcw, Check, Upload, Loader2, ImageIcon, AlertCircle, RefreshCw, Maximize2, Minimize2, ChevronLeft, ChevronRight, ShieldAlert } from 'lucide-react';
+import { useAuthMode } from '../contexts/AuthModeContext';
 
 interface Point {
   x: number;
@@ -45,6 +46,7 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
   const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [showWarning, setShowWarning] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
+  const { user, loading: authLoading } = useAuthMode();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cropperContainerRef = useRef<HTMLDivElement>(null);
 
@@ -332,7 +334,12 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
   };
 
   const handleUpload = async () => {
-    if (isUploading) return;
+    if (isUploading || authLoading) return;
+    
+    if (!user) {
+      setError('Your session has expired. Please sign in again to upload.');
+      return;
+    }
 
     setIsUploading(true);
     setError(null);
@@ -435,8 +442,35 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
 
           {/* Content */}
           <div className="flex-1 overflow-auto p-6">
-            <AnimatePresence mode="wait">
-              {!imageSrc ? (
+            {!user && !authLoading ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex flex-col items-center justify-center h-full py-12 text-center"
+              >
+                <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-full mb-4">
+                  <ShieldAlert className="h-12 w-12 text-red-600 dark:text-red-400" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Session Required</h3>
+                <p className="text-gray-600 dark:text-gray-400 max-w-md mb-6">
+                  You must be logged in to update your profile picture. Your session may have expired.
+                </p>
+                <button
+                  onClick={() => window.location.href = '/login'}
+                  className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors font-medium"
+                >
+                  Go to Login
+                </button>
+              </motion.div>
+            ) : authLoading ? (
+              <div className="flex flex-col items-center justify-center h-64">
+                <Loader2 className="h-12 w-12 text-teal-500 animate-spin mb-4" />
+                <p className="text-gray-600 dark:text-gray-400">Verifying session...</p>
+              </div>
+            ) : (
+              <>
+                <AnimatePresence mode="wait">
+                {!imageSrc ? (
                 // File Upload Area with Drag & Drop
                 <motion.div
                   key="upload"
@@ -676,7 +710,9 @@ const ProfileImageUpload: React.FC<ProfileImageUploadProps> = ({
                 </motion.div>
               )}
             </AnimatePresence>
-          </div>
+          </>
+        )}
+      </div>
 
           {/* Footer */}
           <AnimatePresence>

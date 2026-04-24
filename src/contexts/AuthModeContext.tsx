@@ -1,4 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { onAuthStateChanged, type User, GoogleAuthProvider, signInWithPopup, signOut, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { auth, db } from '../lib/firebase';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { useCallback } from 'react';
 
 // Auth Mode Context for managing signin/signup toggle
 export type AuthMode = 'signin' | 'signup';
@@ -16,6 +20,12 @@ export interface AuthModeContextType {
   setIsSpeaking: (speaking: boolean) => void;
   voiceSupported: boolean;
   setVoiceSupported: (supported: boolean) => void;
+  // Auth state
+  user: User | null;
+  loading: boolean;
+  loginWithGoogle: () => Promise<User>;
+  logout: () => Promise<void>;
+  signupWithEmail: (email: string, password: string, fullName: string) => Promise<User>;
 }
 
 export const AuthModeContext = createContext<AuthModeContextType | undefined>(undefined);
@@ -41,6 +51,108 @@ export const AuthModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const [user, setUser] = useState<User | null>(auth.currentUser);
+  const [loading, setLoading] = useState(true);
+
+  // Auth state observer
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+      setLoading(false);
+
+      // Robust client-side state synchronization
+      if (typeof window !== 'undefined') {
+        if (firebaseUser) {
+          localStorage.setItem('userId', firebaseUser.uid);
+          localStorage.setItem('userEmail', firebaseUser.email || '');
+          
+          // Update online status in Firestore ONLY if document exists
+          try {
+            const userRef = doc(db, 'Accounts', firebaseUser.uid);
+            await updateDoc(userRef, { 
+              Status: 'online', 
+              LastLoginAt: serverTimestamp(),
+              StatusUpdatedAt: serverTimestamp()
+            });
+          } catch (err) {
+            // Ignore if document doesn't exist yet (handled by signup/login logic)
+            console.warn('Silent status update skipped (doc might not exist):', firebaseUser.uid);
+          }
+        } else {
+          // If we had a previous user, we might want to mark them offline
+          const prevUid = localStorage.getItem('userId');
+          if (prevUid) {
+            try {
+              const userRef = doc(db, 'Accounts', prevUid);
+              await updateDoc(userRef, { 
+                Status: 'offline',
+                StatusUpdatedAt: serverTimestamp()
+              });
+            } catch (err) {
+              // Ignore
+            }
+          }
+
+          localStorage.removeItem('userId');
+          localStorage.removeItem('userEmail');
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const loginWithGoogle = useCallback(async () => {
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      return result.user;
+    } catch (error) {
+      console.error('Google Sign-In Error:', error);
+      throw error;
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    try {
+      const uid = auth.currentUser?.uid || localStorage.getItem('userId');
+      if (uid) {
+        try {
+          const userRef = doc(db, 'Accounts', uid);
+          await updateDoc(userRef, { 
+            Status: 'offline', 
+            StatusUpdatedAt: serverTimestamp() 
+          });
+        } catch (err) {
+          // Ignore
+        }
+      }
+
+      await signOut(auth);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userPhone');
+        localStorage.removeItem('userAddress');
+        localStorage.removeItem('userName');
+      }
+    } catch (error) {
+      console.error('Logout Error:', error);
+      throw error;
+    }
+  }, []);
+
+  const signupWithEmail = useCallback(async (email: string, password: string, fullName: string) => {
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      if (fullName) {
+        await updateProfile(cred.user, { displayName: fullName });
+      }
+      return cred.user;
+    } catch (error) {
+      console.error('Signup Error:', error);
+      throw error;
+    }
+  }, []);
 
   // Capability detection
   useEffect(() => {
@@ -77,7 +189,12 @@ export const AuthModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       isSpeaking,
       setIsSpeaking,
       voiceSupported,
-      setVoiceSupported
+      setVoiceSupported,
+      user,
+      loading,
+      loginWithGoogle,
+      logout,
+      signupWithEmail
     }}>
       {children}
     </AuthModeContext.Provider>
