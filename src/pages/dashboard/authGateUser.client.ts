@@ -141,8 +141,9 @@ const isAdmin = () => {
     await new Promise(resolve => setTimeout(resolve, 400));
     
     // Check again after delay
-    if (auth.currentUser) {
-      console.log('[AuthGate] User authenticated after delay:', auth.currentUser.uid);
+    const userAfterDelay = auth.currentUser as any;
+    if (userAfterDelay) {
+      console.log('[AuthGate] User authenticated after delay:', userAfterDelay.uid);
       if (isAdmin()) {
         redirectToAdmin();
       } else {

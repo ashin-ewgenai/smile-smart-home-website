@@ -11,7 +11,7 @@
  * - Tailored device recommendations based on quiz results
  * - Fully client-side using React state and hooks
  */
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -94,7 +94,29 @@ const itemVariants: any = {
   })
 };
 
+// Typewriter Component for Manifesto
+const TypewriterText: React.FC<{ text: string; delay?: number }> = ({ text, delay = 0 }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  
+  useEffect(() => {
+    let i = 0;
+    const timer = setTimeout(() => {
+      const interval = setInterval(() => {
+        setDisplayedText(text.slice(0, i));
+        i++;
+        if (i > text.length) clearInterval(interval);
+      }, 20);
+      return () => clearInterval(interval);
+    }, delay);
+
+    return () => clearTimeout(timer);
+  }, [text, delay]);
+
+  return <span className="leading-relaxed">{displayedText}</span>;
+};
+
 interface QuizResultLocal {
+
   personalityType: PersonalityType;
   recommendations: DeviceRecommendation[];
 }
@@ -452,6 +474,41 @@ export const PersonalityQuiz: React.FC = () => {
                   </p>
                 </div>
 
+                {/* AI Manifesto Section */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5, duration: 0.8 }}
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[2rem] p-10 shadow-inner relative overflow-hidden group"
+                >
+                  <div className="absolute top-0 right-0 p-6 opacity-[0.03] dark:opacity-[0.05] group-hover:scale-110 transition-transform duration-1000">
+                    <Sparkles size={200} />
+                  </div>
+                  
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className="h-px flex-1 bg-gradient-to-r from-transparent to-slate-200 dark:to-slate-800" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">
+                      The Home Visionary Manifesto
+                    </span>
+                    <div className="h-px flex-1 bg-gradient-to-l from-transparent to-slate-200 dark:to-slate-800" />
+                  </div>
+
+                  <div className="relative z-10">
+                    <p className="text-2xl font-serif italic font-medium text-slate-800 dark:text-white leading-relaxed text-center mb-10">
+                      <TypewriterText text={result.personalityType.manifesto} delay={1000} />
+                    </p>
+
+                    <div className="flex flex-col items-center justify-center mt-12 pt-8 border-t border-slate-100 dark:border-slate-800/50">
+                      <div className="font-signature text-4xl text-teal dark:text-teal-400 mb-2">
+                        Smile Smart Homes
+                      </div>
+                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        Certified Personal Strategy
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+
                 {/* Automation Scenarios */}
                 <div className="bg-slate-50 dark:bg-gray-800/50 rounded-2xl p-6">
                   <h4 className="text-lg font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
@@ -459,7 +516,7 @@ export const PersonalityQuiz: React.FC = () => {
                     Perfect Automations for You
                   </h4>
                   <div className="space-y-3">
-                    {result.personalityType.automationScenarios.map((scenario, index) => (
+                    {result?.personalityType.automationScenarios.map((scenario: string, index: number) => (
                       <div key={index} className="flex items-start gap-3">
                         <div className="w-6 h-6 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-teal text-sm font-bold shrink-0 mt-0.5">
                           {index + 1}
@@ -477,7 +534,7 @@ export const PersonalityQuiz: React.FC = () => {
                     Recommended Devices
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {result.recommendations.map((device, i) => (
+                    {result?.recommendations.map((device: DeviceRecommendation, i: number) => (
                       <motion.div
                         key={device.name}
                         custom={i}
@@ -541,7 +598,7 @@ export const PersonalityQuiz: React.FC = () => {
                     Want a detailed smart home plan?
                   </h4>
                   <p className="text-slate-500 mb-6 max-w-md mx-auto relative z-10">
-                    Get a comprehensive quote with installation and personalized setup based on your {result.personalityType.name} personality.
+                    Get a comprehensive quote with installation and personalized setup based on your {result?.personalityType.name} personality.
                   </p>
                   <div className="flex flex-wrap justify-center gap-4 relative z-10">
                     <button

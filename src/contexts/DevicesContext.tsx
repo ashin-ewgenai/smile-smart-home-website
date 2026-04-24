@@ -117,6 +117,7 @@ export interface PersonalityType {
   borderColor: string;
   recommendedCategories: string[];
   automationScenarios: string[];
+  manifesto: string;
 }
 
 export interface UserProfile {
@@ -337,7 +338,8 @@ export const PERSONALITY_TYPES: Record<string, PersonalityType> = {
       'Morning: Gentle wake-up with gradual lighting and preferred temperature',
       'Evening: Automatic dimming and cozy ambiance for relaxation',
       'Movie Night: One-tap theater mode with dimmed lights and optimized sound'
-    ]
+    ],
+    manifesto: "For you, home isn't just a place; it's a living, breathing sanctuary of calm. You believe that technology should be invisible, serving only to enhance the warmth of your surroundings. Your ideal living space breathes with you, softening the edges of the world and creating a haven where every light, every sound, and every breath of air is perfectly tuned to your peace of mind."
   },
   security_guardian: {
     id: 'security_guardian',
@@ -352,7 +354,8 @@ export const PERSONALITY_TYPES: Record<string, PersonalityType> = {
       'Away Mode: All sensors armed with instant notifications',
       'Night Patrol: Automated camera recording and perimeter monitoring',
       'Visitor Detection: Smart doorbell with two-way audio and recording'
-    ]
+    ],
+    manifesto: "In a world of uncertainty, your home is your fortress. You believe that true luxury is the freedom from worry. Your vision is a watchful, intelligent environment that anticipates risks before they emerge. It's not about gadgets; it's about the unbreakable promise of safety for those you love, ensuring that your sanctuary remains private, protected, and perpetually secure."
   },
   tech_enthusiast: {
     id: 'tech_enthusiast',
@@ -367,7 +370,8 @@ export const PERSONALITY_TYPES: Record<string, PersonalityType> = {
       'Voice Control: Every device responds to natural voice commands',
       'Smart Routines: Complex automations based on time, weather, and presence',
       'Energy Optimization: AI-driven power management across all devices'
-    ]
+    ],
+    manifesto: "You live on the edge of tomorrow. For you, a home is a sophisticated machine for living—a symphony of hardware and software working in perfect harmony. You see the potential in every connection and the beauty in a fully integrated life. Your vision is a home that doesn't just respond, but evolves with you, pushing the boundaries of what's possible through the power of intelligent design."
   },
   efficiency_expert: {
     id: 'efficiency_expert',
@@ -382,7 +386,8 @@ export const PERSONALITY_TYPES: Record<string, PersonalityType> = {
       'Energy Saving: Automatic power-off for unused devices',
       'Smart Scheduling: Lights and climate adjust based on your calendar',
       'Quick Actions: One-tap scenes for common activities'
-    ]
+    ],
+    manifesto: "You understand that time is your most precious resource. You believe that a home should be an engine of efficiency, eliminating the trivial and automating the mundane. Your vision is a streamlined existence where energy is never wasted and effort is always minimized. It's about a home that works for you, so you can focus on the things that truly matter in life."
   }
 };
 
