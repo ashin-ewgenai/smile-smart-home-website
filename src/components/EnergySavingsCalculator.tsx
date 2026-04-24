@@ -49,9 +49,10 @@ const SavingsGauge = ({ value, maxValue, label }: { value: number; maxValue: num
             paddingAngle={0}
             dataKey="value"
             stroke="none"
+            cornerRadius={10}
           >
             {data.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.color} cornerRadius={10} />
+              <Cell key={`cell-${index}`} fill={entry.color} />
             ))}
           </Pie>
         </PieChart>
@@ -315,10 +316,10 @@ const CalculatorContent: React.FC = () => {
                 </div>
               </div>
               <a 
-                href="/portfolio" 
+                href="/gallery" 
                 className="group flex items-center gap-2 text-teal font-black text-sm uppercase tracking-widest hover:text-blue-500 transition-colors"
               >
-                Explore Smart Portfolio
+                Explore Our Gallery
                 <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
               </a>
             </div>
@@ -368,7 +369,7 @@ const CalculatorContent: React.FC = () => {
 };
 
 export const EnergySavingsCalculator: React.FC = () => (
-  <DevicesProvider client:only="react">
+  <DevicesProvider>
     <CalculatorContent />
   </DevicesProvider>
 );

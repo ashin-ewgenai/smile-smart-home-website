@@ -76,6 +76,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children, userType, u
     },
     
     {
+      href: `${base}/health`, key: 'health', label: 'Device Health', title: 'Device Health', match: `${base}/health`, icon: (
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+          <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+        </svg>
+      )
+    },
+    {
       href: `${base}/support-chat`, key: 'support', label: 'Support Chat', title: 'Support Chat', match: `${base}/support-chat`, icon: (
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
           <path d="M21 15a4 4 0 0 1-4 4H7l-4 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
