@@ -796,22 +796,24 @@ export default function QuoteForm({ userEmail: emailProp, className = '', onSubm
       setSubmitSuccess(docRef.id);
       showToast('Quote submitted successfully.');
       
-      // Trigger WhatsApp notification via callable if phone provided
-      if (formData.whatsappNumber) {
-        try {
-          const waRes = await notifyQuoteAction({
-            type: 'quote_submitted',
-            quoteId: docRef.id,
-            email: userEmail || '',
-            phone: formData.whatsappNumber,
-            name: 'Valued Customer',
-            templateId: formData.templateId,
-            details: { budget: formData.budget, type: formData.quoteType, templateId: formData.templateId }
-          });
-          if (waRes?.whatsappLink) setWaManualLink(waRes.whatsappLink);
-        } catch (waErr) {
-          console.warn('WhatsApp notification trigger failed', waErr);
-        }
+      // Trigger notifications (Email is always sent, WhatsApp only if phone provided)
+      try {
+        const waRes = await notifyQuoteAction({
+          type: 'quote_submitted',
+          quoteId: docRef.id,
+          email: userEmail || '',
+          phone: formData.whatsappNumber || undefined,
+          name: 'Valued Customer',
+          templateId: formData.templateId,
+          details: { 
+            budget: formData.budget, 
+            type: formData.quoteType, 
+            templateId: formData.templateId 
+          }
+        });
+        if (waRes?.whatsappLink) setWaManualLink(waRes.whatsappLink);
+      } catch (waErr) {
+        console.warn('Notification trigger failed', waErr);
       }
 
       // Reset form progress in localStorage

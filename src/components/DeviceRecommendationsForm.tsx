@@ -15,7 +15,7 @@ import type { DeviceRecommendation } from '../models';
 import { RoomVisualization } from './RoomVisualization';
 import { auth, db } from '../lib/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, addDoc, collection } from 'firebase/firestore';
 import { accountDoc, newAccountPayload, accountLoginMergePayload } from '../models/Collections';
 
 export const DeviceRecommendationsForm: React.FC = () => {
@@ -779,17 +779,45 @@ export const DeviceRecommendationsForm: React.FC = () => {
                                       return;
                                     }
 
-                                    await notifyQuoteAction({
-                                      type: 'email',
-                                      customerEmail: recipientEmail,
-                                      phone: recipientPhone,
-                                      templateId: selectedTemplateId || undefined,
-                                      details: { 
-                                        recommendations, 
-                                        formData, 
-                                        selectedTemplate: selectedTemplateId 
-                                      }
-                                    });
+                                    try {
+                                      // 1. Create a lead record in Firestore
+                                      const leadRef = await addDoc(collection(db, 'Planner_Leads'), {
+                                        email: recipientEmail.toLowerCase().trim(),
+                                        uid: uid || '',
+                                        phoneNumber: recipientPhone || '',
+                                        whatsappNumber: recipientPhone || '',
+                                        source: 'ai_consultant',
+                                        status: 'new',
+                                        createdAt: serverTimestamp(),
+                                        updatedAt: serverTimestamp(),
+                                        complexity: 'AI Consultant',
+                                        planText: `[AI Recommendations] Budget: ₹${formData.budget}, Space: ${formData.houseSize}, Security: ${formData.securityNeeds}`,
+                                        formData: {
+                                          ...formData,
+                                          recommendations
+                                        }
+                                      });
+
+                                      // 2. Trigger notifications
+                                      await notifyQuoteAction({
+                                        type: 'quote_submitted',
+                                        quoteId: leadRef.id,
+                                        email: recipientEmail,
+                                        phone: recipientPhone || undefined,
+                                        name: 'Valued Customer',
+                                        templateId: selectedTemplateId || undefined,
+                                        details: { 
+                                          recommendations, 
+                                          formData, 
+                                          selectedTemplate: selectedTemplateId,
+                                          budget: formData.budget,
+                                          houseSize: formData.houseSize
+                                        }
+                                      });
+                                    } catch (err: any) {
+                                      console.error('[DeviceRecommendationsForm] Submission failed:', err);
+                                      // notifyQuoteAction internally shows notification on error
+                                    }
                                   }}
                                   disabled={isSending || !recipientEmail}
                                   className="flex-1 bg-teal text-white py-4 rounded-2xl font-bold shadow-lg hover:bg-teal/90 disabled:opacity-50 transition-all flex items-center justify-center gap-2"

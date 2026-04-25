@@ -530,20 +530,18 @@ export default function InteractiveFloorplan() {
       // 1. Submit to Firestore (Trigger backend)
       await submitSpaceRequest(payload as any);
 
-      // 2. Also trigger WhatsApp notification via backend proxy if phone is provided
-      if (modal.phone.trim()) {
-        try {
-          await notifyQuoteAction({
-            type: 'quote_submitted',
-            quoteId: `Tour-${Date.now()}`,
-            email: modal.email.trim(),
-            phone: modal.phone.trim(),
-            name: 'Valued Customer',
-            details: { space: activeSpace, room: currentHotspot.title }
-          });
-        } catch (e) {
-          console.warn('WhatsApp notification trigger failed (non-fatal)', e);
-        }
+      // 2. Also trigger notifications (Email is always sent, WhatsApp only if phone provided)
+      try {
+        await notifyQuoteAction({
+          type: 'quote_submitted',
+          quoteId: `Tour-${Date.now()}`,
+          email: modal.email.trim(),
+          phone: modal.phone.trim() || undefined,
+          name: 'Valued Customer',
+          details: { space: activeSpace, room: currentHotspot.title }
+        });
+      } catch (e) {
+        console.warn('Notification trigger failed (non-fatal)', e);
       }
 
       setModal(m => ({ ...m, submitting: false, success: true }));
