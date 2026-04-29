@@ -1,57 +1,118 @@
 ---
-import DarkModeToggle from '../components/ui/DarkModeToggle';
-import AuthModalWrapper from '../components/home/AuthModalWrapper';
+import DarkModeToggle from "../components/ui/DarkModeToggle";
+import AuthModalWrapper from "../components/home/AuthModalWrapper";
 
 // Server-side auth hint
 // Do NOT access window/localStorage here; this code runs on the server.
 // Default to logged-out; client scripts will correct immediately.
 const authState = {
   isAuthed: false,
-  greeting: ''
+  greeting: "",
 } as const;
 ---
 
-<header class="fixed top-0 left-0 right-0 z-[100] bg-white/95 dark:bg-charcoal/95 backdrop-blur-md border-b border-gray-200/60 dark:border-gray-700/60 shadow-sm">
+<header
+  class="fixed top-0 left-0 right-0 z-[100] bg-white/95 dark:bg-charcoal/95 backdrop-blur-md border-b border-gray-200/60 dark:border-gray-700/60 shadow-sm"
+>
   <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between h-16 md:h-20">
       <!-- Logo -->
-      <a href="/" class="flex items-center space-x-3 text-lg md:text-xl font-semibold text-charcoal dark:text-white group transition-all duration-200 hover:scale-[1.02]" aria-label="Smile Smart Homes home">
+      <a
+        href="/"
+        class="flex items-center space-x-3 text-lg md:text-xl font-semibold text-charcoal dark:text-white group transition-all duration-200 hover:scale-[1.02]"
+        aria-label="Smile Smart Homes home"
+      >
         <div class="relative">
-          <img src="/logo-primary.png" alt="Smile Smart Homes" class="h-8 md:h-10 w-auto brightness-0 dark:brightness-100 dark:invert filter-teal transition-transform duration-200 group-hover:rotate-3" />
-          <div class="absolute inset-0 bg-gradient-to-r from-teal/20 to-blue-500/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 -z-10"></div>
+          <img
+            src="/logo-primary.png"
+            alt="Smile Smart Homes"
+            class="h-8 md:h-10 w-auto brightness-0 dark:brightness-100 dark:invert filter-teal transition-transform duration-200 group-hover:rotate-3"
+          />
+          <div
+            class="absolute inset-0 bg-gradient-to-r from-teal/20 to-blue-500/20 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 -z-10"
+          >
+          </div>
         </div>
-        <img src="/my-secondary.png.png" alt="Secondary logo" class="h-9 md:h-11 lg:h-12 w-auto hidden sm:inline-block brightness-0 dark:brightness-100 dark:invert filter-teal transition-transform duration-200 group-hover:scale-105" />
+        <img
+          src="/my-secondary.png.png"
+          alt="Secondary logo"
+          class="h-9 md:h-11 lg:h-12 w-auto hidden sm:inline-block brightness-0 dark:brightness-100 dark:invert filter-teal transition-transform duration-200 group-hover:scale-105"
+        />
       </a>
 
       <!-- Desktop Navigation (visible only above 910px) -->
-      <div class="hidden min-[911px]:flex items-center space-x-1 lg:space-x-2 xl:space-x-3">
-        <a href="/" class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden">
+      <div
+        class="hidden min-[911px]:flex items-center space-x-1 lg:space-x-2 xl:space-x-3"
+      >
+        <a
+          href="/"
+          class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden"
+        >
           <span class="relative z-10">Home</span>
-          <div class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+          <div
+            class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          >
+          </div>
         </a>
-        <a href="/services" class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden">
+        <a
+          href="/services"
+          class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden"
+        >
           <span class="relative z-10">Services</span>
-          <div class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+          <div
+            class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          >
+          </div>
         </a>
-        <a href="/about" class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden">
+        <a
+          href="/about"
+          class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden"
+        >
           <span class="relative z-10">About</span>
-          <div class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+          <div
+            class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          >
+          </div>
         </a>
-        <a href="/gallery" class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden">
+        <a
+          href="/gallery"
+          class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden"
+        >
           <span class="relative z-10">Gallery</span>
-          <div class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+          <div
+            class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          >
+          </div>
         </a>
-        <a href="/energy-calculator" class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden">
+        <a
+          href="/energy-calculator"
+          class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden"
+        >
           <span class="relative z-10">Savings</span>
-          <div class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+          <div
+            class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          >
+          </div>
         </a>
-        <a href="/reviews" class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden">
+        <a
+          href="/reviews"
+          class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden"
+        >
           <span class="relative z-10">Reviews</span>
-          <div class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+          <div
+            class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          >
+          </div>
         </a>
-        <a href="/contact" class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden">
+        <a
+          href="/contact"
+          class="relative px-3 py-2 md:px-4 md:py-2.5 rounded-xl font-semibold text-sm md:text-[15px] text-gray-700 dark:text-gray-300 hover:text-teal transition-all duration-200 group overflow-hidden"
+        >
           <span class="relative z-10">Contact</span>
-          <div class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+          <div
+            class="absolute inset-0 bg-gradient-to-r from-teal/10 to-blue-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+          >
+          </div>
         </a>
       </div>
 
@@ -59,65 +120,186 @@ const authState = {
       <div class="flex items-center space-x-2 md:space-x-4">
         <DarkModeToggle client:load />
         <div class="hidden md:block">
-          <a href="#" data-open-auth="login" data-auth="signin-desktop" aria-hidden="true" class="relative inline-flex items-center px-4 py-2.5 text-sm md:text-base font-medium text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200 group overflow-hidden">
-            <div class="absolute inset-0 bg-gradient-to-r from-white/10 to-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
-            <svg class="w-4 h-4 mr-2 relative z-10 group-hover:rotate-12 transition-transform duration-200" fill="currentColor" viewBox="0 0 20 20">
-              <path fill-rule="evenodd" d="M3 3a1 1 0 011 1v12a1 1 0 11-2 0V4a1 1 0 011-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z" clip-rule="evenodd"></path>
+          <a
+            href="#"
+            data-open-auth="login"
+            data-auth="signin-desktop"
+            aria-hidden="true"
+            class="relative inline-flex items-center px-4 py-2.5 text-sm md:text-base font-medium text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200 group overflow-hidden"
+          >
+            <div
+              class="absolute inset-0 bg-gradient-to-r from-white/10 to-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            >
+            </div>
+            <svg
+              class="w-4 h-4 mr-2 relative z-10 group-hover:rotate-12 transition-transform duration-200"
+              fill="currentColor"
+              viewBox="0 0 20 20"
+            >
+              <path
+                fill-rule="evenodd"
+                d="M3 3a1 1 0 011 1v12a1 1 0 11-2 0V4a1 1 0 011-1zm10.293 9.293a1 1 0 001.414 1.414l3-3a1 1 0 000-1.414l-3-3a1 1 0 10-1.414 1.414L14.586 9H7a1 1 0 100 2h7.586l-1.293 1.293z"
+                clip-rule="evenodd"></path>
             </svg>
             <span class="relative z-10">Sign In</span>
           </a>
         </div>
         <!-- Authenticated state (desktop): Username text and avatar dropdown -->
-        <span 
-          data-auth="user-desktop" 
-          class={`min-[601px]:inline-flex items-center text-sm md:text-base font-semibold text-teal ${authState.isAuthed ? 'inline-flex' : 'hidden'}`}
-          style={authState.isAuthed ? 'visibility: visible; opacity: 1;' : 'visibility: hidden; opacity: 0;'}
+        <span
+          data-auth="user-desktop"
+          class={`min-[601px]:inline-flex items-center text-sm md:text-base font-semibold text-teal ${authState.isAuthed ? "inline-flex" : "hidden"}`}
+          style={authState.isAuthed
+            ? "visibility: visible; opacity: 1;"
+            : "visibility: hidden; opacity: 0;"}
         >
           {authState.greeting}
         </span>
         <!-- Avatar dropdown -->
-        <div data-auth="user-menu-desktop" class="relative hidden min-[601px]:inline-block">
-          <div data-auth="user-menu-trigger" class="h-8 w-8 rounded-full flex items-center justify-center bg-teal text-white cursor-pointer">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-5 w-5"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <div
+          data-auth="user-menu-desktop"
+          class="relative hidden min-[601px]:inline-block"
+        >
+          <div
+            data-auth="user-menu-trigger"
+            class="h-8 w-8 rounded-full flex items-center justify-center bg-teal text-white cursor-pointer"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-5 w-5"
+              ><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"
+              ></path><circle cx="12" cy="7" r="4"></circle></svg
+            >
           </div>
-          <div data-auth="user-menu-dropdown" class="absolute right-0 mt-2 w-48 origin-top-right rounded-md shadow-lg ring-1 ring-black/10 dark:ring-white/10 bg-white dark:bg-gray-900 py-1 hidden">
-            <a href="/scenes" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 font-medium">Scene Builder</a>
-            <a href="/dashboard/user" data-auth="dashboard-action" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800">Dashboard</a>
-            <div class="border-t border-gray-100 dark:border-gray-800 my-1"></div>
-            <button type="button" data-auth="logout-action" class="w-full text-left block px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-600/10">Sign out</button>
+          <div
+            data-auth="user-menu-dropdown"
+            class="absolute right-0 mt-2 w-48 origin-top-right rounded-md shadow-lg ring-1 ring-black/10 dark:ring-white/10 bg-white dark:bg-gray-900 py-1 hidden"
+          >
+            <a
+              href="/scenes"
+              class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800 font-medium"
+              >Scene Builder</a
+            >
+            <a
+              href="/dashboard/user"
+              data-auth="dashboard-action"
+              class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-800"
+              >Dashboard</a
+            >
+            <div class="border-t border-gray-100 dark:border-gray-800 my-1">
+            </div>
+            <button
+              type="button"
+              data-auth="logout-action"
+              class="w-full text-left block px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-600/10"
+              >Sign out</button
+            >
           </div>
         </div>
-        
+
         <!-- Mobile menu button (show up to 910px) -->
-        <button class="hidden max-[910px]:inline-flex p-2.5 rounded-xl bg-gradient-to-r from-teal/10 to-blue-500/10 hover:from-teal/20 hover:to-blue-500/20 border border-teal/20 transition-all duration-200 hover:scale-105" id="mobile-menu-button" aria-controls="mobile-menu" aria-expanded="false">
-          <svg class="w-5 h-5 text-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+        <button
+          class="hidden max-[910px]:inline-flex p-2.5 rounded-xl bg-gradient-to-r from-teal/10 to-blue-500/10 hover:from-teal/20 hover:to-blue-500/20 border border-teal/20 transition-all duration-200 hover:scale-105"
+          id="mobile-menu-button"
+          aria-controls="mobile-menu"
+          aria-expanded="false"
+        >
+          <svg
+            class="w-5 h-5 text-teal"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 6h16M4 12h16M4 18h16"></path>
           </svg>
         </button>
       </div>
     </div>
 
     <!-- Mobile Navigation (overlay under header on mobile) -->
-    <div class="hidden overflow-hidden max-h-0 opacity-0 transition-all duration-300 ease-out relative z-[90]" id="mobile-menu">
-      <div class="px-3 pt-3 pb-4 space-y-2 bg-white/98 dark:bg-charcoal/98 backdrop-blur-md border-t border-gray-200/60 dark:border-gray-700/60 shadow-lg">
-        <a href="/" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Home</a>
-        <a href="/services" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Services</a>
-        <a href="/about" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">About</a>
-        <a href="/gallery" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Gallery</a>
-        <a href="/energy-calculator" class="block px-4 py-3 text-teal font-black hover:bg-teal/5 rounded-xl transition-all duration-200">
+    <div
+      class="hidden overflow-hidden max-h-0 opacity-0 transition-all duration-300 ease-out relative z-[90]"
+      id="mobile-menu"
+    >
+      <div
+        class="px-3 pt-3 pb-4 space-y-2 bg-white/98 dark:bg-charcoal/98 backdrop-blur-md border-t border-gray-200/60 dark:border-gray-700/60 shadow-lg"
+      >
+        <a
+          href="/"
+          class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200"
+          >Home</a
+        >
+        <a
+          href="/services"
+          class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200"
+          >Services</a
+        >
+        <a
+          href="/about"
+          class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200"
+          >About</a
+        >
+        <a
+          href="/gallery"
+          class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200"
+          >Gallery</a
+        >
+        <a
+          href="/energy-calculator"
+          class="block px-4 py-3 text-teal font-black hover:bg-teal/5 rounded-xl transition-all duration-200"
+        >
           Savings Calculator
         </a>
-        <a href="/reviews" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Reviews</a>
-        <a href="/contact" class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200">Contact</a>
-        <a href="/scenes" class="block px-4 py-3 text-teal font-bold hover:bg-teal/5 rounded-xl transition-all duration-200">Scene Builder</a>
+        <a
+          href="/reviews"
+          class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200"
+          >Reviews</a
+        >
+        <a
+          href="/contact"
+          class="block px-4 py-3 text-gray-700 dark:text-gray-300 hover:text-teal hover:bg-gradient-to-r hover:from-teal/5 hover:to-blue-500/5 rounded-xl transition-all duration-200"
+          >Contact</a
+        >
+        <a
+          href="/scenes"
+          class="block px-4 py-3 text-teal font-bold hover:bg-teal/5 rounded-xl transition-all duration-200"
+          >Scene Builder</a
+        >
         <!-- Mobile auth: Sign In (hidden when authed by AuthNavClient) -->
-        <a href="#" data-open-auth="login" data-auth="signin-mobile" class="block px-4 py-3 mt-3 text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl text-center font-medium shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200">Sign In</a>
+        <a
+          href="#"
+          data-open-auth="login"
+          data-auth="signin-mobile"
+          class="block px-4 py-3 mt-3 text-white bg-gradient-to-r from-teal to-blue-600 hover:from-teal/90 hover:to-blue-700 rounded-xl text-center font-medium shadow-sm hover:shadow-md transform hover:scale-[1.02] transition-all duration-200"
+          >Sign In</a
+        >
 
         <!-- Mobile auth: User button (shown when authed by AuthNavClient) -->
-        <button type="button" data-auth="user-mobile" style="display:none" class="hidden w-full px-4 py-3 mt-3 text-teal bg-teal/10 hover:bg-teal/20 rounded-xl text-center font-semibold transition-all duration-200">Hi there</button>
+        <button
+          type="button"
+          data-auth="user-mobile"
+          style="display:none"
+          class="hidden w-full px-4 py-3 mt-3 text-teal bg-teal/10 hover:bg-teal/20 rounded-xl text-center font-semibold transition-all duration-200"
+          >Hi there</button
+        >
 
         <!-- Mobile auth: Logout (shown when authed by AuthNavClient) -->
-        <button type="button" data-auth="logout-mobile" style="display:none" class="hidden w-full px-4 py-3 mt-2 text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-600/10 dark:hover:bg-red-600/20 rounded-xl text-center font-medium transition-all duration-200">Sign out</button>
+        <button
+          type="button"
+          data-auth="logout-mobile"
+          style="display:none"
+          class="hidden w-full px-4 py-3 mt-2 text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-600/10 dark:hover:bg-red-600/20 rounded-xl text-center font-medium transition-all duration-200"
+          >Sign out</button
+        >
       </div>
     </div>
   </nav>
@@ -127,37 +309,45 @@ const authState = {
 <AuthModalWrapper client:load />
 
 <!-- Server-rendered auth hint for pre-hydration script -->
-<meta id="auth-hint" data-is-authed={authState.isAuthed ? '1' : '0'} />
+<meta id="auth-hint" data-is-authed={authState.isAuthed ? "1" : "0"} />
 
 <!-- Set initial auth state from server-rendered value -->
 <script is:inline>
-  (function(){
+  (function () {
     try {
-      const hint = document.getElementById('auth-hint');
-      const hintAuth = hint?.getAttribute('data-is-authed') === '1';
+      const hint = document.getElementById("auth-hint");
+      const hintAuth = hint?.getAttribute("data-is-authed") === "1";
 
       const computeAuth = () => {
-        try { return !!localStorage.getItem('userId'); } catch { return hintAuth; }
+        try {
+          return !!localStorage.getItem("userId");
+        } catch {
+          return hintAuth;
+        }
       };
 
       const firstFromEmail = (email) => {
-        if (!email) return '';
-        const local = (email.split('@')[0]||'').trim();
-        const first = (local.split(/[._-]+/)[0]||local).trim();
+        if (!email) return "";
+        const local = (email.split("@")[0] || "").trim();
+        const first = (local.split(/[._-]+/)[0] || local).trim();
         return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
       };
 
       const applyAuthUI = (isAuthed) => {
-        document.documentElement.setAttribute('data-auth', isAuthed ? '1' : '0');
+        document.documentElement.setAttribute(
+          "data-auth",
+          isAuthed ? "1" : "0",
+        );
         const signInEl = document.querySelector('[data-auth="signin-desktop"]');
         const userTextEl = document.querySelector('[data-auth="user-desktop"]');
-        if (signInEl instanceof HTMLElement) signInEl.style.display = isAuthed ? 'none' : 'inline-flex';
+        if (signInEl instanceof HTMLElement)
+          signInEl.style.display = isAuthed ? "none" : "inline-flex";
         if (userTextEl instanceof HTMLElement) {
-          userTextEl.style.display = isAuthed ? 'inline-flex' : 'none';
+          userTextEl.style.display = isAuthed ? "inline-flex" : "none";
           if (isAuthed && !userTextEl.textContent?.trim()) {
             try {
-              const uid = localStorage.getItem('userId') || '';
-              userTextEl.textContent = 'Hi there';
+              const uid = localStorage.getItem("userId") || "";
+              userTextEl.textContent = "Hi there";
             } catch {}
           }
         }
@@ -167,9 +357,11 @@ const authState = {
       applyAuthUI(computeAuth());
 
       // Re-apply on Astro view transitions
-      document.addEventListener('astro:page-load', () => applyAuthUI(computeAuth()));
+      document.addEventListener("astro:page-load", () =>
+        applyAuthUI(computeAuth()),
+      );
     } catch (e) {
-      console.error('Error setting initial auth state:', e);
+      console.error("Error setting initial auth state:", e);
     }
   })();
 </script>
@@ -177,40 +369,42 @@ const authState = {
 <!-- Pre-hydration: minimize auth UI flash using localStorage heuristic -->
 <script>
   // @ts-nocheck
-  (function(){
-    function toTitle(s){return s? s.charAt(0).toUpperCase()+s.slice(1).toLowerCase(): s}
-    function firstFromEmail(email){
-      if (!email) return '';
-      const local = email.split('@')[0]||'';
-      const first = (local.split(/[._-]+/)[0]||local).trim();
+  (function () {
+    function toTitle(s) {
+      return s ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
+    }
+    function firstFromEmail(email) {
+      if (!email) return "";
+      const local = email.split("@")[0] || "";
+      const first = (local.split(/[._-]+/)[0] || local).trim();
       return toTitle(first);
     }
-    
+
     function updateGreeting() {
       try {
-        const uid = localStorage.getItem('userId');
+        const uid = localStorage.getItem("userId");
         if (uid) {
           const userText = document.querySelector('[data-auth="user-desktop"]');
           if (userText) {
-            userText.textContent = `Hi ${firstFromEmail(email) || 'there'}`;
-            userText.style.display = 'inline-flex';
-            userText.style.visibility = 'visible';
-            userText.style.opacity = '1';
+            userText.textContent = `Hi ${firstFromEmail(email) || "there"}`;
+            userText.style.display = "inline-flex";
+            userText.style.visibility = "visible";
+            userText.style.opacity = "1";
           }
         }
       } catch (e) {
-        console.error('[Auth] Error updating greeting:', e);
+        console.error("[Auth] Error updating greeting:", e);
       }
     }
-    
+
     // Run immediately
     updateGreeting();
-    
+
     // Also run after a short delay to catch any DOM changes
     setTimeout(updateGreeting, 50);
-    
+
     // And again after hydration
-    document.addEventListener('astro:page-load', updateGreeting);
+    document.addEventListener("astro:page-load", updateGreeting);
   })();
   // AuthNavClient will refine this once hydrated (role checks, Firestore, etc.)
 </script>
@@ -218,14 +412,16 @@ const authState = {
 <style>
   /* Apply teal color filter to logo */
   .filter-teal {
-    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
+    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%)
+      hue-rotate(127deg) brightness(97%) contrast(101%);
   }
-  
+
   /* For dark mode */
   .dark .filter-teal {
-    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%) hue-rotate(127deg) brightness(97%) contrast(101%);
+    filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%)
+      hue-rotate(127deg) brightness(97%) contrast(101%);
   }
-  
+
   /* Force visibility states with !important */
   html[data-auth="1"] [data-auth="signin-desktop"],
   html[data-auth="1"] [data-auth="signin-desktop"] * {
@@ -244,7 +440,7 @@ const authState = {
     white-space: nowrap !important;
     overflow: hidden !important;
   }
-  
+
   html[data-auth="1"] [data-auth="user-desktop"],
   html[data-auth="1"] [data-auth="user-menu-desktop"] {
     display: inline-flex !important;
@@ -252,19 +448,19 @@ const authState = {
     opacity: 1 !important;
     pointer-events: auto !important;
   }
-  
+
   /* Hide by default until we know the auth state */
   [data-auth="signin-desktop"],
   [data-auth="user-desktop"],
   [data-auth="user-menu-desktop"] {
     display: none !important;
   }
-  
+
   /* Only show Sign In when explicitly set to unauth */
   html[data-auth="0"] [data-auth="signin-desktop"] {
     display: inline-flex !important;
   }
-  
+
   /* Show user menu when authed */
   html[data-auth="1"] [data-auth="user-desktop"],
   html[data-auth="1"] [data-auth="user-menu-desktop"] {
@@ -273,7 +469,7 @@ const authState = {
     opacity: 1 !important;
     pointer-events: auto !important;
   }
-  
+
   /* Ensure the greeting is always visible when authed */
   html[data-auth="1"] [data-auth="user-desktop"] {
     display: inline-flex !important;
@@ -292,20 +488,20 @@ const authState = {
   // @ts-nocheck
   // Mobile click handler with aria + outside click close + smooth transitions.
   // Re-initialize on Astro view transitions.
-  (function(){
+  (function () {
     const init = () => {
       // Use a data flag on <html> instead of extending window for init guard
       const root = document.documentElement;
-      if (root.dataset.mobileMenuInit === '1') return;
-      root.dataset.mobileMenuInit = '1';
+      if (root.dataset.mobileMenuInit === "1") return;
+      root.dataset.mobileMenuInit = "1";
 
-      const menu = document.getElementById('mobile-menu');
-      const button = document.getElementById('mobile-menu-button');
+      const menu = document.getElementById("mobile-menu");
+      const button = document.getElementById("mobile-menu-button");
       if (!menu || !button) return;
 
       // Ensure starting closed state is consistent
-      menu.classList.add('opacity-0');
-      menu.classList.add('max-h-0');
+      menu.classList.add("opacity-0");
+      menu.classList.add("max-h-0");
 
       /** @type {(ev: TransitionEvent) => void | null} */
       let transitionHandler = null;
@@ -313,43 +509,45 @@ const authState = {
       /** @param {TransitionEvent} ev */
       const onTransitionEnd = (ev) => {
         // When finishing closing, hide from layout to prevent tab focus
-        const isOpen = button.getAttribute('aria-expanded') === 'true';
+        const isOpen = button.getAttribute("aria-expanded") === "true";
         if (!isOpen) {
-          menu.classList.add('hidden');
-          menu.style.maxHeight = '0';
+          menu.classList.add("hidden");
+          menu.style.maxHeight = "0";
         }
       };
 
       // Toggle mobile menu
       /** @param {boolean=} open */
       const toggleMenu = (open) => {
-        const isOpen = button.getAttribute('aria-expanded') === 'true';
-        if (typeof open === 'undefined') open = !isOpen;
+        const isOpen = button.getAttribute("aria-expanded") === "true";
+        if (typeof open === "undefined") open = !isOpen;
 
         // Remove any previous transitionend handler to avoid duplicates
         if (transitionHandler) {
-          menu.removeEventListener('transitionend', transitionHandler);
+          menu.removeEventListener("transitionend", transitionHandler);
           transitionHandler = null;
         }
 
         if (open) {
           // Show
-          menu.classList.remove('hidden');
+          menu.classList.remove("hidden");
           // Wait a frame so the browser registers display change before height transition
           requestAnimationFrame(() => {
-            menu.style.maxHeight = menu.scrollHeight + 'px';
-            menu.classList.remove('opacity-0');
-            menu.classList.add('opacity-100');
+            menu.style.maxHeight = menu.scrollHeight + "px";
+            menu.classList.remove("opacity-0");
+            menu.classList.add("opacity-100");
           });
-          button.setAttribute('aria-expanded', 'true');
+          button.setAttribute("aria-expanded", "true");
         } else {
           // Hide with transition, then add hidden after transition completes
-          menu.style.maxHeight = '0';
-          menu.classList.remove('opacity-100');
-          menu.classList.add('opacity-0');
-          button.setAttribute('aria-expanded', 'false');
+          menu.style.maxHeight = "0";
+          menu.classList.remove("opacity-100");
+          menu.classList.add("opacity-0");
+          button.setAttribute("aria-expanded", "false");
           transitionHandler = onTransitionEnd;
-          menu.addEventListener('transitionend', transitionHandler, { once: true });
+          menu.addEventListener("transitionend", transitionHandler, {
+            once: true,
+          });
         }
       };
 
@@ -366,16 +564,17 @@ const authState = {
       const handleButtonClick = () => toggleMenu();
 
       // Toggle on button click
-      button.addEventListener('click', handleButtonClick);
+      button.addEventListener("click", handleButtonClick);
 
       // Close when clicking outside
-      document.addEventListener('click', handleClickOutside);
+      document.addEventListener("click", handleClickOutside);
 
       // Cleanup function
       return () => {
-        button.removeEventListener('click', handleButtonClick);
-        document.removeEventListener('click', handleClickOutside);
-        if (transitionHandler) menu.removeEventListener('transitionend', transitionHandler);
+        button.removeEventListener("click", handleButtonClick);
+        document.removeEventListener("click", handleClickOutside);
+        if (transitionHandler)
+          menu.removeEventListener("transitionend", transitionHandler);
         delete root.dataset.mobileMenuInit;
       };
     };
@@ -384,48 +583,53 @@ const authState = {
     init();
 
     // Re-initialize on page transitions
-    document.addEventListener('astro:page-load', init);
+    document.addEventListener("astro:page-load", init);
   })();
 </script>
 
 <script>
   // Open AuthModal instead of navigating to /login
-  (function(){
+  (function () {
     const init = () => {
-      const modal = document.getElementById('auth-modal');
+      const modal = document.getElementById("auth-modal");
 
       const openModal = (type: string) => {
         // Try dispatching to modal element
         if (modal) {
-          modal.dispatchEvent(new CustomEvent('open', { detail: { type } }));
+          modal.dispatchEvent(new CustomEvent("open", { detail: { type } }));
         }
         // Also emit a global event in case the component listens on document
-        document.dispatchEvent(new CustomEvent('auth:open', { detail: { type } }));
+        document.dispatchEvent(
+          new CustomEvent("auth:open", { detail: { type } }),
+        );
         // Optional window hook if provided by AuthModal
         const fn = (window as any).__authOpen;
-        if (typeof fn === 'function') fn(type);
+        if (typeof fn === "function") fn(type);
       };
 
       // Delegated listener catches dynamically inserted links and works across partial reloads
       const onClick = (e: Event) => {
         const t = e.target as HTMLElement | null;
         if (!t) return;
-        const trigger = (t.closest && t.closest('[data-open-auth]')) as HTMLElement | null;
+        const trigger = (t.closest &&
+          t.closest("[data-open-auth]")) as HTMLElement | null;
         if (!trigger) return;
         // Intercept navigation and open modal
         e.preventDefault();
         e.stopPropagation();
-        const type = (trigger.getAttribute('data-open-auth') || 'login').toLowerCase();
+        const type = (
+          trigger.getAttribute("data-open-auth") || "login"
+        ).toLowerCase();
         openModal(type);
       };
 
-      document.addEventListener('click', onClick, { capture: true });
+      document.addEventListener("click", onClick, { capture: true });
 
       // Close modal when clicking its backdrop if available
       if (modal) {
-        modal.addEventListener('click', (e: Event) => {
+        modal.addEventListener("click", (e: Event) => {
           if (e.target === modal) {
-            modal.dispatchEvent(new Event('close'));
+            modal.dispatchEvent(new Event("close"));
           }
         });
       }
@@ -433,14 +637,14 @@ const authState = {
       // Save cleanup to window so we don't duplicate on view transitions
       (window as any).__authBindCleanup?.();
       (window as any).__authBindCleanup = () => {
-        document.removeEventListener('click', onClick, { capture: true } as any);
+        document.removeEventListener("click", onClick, {
+          capture: true,
+        } as any);
       };
     };
 
     // Run now and on Astro view transitions
     init();
-    document.addEventListener('astro:page-load', init as any);
+    document.addEventListener("astro:page-load", init as any);
   })();
 </script>
-
-
