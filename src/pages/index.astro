@@ -11,6 +11,9 @@ import SmartHomePlannerSection from '../components/home/SmartHomePlannerSection.
 import InteractiveFloorplanWrapper from '../components/home/InteractiveFloorplanWrapper';
 import RoomVisualizerSection from '../components/home/RoomVisualizerSection.astro';
 import { RecommendationsWrapper } from '../components/RecommendationsWrapper';
+import InteractiveRoadmap from '../components/home/InteractiveRoadmap';
+import Magnetic from '../components/common/Magnetic';
+
 
 ---
 
@@ -34,29 +37,36 @@ import { RecommendationsWrapper } from '../components/RecommendationsWrapper';
         
         <StaggerContainer client:load className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <StaggerItem>
-            <ValueCard 
-              icon='<svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>'
-              title="Enhanced Security"
-              description="Advanced monitoring systems and smart locks keep your family and property safe 24/7."
-            />
+            <Magnetic client:load>
+              <ValueCard 
+                icon='<svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>'
+                title="Enhanced Security"
+                description="Advanced monitoring systems and smart locks keep your family and property safe 24/7."
+              />
+            </Magnetic>
           </StaggerItem>
           
           <StaggerItem>
-            <ValueCard 
-              icon='<svg fill="currentColor" viewBox="0 0 20 20"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
-              title="Energy Efficiency"
-              description="Smart climate control and lighting systems reduce energy costs by up to 30%."
-            />
+            <Magnetic client:load>
+              <ValueCard 
+                icon='<svg fill="currentColor" viewBox="0 0 20 20"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>'
+                title="Energy Efficiency"
+                description="Smart climate control and lighting systems reduce energy costs by up to 30%."
+              />
+            </Magnetic>
           </StaggerItem>
           
           <StaggerItem>
-            <ValueCard 
-              icon='<svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>'
-              title="Convenience & Comfort"
-              description="Control everything from your phone. Automated routines make daily life effortless."
-            />
+            <Magnetic client:load>
+              <ValueCard 
+                icon='<svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>'
+                title="Convenience & Comfort"
+                description="Control everything from your phone. Automated routines make daily life effortless."
+              />
+            </Magnetic>
           </StaggerItem>
         </StaggerContainer>
+
       </div>
     </section>
 
@@ -79,39 +89,10 @@ import { RecommendationsWrapper } from '../components/RecommendationsWrapper';
           </p>
         </div>
         
-        <div class="max-w-3xl mx-auto">
-          <div data-hide-when="authed">
-            <ProcessStep 
-              step={1}
-              title="Free Consultation"
-              description="We assess your needs, discuss options, and provide a detailed quote tailored to your home."
-              icon='<svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>'
-            />
-          </div>
-          
-          <ProcessStep 
-            step={2}
-            title="Custom Planning"
-            description="Our experts design a system layout optimized for your lifestyle and home architecture."
-            icon='<svg fill="currentColor" viewBox="0 0 20 20"><path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"></path></svg>'
-          />
-          
-          <ProcessStep 
-            step={3}
-            title="Professional Installation"
-            description="Certified technicians install and configure all devices with minimal disruption to your routine."
-            icon='<svg fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"></path></svg>'
-          />
-          
-          <ProcessStep 
-            step={4}
-            title="Setup & Training"
-            description="We configure everything, test all systems, and train you on using your new smart home."
-            icon='<svg fill="currentColor" viewBox="0 0 20 20"><path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z"></path></svg>'
-          />
-        </div>
+        <InteractiveRoadmap client:load />
       </div>
     </section>
+
     
     <!-- Testimonials Section -->
     <section class="section-padding bg-white dark:bg-gray-900">
@@ -193,14 +174,19 @@ import { RecommendationsWrapper } from '../components/RecommendationsWrapper';
           
           <StaggerItem>
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
-              <a href="/contact" class="bg-white text-teal hover:bg-gray-100 px-8 py-3 rounded-lg font-medium transition-all duration-120 transform hover:scale-[1.02] btn-magnetic">
-                Get Free Quote
-              </a>
-              <a href="tel:+15551234567" class="border-2 border-white text-white hover:bg-white hover:text-teal px-8 py-3 rounded-lg font-medium transition-all duration-120">
-                Call Now
-              </a>
+              <Magnetic client:load>
+                <a href="/contact" class="bg-white text-teal hover:bg-gray-100 px-8 py-3 rounded-lg font-medium transition-all duration-120 transform hover:scale-[1.02]">
+                  Get Free Quote
+                </a>
+              </Magnetic>
+              <Magnetic client:load>
+                <a href="tel:+15551234567" class="border-2 border-white text-white hover:bg-white hover:text-teal px-8 py-3 rounded-lg font-medium transition-all duration-120">
+                  Call Now
+                </a>
+              </Magnetic>
             </div>
           </StaggerItem>
+
         </StaggerContainer>
       </div>
     </section>

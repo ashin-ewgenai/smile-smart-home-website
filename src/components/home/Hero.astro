@@ -1,5 +1,8 @@
 ---
 import { HeroMotion } from '../ui/MotionIsland';
+import PerspectiveCard from './PerspectiveCard';
+import Magnetic from '../common/Magnetic';
+
 ---
 
 <section class="relative min-h-[92vh] md:min-h-[88vh] flex items-center overflow-hidden">
@@ -10,45 +13,20 @@ import { HeroMotion } from '../ui/MotionIsland';
       
       <!-- Animated particles -->
       <div class="particles">
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
+        <div class="particle"></div><div class="particle"></div><div class="particle"></div><div class="particle"></div><div class="particle"></div>
+        <div class="particle"></div><div class="particle"></div><div class="particle"></div><div class="particle"></div><div class="particle"></div>
+        <div class="particle"></div><div class="particle"></div><div class="particle"></div><div class="particle"></div><div class="particle"></div>
+        <div class="particle"></div><div class="particle"></div><div class="particle"></div><div class="particle"></div><div class="particle"></div>
       </div>
       
       <!-- Animated floating bubbles -->
       <div class="bubbles">
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
-        <div class="bubble"></div>
+        <div class="bubble"></div><div class="bubble"></div><div class="bubble"></div><div class="bubble"></div><div class="bubble"></div>
+        <div class="bubble"></div><div class="bubble"></div><div class="bubble"></div><div class="bubble"></div><div class="bubble"></div>
+        <div class="bubble"></div><div class="bubble"></div>
       </div>
       
-      <!-- Animated gradient orbs with increased visibility -->
+      <!-- Animated gradient orbs -->
       <div class="orb orb1"></div>
       <div class="orb orb2"></div>
       <div class="orb orb3"></div>
@@ -61,90 +39,80 @@ import { HeroMotion } from '../ui/MotionIsland';
       <div class="light-beam beam3"></div>
     </div>
     
-    <!-- Dynamic Background Elements (consistent with other sections) -->
-    <div class="absolute inset-0 opacity-8 dark:opacity-4">
-      <div class="absolute top-20 right-20 w-28 h-28 bg-gradient-to-r from-green-400 to-teal rounded-2xl rotate-12 animate-pulse"></div>
-      <div class="absolute bottom-24 left-16 w-20 h-20 border-2 border-blue-400/30 rounded-full animate-pulse" style="animation-delay: 1s;"></div>
-      <div class="absolute top-1/3 left-1/4 w-12 h-12 bg-purple-400/40 rounded-lg rotate-45 animate-pulse" style="animation-delay: 1.8s;"></div>
-      <div class="absolute bottom-1/3 right-1/3 w-8 h-8 bg-yellow-400 rounded-full animate-pulse" style="animation-delay: 0.5s;"></div>
-    </div>
-    
     <!-- Dark overlay for better text readability -->
-    <div class="absolute inset-0 bg-black/60 dark:bg-black/50"></div>
+    <div class="absolute inset-0 bg-black/40 dark:bg-black/30"></div>
   </div>
 
   <div class="container relative z-10 py-20 md:py-24">
-    <HeroMotion client:load>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-14 items-center">
-        <!-- Left: Content -->
-        <div class="text-center md:text-left">
-          <!-- Badge -->
-          <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full border border-gray-200/60 dark:border-gray-700/60 shadow-sm mb-6">
-            <span class="w-2 h-2 bg-teal rounded-full animate-pulse"></span>
-            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Professional Smart Home Installation</span>
-          </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-10 lg:gap-14 items-center">
+      <!-- Left: Content -->
+      <div class="text-center md:text-left">
+        <!-- Badge -->
+        <div class="inline-flex items-center gap-2 px-4 py-2 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-full border border-gray-200/60 dark:border-gray-700/60 shadow-sm mb-6">
+          <span class="w-2 h-2 bg-teal rounded-full animate-pulse"></span>
+          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Professional Smart Home Installation</span>
+        </div>
 
-          <h1 class="text-display font-bold leading-tight">
-            <span class="text-white dark:text-white">Smarter living</span>
-            <span class="text-teal relative inline-block">
-              starts here
-              <span class="pointer-events-none absolute -bottom-2 left-0 right-0 h-1 bg-gradient-to-r from-teal/40 to-teal/70 rounded-full"></span>
+        <h1 class="text-display font-bold leading-tight">
+          <span class="text-white dark:text-white">Smarter living</span>
+          <span class="text-teal relative inline-block">
+            starts here
+            <span class="pointer-events-none absolute -bottom-2 left-0 right-0 h-1 bg-gradient-to-r from-teal/40 to-teal/70 rounded-full"></span>
+          </span>
+        </h1>
+
+        <p class="text-body-lg text-gray-100 dark:text-gray-300 mt-6 max-w-xl md:max-w-2xl md:mt-7 leading-relaxed mx-auto md:mx-0">
+          Transform your home with intelligent automation—enhanced security, energy efficiency, and effortless comfort. Expert setup included.
+        </p>
+
+        <!-- CTAs -->
+        <div class="mt-9 flex flex-col sm:flex-row gap-4 sm:gap-5 justify-center md:justify-start items-center">
+          <a href="/contact" class="btn-primary group">
+            <span class="flex items-center gap-2">
+              Get Free Consultation
+              <svg class="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
             </span>
-          </h1>
+          </a>
+          <a href="/services" class="btn-secondary group">
+            <span class="flex items-center gap-2">
+              View Services
+              <svg class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+            </span>
+          </a>
+        </div>
 
-          <p class="text-body-lg text-gray-100 dark:text-gray-300 mt-6 max-w-xl md:max-w-2xl md:mt-7 leading-relaxed mx-auto md:mx-0">
-            Transform your home with intelligent automation—enhanced security, energy efficiency, and effortless comfort. Expert setup included.
-          </p>
 
-          <!-- CTAs -->
-          <div class="mt-9 flex flex-col sm:flex-row gap-4 sm:gap-5 justify-center md:justify-start items-center">
-            <a href="/contact" data-hide-when="authed" class="btn-primary group relative overflow-hidden btn-magnetic">
-              <span class="relative z-10 flex items-center gap-2">
-                Get Free Consultation
-                <svg class="w-4 h-4 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
-              </span>
-              <span class="absolute inset-0 bg-gradient-to-r from-teal to-teal/80 opacity-0 group-hover:opacity-100 transition-opacity"></span>
-            </a>
-            <a href="/services" class="btn-secondary group text-white ring-1 ring-white/60 hover:bg-white/10">
-              <span class="flex items-center gap-2">
-                View Services
-                <svg class="w-4 h-4 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                </svg>
-              </span>
-            </a>
-          </div>
-
-          <!-- Partner logos -->
-          <div class="mt-10 opacity-80">
-            <p class="text-xs uppercase tracking-wider text-gray-200 dark:text-gray-400 text-center md:text-left mb-3">Trusted by leading brands</p>
-            <div class="flex flex-wrap items-center justify-center md:justify-start gap-x-8 gap-y-4">
-              <div class="h-6 text-gray-300 dark:text-gray-500">
-                <svg class="h-6" viewBox="0 0 120 24" fill="currentColor"><rect x="0" y="6" width="120" height="12" rx="6"/></svg>
-              </div>
-              <div class="h-6 text-gray-300 dark:text-gray-500">
-                <svg class="h-6" viewBox="0 0 120 24" fill="currentColor"><rect x="0" y="6" width="120" height="12" rx="6"/></svg>
-              </div>
-              <div class="h-6 text-gray-300 dark:text-gray-500">
-                <svg class="h-6" viewBox="0 0 120 24" fill="currentColor"><rect x="0" y="6" width="120" height="12" rx="6"/></svg>
-              </div>
+        <!-- Partner logos -->
+        <div class="mt-10 opacity-80">
+          <p class="text-xs uppercase tracking-wider text-gray-200 dark:text-gray-400 text-center md:text-left mb-3">Trusted by leading brands</p>
+          <div class="flex flex-wrap items-center justify-center md:justify-start gap-x-8 gap-y-4">
+            <div class="h-6 text-gray-300 dark:text-gray-500">
+              <svg class="h-6" viewBox="0 0 120 24" fill="currentColor"><rect x="0" y="6" width="120" height="12" rx="6"/></svg>
             </div>
-          </div>
-
-          <!-- Trust Indicators -->
-          <div class="mt-8 flex flex-col sm:flex-row items-center justify-center md:justify-start gap-6 text-sm text-gray-200 dark:text-gray-400">
-            <div class="flex items-center gap-2"><svg class="w-5 h-5 text-teal" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg><span>Licensed & Insured</span></div>
-            <div class="hidden sm:block w-px h-4 bg-white/40 dark:bg-gray-600"></div>
-            <div class="flex items-center gap-2"><svg class="w-5 h-5 text-teal" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><span>500+ Happy Customers</span></div>
-            <div class="hidden sm:block w-px h-4 bg-white/40 dark:bg-gray-600"></div>
-            <div class="flex items-center gap-2"><svg class="w-5 h-5 text-teal" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg><span>Lifetime Support</span></div>
+            <div class="h-6 text-gray-300 dark:text-gray-500">
+              <svg class="h-6" viewBox="0 0 120 24" fill="currentColor"><rect x="0" y="6" width="120" height="12" rx="6"/></svg>
+            </div>
+            <div class="h-6 text-gray-300 dark:text-gray-500">
+              <svg class="h-6" viewBox="0 0 120 24" fill="currentColor"><rect x="0" y="6" width="120" height="12" rx="6"/></svg>
+            </div>
           </div>
         </div>
 
-        <!-- Right: Visual -->
-        <div class="relative">
-          <div class="relative mx-auto w-full max-w-[520px] rounded-2xl border border-gray-200/60 dark:border-gray-700/60 bg-white/80 dark:bg-gray-800/70 backdrop-blur-sm shadow-xl p-5 md:p-6 transform-gpu transition-transform will-change-transform hover:rotate-[0.2deg] hover:scale-[1.01]">
+        <!-- Trust Indicators -->
+        <div class="mt-8 flex flex-col sm:flex-row items-center justify-center md:justify-start gap-6 text-sm text-gray-200 dark:text-gray-400">
+          <div class="flex items-center gap-2"><svg class="w-5 h-5 text-teal" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg><span>Licensed & Insured</span></div>
+          <div class="hidden sm:block w-px h-4 bg-white/40 dark:bg-gray-600"></div>
+          <div class="flex items-center gap-2"><svg class="w-5 h-5 text-teal" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg><span>500+ Happy Customers</span></div>
+          <div class="hidden sm:block w-px h-4 bg-white/40 dark:bg-gray-600"></div>
+          <div class="flex items-center gap-2"><svg class="w-5 h-5 text-teal" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg><span>Lifetime Support</span></div>
+        </div>
+
+      </div>
+
+      <!-- Right: Visual -->
+      <div class="relative">
+        <PerspectiveCard client:load>
+          <div class="relative mx-auto w-full max-w-[520px] rounded-2xl border border-gray-200/60 dark:border-gray-700/60 bg-white/80 dark:bg-gray-800/70 backdrop-blur-sm shadow-xl p-5 md:p-6">
             <div class="flex items-center justify-between mb-4">
               <div class="flex items-center gap-2">
                 <span class="w-2.5 h-2.5 rounded-full bg-teal"></span>
@@ -183,33 +151,35 @@ import { HeroMotion } from '../ui/MotionIsland';
             </div>
           </div>
 
-          <!-- Floating stat cards -->
-          <div class="absolute -top-6 -right-3 md:-right-6 lg:-right-10">
-            <div class="rounded-xl bg-white/90 dark:bg-gray-800/90 backdrop-blur border border-gray-200/60 dark:border-gray-700/60 shadow-md px-4 py-3">
-              <div class="text-xs text-gray-500">Average Rating</div>
-              <div class="mt-1 flex items-center gap-1 text-amber-400">
-                <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
-                <span class="ml-1 text-sm font-medium text-charcoal dark:text-white">4.9/5</span>
+            <!-- Floating stat cards - Restored -->
+            <div class="absolute -top-6 -right-3 md:-right-6 lg:-right-10 z-20 pointer-events-none">
+              <div class="rounded-xl bg-white/90 dark:bg-gray-800/95 backdrop-blur-md border border-gray-200/60 dark:border-gray-700/60 shadow-lg px-4 py-3">
+                <div class="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">Average Rating</div>
+                <div class="flex items-center gap-1.5 text-amber-400">
+                  <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/></svg>
+                  <span class="text-sm font-bold text-charcoal dark:text-white">4.9/5</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div class="absolute -bottom-6 -left-3 md:-left-6 lg:-left-10">
-            <div class="rounded-xl bg-white/90 dark:bg-gray-800/90 backdrop-blur border border-gray-200/60 dark:border-gray-700/60 shadow-md px-4 py-3">
-              <div class="text-xs text-gray-500">Installations</div>
-              <div class="mt-1 text-sm font-semibold text-charcoal dark:text-white">500+ Homes</div>
+            <div class="absolute -bottom-6 -left-3 md:-left-6 lg:-left-10 z-20 pointer-events-none">
+              <div class="rounded-xl bg-white/90 dark:bg-gray-800/95 backdrop-blur-md border border-gray-200/60 dark:border-gray-700/60 shadow-lg px-4 py-3">
+                <div class="text-[10px] uppercase tracking-wider text-gray-500 font-bold mb-1">Installations</div>
+                <div class="text-sm font-bold text-charcoal dark:text-white">500+ Homes</div>
+              </div>
             </div>
-          </div>
-        </div>
+        </PerspectiveCard>
       </div>
-    </HeroMotion>
+
+
+    </div>
   </div>
 
   <!-- Scroll Indicator -->
-  <div class="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2">
-    <div class="flex flex-col items-center gap-2 animate-bounce">
+  <div class="absolute bottom-4 md:bottom-8 left-1/2 -translate-x-1/2 z-20">
+    <div class="flex flex-col items-center gap-2">
       <span class="text-xs text-gray-400 dark:text-gray-500 font-medium">Scroll to explore</span>
       <div class="w-6 h-10 border-2 border-gray-300 dark:border-gray-600 rounded-full flex justify-center relative overflow-hidden">
-        <div class="w-1 h-3 bg-teal rounded-full mt-2 animate-pulse"></div>
+        <div class="w-1 h-3 bg-teal rounded-full mt-2 animate-bounce"></div>
       </div>
     </div>
   </div>
@@ -222,6 +192,9 @@ import { HeroMotion } from '../ui/MotionIsland';
     parallax(heroBackground, 0.1);
   }
 </script>
+
+
+
 
 <style>
   /* Animated gradient background - more vibrant colors */
