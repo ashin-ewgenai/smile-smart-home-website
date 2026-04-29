@@ -94,7 +94,7 @@ export default function ContactForm() {
             id="name"
             name="name"
             required
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal focus:border-transparent dark:bg-gray-800 dark:text-white"
+            className="pill-input w-full"
             placeholder="John Doe"
             value={values.name}
             onChange={onChange}
@@ -110,7 +110,7 @@ export default function ContactForm() {
             id="email"
             name="email"
             required
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal focus:border-transparent dark:bg-gray-800 dark:text-white"
+            className="pill-input w-full"
             placeholder="john@example.com"
             value={values.email}
             onChange={onChange}
@@ -174,7 +174,7 @@ export default function ContactForm() {
         <select
           id="service"
           name="service"
-          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal focus:border-transparent dark:bg-gray-800 dark:text-white"
+          className="pill-input w-full"
           value={values.service}
           onChange={onChange}
         >
@@ -197,7 +197,7 @@ export default function ContactForm() {
           name="message"
           rows={4}
           required
-          className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-teal focus:border-transparent dark:bg-gray-800 dark:text-white"
+          className="pill-textarea w-full"
           placeholder="Tell us about your project..."
           value={values.message}
           onChange={onChange}
@@ -209,10 +209,20 @@ export default function ContactForm() {
       </button>
 
       {successMsg && (
-        <p className="text-green-600 dark:text-green-400 text-sm" role="status">{successMsg}</p>
+        <div className="flex items-center p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-600 dark:text-green-400 text-sm animate-fade-in" role="status">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {successMsg}
+        </div>
       )}
       {errorMsg && (
-        <p className="text-red-600 dark:text-red-400 text-sm" role="alert">{errorMsg}</p>
+        <div className="flex items-center p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm animate-fade-in" role="alert">
+          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          {errorMsg}
+        </div>
       )}
     </form>
   );
