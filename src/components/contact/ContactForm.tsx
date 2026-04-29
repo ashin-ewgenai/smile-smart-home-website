@@ -1,8 +1,10 @@
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { db } from '../../lib/firebase';
 import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
+import { CheckCircle2, ChevronRight, ChevronLeft, Send, Sparkles, User, Mail, MessageSquare, Shield, Lightbulb, Thermometer, Tv, Globe } from 'lucide-react';
 
 type ContactFormState = {
   name: string;
@@ -20,8 +22,18 @@ const initialState: ContactFormState = {
   message: '',
 };
 
+const services = [
+  { id: 'security', label: 'Security Systems', icon: Shield, color: 'text-teal bg-teal/10' },
+  { id: 'lighting', label: 'Smart Lighting', icon: Lightbulb, color: 'text-yellow-500 bg-yellow-500/10' },
+  { id: 'climate', label: 'Climate Control', icon: Thermometer, color: 'text-blue-500 bg-blue-500/10' },
+  { id: 'entertainment', label: 'Entertainment', icon: Tv, color: 'text-purple-500 bg-purple-500/10' },
+  { id: 'networking', label: 'Networking', icon: Globe, color: 'text-cyan-500 bg-cyan-500/10' },
+  { id: 'other', label: 'Other', icon: Sparkles, color: 'text-gray-500 bg-gray-500/10' },
+];
+
 export default function ContactForm() {
   const [mounted, setMounted] = useState(false);
+  const [step, setStep] = useState(1);
   const [values, setValues] = useState<ContactFormState>(initialState);
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string>('');
@@ -31,13 +43,14 @@ export default function ContactForm() {
     setMounted(true);
   }, []);
 
-  const canSubmit = useMemo(() => {
-    return (
-      values.name.trim().length > 0 &&
-      values.email.trim().length > 0 &&
-      values.message.trim().length > 0
-    );
-  }, [values]);
+  const nextStep = () => setStep(s => Math.min(s + 1, 3));
+  const prevStep = () => setStep(s => Math.max(s - 1, 1));
+
+  const canGoNext = useMemo(() => {
+    if (step === 1) return values.service !== '';
+    if (step === 2) return values.name.trim() !== '' && values.email.trim() !== '';
+    return true;
+  }, [step, values]);
 
   const onChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -47,183 +60,237 @@ export default function ContactForm() {
     []
   );
 
-  const onSubmit = useCallback(
-    async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!canSubmit || submitting) return;
-      setSubmitting(true);
-      setSuccessMsg('');
-      setErrorMsg('');
-      try {
-        // Write to contactRequests with required fields
-        const contactDocRef = await addDoc(collection(db, 'contactRequests'), {
-          fullName: values.name.trim(),
-          email: values.email.trim().toLowerCase(),
-          phone: values.phone.trim(),
-          message: values.message.trim(),
-          createdAt: serverTimestamp(),
-          status: 'pending',
-          service: values.service || null,
-        });
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+    setSuccessMsg('');
+    setErrorMsg('');
+    try {
+      await addDoc(collection(db, 'contactRequests'), {
+        fullName: values.name.trim(),
+        email: values.email.trim().toLowerCase(),
+        phone: values.phone.trim(),
+        message: values.message.trim(),
+        createdAt: serverTimestamp(),
+        status: 'pending',
+        service: values.service,
+      });
 
-        setSuccessMsg('your data submitted successfully');
-        setValues(initialState);
-      } catch (err) {
-        console.error('Contact form save failed:', err);
-        setErrorMsg('Sorry, there was an error sending your message. Please try again.');
-      } finally {
-        setSubmitting(false);
-      }
-    },
-    [values, canSubmit, submitting]
-  );
+      setSuccessMsg('Your inquiry has been received! Our team will contact you shortly.');
+      setValues(initialState);
+      setStep(4); // Success step
+    } catch (err) {
+      console.error('Contact form save failed:', err);
+      setErrorMsg('Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (!mounted) return <div className="h-[400px]" />;
 
   return (
-    <form 
-      className={`space-y-6 ${mounted ? 'reveal-on-scroll' : 'opacity-0'}`} 
-      style={mounted ? {} : { transform: 'translateY(20px)' }}
-      onSubmit={onSubmit}
-    >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Full Name *
-          </label>
-          <input
-            type="text"
-            id="name"
-            name="name"
-            required
-            className="pill-input w-full"
-            placeholder="John Doe"
-            value={values.name}
-            onChange={onChange}
-          />
+    <div className="relative bg-white dark:bg-gray-900 rounded-3xl p-6 md:p-10 border border-gray-100 dark:border-gray-800 shadow-xl overflow-hidden min-h-[500px] flex flex-col">
+      {/* Progress Bar */}
+      {step < 4 && (
+        <div className="mb-10">
+          <div className="flex justify-between mb-2">
+            {[1, 2, 3].map((s) => (
+              <div 
+                key={s} 
+                className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all duration-300 ${
+                  step >= s ? 'bg-teal border-teal text-white' : 'border-gray-200 dark:border-gray-700 text-gray-400'
+                }`}
+              >
+                {step > s ? <CheckCircle2 size={16} /> : s}
+              </div>
+            ))}
+          </div>
+          <div className="h-1 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+            <motion.div 
+              className="h-full bg-teal"
+              initial={{ width: '0%' }}
+              animate={{ width: `${(step - 1) * 50}%` }}
+              transition={{ duration: 0.5 }}
+            />
+          </div>
         </div>
+      )}
 
-        <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Email Address *
-          </label>
-          <input
-            type="email"
-            id="email"
-            name="email"
-            required
-            className="pill-input w-full"
-            placeholder="john@example.com"
-            value={values.email}
-            onChange={onChange}
-          />
-        </div>
-      </div>
-
-      <div>
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Phone Number
-        </label>
-        {mounted && (
-          <PhoneInput
-            country="in"
-            value={values.phone}
-            onChange={(phone: string) => setValues(v => ({ ...v, phone }))}
-            disableCountryGuess={true}
-            disableCountryCode={false}
-            disableDropdown={false}
-            inputProps={{
-              name: 'phone',
-              required: true,
-              className: 'w-full !pl-14 !py-3 !border !border-gray-300 dark:!border-gray-600 !rounded-lg focus:!ring-2 focus:!ring-teal focus:!border-transparent dark:!bg-gray-800 dark:!text-white',
-            }}
-            containerClass="w-full"
-            buttonClass="!bg-gray-100 dark:!bg-gray-700 !border-r !border-gray-300 dark:!border-gray-600 !rounded-l-lg !p-0 !w-12 !h-full !flex !items-center !justify-center hover:!bg-gray-200 dark:hover:!bg-gray-600 focus:!ring-2 focus:!ring-teal focus:!outline-none transition-colors duration-200 ease-in-out hover:shadow-inner"
-            dropdownClass="!border !border-gray-200 dark:!border-gray-700 !rounded-lg !shadow-lg !bg-white dark:!bg-gray-800 !left-1/2 !-translate-x-1/2 !fixed !z-50 !w-80 [&_.highlight]:!bg-teal/20 [&_.highlight]:dark:!bg-teal/30 [&_.highlight]:!text-gray-900 dark:[&_.highlight]:!text-white [&_.country.highlight]:!bg-teal/10 dark:[&_.country.highlight]:!bg-teal/20 [&_.country:hover]:!bg-gray-100 dark:[&_.country:hover]:!bg-gray-700 [&_.country:hover_.country-name]:!text-gray-900 dark:[&_.country:hover_.country-name]:!text-white"
-            containerStyle={{ width: '100%' }}
-            inputStyle={{
-              width: '100%',
-              height: 'auto',
-              paddingLeft: '3.5rem',
-              backgroundColor: 'transparent',
-            }}
-            buttonStyle={{
-              backgroundColor: 'transparent',
-              border: 'none',
-            }}
-            dropdownStyle={{
-              borderRadius: '0.5rem',
-              marginTop: '0.25rem',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-              maxHeight: '300px',
-              overflowY: 'auto',
-            }}
-            searchPlaceholder="Search country..."
-            searchClass="!w-[calc(100%-1rem)] !mx-2 !my-1 !px-3 !py-2 !text-sm !rounded-lg !border !border-gray-300 dark:!border-gray-600 focus:!ring-2 focus:!ring-teal focus:!border-transparent dark:!bg-gray-800 dark:!text-white"
-            searchNotFound="No country found"
-            enableSearch
-            countryCodeEditable={false}
-            disableSearchIcon
-            preferredCountries={['us', 'gb', 'ca', 'au', 'in']}
-          />
+      <AnimatePresence mode="wait">
+        {step === 1 && (
+          <motion.div
+            key="step1"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="flex-grow"
+          >
+            <h3 className="text-2xl font-bold text-charcoal dark:text-white mb-2">What do you need help with?</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-8">Select a service to start your custom inquiry.</p>
+            
+            <div className="grid grid-cols-2 gap-4">
+              {services.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setValues(v => ({ ...v, service: s.id }))}
+                  className={`p-4 rounded-2xl border-2 transition-all duration-300 flex flex-col items-center text-center gap-3 group ${
+                    values.service === s.id 
+                    ? 'border-teal bg-teal/5 ring-4 ring-teal/5' 
+                    : 'border-gray-100 dark:border-gray-800 hover:border-teal/30 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                  }`}
+                >
+                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${s.color} group-hover:scale-110 transition-transform`}>
+                    <s.icon size={24} />
+                  </div>
+                  <span className="font-semibold text-sm text-charcoal dark:text-white">{s.label}</span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
         )}
-      </div>
 
-      <div>
-        <label htmlFor="service" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Service Needed
-        </label>
-        <select
-          id="service"
-          name="service"
-          className="pill-input w-full"
-          value={values.service}
-          onChange={onChange}
-        >
-          <option value="">Select a service...</option>
-          <option value="security">Security Systems</option>
-          <option value="lighting">Smart Lighting</option>
-          <option value="climate">Climate Control</option>
-          <option value="entertainment">Entertainment Systems</option>
-          <option value="networking">Home Networking</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
+        {step === 2 && (
+          <motion.div
+            key="step2"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="flex-grow"
+          >
+            <h3 className="text-2xl font-bold text-charcoal dark:text-white mb-2">Tell us who you are</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-8">We'll use this to get in touch about your project.</p>
+            
+            <div className="space-y-6">
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="text"
+                  name="name"
+                  placeholder="Your Full Name"
+                  className="pill-input w-full pl-12"
+                  value={values.name}
+                  onChange={onChange}
+                  required
+                />
+              </div>
+              <div className="relative">
+                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
+                <input
+                  type="email"
+                  name="email"
+                  placeholder="Email Address"
+                  className="pill-input w-full pl-12"
+                  value={values.email}
+                  onChange={onChange}
+                  required
+                />
+              </div>
+              <div className="phone-input-container">
+                <PhoneInput
+                  country="in"
+                  value={values.phone}
+                  onChange={(phone: string) => setValues(v => ({ ...v, phone }))}
+                  containerClass="w-full"
+                  inputClass="!w-full !h-12 !rounded-full !border-gray-200 dark:!border-gray-700 dark:!bg-gray-800 dark:!text-white !pl-14"
+                  buttonClass="!border-none !bg-transparent !pl-4"
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
 
-      <div>
-        <label htmlFor="message" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-          Message *
-        </label>
-        <textarea
-          id="message"
-          name="message"
-          rows={4}
-          required
-          className="pill-textarea w-full"
-          placeholder="Tell us about your project..."
-          value={values.message}
-          onChange={onChange}
-        />
-      </div>
+        {step === 3 && (
+          <motion.div
+            key="step3"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="flex-grow"
+          >
+            <h3 className="text-2xl font-bold text-charcoal dark:text-white mb-2">Project Details</h3>
+            <p className="text-gray-500 dark:text-gray-400 mb-8">Share any specific requirements or questions you have.</p>
+            
+            <div className="relative">
+              <MessageSquare className="absolute left-4 top-4 text-gray-400" size={18} />
+              <textarea
+                name="message"
+                rows={6}
+                placeholder="What can we build for you?"
+                className="pill-textarea w-full pl-12 pt-4"
+                value={values.message}
+                onChange={onChange}
+                required
+              />
+            </div>
+            
+            {errorMsg && (
+              <p className="text-red-500 text-sm mt-4 flex items-center gap-2">
+                <Sparkles size={14} /> {errorMsg}
+              </p>
+            )}
+          </motion.div>
+        )}
 
-      <button type="submit" className="btn-primary w-full btn-magnetic disabled:opacity-60 disabled:cursor-not-allowed" disabled={!canSubmit || submitting}>
-        {submitting ? 'Sending…' : 'Send Message'}
-      </button>
+        {step === 4 && (
+          <motion.div
+            key="step4"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex-grow flex flex-col items-center justify-center text-center py-10"
+          >
+            <div className="w-20 h-20 bg-teal/10 rounded-full flex items-center justify-center text-teal mb-6 animate-bounce">
+              <CheckCircle2 size={40} />
+            </div>
+            <h3 className="text-3xl font-bold text-charcoal dark:text-white mb-4">Success!</h3>
+            <p className="text-gray-500 dark:text-gray-400 max-w-sm mb-8">
+              {successMsg}
+            </p>
+            <button 
+              onClick={() => setStep(1)}
+              className="px-8 py-3 bg-teal text-white rounded-xl font-bold hover:bg-teal/90 transition-all"
+            >
+              Start New Inquiry
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {successMsg && (
-        <div className="flex items-center p-4 bg-green-500/10 border border-green-500/20 rounded-xl text-green-600 dark:text-green-400 text-sm animate-fade-in" role="status">
-          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          {successMsg}
+      {/* Navigation Controls */}
+      {step < 4 && (
+        <div className="mt-10 flex items-center justify-between pt-6 border-t border-gray-100 dark:border-gray-800">
+          <button
+            onClick={prevStep}
+            disabled={step === 1}
+            className={`flex items-center gap-2 text-gray-500 hover:text-charcoal dark:hover:text-white transition-colors ${step === 1 ? 'opacity-0 pointer-events-none' : ''}`}
+          >
+            <ChevronLeft size={20} />
+            Back
+          </button>
+          
+          {step < 3 ? (
+            <button
+              onClick={nextStep}
+              disabled={!canGoNext}
+              className="flex items-center gap-2 bg-teal text-white px-8 py-3 rounded-xl font-bold hover:bg-teal/90 disabled:opacity-50 transition-all shadow-lg shadow-teal/20"
+            >
+              Continue
+              <ChevronRight size={20} />
+            </button>
+          ) : (
+            <button
+              onClick={onSubmit}
+              disabled={submitting}
+              className="flex items-center gap-2 bg-gradient-to-r from-teal to-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:scale-105 transition-all shadow-lg shadow-teal/20"
+            >
+              {submitting ? 'Sending...' : 'Send Inquiry'}
+              <Send size={18} />
+            </button>
+          )}
         </div>
       )}
-      {errorMsg && (
-        <div className="flex items-center p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm animate-fade-in" role="alert">
-          <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-          </svg>
-          {errorMsg}
-        </div>
-      )}
-    </form>
+    </div>
   );
 }
