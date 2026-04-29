@@ -575,7 +575,7 @@ export default function InteractiveFloorplan() {
 
   return (
     <section 
-      className="py-24 pb-32 mb-24 bg-soft-gray dark:bg-gray-900 border-t border-gray-200 dark:border-white/5 relative"
+      className="py-24 pb-32 mb-24 bg-soft-gray dark:bg-gray-900 border-t border-gray-200 dark:border-white/5 relative overflow-hidden"
       id="interactive-tour"
       aria-label="Interactive Smart Home Tour"
     >

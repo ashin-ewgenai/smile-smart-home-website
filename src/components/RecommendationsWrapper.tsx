@@ -235,7 +235,7 @@ const WrapperContent: React.FC = () => {
                 exit="exit"
                 className={`
                   pointer-events-auto flex items-center gap-3 px-6 py-4 rounded-2xl shadow-2xl border
-                  bg-white dark:bg-charcoal min-w-[320px] max-w-md
+                  bg-white dark:bg-charcoal min-w-[280px] max-w-[calc(100vw-2rem)] md:max-w-md
                   ${notification.type === 'error' ? 'border-red-500/20' : 'border-teal/20'}
                 `}
               >

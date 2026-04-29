@@ -18,9 +18,9 @@ import Footer from "./Footer.astro";
       class="relative min-h-[92vh] md:min-h-[88vh] section-padding bg-gradient-to-br from-soft-gray via-white to-gray-100 dark:from-gray-900 dark:via-charcoal dark:to-gray-800 overflow-hidden flex items-center"
     >
       <!-- Dynamic Background Elements (Aligned with Services) -->
-      <div class="absolute inset-0 opacity-8 dark:opacity-4">
-        <div class="absolute top-20 right-20 w-28 h-28 bg-gradient-to-r from-green-400 to-teal rounded-2xl rotate-12 animate-pulse"></div>
-        <div class="absolute bottom-24 left-16 w-20 h-20 border-2 border-blue-400/30 rounded-full animate-pulse" style="animation-delay: 1s;"></div>
+      <div class="absolute inset-0 opacity-8 dark:opacity-4 overflow-hidden">
+        <div class="absolute top-10 -right-10 md:top-20 md:right-20 w-28 h-28 bg-gradient-to-r from-green-400 to-teal rounded-2xl rotate-12 animate-pulse"></div>
+        <div class="absolute bottom-24 -left-10 md:left-16 w-20 h-20 border-2 border-blue-400/30 rounded-full animate-pulse" style="animation-delay: 1s;"></div>
         <div class="absolute top-1/3 left-1/4 w-12 h-12 bg-purple-400/40 rounded-lg rotate-45 animate-pulse" style="animation-delay: 1.8s;"></div>
         <div class="absolute bottom-1/3 right-1/3 w-8 h-8 bg-yellow-400 rounded-full animate-pulse" style="animation-delay: 0.5s;"></div>
       </div>
@@ -47,7 +47,7 @@ import Footer from "./Footer.astro";
             </svg>
           </div>
 
-          <h1 class="text-4xl md:text-display font-bold text-charcoal dark:text-white mb-6 leading-tight reveal-on-scroll">
+          <h1 class="text-3xl sm:text-4xl md:text-display font-bold text-charcoal dark:text-white mb-6 leading-tight reveal-on-scroll">
             <span
               class="bg-gradient-to-r from-teal to-blue-600 bg-clip-text text-transparent"
               >Live Consultation</span
@@ -96,10 +96,10 @@ import Footer from "./Footer.astro";
             <MagneticButton client:load>
               <a
                 href="#inquiry-hub"
-                class="inline-flex items-center bg-teal hover:bg-teal/90 text-white px-10 py-5 rounded-2xl font-bold transition-all duration-300 transform hover:scale-[1.05] hover:shadow-2xl cursor-pointer group btn-magnetic"
+                class="inline-flex items-center justify-center bg-teal hover:bg-teal/90 text-white px-6 sm:px-10 py-4 sm:py-5 rounded-2xl font-bold transition-all duration-300 transform hover:scale-[1.05] hover:shadow-2xl cursor-pointer group btn-magnetic w-full sm:w-auto"
               >
                 <svg
-                  class="w-5 h-5 mr-3 group-hover:rotate-12 transition-transform duration-300"
+                  class="w-5 h-5 mr-3 group-hover:rotate-12 transition-transform duration-300 flex-shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -107,7 +107,7 @@ import Footer from "./Footer.astro";
                 >
                   <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                 </svg>
-                Start Your Free Consultation
+                <span class="text-center">Start Your Free Consultation</span>
               </a>
             </MagneticButton>
           </div>
@@ -241,7 +241,7 @@ import Footer from "./Footer.astro";
             </p>
             
             <div class="flex flex-col sm:flex-row justify-center gap-4">
-              <a href="#" class="bg-teal text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-teal/90 hover:scale-105 transition-all shadow-xl shadow-teal/20">
+              <a href="#" class="inline-flex items-center justify-center bg-teal text-white px-8 sm:px-10 py-4 sm:py-5 rounded-2xl font-black uppercase tracking-widest text-sm hover:bg-teal/90 hover:scale-105 transition-all shadow-xl shadow-teal/20 w-full sm:w-auto">
                 Open Scheduler
               </a>
               <div class="flex items-center justify-center gap-3 px-6 py-4 bg-teal/5 dark:bg-teal/10 rounded-2xl border border-teal/10">
@@ -471,7 +471,7 @@ import Footer from "./Footer.astro";
     <section class="section-padding bg-soft-gray dark:bg-gray-800/50 relative overflow-hidden">
       <!-- Subtle Pattern Background -->
       <div class="absolute inset-0 opacity-[0.03] dark:opacity-[0.05] pointer-events-none" 
-           style="background-image: url('data:image/svg+xml,%3Csvg width=\"60\" height=\"60\" viewBox=\"0 0 60 60\" xmlns=\"http://www.w3.org/2000/svg\"%3E%3Cg fill=\"none\" fill-rule=\"evenodd\"%3E%3Cg fill=\"%23009688\" fill-opacity=\"0.4\"%3E%3Cpath d=\"M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\"/%3E%3C/g%3E%3C/g%3E%3C/svg%3E');">
+           style={`background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23009688' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");`}>
       </div>
 
       <div class="container relative z-10">

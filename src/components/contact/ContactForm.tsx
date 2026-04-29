@@ -130,7 +130,7 @@ export default function ContactForm() {
             <h3 className="text-2xl font-bold text-charcoal dark:text-white mb-2">What do you need help with?</h3>
             <p className="text-gray-500 dark:text-gray-400 mb-8">Select a service to start your custom inquiry.</p>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {services.map((s) => (
                 <button
                   key={s.id}

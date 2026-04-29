@@ -78,7 +78,7 @@ const ServiceAreaMap: React.FC = () => {
       </div>
 
       {/* Legend & Stats Overlay */}
-      <div className="absolute bottom-6 left-6 right-6 flex flex-col md:flex-row justify-between items-end gap-4 pointer-events-none">
+      <div className="absolute bottom-4 left-4 right-4 md:bottom-6 md:left-6 md:right-6 flex flex-col md:flex-row justify-between items-center md:items-end gap-4 pointer-events-none">
         <div className="bg-black/60 backdrop-blur-md border border-white/10 rounded-xl p-4 pointer-events-auto">
           <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-gray-400">
             <span className="flex items-center gap-1.5"><span className="w-2 h-2 bg-teal rounded-full" /> Active</span>
@@ -97,10 +97,10 @@ const ServiceAreaMap: React.FC = () => {
       <AnimatePresence>
         {activeZone && (
           <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
-            className="absolute top-6 right-6 w-64 bg-gray-900/90 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-2xl z-50"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="absolute bottom-20 left-4 right-4 md:bottom-auto md:top-6 md:right-6 md:left-auto md:w-64 bg-gray-900/90 backdrop-blur-xl border border-white/20 rounded-2xl p-6 shadow-2xl z-50"
           >
             <button 
               onClick={() => setActiveZone(null)}
