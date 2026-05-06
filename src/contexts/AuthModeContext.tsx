@@ -3,6 +3,8 @@ import { onAuthStateChanged, type User, GoogleAuthProvider, signInWithPopup, sig
 import { auth, db } from '../lib/firebase';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { useCallback } from 'react';
+import { Preferences } from '@capacitor/preferences';
+import { Capacitor } from '@capacitor/core';
 
 // Auth Mode Context for managing signin/signup toggle
 export type AuthMode = 'signin' | 'signup';
@@ -40,13 +42,23 @@ export function useAuthMode(): AuthModeContextType {
 
 export const AuthModeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [authMode, setAuthMode] = useState<AuthMode>('signin');
-  const [isMuted, setIsMutedState] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('smh_voice_muted');
-      return saved === 'true';
-    }
-    return true; // Default to muted
-  });
+  const [isMuted, setIsMutedState] = useState<boolean>(true);
+
+  useEffect(() => {
+    const loadMutedState = async () => {
+      if (typeof window !== 'undefined') {
+        try {
+          const { value } = await Preferences.get({ key: 'smh_voice_muted' });
+          if (value !== null) {
+            setIsMutedState(value === 'true');
+          }
+        } catch (e) {
+          console.warn('Failed to load muted state', e);
+        }
+      }
+    };
+    loadMutedState();
+  }, []);
 
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -63,8 +75,8 @@ export const AuthModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       // Robust client-side state synchronization
       if (typeof window !== 'undefined') {
         if (firebaseUser) {
-          localStorage.setItem('userId', firebaseUser.uid);
-          localStorage.setItem('userEmail', firebaseUser.email || '');
+          Preferences.set({ key: 'userId', value: firebaseUser.uid });
+          Preferences.set({ key: 'userEmail', value: firebaseUser.email || '' });
           
           // Update online status in Firestore ONLY if document exists
           try {
@@ -80,7 +92,7 @@ export const AuthModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           }
         } else {
           // If we had a previous user, we might want to mark them offline
-          const prevUid = localStorage.getItem('userId');
+          const { value: prevUid } = await Preferences.get({ key: 'userId' });
           if (prevUid) {
             try {
               const userRef = doc(db, 'Accounts', prevUid);
@@ -113,7 +125,8 @@ export const AuthModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const logout = useCallback(async () => {
     try {
-      const uid = auth.currentUser?.uid || localStorage.getItem('userId');
+      const { value: storedUid } = await Preferences.get({ key: 'userId' });
+      const uid = auth.currentUser?.uid || storedUid;
       if (uid) {
         try {
           const userRef = doc(db, 'Accounts', uid);
@@ -128,11 +141,11 @@ export const AuthModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       await signOut(auth);
       if (typeof window !== 'undefined') {
-        localStorage.removeItem('userId');
-        localStorage.removeItem('userEmail');
-        localStorage.removeItem('userPhone');
-        localStorage.removeItem('userAddress');
-        localStorage.removeItem('userName');
+        await Preferences.remove({ key: 'userId' });
+        await Preferences.remove({ key: 'userEmail' });
+        await Preferences.remove({ key: 'userPhone' });
+        await Preferences.remove({ key: 'userAddress' });
+        await Preferences.remove({ key: 'userName' });
       }
     } catch (error) {
       console.error('Logout Error:', error);
@@ -172,7 +185,7 @@ export const AuthModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setIsMuted = (muted: boolean) => {
     setIsMutedState(muted);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('smh_voice_muted', String(muted));
+      Preferences.set({ key: 'smh_voice_muted', value: String(muted) });
     }
   };
 
