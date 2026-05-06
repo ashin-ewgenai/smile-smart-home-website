@@ -81,3 +81,29 @@ This file is the single source of truth for Firestore document shapes and collec
 - **`SupportTicket`**: Defines the structure for customer service requests, tracking their Kanban stage (`status: 'open' | 'in_progress' | 'resolved' | 'closed'`).
 - **`EstimationQuote`**: Represents detailed service quotes sent to customers, including itemized costs and tax breakdowns.
 - **Helper Functions**: Provides utility functions like `accountsCollection(db)`, `createAccountProfile()`, and `registerUserWithProfile()` to encapsulate Firestore query logic away from UI components.
+
+---
+
+## Technical Stack Overview
+- **Astro**: Core framework for SSR and routing.
+- **React**: UI library for interactive components.
+- **Tailwind CSS**: Utility-first CSS framework for styling.
+- **Firebase**: Backend-as-a-Service (Auth, Firestore, Functions, Storage).
+- **Capacitor**: Cross-platform native app runtime.
+
+## Getting Started
+
+1. **Install Dependencies:**
+   ```bash
+   npm install
+   ```
+2. **Start Development Server:**
+   ```bash
+   npm run dev
+   ```
+3. **Build for Production:**
+   ```bash
+   npm run build
+   ```
+
+*(End of Documentation)*
