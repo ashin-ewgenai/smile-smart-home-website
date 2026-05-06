@@ -25,6 +25,19 @@ const getAdmin = async () => {
 export const onRequest: MiddlewareHandler = async (context, next) => {
   const { url, request } = context;
 
+  // ── Capacitor CORS Preflight Handling ——————————————————————————————
+  // Ensure native mobile apps can successfully make API requests without CORS blocks
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      }
+    });
+  }
+
   // ── Protected Health Endpoints Authentication ——————————————————————————————
   // Strict validation for /api/health to ensure only authenticated users access telemetry.
   if (url.pathname.startsWith('/api/health')) {

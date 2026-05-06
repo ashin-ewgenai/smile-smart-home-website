@@ -15,12 +15,23 @@
     "astro": "astro",
     "functions:serve": "npm run -w functions serve",
     "functions:deploy": "npm run -w functions deploy",
-    "functions:logs": "npm run -w functions logs"
+    "functions:logs": "npm run -w functions logs",
+    "cap:sync": "npx cap sync",
+    "cap:add-android": "npx cap add android",
+    "cap:add-ios": "npx cap add ios",
+    "cap:open-android": "npx cap open android",
+    "cap:open-ios": "npx cap open ios",
+    "build:mobile": "npm run build && npx cap sync"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.5",
     "@astrojs/react": "^4.3.0",
     "@astrojs/tailwind": "^6.0.2",
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@capacitor/device": "^8.0.2",
+    "@capacitor/ios": "^8.3.1",
+    "@capacitor/preferences": "^7.0.4",
     "@emailjs/browser": "^4.4.1",
     "@react-pdf/renderer": "^4.3.0",
     "@tailwindcss/typography": "^0.5.16",
@@ -46,6 +57,7 @@
   },
   "devDependencies": {
     "@astrojs/node": "^9.0.0",
+    "@capacitor/cli": "^8.3.1",
     "@types/node": "^24.10.0",
     "firebase-tools": "^15.13.0",
     "puppeteer": "^24.40.0"
