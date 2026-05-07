@@ -228,7 +228,15 @@ export default function AuthNavClient() {
         e.preventDefault();
         try {
           await signOut(auth);
-          try { localStorage.removeItem('userId'); } catch {}
+          // Clear all user data from local storage to ensure complete logout
+          try { 
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('userPhone');
+            localStorage.removeItem('userAddress');
+            localStorage.removeItem('userName');
+          } catch {}
           window.location.href = '/';
         } catch {}
       });
@@ -264,7 +272,15 @@ export default function AuthNavClient() {
         e.preventDefault();
         try {
           await signOut(auth);
-          try { localStorage.removeItem('userId'); } catch {}
+          // Clear all user data from local storage to ensure complete logout
+          try { 
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('userRole');
+            localStorage.removeItem('userPhone');
+            localStorage.removeItem('userAddress');
+            localStorage.removeItem('userName');
+          } catch {}
           window.location.href = '/';
         } catch {}
       });

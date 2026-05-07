@@ -141,11 +141,24 @@ export const AuthModeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       await signOut(auth);
       if (typeof window !== 'undefined') {
+        // Clear ALL authentication data from Capacitor Preferences
         await Preferences.remove({ key: 'userId' });
         await Preferences.remove({ key: 'userEmail' });
         await Preferences.remove({ key: 'userPhone' });
         await Preferences.remove({ key: 'userAddress' });
         await Preferences.remove({ key: 'userName' });
+        await Preferences.remove({ key: 'userRole' });
+        
+        // Clear ALL localStorage data for complete logout
+        localStorage.removeItem('userId');
+        localStorage.removeItem('userEmail');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('userPhone');
+        localStorage.removeItem('userAddress');
+        localStorage.removeItem('userName');
+        
+        // Redirect to public landing page
+        window.location.href = '/';
       }
     } catch (error) {
       console.error('Logout Error:', error);

@@ -1,5 +1,5 @@
 /**
- * Handles user logout functionality
+ * Handles admin logout functionality
  * Clears local storage and redirects to login page
  */
 export const handleLogout = () => {
@@ -10,9 +10,13 @@ export const handleLogout = () => {
           console.error('Sign out failed', err);
         })
         .finally(() => {
-          // Clear user data from local storage (compatibility with existing checks)
+          // Clear all user data from local storage to ensure complete logout
           localStorage.removeItem('userEmail');
           localStorage.removeItem('userRole');
+          localStorage.removeItem('userId');
+          localStorage.removeItem('userPhone');
+          localStorage.removeItem('userAddress');
+          localStorage.removeItem('userName');
           // Redirect to login page
           window.location.href = '/admin_login';
         });
