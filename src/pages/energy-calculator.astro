@@ -3,7 +3,6 @@ import Layout from '../layouts/Layout.astro';
 import Navigation from './Navigation.astro';
 import Footer from './Footer.astro';
 import { EnergySavingsCalculator } from '../components/EnergySavingsCalculator';
-import { DevicesProvider } from '../contexts/DevicesContext';
 ---
 
 <Layout 
@@ -13,7 +12,9 @@ import { DevicesProvider } from '../contexts/DevicesContext';
   <Navigation />
   
   <main class="pt-24 min-h-screen bg-white dark:bg-charcoal">
-    <EnergySavingsCalculator client:only="react" />
+    <div class="min-h-[800px]">
+      <EnergySavingsCalculator client:only="react" />
+    </div>
     
     <!-- Contextual CTA -->
     <section class="container mx-auto px-4 pb-20">

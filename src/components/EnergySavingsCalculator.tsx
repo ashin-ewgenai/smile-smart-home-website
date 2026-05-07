@@ -23,6 +23,7 @@ import {
 } from 'recharts';
 import { useDeviceRecommendations } from '../hooks/useDeviceRecommendations';
 import { useDevices, DevicesProvider } from '../contexts/DevicesContext';
+import { AuthModeProvider } from '../contexts/AuthModeContext';
 import { SavingsBreakdownPieChart } from './SavingsBreakdownPieChart';
 import { SavingsComparisonCards } from './SavingsComparisonCards';
 import { httpsCallable } from 'firebase/functions';
@@ -63,14 +64,9 @@ const SavingsGauge = ({ value, maxValue, label }: { value: number; maxValue: num
       </ResponsiveContainer>
       
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <motion.span 
-          initial={{ opacity: 0, scale: 0.5 }}
-          animate={{ opacity: 1, scale: 1 }}
-          key={value}
-          className="text-5xl font-black text-teal drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]"
-        >
+        <span className="text-5xl font-black text-teal drop-shadow-[0_0_15px_rgba(20,184,166,0.3)]">
           {percentage.toFixed(0)}%
-        </motion.span>
+        </span>
         <span className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">
           {label}
         </span>
@@ -85,7 +81,12 @@ const SavingsGauge = ({ value, maxValue, label }: { value: number; maxValue: num
 };
 
 const CalculatorContent: React.FC = () => {
+  const [isMounted, setIsMounted] = useState(false);
   const { calculateSavings, savingsData } = useDeviceRecommendations();
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   const [inputs, setInputs] = useState({
     monthlyBill: 5000,
@@ -313,28 +314,35 @@ const CalculatorContent: React.FC = () => {
                 </div>
               </div>
 
-                <div className="flex flex-col items-center">
-                  <div className="w-full max-w-[280px]">
-                    <SavingsBreakdownPieChart data={{
-                      lightingSavings: savingsData?.lightingSavings || 0,
-                      hvacSavings: savingsData?.hvacSavings || 0,
-                      standbySavings: savingsData?.standbySavings || 0
-                    }} />
+              <div className="flex flex-col items-center justify-center">
+                {isMounted ? (
+                  <SavingsBreakdownPieChart data={{
+                    lightingSavings: savingsData?.lightingSavings || 0,
+                    hvacSavings: savingsData?.hvacSavings || 0,
+                    standbySavings: savingsData?.standbySavings || 0
+                  }} />
+                ) : (
+                  <div className="w-full h-[240px] flex items-center justify-center">
+                    <div className="w-32 h-32 rounded-full border-8 border-teal/10 animate-pulse"></div>
                   </div>
-                  <p className="text-center text-[10px] text-slate-400 max-w-[200px] font-medium leading-relaxed mt-2">
-                    Distribution across lighting, climate, and standby power.
-                  </p>
-                </div>
+                )}
               </div>
+            </div>
 
-              {/* Comparison Section */}
-              <div className="relative z-10 mt-4">
+            {/* Bottom: Comparison Cards */}
+            <div className="mt-8 pt-8 border-t border-slate-100 dark:border-white/10">
+              {isMounted ? (
                 <SavingsComparisonCards 
                   currentBill={savingsData?.monthlyCurrent || inputs.monthlyBill} 
                   optimizedBill={savingsData?.monthlyOptimized || inputs.monthlyBill} 
                 />
-              </div>
-
+              ) : (
+                <div className="grid grid-cols-2 gap-4 h-24">
+                  <div className="bg-slate-50 dark:bg-white/5 rounded-2xl animate-pulse"></div>
+                  <div className="bg-slate-50 dark:bg-white/5 rounded-2xl animate-pulse"></div>
+                </div>
+              )}
+            </div>
           </div>
         </motion.div>
       </div>
@@ -345,34 +353,32 @@ const CalculatorContent: React.FC = () => {
           {
             icon: <Zap size={24} />,
             title: "Smart Lighting",
-            desc: "Automated dimming and occupancy sensors reduce lighting energy by up to 60%.",
-            color: "teal"
+            description: "AI-driven scheduling can reduce lighting costs by up to 60% through presence detection."
           },
           {
-            icon: <TrendingUp size={24} />,
-            title: "Adaptive HVAC",
-            desc: "Learning thermostats adjust based on presence, saving 23% on heating/cooling.",
-            color: "blue"
+            icon: <Home size={24} />,
+            title: "Climate Control",
+            description: "Smart thermostats learn your schedule to optimize HVAC usage, saving 20-30% on heating and cooling."
           },
           {
             icon: <Cpu size={24} />,
-            title: "Standby Mastery",
-            desc: "AI plugs eliminate 'vampire power' from appliances when they're not in use.",
-            color: "teal"
+            title: "Standby Power",
+            description: "Eliminate phantom energy drain from idle appliances with intelligent power management."
           }
-        ].map((item, i) => (
+        ].map((insight, idx) => (
           <motion.div 
-            key={i}
+            key={idx}
             initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 + (i * 0.1) }}
-            className="p-8 rounded-3xl bg-white/60 dark:bg-charcoal/60 backdrop-blur-xl border border-white/40 dark:border-white/10 shadow-soft"
+            whileInView={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.1 }}
+            viewport={{ once: true }}
+            className="p-8 rounded-3xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 hover:border-teal/30 transition-colors group"
           >
-            <div className={`w-14 h-14 rounded-2xl bg-${item.color}/10 text-${item.color} flex items-center justify-center mb-6`}>
-              {item.icon}
+            <div className="w-14 h-14 rounded-2xl bg-white dark:bg-white/10 text-teal flex items-center justify-center mb-6 shadow-sm group-hover:scale-110 transition-transform">
+              {insight.icon}
             </div>
-            <h4 className="text-xl font-black mb-3 text-slate-800 dark:text-white">{item.title}</h4>
-            <p className="text-slate-500 dark:text-gray-400 text-sm leading-relaxed">{item.desc}</p>
+            <h4 className="text-xl font-black mb-3 text-slate-800 dark:text-white">{insight.title}</h4>
+            <p className="text-sm text-slate-500 dark:text-gray-400 leading-relaxed">{insight.description}</p>
           </motion.div>
         ))}
       </div>
@@ -380,8 +386,12 @@ const CalculatorContent: React.FC = () => {
   );
 };
 
-export const EnergySavingsCalculator: React.FC = () => (
-  <DevicesProvider>
-    <CalculatorContent />
-  </DevicesProvider>
-);
+export const EnergySavingsCalculator: React.FC = () => {
+  return (
+    <AuthModeProvider>
+      <DevicesProvider>
+        <CalculatorContent />
+      </DevicesProvider>
+    </AuthModeProvider>
+  );
+};

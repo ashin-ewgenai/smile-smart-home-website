@@ -7,13 +7,11 @@ import LiquidIntelligence from '../components/about/LiquidIntelligence';
 import InnovationDNA from '../components/about/InnovationDNA';
 import GlassCard from '../components/ui/GlassCard';
 import MagneticButton from '../components/ui/MagneticButton';
-import SmartModeToggle from '../components/about/SmartModeToggle';
 import { motion, useScroll, useTransform } from 'framer-motion';
 ---
 
 <Layout title="About Us - Smile Smart Homes">
   <Navigation />
-  <SmartModeToggle client:load />
   
   <main class="pt-16">
     <!-- Hero Section -->
@@ -48,14 +46,6 @@ import { motion, useScroll, useTransform } from 'framer-motion';
           </p>
           
           <!-- CTA Button (Aligned with Services) -->
-          <div class="flex justify-center">
-            <a href="/contact" class="bg-teal hover:bg-teal/90 text-white px-8 py-4 rounded-xl font-semibold transition-all duration-300 transform hover:scale-[1.02] hover:shadow-lg btn-magnetic inline-flex items-center">
-              Partner With Us
-              <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-              </svg>
-            </a>
-          </div>
         </div>
       </div>
     </section>
@@ -237,7 +227,7 @@ import { motion, useScroll, useTransform } from 'framer-motion';
         <p class="text-body-lg mb-8 max-w-2xl mx-auto opacity-90 reveal-on-scroll">
           Let our experienced team help you create the perfect smart home setup tailored to your needs and lifestyle.
         </p>
-        <div class="flex flex-col sm:flex-row gap-4 justify-center reveal-on-scroll">
+        <div class="flex flex-col sm:flex-row gap-4 justify-center reveal-on-scroll mb-16">
           <MagneticButton client:load>
             <a href="/contact" class="bg-white text-teal hover:bg-gray-100 px-8 py-3 rounded-xl font-bold transition-all duration-120 block shadow-xl">
               Get Free Consultation
@@ -248,6 +238,17 @@ import { motion, useScroll, useTransform } from 'framer-motion';
               View Services
             </a>
           </MagneticButton>
+        </div>
+
+        <div class="reveal-on-scroll pt-12 border-t border-white/20 max-w-4xl mx-auto">
+          <h3 class="text-xl md:text-2xl font-bold mb-6 opacity-95">For builders, architects, and technology partners</h3>
+          <div class="flex justify-center">
+            <MagneticButton client:load>
+              <a href="/contact" class="bg-white text-teal hover:bg-gray-100 px-10 py-4 rounded-xl font-bold transition-all duration-300 block shadow-xl transform hover:scale-[1.05]">
+                Partner With Us
+              </a>
+            </MagneticButton>
+          </div>
         </div>
       </div>
     </section>
