@@ -25,6 +25,26 @@ const getAdmin = async () => {
 export const onRequest: MiddlewareHandler = async (context, next) => {
   const { url, request } = context;
 
+  // ── Logout Prevention of Stale Auth State ——————————————————————————————
+  // If user is accessing logout-related paths, ensure no auth state restoration
+  if (url.pathname === '/' && request.method === 'GET') {
+    // Check for logout indicators in cookies/storage
+    const logoutCookie = request.headers.get('cookie')?.includes('logout=true');
+    if (logoutCookie) {
+      // Clear any auth-related headers that might restore session
+      const response = await next();
+      const newResponse = new Response(response.body, {
+        status: response.status,
+        headers: {
+          ...response.headers,
+          'Clear-Site-Data': '"cache", "storage"',
+          'Set-Cookie': 'logout=true; Max-Age=0; Path=/; SameSite=Strict; Secure',
+        }
+      });
+      return newResponse;
+    }
+  }
+
   // ── Capacitor CORS Preflight Handling ——————————————————————————————
   // Ensure native mobile apps can successfully make API requests without CORS blocks
   if (request.method === 'OPTIONS') {

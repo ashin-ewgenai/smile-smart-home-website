@@ -1,6 +1,6 @@
 /**
  * Handles admin logout functionality
- * Clears local storage and redirects to login page
+ * Clears all authentication state and redirects to public landing page
  */
 export const handleLogout = () => {
   import('../../../lib/firebase').then(({ auth }) => {
@@ -10,14 +10,18 @@ export const handleLogout = () => {
           console.error('Sign out failed', err);
         })
         .finally(() => {
-          // Clear all user data from local storage to ensure complete logout
-          localStorage.removeItem('userEmail');
-          localStorage.removeItem('userRole');
-          localStorage.removeItem('userId');
-          localStorage.removeItem('userPhone');
-          localStorage.removeItem('userAddress');
-          localStorage.removeItem('userName');
-          // Redirect to public landing page with Login and Signup options
+          // Explicitly clear ALL localStorage data
+          localStorage.clear();
+          
+          // Explicitly clear ALL sessionStorage data
+          sessionStorage.clear();
+          
+          // Clear auth cookies/tokens by setting expiry to past
+          document.cookie.split(";").forEach(function(c) { 
+            document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/");
+          });
+          
+          // Force reload of page to clear any in-memory state
           window.location.href = '/';
         });
     });
