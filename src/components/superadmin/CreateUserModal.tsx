@@ -78,8 +78,8 @@ export default function CreateUserModal({ open, onClose }: Props) {
 
       // Immediately sign out the newly created user and return to Super Admin dashboard
       try { await signOut(auth); } catch {}
-      // Ensure guard still passes: keep any existing localStorage role; optionally reassert role
-      try { if (!localStorage.getItem('userRole')) localStorage.setItem('userRole', 'Super Admin'); } catch {}
+      // Ensure guard still passes: reassert Super Admin role after user creation
+      try { localStorage.setItem('userRole', 'Super Admin'); } catch {}
       alert('Account created successfully. Returning to Super Admin dashboard.');
       navigate(`${SUPER_ADMIN_BASE_PATH}/dashboard`);
     } catch (err: any) {

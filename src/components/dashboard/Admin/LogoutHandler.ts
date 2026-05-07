@@ -17,8 +17,8 @@ export const handleLogout = () => {
           localStorage.removeItem('userPhone');
           localStorage.removeItem('userAddress');
           localStorage.removeItem('userName');
-          // Redirect to login page
-          window.location.href = '/admin_login';
+          // Redirect to public landing page with Login and Signup options
+          window.location.href = '/';
         });
     });
   });
