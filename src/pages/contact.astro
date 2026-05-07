@@ -532,6 +532,49 @@ import Footer from "./Footer.astro";
             </details>
           ))}
         </div>
+
+        <script>
+          // FAQ Accordion - Single shared active state
+          document.addEventListener('DOMContentLoaded', () => {
+            // More reliable: Find the FAQ section by looking for the container
+            const faqContainer = document.querySelector('.max-w-3xl.mx-auto.space-y-4');
+            if (!faqContainer) {
+              console.log('FAQ container not found');
+              return;
+            }
+            
+            // Get all FAQ details elements
+            const faqDetails = faqContainer.querySelectorAll('details');
+            console.log('Found FAQ items:', faqDetails.length);
+            
+            let activeIndex = -1; // No item is active initially
+            
+            // Override default toggle behavior for all FAQ items
+            faqDetails.forEach((details, index) => {
+              details.addEventListener('click', (e) => {
+                e.preventDefault();
+                console.log('FAQ clicked:', index, 'currently active:', activeIndex);
+                
+                if (activeIndex === index) {
+                  // Clicking already open item closes it
+                  details.open = false;
+                  activeIndex = -1;
+                  console.log('Closed FAQ item:', index);
+                } else {
+                  // Close any previously open item
+                  if (activeIndex !== -1) {
+                    faqDetails[activeIndex].open = false;
+                    console.log('Closed previous FAQ item:', activeIndex);
+                  }
+                  // Open clicked item
+                  details.open = true;
+                  activeIndex = index;
+                  console.log('Opened FAQ item:', index);
+                }
+              });
+            });
+          });
+        </script>
       </div>
     </section>
 

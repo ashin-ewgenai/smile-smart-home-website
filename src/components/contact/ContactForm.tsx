@@ -14,6 +14,10 @@ type ContactFormState = {
   message: string;
 };
 
+type FormErrors = {
+  email?: string;
+};
+
 const initialState: ContactFormState = {
   name: '',
   email: '',
@@ -38,6 +42,10 @@ export default function ContactForm() {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [formErrors, setFormErrors] = useState<FormErrors>({});
+
+  // Email validation regex
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   useEffect(() => {
     setMounted(true);
@@ -48,7 +56,7 @@ export default function ContactForm() {
 
   const canGoNext = useMemo(() => {
     if (step === 1) return values.service !== '';
-    if (step === 2) return values.name.trim() !== '' && values.email.trim() !== '';
+    if (step === 2) return values.name.trim() !== '' && values.email.trim() !== '' && emailRegex.test(values.email);
     return true;
   }, [step, values]);
 
@@ -56,6 +64,17 @@ export default function ContactForm() {
     (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const { name, value } = e.target;
       setValues((v) => ({ ...v, [name]: value }));
+      
+      // Validate email on change
+      if (name === 'email') {
+        if (value.trim() === '') {
+          setFormErrors(prev => ({ ...prev, email: undefined }));
+        } else if (!emailRegex.test(value)) {
+          setFormErrors(prev => ({ ...prev, email: 'Please enter a valid email address' }));
+        } else {
+          setFormErrors(prev => ({ ...prev, email: undefined }));
+        }
+      }
     },
     []
   );
@@ -182,12 +201,18 @@ export default function ContactForm() {
                   type="email"
                   name="email"
                   placeholder="Email Address"
-                  className="pill-input w-full pl-12"
+                  className={`pill-input w-full pl-12 ${formErrors.email ? 'border-red-500 focus:border-red-500' : ''}`}
                   value={values.email}
                   onChange={onChange}
                   required
                 />
               </div>
+              {formErrors.email && (
+                <p className="text-red-500 text-sm mt-2 flex items-center gap-2">
+                  <Sparkles size={14} />
+                  {formErrors.email}
+                </p>
+              )}
               <div className="phone-input-container">
                 <PhoneInput
                   country="in"
