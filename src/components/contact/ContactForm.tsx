@@ -82,6 +82,13 @@ export default function ContactForm() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (submitting) return;
+    
+    // Validate email before submission
+    if (values.email.trim() !== '' && !emailRegex.test(values.email)) {
+      setErrorMsg('Please enter a valid email address before submitting.');
+      return;
+    }
+    
     setSubmitting(true);
     setSuccessMsg('');
     setErrorMsg('');

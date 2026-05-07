@@ -2,6 +2,7 @@
 import Layout from "../layouts/Layout.astro";
 import Navigation from "./Navigation.astro";
 import ContactForm from "../components/contact/ContactForm";
+import ContactFAQ from "../components/contact/ContactFAQ";
 import ServiceAreaMap from "../components/contact/ServiceAreaMap";
 import AIPreview from "../components/contact/AIPreview";
 import LiveStatus from "../components/contact/LiveStatus";
@@ -488,78 +489,7 @@ import Footer from "./Footer.astro";
           </p>
         </div>
 
-        <div class="max-w-3xl mx-auto space-y-4">
-          {[
-            {
-              q: "How long does installation take?",
-              a: "Most installations take 4-8 hours depending on the complexity. Complete home automation for a full villa can take 1-2 days."
-            },
-            {
-              q: "Do you provide warranties?",
-              a: "Yes, we provide a 1-year comprehensive warranty on all installation work and honor manufacturer warranties on all devices (typically 1-3 years)."
-            },
-            {
-              q: "What brands do you work with?",
-              a: "We are brand-agnostic and work with all leading ecosystems including Google Home, Apple HomeKit, Amazon Alexa, Philips Hue, Ring, and Nest."
-            },
-            {
-              q: "Is financing available?",
-              a: "Absolutely. We offer flexible payment plans and financing options through our banking partners to make smart living accessible."
-            },
-            {
-              q: "Do you provide ongoing support?",
-              a: "We offer 24/7 priority support for all our installations. Our 'Smart Care' plans include regular health checks for your system."
-            },
-            {
-              q: "Can I upgrade my system later?",
-              a: "Our systems are built on scalable architectures. You can start with a single room and expand your smart home ecosystem at your own pace."
-            }
-          ].map((faq, i) => (
-            <details class="group bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-300 hover:border-teal/30 reveal-on-scroll">
-              <summary class="flex items-center justify-between p-6 cursor-pointer list-none">
-                <h3 class="text-lg font-bold text-charcoal dark:text-white group-open:text-teal transition-colors">
-                  {faq.q}
-                </h3>
-                <span class="ml-4 flex-shrink-0 transition-transform duration-300 group-open:rotate-180">
-                  <svg class="w-6 h-6 text-gray-400 group-hover:text-teal" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </span>
-              </summary>
-              <div class="px-6 pb-6 text-gray-600 dark:text-gray-300 leading-relaxed animate-slideDown">
-                {faq.a}
-              </div>
-            </details>
-          ))}
-        </div>
-
-        <script>
-          // FAQ Accordion - Single shared active state via toggle event
-          (function () {
-            function initFaqAccordion() {
-              const faqContainer = document.querySelector('.max-w-3xl.mx-auto.space-y-4');
-              if (!faqContainer) return;
-
-              const faqDetails = Array.from(faqContainer.querySelectorAll('details'));
-
-              faqDetails.forEach((details) => {
-                details.addEventListener('toggle', () => {
-                  // When this item opens, close every other item
-                  if (details.open) {
-                    faqDetails.forEach((other) => {
-                      if (other !== details && other.open) {
-                        other.open = false;
-                      }
-                    });
-                  }
-                });
-              });
-            }
-
-            document.addEventListener('DOMContentLoaded', initFaqAccordion);
-            document.addEventListener('astro:page-load', initFaqAccordion);
-          })();
-        </script>
+        <ContactFAQ client:load />
       </div>
     </section>
 
