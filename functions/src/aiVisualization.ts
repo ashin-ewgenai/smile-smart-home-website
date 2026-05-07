@@ -1,5 +1,5 @@
 import { onCall, HttpsError, type CallableRequest } from "firebase-functions/v2/https";
-import { db, OPENAI_API_KEY } from "./core";
+import { db, OPENAI_API_KEY, calculateDetailedSavings } from "./core";
 
 // Declare global fetch for Node runtimes
 declare const fetch: any;
@@ -168,5 +168,35 @@ export const analyzeRoomWithAI = onCall(
         demoMode: true,
       };
     }
+  }
+);
+
+/**
+ * calculateEnergySavings (V2 Callable)
+ * Exposes detailed energy savings breakdown.
+ */
+export const calculateEnergySavings = onCall(
+  {
+    region: "us-central1",
+    cors: true,
+  },
+  async (request: CallableRequest) => {
+    const { monthlyBill, homeSize, applianceCount } = request.data || {};
+    
+    if (!monthlyBill || !homeSize) {
+      throw new HttpsError("invalid-argument", "monthlyBill and homeSize are required.");
+    }
+
+    // Use the shared core logic
+    const results = calculateDetailedSavings(
+      Number(monthlyBill), 
+      Number(homeSize), 
+      Number(applianceCount || 0)
+    );
+
+    return {
+      status: "ok",
+      data: results
+    };
   }
 );

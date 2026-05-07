@@ -23,6 +23,10 @@ import {
 } from 'recharts';
 import { useDeviceRecommendations } from '../hooks/useDeviceRecommendations';
 import { useDevices, DevicesProvider } from '../contexts/DevicesContext';
+import { SavingsBreakdownPieChart } from './SavingsBreakdownPieChart';
+import { SavingsComparisonCards } from './SavingsComparisonCards';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../lib/firebase';
 
 /**
  * Animated Gauge Component using Recharts and Framer Motion
@@ -104,12 +108,27 @@ const CalculatorContent: React.FC = () => {
     setInputs(prev => ({ ...prev, [name]: numValue }));
   };
 
-  const runCalculation = () => {
+  const runCalculation = async () => {
     setIsCalculating(true);
-    setTimeout(() => {
+    try {
+      // Call backend for "Accuracy Report" as requested
+      const calculateEnergySavings = httpsCallable(functions, 'calculateEnergySavings');
+      const result = await calculateEnergySavings({
+        monthlyBill: inputs.monthlyBill,
+        homeSize: inputs.homeSize,
+        applianceCount: inputs.applianceCount
+      });
+      
+      console.log('Backend Savings Data:', result.data);
+      // Local context will also update for real-time consistency
       calculateSavings(inputs.monthlyBill, inputs.homeSize, inputs.applianceCount);
+    } catch (err) {
+      console.error('Failed to fetch detailed accuracy report:', err);
+      // Fallback to local calculation
+      calculateSavings(inputs.monthlyBill, inputs.homeSize, inputs.applianceCount);
+    } finally {
       setIsCalculating(false);
-    }, 800);
+    }
   };
 
   return (
@@ -294,35 +313,28 @@ const CalculatorContent: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex flex-col items-center">
-                <SavingsGauge 
-                  value={savingsData?.annualSavings || 0} 
-                  maxValue={inputs.monthlyBill * 12 * 0.4} 
-                  label="Efficiency Score" 
-                />
-                <p className="text-center text-xs text-slate-400 max-w-[200px] font-medium leading-relaxed mt-4">
-                  Based on AI optimization of climate, lighting, and appliance standby power.
-                </p>
+                <div className="flex flex-col items-center">
+                  <div className="w-full max-w-[280px]">
+                    <SavingsBreakdownPieChart data={{
+                      lightingSavings: savingsData?.lightingSavings || 0,
+                      hvacSavings: savingsData?.hvacSavings || 0,
+                      standbySavings: savingsData?.standbySavings || 0
+                    }} />
+                  </div>
+                  <p className="text-center text-[10px] text-slate-400 max-w-[200px] font-medium leading-relaxed mt-2">
+                    Distribution across lighting, climate, and standby power.
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div className="relative z-10 mt-12 pt-12 border-t border-slate-100 dark:border-white/10 flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-teal text-white flex items-center justify-center font-bold">
-                  S
-                </div>
-                <div className="text-sm">
-                  <span className="font-black text-slate-800 dark:text-white">Smile AI</span> is monitoring this simulation
-                </div>
+              {/* Comparison Section */}
+              <div className="relative z-10 mt-4">
+                <SavingsComparisonCards 
+                  currentBill={savingsData?.monthlyCurrent || inputs.monthlyBill} 
+                  optimizedBill={savingsData?.monthlyOptimized || inputs.monthlyBill} 
+                />
               </div>
-              <a 
-                href="/gallery" 
-                className="group flex items-center gap-2 text-teal font-black text-sm uppercase tracking-widest hover:text-blue-500 transition-colors"
-              >
-                Explore Our Gallery
-                <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-              </a>
-            </div>
+
           </div>
         </motion.div>
       </div>

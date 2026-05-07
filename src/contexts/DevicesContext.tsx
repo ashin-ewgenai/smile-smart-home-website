@@ -88,8 +88,13 @@ export interface CustomFloorplanHotspot {
 // Savings Data Type
 export interface SavingsData {
   annualSavings: number;
+  lightingSavings: number;
+  hvacSavings: number;
+  standbySavings: number;
   co2Reduction: number;
   roiMonths: number;
+  monthlyCurrent: number;
+  monthlyOptimized: number;
 }
 
 // Personality Quiz Types
@@ -882,11 +887,11 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const lightingShare = 0.15 + (Math.min(homeSize, 5000) / 5000) * 0.05; // 15% to 20%
     const standbyShare = 0.05 + (Math.min(applianceCount, 50) / 50) * 0.10; // 5% to 15%
 
-    const lightingSavings = annualBill * lightingShare * lightingEfficiency;
-    const hvacSavings = annualBill * hvacShare * hvacEfficiency;
-    const standbySavings = annualBill * standbyShare * applianceEfficiency;
+    const lightingSavings = Math.round(annualBill * lightingShare * lightingEfficiency);
+    const hvacSavings = Math.round(annualBill * hvacShare * hvacEfficiency);
+    const standbySavings = Math.round(annualBill * standbyShare * applianceEfficiency);
 
-    const totalAnnualSavings = Math.round(lightingSavings + hvacSavings + standbySavings);
+    const totalAnnualSavings = lightingSavings + hvacSavings + standbySavings;
 
     // CO2 reduction: ~0.85kg CO2 per kWh. Assuming avg cost per kWh is ₹7
     const kwhSavedAnnual = totalAnnualSavings / 7;
@@ -899,8 +904,13 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     setSavingsData({
       annualSavings: totalAnnualSavings,
+      lightingSavings,
+      hvacSavings,
+      standbySavings,
       co2Reduction,
-      roiMonths
+      roiMonths,
+      monthlyCurrent: monthlyBill,
+      monthlyOptimized: Math.round(monthlyBill - (totalAnnualSavings / 12))
     });
   }, []);
 
