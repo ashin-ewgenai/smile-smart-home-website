@@ -22,8 +22,7 @@ import {
   Sector
 } from 'recharts';
 import { useDeviceRecommendations } from '../hooks/useDeviceRecommendations';
-import { useDevices, DevicesProvider } from '../contexts/DevicesContext';
-import { AuthModeProvider } from '../contexts/AuthModeContext';
+import { useDevices } from '../contexts/DevicesContext';
 import { SavingsBreakdownPieChart } from './SavingsBreakdownPieChart';
 import { SavingsComparisonCards } from './SavingsComparisonCards';
 import { httpsCallable } from 'firebase/functions';
@@ -387,11 +386,5 @@ const CalculatorContent: React.FC = () => {
 };
 
 export const EnergySavingsCalculator: React.FC = () => {
-  return (
-    <AuthModeProvider>
-      <DevicesProvider>
-        <CalculatorContent />
-      </DevicesProvider>
-    </AuthModeProvider>
-  );
+  return <CalculatorContent />;
 };
