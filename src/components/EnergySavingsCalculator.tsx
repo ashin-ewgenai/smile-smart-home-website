@@ -228,11 +228,5 @@ const CalculatorContent: React.FC = () => {
 };
 
 export const EnergySavingsCalculator: React.FC = () => {
-  return (
-    <AuthModeProvider>
-      <DevicesProvider>
-        <CalculatorContent />
-      </DevicesProvider>
-    </AuthModeProvider>
-  );
+  return <CalculatorContent />;
 };
