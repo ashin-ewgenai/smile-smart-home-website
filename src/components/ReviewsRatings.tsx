@@ -9,12 +9,21 @@ import {
   Loader2,
   MessageSquare,
   User,
-  Calendar
+  Calendar,
+  ThumbsUp,
+  ChevronDown,
+  Reply,
+  Send
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { auth } from '@/lib/firebase';
-import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
-import { useReviews } from '@/hooks/useReviews';
+import { 
+  collection, 
+  query, 
+  onSnapshot 
+} from 'firebase/firestore';
+import { db } from '@/lib/firebase';
+import { COLLECTION_REVIEWS } from '@/models/Collections';
+import { useReviewsContext } from '@/contexts/ReviewsContext';
 import ReviewAnalytics from '@/components/ReviewAnalytics';
 
 // --- Components ---
@@ -134,20 +143,60 @@ const MediaPreview = ({ files, onRemove }: { files: File[], onRemove: (index: nu
 // --- Main Page Component ---
 
 const ReviewsRatingsPage = () => {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const context = useReviewsContext();
+  
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [allReviews, setAllReviews] = useState<any[]>([]);
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [replyingTo, setReplyingTo] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [isReplying, setIsReplying] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { reviews, loading, error, submitReview } = useReviews();
-
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => setUser(u));
+    // Fetch all reviews for analytics independently
+    const q = query(collection(db, COLLECTION_REVIEWS));
+    const unsub = onSnapshot(q, (snapshot) => {
+      setAllReviews(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
     return () => unsub();
   }, []);
+
+  if (!context) return null;
+
+  const { 
+    reviews, 
+    loading, 
+    error, 
+    submitReview, 
+    toggleLike, 
+    postAdminReply,
+    sortOrder, 
+    setSortOrder,
+    hasMoreReviews,
+    setReviewsLimit,
+    isAdmin,
+    currentUser: user
+  } = context;
+
+  const handleReplySubmit = async (reviewId: string) => {
+    if (!replyText.trim()) return;
+    
+    setIsReplying(true);
+    try {
+      await postAdminReply(reviewId, replyText);
+      setReplyText('');
+      setReplyingTo(null);
+    } catch (err) {
+      console.error("Reply error:", err);
+      alert("Failed to post reply.");
+    } finally {
+      setIsReplying(false);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -203,7 +252,7 @@ const ReviewsRatingsPage = () => {
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center"
+            className="text-center mb-12"
           >
             <h1 className="text-4xl md:text-display font-black mb-4 bg-gradient-to-r from-teal to-blue-500 bg-clip-text text-transparent italic">
               Customer Experiences
@@ -212,6 +261,8 @@ const ReviewsRatingsPage = () => {
               We take pride in our work and value your feedback. Read about how we've transformed homes and share your own story.
             </p>
           </motion.div>
+
+          <ReviewAnalytics reviews={allReviews} loading={loading && allReviews.length === 0} />
         </div>
       </section>
 
@@ -220,7 +271,6 @@ const ReviewsRatingsPage = () => {
         {/* Left Column: Form */}
         <div className="lg:col-span-5">
           <div className="sticky top-24">
-            <ReviewAnalytics reviews={reviews} loading={loading} />
             {!user ? (
               <motion.div 
                 initial={{ opacity: 0 }}
@@ -346,10 +396,26 @@ const ReviewsRatingsPage = () => {
 
         {/* Right Column: Reviews List */}
         <div className="lg:col-span-7">
-          <div className="mb-8 flex items-center justify-between">
-            <h2 className="text-2xl font-black dark:text-white">Community Feedback</h2>
-            <div className="text-sm font-black text-slate-400 uppercase tracking-widest">
-              {reviews.length} Experiences
+          <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-black dark:text-white">Community Feedback</h2>
+              <div className="text-sm font-black text-slate-400 uppercase tracking-widest mt-1">
+                {reviews.length} Experiences
+              </div>
+            </div>
+
+            <div className="relative inline-block text-left">
+              <select
+                value={sortOrder}
+                onChange={(e) => setSortOrder(e.target.value as any)}
+                className="appearance-none bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2 pr-10 text-sm font-black focus:ring-2 focus:ring-teal/50 outline-none transition-all cursor-pointer dark:text-white"
+              >
+                <option value="latest">Latest First</option>
+                <option value="mostLiked">Most Liked</option>
+                <option value="highestRated">Highest Rated</option>
+                <option value="lowestRated">Lowest Rated</option>
+              </select>
+              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400" />
             </div>
           </div>
 
@@ -385,13 +451,20 @@ const ReviewsRatingsPage = () => {
                           {review.userName.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <h4 className="font-black text-lg dark:text-white">{review.userName}</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-black text-lg dark:text-white">{review.userName}</h4>
+                            {review.status === 'approved' && (
+                              <CheckCircle2 size={14} className="text-teal" />
+                            )}
+                          </div>
                           <StarRating rating={review.rating} interactive={false} />
                         </div>
                       </div>
-                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 bg-slate-50 dark:bg-white/5 px-3 py-1.5 rounded-full border border-slate-100 dark:border-white/10">
-                        <Calendar size={12} className="text-teal" />
-                        {formatDate(review.createdAt)}
+                      <div className="flex flex-col items-end gap-2">
+                        <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 bg-slate-50 dark:bg-white/5 px-3 py-1.5 rounded-full border border-slate-100 dark:border-white/10">
+                          <Calendar size={12} className="text-teal" />
+                          {formatDate(review.createdAt)}
+                        </div>
                       </div>
                     </div>
 
@@ -400,7 +473,7 @@ const ReviewsRatingsPage = () => {
                     </p>
 
                     {review.media && review.media.length > 0 && (
-                      <div className="flex flex-wrap gap-3 mt-4">
+                      <div className="flex flex-wrap gap-3 mb-6">
                         {review.media.map((item, mIdx) => (
                           <div 
                             key={mIdx} 
@@ -421,11 +494,98 @@ const ReviewsRatingsPage = () => {
                         ))}
                       </div>
                     )}
+
+                    <div className="flex items-center justify-between pt-6 border-t border-slate-100 dark:border-white/5">
+                      <button
+                        onClick={() => review.id && toggleLike(review.id)}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all font-black text-xs uppercase tracking-widest ${
+                          (review as any).isLiked 
+                            ? 'bg-teal text-white shadow-lg shadow-teal/20' 
+                            : 'bg-slate-50 dark:bg-white/5 text-slate-500 hover:bg-teal/10 hover:text-teal'
+                        }`}
+                      >
+                        <ThumbsUp size={14} className={(review as any).isLiked ? 'fill-current' : ''} />
+                        {(review as any).likes || 0} Likes
+                      </button>
+
+                      {(review as any).adminReply && (
+                        <div className="flex items-center gap-2 text-[10px] font-black text-teal uppercase tracking-widest">
+                          <MessageSquare size={12} />
+                          Admin Replied
+                        </div>
+                      )}
+                      {isAdmin && !(review as any).adminReply && (
+                        <button
+                          onClick={() => setReplyingTo(replyingTo === review.id ? null : (review.id || null))}
+                          className="flex items-center gap-2 text-[10px] font-black text-blue-500 uppercase tracking-widest hover:text-blue-600 transition-colors"
+                        >
+                          <Reply size={12} />
+                          {replyingTo === review.id ? 'Cancel' : 'Reply'}
+                        </button>
+                      )}
+                    </div>
+
+                    {isAdmin && replyingTo === review.id && (
+                      <motion.div 
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-4 p-4 rounded-2xl bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800/30"
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-black">
+                            A
+                          </div>
+                          <span className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Post Admin Reply</span>
+                        </div>
+                        <textarea
+                          value={replyText}
+                          onChange={(e) => setReplyText(e.target.value)}
+                          placeholder="Type your professional response here..."
+                          className="w-full bg-white dark:bg-gray-900 border border-blue-200 dark:border-blue-800/30 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all min-h-[80px]"
+                        />
+                        <div className="flex justify-end mt-3">
+                          <button
+                            disabled={isReplying || !replyText.trim()}
+                            onClick={() => review.id && handleReplySubmit(review.id)}
+                            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white font-black text-[10px] uppercase tracking-widest rounded-lg hover:bg-blue-600 disabled:opacity-50 transition-all"
+                          >
+                            {isReplying ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                            {isReplying ? 'Posting...' : 'Send Reply'}
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {(review as any).adminReply && (
+                      <div className="mt-4 p-4 rounded-2xl bg-teal/5 border border-teal/10">
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className="w-6 h-6 rounded-full bg-teal text-white flex items-center justify-center text-[10px] font-black">
+                            S
+                          </div>
+                          <span className="text-[10px] font-black text-teal uppercase tracking-widest">Smile Smart Homes Support</span>
+                          <span className="text-[10px] text-slate-400 font-medium ml-auto">{formatDate((review as any).adminReply.createdAt)}</span>
+                        </div>
+                        <p className="text-sm text-slate-600 dark:text-gray-400 italic">
+                          "{(review as any).adminReply.text}"
+                        </p>
+                      </div>
+                    )}
                   </motion.div>
                 ))}
               </div>
             )}
           </AnimatePresence>
+
+          {hasMoreReviews && (
+            <div className="mt-12 text-center">
+              <button
+                onClick={() => setReviewsLimit(prev => prev + 5)}
+                className="px-8 py-4 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl font-black text-sm uppercase tracking-widest hover:bg-slate-50 dark:hover:bg-white/10 transition-all shadow-soft"
+              >
+                Read More Reviews
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
