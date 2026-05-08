@@ -140,6 +140,19 @@ export function useReviews() {
       ? Math.max(0, (review.likes || 0) - 1)
       : (review.likes || 0) + 1;
 
+    // Optimistic Update
+    setReviews(prev => prev.map(r => 
+      r.id === reviewId 
+        ? { 
+            ...r, 
+            likes: newLikes, 
+            likedBy: isCurrentlyLiked 
+              ? (r.likedBy || []).filter(id => id !== uid)
+              : [...(r.likedBy || []), uid]
+          } 
+        : r
+    ));
+
     try {
       await updateDoc(doc(db, COLLECTION_REVIEWS, reviewId), {
         likes: newLikes,
@@ -147,7 +160,8 @@ export function useReviews() {
       });
     } catch (err) {
       console.error("Error toggling like:", err);
-      throw err;
+      // Revert optimistic update on error
+      setError("Failed to update like. Please try again.");
     }
   };
 

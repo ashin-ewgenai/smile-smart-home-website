@@ -412,9 +412,9 @@ const ReviewsRatingsPage = () => {
               </div>
             ) : (
               <div className="space-y-4">
-                {sortedReviews.slice(0, visibleCount).map((review, idx) => (
+                {sortedReviews.slice(0, visibleCount).map((review) => (
                   <motion.div
-                    key={review.id || idx}
+                    key={review.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="p-5 rounded-2xl glass-surface border border-slate-100 dark:border-white/10 shadow-sm"
