@@ -147,12 +147,14 @@ const ReviewsRatingsPage = () => {
 
   // Pagination & Sorting states
   const [visibleCount, setVisibleCount] = useState(5);
-  const [sortBy, setSortBy] = useState<'latest' | 'highest' | 'lowest'>('latest');
+  const [sortBy, setSortBy] = useState<'latest' | 'highest' | 'lowest' | 'engagement'>('latest');
 
   // Sorted reviews
-  const sortedReviews = [...reviews].sort((a, b) => {
-    if (sortBy === 'highest') return (b.rating || 0) - (a.rating || 0);
-    if (sortBy === 'lowest') return (a.rating || 0) - (b.rating || 0);
+  const sortedReviews = React.useMemo(() => {
+    const arr = [...reviews];
+    if (sortBy === 'highest') return arr.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+    if (sortBy === 'lowest') return arr.sort((a, b) => (a.rating || 0) - (b.rating || 0));
+    if (sortBy === 'engagement') return arr.sort((a, b) => (b.likes || 0) - (a.likes || 0));
 
     // Default: latest (safely handle Firestore Timestamp or regular Date)
     const getTimestamp = (val: any) => {
@@ -161,9 +163,8 @@ const ReviewsRatingsPage = () => {
       if (val instanceof Date) return val.getTime();
       return new Date(val).getTime() || 0;
     };
-
-    return getTimestamp(b.createdAt) - getTimestamp(a.createdAt);
-  });
+    return arr.sort((a, b) => getTimestamp(b.createdAt) - getTimestamp(a.createdAt));
+  }, [reviews, sortBy]);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => setUser(u));
@@ -377,14 +378,15 @@ const ReviewsRatingsPage = () => {
                 {[
                   { id: 'latest', label: 'Latest' },
                   { id: 'highest', label: 'Highest Rated' },
-                  { id: 'lowest', label: 'Lowest Rated' }
+                  { id: 'lowest', label: 'Lowest Rated' },
+                  { id: 'engagement', label: 'Highest Liked' }
                 ].map((option) => (
                   <button
                     key={option.id}
                     onClick={() => setSortBy(option.id as any)}
                     className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${sortBy === option.id
-                        ? 'bg-white dark:bg-white/10 text-teal shadow-sm'
-                        : 'text-slate-400 hover:text-slate-600 dark:hover:text-gray-300'
+                      ? 'bg-white dark:bg-white/10 text-teal shadow-sm'
+                      : 'text-slate-400 hover:text-slate-600 dark:hover:text-gray-300'
                       }`}
                   >
                     {option.label}
@@ -437,8 +439,8 @@ const ReviewsRatingsPage = () => {
                         <button
                           onClick={() => toggleLike(review.id!)}
                           className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all border ${auth.currentUser && review.likedBy?.includes(auth.currentUser.uid)
-                              ? 'bg-red-50 border-red-100 text-red-500 dark:bg-red-900/20 dark:border-red-800'
-                              : 'bg-slate-50 border-slate-100 text-slate-400 dark:bg-white/5 dark:border-white/10 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 shadow-sm'
+                            ? 'bg-red-50 border-red-100 text-red-500 dark:bg-red-900/20 dark:border-red-800'
+                            : 'bg-slate-50 border-slate-100 text-slate-400 dark:bg-white/5 dark:border-white/10 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 shadow-sm'
                             }`}
                         >
                           <Heart

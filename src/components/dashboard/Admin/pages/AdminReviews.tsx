@@ -156,7 +156,7 @@ const AdminReviews: React.FC = () => {
                 </div>
 
                 <div className="flex-1">
-                  <p className="text-gray-700 dark:text-gray-300 text-sm italic leading-relaxed bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+                  <p className="text-gray-700 dark:text-gray-300 text-sm italic leading-relaxed bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800 break-words">
                     "{review.comment}"
                   </p>
                 </div>
@@ -166,7 +166,7 @@ const AdminReviews: React.FC = () => {
                     <div className="text-[9px] font-black text-teal uppercase tracking-widest mb-1.5 flex items-center gap-1">
                       <CheckCircle className="h-2.5 w-2.5" /> Team Response
                     </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 italic">"{review.adminReply.text}"</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 italic break-words">"{review.adminReply.text}"</p>
                     <div className="text-[9px] text-gray-400 mt-2 flex justify-between">
                       <span>— {review.adminReply.author}</span>
                       <span>{formatDate(review.adminReply.createdAt)}</span>
