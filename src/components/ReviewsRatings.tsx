@@ -23,7 +23,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { COLLECTION_REVIEWS } from '@/models/Collections';
-import { useReviewsContext } from '@/contexts/ReviewsContext';
+import { ReviewsProvider, useReviewsContext } from '@/contexts/ReviewsContext';
 import ReviewAnalytics from '@/components/ReviewAnalytics';
 
 // --- Components ---
@@ -142,7 +142,9 @@ const MediaPreview = ({ files, onRemove }: { files: File[], onRemove: (index: nu
 
 // --- Main Page Component ---
 
-const ReviewsRatingsPage = () => {
+// --- Main Page Component ---
+
+const ReviewsRatingsContent = () => {
   const context = useReviewsContext();
   
   const [rating, setRating] = useState(0);
@@ -589,6 +591,14 @@ const ReviewsRatingsPage = () => {
         </div>
       </div>
     </div>
+  );
+};
+
+const ReviewsRatingsPage = () => {
+  return (
+    <ReviewsProvider>
+      <ReviewsRatingsContent />
+    </ReviewsProvider>
   );
 };
 

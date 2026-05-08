@@ -9,7 +9,8 @@ import {
   Loader2,
   MessageSquare,
   User,
-  Calendar
+  Calendar,
+  Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { auth } from '@/lib/firebase';
@@ -142,7 +143,7 @@ const ReviewsRatingsPage = () => {
   const [isSuccess, setIsSuccess] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { reviews, loading, error, submitReview } = useReviews();
+  const { reviews, loading, error, submitReview, toggleLike } = useReviews();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => setUser(u));
@@ -398,6 +399,40 @@ const ReviewsRatingsPage = () => {
                     <p className="text-slate-700 dark:text-gray-300 leading-relaxed mb-6 italic font-medium">
                       "{review.comment}"
                     </p>
+
+                    <div className="flex items-center justify-between mb-6">
+                      <button
+                        onClick={() => toggleLike(review.id!)}
+                        className={`group flex items-center gap-2 px-4 py-2 rounded-full transition-all border ${
+                          auth.currentUser && review.likedBy?.includes(auth.currentUser.uid)
+                            ? 'bg-red-50 border-red-100 text-red-500 dark:bg-red-900/20 dark:border-red-800'
+                            : 'bg-slate-50 border-slate-100 text-slate-400 dark:bg-white/5 dark:border-white/10 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10'
+                        }`}
+                      >
+                        <Heart 
+                          size={16} 
+                          className={`transition-transform group-hover:scale-125 ${
+                            auth.currentUser && review.likedBy?.includes(auth.currentUser.uid) ? 'fill-current' : ''
+                          }`} 
+                        />
+                        <span className="text-sm font-black tabular-nums">{review.likes || 0}</span>
+                      </button>
+                    </div>
+
+                    {review.adminReply && (
+                      <div className="mb-6 p-5 rounded-2xl bg-teal/5 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-800/30 relative">
+                        <div className="absolute -top-3 left-6 px-3 py-1 bg-teal text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg shadow-teal/20">
+                          Team Response
+                        </div>
+                        <p className="text-sm text-slate-700 dark:text-gray-300 font-medium italic mb-2">
+                          "{review.adminReply.text}"
+                        </p>
+                        <div className="text-[10px] font-black text-teal-600/60 dark:text-teal-400/60 uppercase tracking-widest">
+                          — {review.adminReply.author}, {formatDate(review.adminReply.createdAt)}
+                        </div>
+                      </div>
+                    )}
+
 
                     {review.media && review.media.length > 0 && (
                       <div className="flex flex-wrap gap-3 mt-4">

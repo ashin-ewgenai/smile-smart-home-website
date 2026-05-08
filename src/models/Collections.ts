@@ -726,6 +726,13 @@ export interface Review {
   }>;
   createdAt: Timestamp | FieldValue | null;
   status?: 'pending' | 'approved' | string;
+  likes?: number;
+  likedBy?: string[];
+  adminReply?: {
+    text: string;
+    author: string;
+    createdAt: Timestamp | FieldValue;
+  };
 }
 
 export const COLLECTION_REVIEWS = 'Reviews';
