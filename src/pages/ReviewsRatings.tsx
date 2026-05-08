@@ -370,13 +370,9 @@ const ReviewsRatingsPage = () => {
           <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <h2 className="text-2xl font-black dark:text-white flex items-center gap-3">
               Community Feedback
-              <span className="text-xs font-black text-teal bg-teal/10 px-3 py-1 rounded-full uppercase tracking-widest">
-                {reviews.length}
-              </span>
             </h2>
 
             <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-2">Sort By:</span>
               <div className="flex bg-slate-50 dark:bg-white/5 p-1 rounded-xl border border-slate-100 dark:border-white/10 shadow-sm">
                 {[
                   { id: 'latest', label: 'Latest' },
