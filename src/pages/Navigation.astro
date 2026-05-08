@@ -289,7 +289,7 @@ const authState = {
           data-auth="user-mobile"
           style="display:none"
           class="hidden w-full px-4 py-3 mt-3 text-teal bg-teal/10 hover:bg-teal/20 rounded-xl text-center font-semibold transition-all duration-200"
-          >Hi there</button
+          >Hi User</button
         >
 
         <!-- Mobile auth: Logout (shown when authed by AuthNavClient) -->
@@ -346,20 +346,48 @@ const authState = {
           userTextEl.style.display = isAuthed ? "inline-flex" : "none";
           if (isAuthed && !userTextEl.textContent?.trim()) {
             try {
-              const uid = localStorage.getItem("userId") || "";
-              userTextEl.textContent = "Hi there";
+              const rawName = firstFromEmail(localStorage.getItem("userEmail") || "") || "User";
+              userTextEl.textContent = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
             } catch {}
           }
         }
       };
 
+      // Navigation highlighting based on current route
+      const updateActiveNavigation = () => {
+        const currentPath = window.location.pathname;
+        const navLinks = document.querySelectorAll('nav a[href]');
+        
+        navLinks.forEach(link => {
+          const href = link.getAttribute('href');
+          if (href) {
+            // Remove existing active classes
+            link.classList.remove('nav-active');
+            link.classList.remove('nav-mobile-active');
+            
+            // Add active class if current path matches the href
+            if (currentPath === href || 
+                (href !== '/' && currentPath.startsWith(href))) {
+              // Check if it's a mobile navigation link
+              if (link.closest('#mobile-menu')) {
+                link.classList.add('nav-mobile-active');
+              } else {
+                link.classList.add('nav-active');
+              }
+            }
+          }
+        });
+      };
+
       // Initial apply
       applyAuthUI(computeAuth());
+      updateActiveNavigation();
 
       // Re-apply on Astro view transitions
-      document.addEventListener("astro:page-load", () =>
-        applyAuthUI(computeAuth()),
-      );
+      document.addEventListener("astro:page-load", () => {
+        applyAuthUI(computeAuth());
+        updateActiveNavigation();
+      });
     } catch (e) {
       console.error("Error setting initial auth state:", e);
     }
@@ -386,7 +414,9 @@ const authState = {
         if (uid) {
           const userText = document.querySelector('[data-auth="user-desktop"]');
           if (userText) {
-            userText.textContent = `Hi ${firstFromEmail(email) || "there"}`;
+            const email = localStorage.getItem("userEmail") || "";
+            const rawName = firstFromEmail(email) || "User";
+            userText.textContent = rawName.charAt(0).toUpperCase() + rawName.slice(1).toLowerCase();
             userText.style.display = "inline-flex";
             userText.style.visibility = "visible";
             userText.style.opacity = "1";
@@ -420,6 +450,24 @@ const authState = {
   .dark .filter-teal {
     filter: brightness(0) saturate(100%) invert(48%) sepia(82%) saturate(385%)
       hue-rotate(127deg) brightness(97%) contrast(101%);
+  }
+
+  /* Active navigation highlighting */
+  .nav-active {
+    color: #14b8a6 !important;
+    font-weight: 700 !important;
+  }
+
+  .nav-active .absolute.inset-0 {
+    opacity: 1 !important;
+    background: linear-gradient(to right, rgba(20, 184, 166, 0.15), rgba(59, 130, 246, 0.15)) !important;
+  }
+
+  /* Mobile navigation active state */
+  .nav-mobile-active {
+    color: #14b8a6 !important;
+    font-weight: 700 !important;
+    background: linear-gradient(to right, rgba(20, 184, 166, 0.05), rgba(59, 130, 246, 0.05)) !important;
   }
 
   /* Force visibility states with !important */

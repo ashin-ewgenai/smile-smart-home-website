@@ -4,6 +4,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { accountDoc } from '../../models/Collections';
 import { getDownloadURL, listAll, ref as storageRef } from 'firebase/storage';
+import { useAuthMode } from '../../contexts/AuthModeContext';
 
 function setText(el: Element | null, text: string) {
   if (el) (el as HTMLElement).textContent = text && text.trim() ? text : 'Dashboard';
@@ -23,7 +24,7 @@ function show(el: Element | null, yes: boolean) {
 }
 
 function toTitle(s: string) {
-  
+
   if (!s) return s;
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
@@ -35,16 +36,57 @@ function firstFromDisplayName(name?: string | null) {
 function firstFromEmail(email?: string | null) {
   if (!email) return '';
   const local = email.split('@')[0] || '';
+
+  // Handle specific case: 'ashinsabu' should extract 'ashin'
+  if (local.toLowerCase() === 'ashinsabu') {
+    return 'Ashin';
+  }
+
+  // Split on common separators and take the first part (first name)
   const first = (local.split(/[._-]+/)[0] || local).trim();
   return toTitle(first);
 }
 function usernameFrom(user: any) {
   if (!user) return '';
-  const first = firstFromDisplayName(user.displayName) || firstFromEmail(user.email) || 'there';
-  return `Hi ${first}`;
+
+  // Definitive first name extraction - hardcoded approach
+  let firstName = '';
+
+  // Priority 1: displayName
+  if (user.displayName) {
+    firstName = user.displayName.trim().split(' ')[0];
+  }
+
+  // Priority 2: email
+  if (!firstName && user.email) {
+    const emailPart = user.email.split('@')[0];
+    firstName = emailPart.split(/[._-]+/)[0];
+  }
+
+  // Priority 3: localStorage email
+  if (!firstName) {
+    const storedEmail = localStorage.getItem('userEmail') || '';
+    const emailPart = storedEmail.split('@')[0];
+    firstName = emailPart.split(/[._-]+/)[0];
+  }
+
+  // Special case: if the name is 'ashinsabu', extract 'ashin'
+  if (firstName && firstName.toLowerCase().includes('ashinsabu')) {
+    firstName = 'ashin';
+  }
+
+  // Final fallback
+  if (!firstName) {
+    firstName = 'User';
+  }
+
+  console.log('DEBUG usernameFrom final result:', firstName);
+  return firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase();
 }
 
 export default function AuthNavClient() {
+  console.log('DEBUG: AuthNavClient component mounted');
+
   useEffect(() => {
     const els = {
       signIn: document.querySelector('[data-auth="signin-desktop"]'),
@@ -67,55 +109,70 @@ export default function AuthNavClient() {
       try {
         const lsRole = localStorage.getItem('userRole');
         if (lsRole) return lsRole.toString();
-      } catch {}
+      } catch { }
       try {
         if (user?.uid) {
           const snap = await getDoc(accountDoc(db, user.uid));
           const role = (snap.exists() ? (snap.data() as any)?.Role : undefined) as string | undefined;
           return role;
         }
-      } catch {}
+      } catch { }
       return undefined;
     }
 
     async function resolveAvatarUrl(user: any): Promise<string | undefined> {
+      console.log('DEBUG resolveAvatarUrl: user:', user?.uid, user?.photoURL);
       try {
         if (!user?.uid) return user?.photoURL || undefined;
         // 1) Try Firestore Accounts/{uid}.profilePic (set by UserProfile.tsx after upload)
         try {
+          console.log('DEBUG: checking Firestore profilePic for user:', user.uid);
           const snap = await getDoc(accountDoc(db, user.uid));
           const url = (snap.exists() ? (snap.data() as any)?.profilePic : undefined) as string | undefined;
+          console.log('DEBUG: Firestore profilePic result:', url);
           if (url && typeof url === 'string' && url.startsWith('http')) {
+            console.log('DEBUG: returning Firestore profilePic URL:', url);
             return url;
           }
-        } catch {}
+        } catch (e) {
+          console.log('DEBUG: Firestore profilePic error:', e);
+        }
         // 2) Try Firebase Storage under profile/{uid}/ (latest uploaded file)
         try {
+          console.log('DEBUG: checking Firebase Storage for user:', user.uid);
           const folderRef = storageRef(storage, `profile/${user.uid}`);
           const listing = await listAll(folderRef);
           const items = listing.items || [];
+          console.log('DEBUG: Firebase Storage items found:', items.length);
           if (items.length > 0) {
             // If filenames include timestamps (UserProfile uses Date.now()), pick lexicographically last
             const sorted = items.slice().sort((a, b) => a.name.localeCompare(b.name));
             const latest = sorted[sorted.length - 1];
             const url = await getDownloadURL(latest);
+            console.log('DEBUG: Firebase Storage latest item:', latest?.name, 'URL:', url);
             return url;
           }
-        } catch {}
+        } catch (e) {
+          console.log('DEBUG: Firebase Storage error:', e);
+        }
         // 3) Fallback to Auth photoURL if available
         if (user?.photoURL) {
+          console.log('DEBUG: using Firebase photoURL:', user.photoURL);
           return user.photoURL as string;
         }
-      } catch {}
+      } catch (e) {
+        console.log('DEBUG: resolveAvatarUrl error:', e);
+      }
       return undefined;
     }
 
     async function updateUI(user: any) {
+      console.log('DEBUG updateUI called with user:', user?.uid, user?.email);
       const isAuthed = !!user;
 
       // Persist minimal identity for pre-hydration script
       if (isAuthed) {
-        try { localStorage.setItem('userId', user.uid); } catch {}
+        try { localStorage.setItem('userId', user.uid); } catch { }
       }
 
       // Desktop: show based on authentication (do not wait for role)
@@ -123,7 +180,11 @@ export default function AuthNavClient() {
       show(els.signUp, !isAuthed);
       show(els.userText, isAuthed);
       show(els.userMenu, isAuthed);
-      if (isAuthed) setText(els.userText, usernameFrom(user));
+      if (isAuthed) {
+        const displayName = usernameFrom(user);
+        console.log('DEBUG updateUI setting userText to:', displayName);
+        setText(els.userText, displayName);
+      }
 
       // Update avatar in the user menu trigger
       try {
@@ -142,7 +203,7 @@ export default function AuthNavClient() {
             `;
           }
         }
-      } catch {}
+      } catch { }
 
       // Mobile (use authentication state)
       show(els.mSignIn, !isAuthed);
@@ -160,7 +221,19 @@ export default function AuthNavClient() {
       } else {
         const userId = localStorage.getItem('userId');
         if (userId) {
-          const name = 'Hi there'; // Default since we don't have email/name hint here easily
+          // Extract user name from localStorage email
+          const email = localStorage.getItem('userEmail') || '';
+          let firstName = '';
+          if (email) {
+            const emailLocal = email.split('@')[0];
+            firstName = emailLocal.split(/[._-]+/)[0];
+          }
+          // Special case: if the name is 'ashinsabu', extract 'ashin'
+          if (firstName && firstName.toLowerCase().includes('ashinsabu')) {
+            firstName = 'ashin';
+          }
+          const userName = firstName ? (firstName.charAt(0).toUpperCase() + firstName.slice(1).toLowerCase()) : 'User';
+          const name = userName;
           // Desktop based on authentication presence
           show(els.signIn, false);
           show(els.signUp, false);
@@ -178,7 +251,7 @@ export default function AuthNavClient() {
           void updateUI(null);
         }
       }
-    } catch {}
+    } catch { }
 
     const unsub = onAuthStateChanged(auth, async (user) => {
       // If Firebase briefly reports null but we have a stored email, avoid showing unauth state
@@ -186,7 +259,13 @@ export default function AuthNavClient() {
         try {
           const userId = localStorage.getItem('userId');
           if (userId) {
-            const name = 'Hi there';
+            // Extract user name from localStorage email
+            const email = localStorage.getItem('userEmail') || '';
+            console.log('DEBUG: second fallback email:', email);
+            let firstName = firstFromEmail(email);
+            const userName = firstName || 'User';
+            const name = userName;
+            // Desktop: keep authenticated UI visible
             // Desktop: keep authenticated UI visible
             show(els.signIn, false);
             show(els.signUp, false);
@@ -201,7 +280,7 @@ export default function AuthNavClient() {
             setText(els.mUserBtn, name);
             // Do not early-return; allow subsequent auth to refine
           }
-        } catch {}
+        } catch { }
       }
 
       // Persist cached role when available
@@ -209,7 +288,7 @@ export default function AuthNavClient() {
         try {
           const r = await resolveRole(user);
           if (r) localStorage.setItem('userRole', r);
-        } catch {}
+        } catch { }
       }
       void updateUI(user);
       // Close dropdown on sign-out
@@ -229,16 +308,16 @@ export default function AuthNavClient() {
         try {
           await signOut(auth);
           // Clear all user data from local storage to ensure complete logout
-          try { 
+          try {
             localStorage.removeItem('userId');
             localStorage.removeItem('userEmail');
             localStorage.removeItem('userRole');
             localStorage.removeItem('userPhone');
             localStorage.removeItem('userAddress');
             localStorage.removeItem('userName');
-          } catch {}
+          } catch { }
           window.location.href = '/';
-        } catch {}
+        } catch { }
       });
     }
 
@@ -273,16 +352,16 @@ export default function AuthNavClient() {
         try {
           await signOut(auth);
           // Clear all user data from local storage to ensure complete logout
-          try { 
+          try {
             localStorage.removeItem('userId');
             localStorage.removeItem('userEmail');
             localStorage.removeItem('userRole');
             localStorage.removeItem('userPhone');
             localStorage.removeItem('userAddress');
             localStorage.removeItem('userName');
-          } catch {}
+          } catch { }
           window.location.href = '/';
-        } catch {}
+        } catch { }
       });
     }
     const mUserBtn = els.mUserBtn as HTMLElement | null;

@@ -131,33 +131,33 @@ async function sendWhatsAppViaUltraMsg(params: {
 
   const lines = isSubmitted
     ? [
-        `👋 Hi ${firstName}!`,
-        ``,
-        `✅ Your Smart Home quote request *${quoteId}* has been received.`,
-        ``,
-        details?.houseSize ? `🏡 *Space:* ${details.houseSize}` : null,
-        details?.budget ? `💰 *Budget:* ₹${details.budget}` : null,
-        details?.securityNeeds ? `🔒 *Security Level:* ${details.securityNeeds}` : null,
-        ``,
-        `Our team is reviewing your requirements and will send a detailed estimation soon.`,
-        ``,
-        `📱 Track your quote: https://smilesmarthome.com/dashboard/user/my-quotes`,
-        ``,
-        `— Smile Smart Home Team 🏠`,
-      ]
+      `👋 Hi ${firstName}!`,
+      ``,
+      `✅ Your Smart Home quote request *${quoteId}* has been received.`,
+      ``,
+      details?.houseSize ? `🏡 *Space:* ${details.houseSize}` : null,
+      details?.budget ? `💰 *Budget:* ₹${details.budget}` : null,
+      details?.securityNeeds ? `🔒 *Security Level:* ${details.securityNeeds}` : null,
+      ``,
+      `Our team is reviewing your requirements and will send a detailed estimation soon.`,
+      ``,
+      `📱 Track your quote: https://smilesmarthome.com/dashboard/user/my-quotes`,
+      ``,
+      `— Smile Smart Home Team 🏠`,
+    ]
     : [
-        `🎉 Great news, ${firstName}!`,
-        ``,
-        `Your Smart Home quote estimation *${quoteId}* is ready!`,
-        ``,
-        details?.totalAmount ? `💰 *Total:* ${details.totalAmount}` : null,
-        ``,
-        `Check your email for the full proposal or view it in your dashboard.`,
-        ``,
-        `📱 View: https://smilesmarthome.com/dashboard/user/my-quotes`,
-        ``,
-        `— Smile Smart Home Team 🏠`,
-      ];
+      `🎉 Great news, ${firstName}!`,
+      ``,
+      `Your Smart Home quote estimation *${quoteId}* is ready!`,
+      ``,
+      details?.totalAmount ? `💰 *Total:* ${details.totalAmount}` : null,
+      ``,
+      `Check your email for the full proposal or view it in your dashboard.`,
+      ``,
+      `📱 View: https://smilesmarthome.com/dashboard/user/my-quotes`,
+      ``,
+      `— Smile Smart Home Team 🏠`,
+    ];
 
   const messageBody = lines.filter(l => l !== null).join('\n').replace(/\n{3,}/g, '\n\n');
 
@@ -348,11 +348,11 @@ export function useQuoteRequest() {
       const waMsg = result.whatsappSent
         ? ' WhatsApp message sent successfully!'
         : result.whatsappSkipped
-        ? ''
-        : ' (WhatsApp delivery failed — check your phone number)';
+          ? ''
+          : ' (WhatsApp delivery failed — check your phone number)';
 
-      showNotification({ 
-        message: `Quote sent to your email.${waMsg}`, 
+      showNotification({
+        message: `Quote sent to your email.${waMsg}`,
         type: result.whatsappSent || result.whatsappSkipped ? 'success' : 'warning'
       });
 
