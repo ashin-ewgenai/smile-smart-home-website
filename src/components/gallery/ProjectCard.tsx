@@ -50,7 +50,7 @@ const ProjectCard: React.FC<ProjectCardProps> = ({ project, onClick }) => {
         <img 
           src={isNight && project.nightImage ? project.nightImage : project.mainImage}
           alt={project.title}
-          className={`w-full h-full object-cover transition-all duration-700 ${isHovered && project.videoUrl ? 'opacity-0 scale-110' : 'opacity-100 scale-100'}`}
+          className={`w-full h-full object-cover transition-all duration-700 ${isHovered && project.videoUrl ? 'opacity-30 scale-110' : 'opacity-100 scale-100'}`}
         />
 
         {project.videoUrl && (

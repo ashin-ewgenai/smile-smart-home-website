@@ -18,30 +18,76 @@ import { useReviews } from '@/hooks/useReviews';
 
 // --- Components ---
 
+// Safe date formatting helper
+const formatDate = (dateValue: any): string => {
+  if (!dateValue) return 'Just now';
+  
+  try {
+    let date: Date;
+    
+    if (typeof dateValue === 'string') {
+      date = new Date(dateValue);
+    } else if (typeof dateValue === 'object' && dateValue.toDate) {
+      date = dateValue.toDate();
+    } else if (dateValue instanceof Date) {
+      date = dateValue;
+    } else {
+      return 'Just now';
+    }
+    
+    if (isNaN(date.getTime())) {
+      return 'Just now';
+    }
+    
+    return Intl.DateTimeFormat('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    }).format(date);
+  } catch (error) {
+    return 'Just now';
+  }
+};
+
 const StarRating = ({ rating, setRating, interactive = false }: { rating: number, setRating?: (r: number) => void, interactive?: boolean }) => {
   const [hover, setHover] = useState(0);
 
   return (
     <div className="flex gap-1.5">
-      {[1, 2, 3, 4, 5].map((star) => (
-        <motion.button
-          key={star}
-          whileHover={interactive ? { scale: 1.15, rotate: 5 } : {}}
-          whileTap={interactive ? { scale: 0.9 } : {}}
-          onClick={() => interactive && setRating?.(star)}
-          onMouseEnter={() => interactive && setHover(star)}
-          onMouseLeave={() => interactive && setHover(0)}
-          className={`focus:outline-none transition-all ${interactive ? 'cursor-pointer' : 'cursor-default'}`}
-          type="button"
-        >
-          <Star
-            size={interactive ? 28 : 18}
-            fill={(hover || rating) >= star ? "#009688" : "transparent"}
-            color={(hover || rating) >= star ? "#009688" : "#94A3B8"}
-            className={`transition-all duration-300 ${(hover || rating) >= star ? 'drop-shadow-[0_0_8px_rgba(0,150,136,0.3)]' : ''}`}
-          />
-        </motion.button>
-      ))}
+      {[1, 2, 3, 4, 5].map((star) => {
+        if (interactive) {
+          return (
+            <motion.button
+              key={star}
+              whileHover={{ scale: 1.15, rotate: 5 }}
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setRating?.(star)}
+              onMouseEnter={() => setHover(star)}
+              onMouseLeave={() => setHover(0)}
+              className="focus:outline-none transition-all cursor-pointer"
+              type="button"
+            >
+              <Star
+                size={28}
+                fill={(hover || rating) >= star ? "#009688" : "transparent"}
+                color={(hover || rating) >= star ? "#009688" : "#94A3B8"}
+                className={`transition-all duration-300 ${(hover || rating) >= star ? 'drop-shadow-[0_0_8px_rgba(0,150,136,0.3)]' : ''}`}
+              />
+            </motion.button>
+          );
+        } else {
+          return (
+            <div key={star} className="transition-all">
+              <Star
+                size={18}
+                fill={rating >= star ? "#009688" : "transparent"}
+                color={rating >= star ? "#009688" : "#94A3B8"}
+                className={`transition-all duration-300 ${rating >= star ? 'drop-shadow-[0_0_8px_rgba(0,150,136,0.3)]' : ''}`}
+              />
+            </div>
+          );
+        }
+      })}
     </div>
   );
 };
@@ -338,12 +384,12 @@ const ReviewsRatingsPage = () => {
                         </div>
                         <div>
                           <h4 className="font-black text-lg dark:text-white">{review.userName}</h4>
-                          <StarRating rating={review.rating} />
+                          <StarRating rating={review.rating} interactive={false} />
                         </div>
                       </div>
                       <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 bg-slate-50 dark:bg-white/5 px-3 py-1.5 rounded-full border border-slate-100 dark:border-white/10">
                         <Calendar size={12} className="text-teal" />
-                        {review.createdAt ? new Date(review.createdAt as any).toLocaleDateString() : 'Just now'}
+                        {formatDate(review.createdAt)}
                       </div>
                     </div>
 
