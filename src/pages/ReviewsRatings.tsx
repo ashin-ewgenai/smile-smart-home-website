@@ -13,8 +13,9 @@ import {
   Heart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { auth } from '@/lib/firebase';
+import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
+import { collection, query, where, getDocs, orderBy, limit as limitFn } from 'firebase/firestore';
 import { useReviews } from '@/hooks/useReviews';
 import ReviewAnalytics from '@/components/ReviewAnalytics';
 
@@ -141,6 +142,7 @@ const ReviewsRatingsPage = () => {
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [hasUserRated, setHasUserRated] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { reviews, loading, error, submitReview, toggleLike } = useReviews();
@@ -171,6 +173,34 @@ const ReviewsRatingsPage = () => {
     return () => unsub();
   }, []);
 
+  // Check if user has already submitted a star rating
+  useEffect(() => {
+    const checkUserRating = async () => {
+      if (!user) {
+        setHasUserRated(false);
+        return;
+      }
+
+      try {
+        const reviewsQuery = query(
+          collection(db, 'reviews'),
+          where('userId', '==', user.uid),
+          orderBy('createdAt', 'desc'),
+          limitFn(1)
+        );
+
+        const querySnapshot = await getDocs(reviewsQuery);
+        const hasExistingRating = !querySnapshot.empty;
+        setHasUserRated(hasExistingRating);
+      } catch (error) {
+        console.error('Error checking user rating:', error);
+        setHasUserRated(false);
+      }
+    };
+
+    checkUserRating();
+  }, [user]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const newFiles = Array.from(e.target.files);
@@ -180,10 +210,6 @@ const ReviewsRatingsPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (rating === 0) {
-      alert("Please select a star rating.");
-      return;
-    }
     if (!comment.trim()) {
       alert("Please write a short comment about your experience.");
       return;
@@ -191,10 +217,21 @@ const ReviewsRatingsPage = () => {
 
     setIsSubmitting(true);
     try {
-      const response = await submitReview({ rating, comment, files }) as any;
+      // Only submit rating if user hasn't rated before
+      const reviewData: { comment: string; files: File[]; rating: number; userName?: string } = hasUserRated 
+        ? { rating: 0, comment, files } 
+        : { rating, comment, files };
+      
+      const response = await submitReview(reviewData) as any;
 
       // If we got here without throwing, it's successful
       setIsSuccess(true);
+      
+      // Update hasUserRated state immediately after successful rating submission
+      if (!hasUserRated && rating > 0) {
+        setHasUserRated(true);
+      }
+      
       setRating(0);
       setComment('');
       setFiles([]);
@@ -305,7 +342,7 @@ const ReviewsRatingsPage = () => {
                 <div className="space-y-6">
                   <div>
                     <label className="block text-sm font-black text-slate-600 dark:text-gray-400 uppercase tracking-wide mb-2">How would you rate our service?</label>
-                    <StarRating rating={rating} setRating={setRating} interactive />
+                    <StarRating rating={rating} setRating={setRating} interactive={!hasUserRated} />
                   </div>
 
                   <div>
