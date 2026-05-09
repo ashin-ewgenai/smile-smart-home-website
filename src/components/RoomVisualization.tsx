@@ -361,117 +361,7 @@ const DraggableDeviceMarker: React.FC<DraggableMarkerProps> = ({
   );
 };
 
-// ── Drop Zone ─────────────────────────────────────────────────────────────────
 
-interface DropZoneProps {
-  onFile: (file: File) => void;
-  preview: string | null;
-  onClear: () => void;
-  uploadProgress: number;
-  uploadLoading: boolean;
-}
-
-const DropZone: React.FC<DropZoneProps> = ({ onFile, preview, onClear, uploadProgress, uploadLoading }) => {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) onFile(file);
-  }, [onFile]);
-
-  const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) onFile(file);
-    e.target.value = '';
-  };
-
-  if (preview) {
-    return (
-      <div className="relative rounded-3xl overflow-hidden border-2 border-teal/30 shadow-xl">
-        <img
-          src={preview}
-          alt="Room preview"
-          className="w-full h-64 object-cover"
-        />
-        {uploadLoading && (
-          <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center gap-3">
-            <Loader2 className="animate-spin text-white" size={32} />
-            <div className="text-white font-bold text-sm">Uploading... {uploadProgress}%</div>
-            <div className="w-48 h-1.5 bg-white/20 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full bg-teal rounded-full"
-                animate={{ width: `${uploadProgress}%` }}
-                transition={{ ease: 'easeOut' }}
-              />
-            </div>
-          </div>
-        )}
-        {!uploadLoading && (
-          <button
-            onClick={onClear}
-            className="absolute top-3 right-3 p-2 bg-white/90 dark:bg-charcoal/90 rounded-full shadow-lg hover:scale-110 transition-transform border border-gray-200 dark:border-gray-700"
-            aria-label="Remove photo"
-          >
-            <X size={16} className="text-slate-700 dark:text-white" />
-          </button>
-        )}
-        <div className="absolute bottom-3 left-3 bg-teal/90 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1.5">
-          <Camera size={12} />
-          Room photo ready
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <motion.div
-      onDragEnter={() => setDragging(true)}
-      onDragLeave={() => setDragging(false)}
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={handleDrop}
-      animate={{ borderColor: dragging ? '#009688' : 'rgba(0,150,136,0.3)' }}
-      className={`relative border-2 border-dashed rounded-3xl p-12 flex flex-col items-center justify-center gap-4 cursor-pointer transition-colors duration-200 ${
-        dragging
-          ? 'bg-teal/5 dark:bg-teal-900/10'
-          : 'bg-soft-gray dark:bg-gray-800/30 hover:bg-teal/5 dark:hover:bg-teal-900/10'
-      }`}
-      onClick={() => inputRef.current?.click()}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === 'Enter' && inputRef.current?.click()}
-      aria-label="Upload room photo"
-    >
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        className="hidden"
-        onChange={handlePick}
-        id="room-photo-input"
-      />
-      <motion.div
-        animate={{ scale: dragging ? 1.15 : 1 }}
-        className="w-16 h-16 rounded-2xl bg-teal/10 border border-teal/20 flex items-center justify-center"
-      >
-        <ImagePlus size={28} className="text-teal" />
-      </motion.div>
-      <div className="text-center">
-        <p className="text-slate-700 dark:text-white font-bold text-base">
-          {dragging ? 'Drop your photo here' : 'Drag & drop your room photo'}
-        </p>
-        <p className="text-slate-500 text-sm mt-1">or <span className="text-teal font-semibold">browse files</span> · JPEG, PNG, WebP · max 10MB</p>
-      </div>
-      <div className="flex gap-4 text-xs text-slate-400">
-        <span className="flex items-center gap-1"><Camera size={12} /> Any room type</span>
-        <span className="flex items-center gap-1"><Sparkles size={12} /> AI-powered analysis</span>
-        <span className="flex items-center gap-1"><MapPin size={12} /> Device placement</span>
-      </div>
-    </motion.div>
-  );
-};
 
 // ── Results Overlay Card ───────────────────────────────────────────────────────
 
@@ -798,14 +688,7 @@ export const RoomVisualization: React.FC = () => {
         Back
       </button>
 
-      {/* Drop Zone */}
-      <DropZone
-        onFile={setRoomPhoto}
-        preview={roomPhotoPreview}
-        onClear={clearVisualization}
-        uploadProgress={uploadProgress}
-        uploadLoading={uploadLoading}
-      />
+
 
       {/* Device Selector */}
       {roomPhoto && !hasResult && (
