@@ -59,8 +59,24 @@ export function KanbanBoard<T extends { id: string }>({
       return normalizedStatus === normalizedColId || status === col.id.toLowerCase();
     });
 
-    // Sort by dragIndex (descending to put high index on top or vice-versa? Let's say ascending: higher index = lower on list)
     acc[col.id] = colItems.sort((a, b) => {
+      // 1. Sort by Date Descending (Latest First)
+      const dateA = getCardDate?.(a);
+      const dateB = getCardDate?.(b);
+      
+      const getTime = (d: any) => {
+        if (!d) return 0;
+        if (d.toDate) return d.toDate().getTime();
+        if (d.seconds) return d.seconds * 1000;
+        return new Date(d).getTime();
+      };
+      
+      const valA = getTime(dateA);
+      const valB = getTime(dateB);
+      
+      if (valB !== valA) return valB - valA;
+
+      // 2. Fallback to dragIndex
       const idxA = getCardIndex?.(a) ?? 0;
       const idxB = getCardIndex?.(b) ?? 0;
       return idxA - idxB;
@@ -169,7 +185,14 @@ export function KanbanBoard<T extends { id: string }>({
           </div>
 
           {/* Column Body */}
-          <div className="flex-1 p-2 space-y-3 overflow-y-auto max-h-[calc(100vh-320px)] scrollbar-thin">
+          <div 
+            className="flex-1 p-2 space-y-3 overflow-y-auto max-h-[calc(100vh-320px)] scrollbar-thin"
+            style={{ scrollbarGutter: 'stable', touchAction: 'pan-y', overscrollBehaviorY: 'contain' }}
+            onWheel={(e) => {
+              // Stop propagation to prevent dashboard-level wheel listeners from blocking this scroll
+              e.stopPropagation();
+            }}
+          >
             {boardData[column.id]?.map(item => (
               <div
                 key={item.id}

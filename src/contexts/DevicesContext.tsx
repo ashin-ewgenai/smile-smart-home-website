@@ -577,8 +577,8 @@ interface DevicesContextValue {
   filteredReports: SupportTicket[];
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  filterCriteria: { dateRange: string; itemType: string };
-  setFilterCriteria: (criteria: { dateRange: string; itemType: string }) => void;
+  filterCriteria: { dateRange: string; itemType: string; startDate: Date | null; endDate: Date | null };
+  setFilterCriteria: (criteria: { dateRange: string; itemType: string; startDate: Date | null; endDate: Date | null }) => void;
   loading: boolean;
   adminLoading: boolean;
   error: string | null;
@@ -786,7 +786,12 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [contactSubmissions, setContactSubmissions] = useState<ContactRequest[]>([]);
   const [reports, setReports] = useState<SupportTicket[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterCriteria, setFilterCriteria] = useState({ dateRange: 'all', itemType: 'all' });
+  const [filterCriteria, setFilterCriteria] = useState({ 
+    dateRange: 'all', 
+    itemType: 'all',
+    startDate: null as Date | null,
+    endDate: null as Date | null
+  });
   const [loading, setLoading] = useState<boolean>(false);
   const [adminLoading, setAdminLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -1241,22 +1246,28 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     let unsubs: (() => void)[] = [];
 
     if (uid && isAdmin) {
-      setAdminLoading(true);
+      // Avoid flickering if already loaded
+      if (planLeads.length === 0 && contactSubmissions.length === 0) {
+        setAdminLoading(true);
+      }
+      
       try {
         const u1 = onSnapshot(collection(db, 'Planner_Leads'), snap => {
           setPlanLeads(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as PlannerLead)));
           setAdminLoading(false);
         }, (err) => {
-          console.debug('Planner_Leads collection snapshot failed (expected for non-admins):', err);
+          console.debug('Planner_Leads collection snapshot failed:', err);
           setAdminLoading(false);
         });
+        
         const u2 = onSnapshot(collection(db, 'contactRequests'), snap => {
           setContactSubmissions(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as unknown as ContactRequest)));
           setAdminLoading(false);
         }, (err) => {
-          console.debug('contactRequests collection snapshot failed (expected for non-admins):', err);
+          console.debug('contactRequests collection snapshot failed:', err);
           setAdminLoading(false);
         });
+        
         const u3 = onSnapshot(collection(db, 'Support_Tickets'), snap => {
           setReports(snap.docs.map(doc => {
             const data = doc.data();
@@ -1270,24 +1281,28 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
           }));
           setAdminLoading(false);
         }, (err) => {
-          console.debug('Support_Tickets collection snapshot failed (expected for non-admins):', err);
+          console.debug('Support_Tickets collection snapshot failed:', err);
           setAdminLoading(false);
         });
+        
         unsubs = [u1, u2, u3];
       } catch (e) {
         console.error('Failed to initialize admin listeners:', e);
         setAdminLoading(false);
       }
     } else {
-      setPlanLeads([]);
-      setContactSubmissions([]);
-      setReports([]);
-      setAdminLoading(false);
-      // If user is just a regular user, we don't show admin loader
-      if (uid && !isAdmin) setAdminLoading(false);
+      if (!uid) {
+        setPlanLeads([]);
+        setContactSubmissions([]);
+        setReports([]);
+      }
+      // If we're not an admin or still resolving role, only stop loading if we actually have no UID
+      if (!uid || (role && !isAdmin)) {
+        setAdminLoading(false);
+      }
     }
     return () => unsubs.forEach(u => u());
-  }, [uid, role]);
+  }, [uid, role, isAdmin]);
 
   // Real-time listener for current user's planner leads (UID or Email match)
   useEffect(() => {
@@ -1343,14 +1358,31 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       (item.message || '').startsWith('[Floorplan Request');
   }, []);
 
-  const passesDate = (timestamp: any, range: string) => {
-    if (range === 'all') return true;
+  const passesDate = (timestamp: any, criteria: typeof filterCriteria) => {
+    if (criteria.dateRange === 'all') return true;
     if (!timestamp) return false;
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp.seconds * 1000);
+    
+    const date = timestamp.toDate ? timestamp.toDate() : 
+                 (typeof timestamp === 'number' ? new Date(timestamp * 1000) : new Date(timestamp));
+                 
+    if (criteria.dateRange === 'custom') {
+      if (criteria.startDate) {
+        const start = new Date(criteria.startDate);
+        start.setHours(0, 0, 0, 0);
+        if (date < start) return false;
+      }
+      if (criteria.endDate) {
+        const end = new Date(criteria.endDate);
+        end.setHours(23, 59, 59, 999);
+        if (date > end) return false;
+      }
+      return true;
+    }
+
     const now = new Date();
-    if (range === 'today') return date.toDateString() === now.toDateString();
-    if (range === 'week') return (now.getTime() - date.getTime()) < 7 * 24 * 60 * 60 * 1000;
-    if (range === 'month') return (now.getTime() - date.getTime()) < 30 * 24 * 60 * 60 * 1000;
+    if (criteria.dateRange === 'today') return date.toDateString() === now.toDateString();
+    if (criteria.dateRange === 'week') return (now.getTime() - date.getTime()) < 7 * 24 * 60 * 60 * 1000;
+    if (criteria.dateRange === 'month') return (now.getTime() - date.getTime()) < 30 * 24 * 60 * 60 * 1000;
     return true;
   };
 
@@ -1365,7 +1397,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ));
     }
     if (filterCriteria.dateRange !== 'all') {
-      list = list.filter(p => passesDate(p.updatedAt || p.createdAt, filterCriteria.dateRange));
+      list = list.filter(p => passesDate(p.updatedAt || p.createdAt, filterCriteria));
     }
     if (filterCriteria.itemType === 'floorplan') {
       list = list.filter(p => isFloorplanItem(p));
@@ -1386,7 +1418,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ));
     }
     if (filterCriteria.dateRange !== 'all') {
-      list = list.filter(c => passesDate(c.createdAt, filterCriteria.dateRange));
+      list = list.filter(c => passesDate(c.createdAt, filterCriteria));
     }
     if (filterCriteria.itemType === 'floorplan') {
       list = list.filter(c => isFloorplanItem(c));
@@ -1407,7 +1439,7 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
       ));
     }
     if (filterCriteria.dateRange !== 'all') {
-      list = list.filter(r => passesDate(r.createdAt, filterCriteria.dateRange));
+      list = list.filter(r => passesDate(r.createdAt, filterCriteria));
     }
     if (filterCriteria.itemType === 'floorplan') {
       list = list.filter(r => isFloorplanItem(r));

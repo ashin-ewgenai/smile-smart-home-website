@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { db } from '../../../lib/firebase';
 import { deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { plannerLeadDoc } from '../../../models/Collections';
-import { FilePlus, Loader2 } from 'lucide-react';
+import { FilePlus, Loader2, Calendar } from 'lucide-react';
 import { useDevices } from '../../../contexts/DevicesContext';
 import { KanbanBoard } from './KanbanBoard';
 
@@ -29,7 +29,14 @@ type Lead = {
 };
 
 const PlanLeads: React.FC = () => {
-  const { filteredPlanLeads, updateItemStatus, updateItemDragIndex, adminLoading } = useDevices();
+  const { 
+    filteredPlanLeads, 
+    updateItemStatus, 
+    updateItemDragIndex, 
+    adminLoading,
+    filterCriteria,
+    setFilterCriteria 
+  } = useDevices();
   const [error, setError] = useState<string | null>(null);
 
   const columns = [
@@ -178,6 +185,45 @@ const PlanLeads: React.FC = () => {
             <FilePlus className="h-6 w-6 text-blue-600 dark:text-blue-400" />
           </h1>
           <div className="mt-1 text-sm text-gray-700 dark:text-gray-400">{filteredPlanLeads.length} total leads</div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 bg-white dark:bg-gray-800 p-2 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm">
+            <Calendar className="h-4 w-4 text-teal-500" />
+            <select 
+              value={filterCriteria.dateRange}
+              onChange={(e) => setFilterCriteria({ ...filterCriteria, dateRange: e.target.value })}
+              className="bg-transparent text-sm font-medium text-gray-700 dark:text-gray-300 focus:outline-none cursor-pointer"
+            >
+              <option value="all">All Time</option>
+              <option value="today">Today</option>
+              <option value="week">This Week</option>
+              <option value="month">This Month</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
+
+          {filterCriteria.dateRange === 'custom' && (
+            <div className="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-300">
+              <div className="flex flex-col">
+                <input 
+                  type="date"
+                  value={filterCriteria.startDate ? filterCriteria.startDate.toISOString().split('T')[0] : ''}
+                  onChange={(e) => setFilterCriteria({ ...filterCriteria, startDate: e.target.value ? new Date(e.target.value) : null })}
+                  className="bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-teal-500/20 transition-all outline-none"
+                />
+              </div>
+              <span className="text-gray-400 text-xs font-medium">to</span>
+              <div className="flex flex-col">
+                <input 
+                  type="date"
+                  value={filterCriteria.endDate ? filterCriteria.endDate.toISOString().split('T')[0] : ''}
+                  onChange={(e) => setFilterCriteria({ ...filterCriteria, endDate: e.target.value ? new Date(e.target.value) : null })}
+                  className="bg-white dark:bg-gray-800 px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm text-xs text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-teal-500/20 transition-all outline-none"
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
       
