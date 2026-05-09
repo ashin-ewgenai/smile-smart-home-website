@@ -420,12 +420,21 @@ export function KanbanBoard<T extends { id: string }>({
           >
             {boardData[column.id]?.map(item => (
               <motion.div
-                key={item.id}
+                key={getCardId(item)}
                 layout
+                layoutId={getCardId(item)}
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.2 }}
+                whileDrag={{ 
+                  scale: 1.02, 
+                  boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                  zIndex: 50
+                }}
+                transition={{ 
+                  duration: 0.2,
+                  layout: { type: "spring", stiffness: 300, damping: 30 }
+                }}
                 draggable={!disableDrag}
                 onDragStart={(e) => !disableDrag && handleDragStart(e, item.id)}
                 onDragEnd={handleDragEnd}
@@ -435,7 +444,7 @@ export function KanbanBoard<T extends { id: string }>({
                   bg-white dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm 
                   transition-all relative
                   ${!disableDrag ? 'hover:shadow-md hover:border-teal-500/50 cursor-grab active:cursor-grabbing' : 'cursor-default'}
-                  ${draggedId === item.id ? 'ring-2 ring-teal-500 border-transparent opacity-50 shadow-2xl scale-[1.02] z-50' : ''}
+                  ${draggedId === item.id ? 'ring-2 ring-teal-500 border-transparent opacity-50' : ''}
                   ${dropTargetId === item.id ? 'border-t-4 border-t-teal-500' : ''}
                 `}
               >
