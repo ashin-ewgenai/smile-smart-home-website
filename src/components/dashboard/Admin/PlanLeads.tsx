@@ -28,6 +28,13 @@ type Lead = {
   source?: 'ai_consultant' | 'floorplan' | 'smart_home_planner';
 };
 
+interface Activity {
+  id: string;
+  type: 'move' | 'delete';
+  message: string;
+  timestamp: Date;
+}
+
 const PlanLeads: React.FC = () => {
   const { 
     filteredPlanLeads, 
@@ -38,6 +45,17 @@ const PlanLeads: React.FC = () => {
   
   const [error, setError] = useState<string | null>(null);
   const [clearFiltersTrigger, setClearFiltersTrigger] = useState(0);
+  const [activities, setActivities] = useState<Activity[]>([]);
+
+  const addActivity = (type: 'move' | 'delete', message: string) => {
+    const newActivity: Activity = {
+      id: Math.random().toString(36).substr(2, 9),
+      type,
+      message,
+      timestamp: new Date(),
+    };
+    setActivities(prev => [newActivity, ...prev].slice(0, 15));
+  };
 
   const columns = [
     { id: 'new', title: 'New', color: 'bg-yellow-400' },
@@ -52,6 +70,7 @@ const PlanLeads: React.FC = () => {
       const ok = window.confirm('Delete this lead? This cannot be undone.');
       if (!ok) return;
       await deleteDoc(plannerLeadDoc(db, lead.id));
+      addActivity('delete', `Deleted lead for ${lead.email || 'Anonymous'}`);
     } catch (e) {
       console.error('Error deleting lead:', e);
       setError('Failed to delete lead');
@@ -176,6 +195,14 @@ const PlanLeads: React.FC = () => {
     return null;
   };
 
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    const lead = filteredPlanLeads.find(l => l.id === id);
+    if (lead) {
+      addActivity('move', `Moved ${lead.email || 'Anonymous'} to ${newStatus.charAt(0).toUpperCase() + newStatus.slice(1)}`);
+    }
+    await updateItemStatus('Planner_Leads', id, newStatus);
+  };
+
   return (
     <div className="p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -212,7 +239,7 @@ const PlanLeads: React.FC = () => {
           columns={columns}
           itemType="Planner_Leads"
           disableDrag={false}
-          onStatusChange={(id, newStatus) => updateItemStatus('Planner_Leads', id, newStatus)}
+          onStatusChange={handleStatusChange}
           onReorder={(id, newIndex) => updateItemDragIndex('Planner_Leads', id, newIndex)}
           onDeleteItem={handleDelete}
           getCardId={(l) => l.id}

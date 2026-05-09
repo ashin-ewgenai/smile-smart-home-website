@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useTransition } from 'react';
 import { useDevices } from '../../../contexts/DevicesContext';
 import { Layout, Search, Filter, Loader2, MoreVertical, Calendar, User, Mail, MessageSquare, AlertCircle, Trash2, Clock } from 'lucide-react';
 import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
@@ -15,32 +15,62 @@ interface KanbanColumn {
  */
 function HighlightText({ text, query }: { text: any; query?: string }) {
   const strText = String(text || '');
-  if (!query || !query.trim()) return <>{strText}</>;
   
-  // Escape regex special characters to prevent crashes (e.g., if user types '(' or '[')
-  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  
-  try {
-    // Use a case-insensitive regex to find the query within the text
-    // Using parentheses in split keeps the separator in the results array
-    const parts = strText.split(new RegExp(`(${escapedQuery})`, 'gi'));
+  // Memoize the highlighted nodes to prevent redundant Regex execution
+  return React.useMemo(() => {
+    if (!query || !query.trim()) return <>{strText}</>;
     
-    return (
-      <>
-        {parts.map((part, i) => (
-          part.toLowerCase() === query.toLowerCase() ? (
-            <mark key={i} className="bg-yellow-200 dark:bg-yellow-900/50 text-gray-900 dark:text-yellow-100 rounded-sm px-0.5">
-              {part}
-            </mark>
-          ) : (
-            <span key={i}>{part}</span>
-          )
-        ))}
-      </>
-    );
-  } catch (e) {
-    return <>{strText}</>;
-  }
+    const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    try {
+      const parts = strText.split(new RegExp(`(${escapedQuery})`, 'gi'));
+      
+      return (
+        <>
+          {parts.map((part, i) => (
+            part.toLowerCase() === query.toLowerCase() ? (
+              <mark key={i} className="bg-yellow-200 dark:bg-yellow-900/50 text-gray-900 dark:text-yellow-100 rounded-sm px-0.5">
+                {part}
+              </mark>
+            ) : (
+              <span key={i}>{part}</span>
+            )
+          ))}
+        </>
+      );
+    } catch (e) {
+      return <>{strText}</>;
+    }
+  }, [strText, query]);
+}
+
+/**
+ * Renders a premium empty state illustration for Kanban columns.
+ */
+function ColumnEmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center h-48 px-6 text-center animate-in fade-in zoom-in duration-700">
+      <div className="relative mb-4">
+        <div className="absolute inset-0 bg-teal-500/10 blur-2xl rounded-full" />
+        <svg 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="1" 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          className="relative w-16 h-16 text-teal-500/40 dark:text-teal-400/30"
+        >
+          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+          <polyline points="9 22 9 12 15 12 15 22" />
+          <path d="M12 2v2M12 18v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" className="animate-pulse" />
+        </svg>
+      </div>
+      <p className="text-xs font-medium text-gray-400 dark:text-gray-500 italic">
+        All caught up!<br />Drop items here
+      </p>
+    </div>
+  );
 }
 
 interface KanbanBoardProps<T> {
@@ -63,6 +93,140 @@ interface KanbanBoardProps<T> {
   getCardSource?: (item: T) => string;
   clearFiltersTrigger?: number;
 }
+
+/**
+ * Memoized Card component to prevent unnecessary re-renders during board filtering.
+ */
+const KanbanCard = React.memo(function KanbanCard<T>({
+  item,
+  columnId,
+  draggedId,
+  dropTargetId,
+  expandedId,
+  setExpandedId,
+  handleDragStart,
+  handleDragEnd,
+  handleDragOver,
+  handleDrop,
+  disableDrag,
+  getCardId,
+  getCardTitle,
+  getCardSubtitle,
+  getCardDate,
+  renderCardDetails,
+  onDeleteItem,
+  renderSourceBadge,
+  renderActions,
+  isFloorplanItem,
+  fmtDate,
+  columnSearch,
+  shouldReduceMotion
+}: any) {
+  const dateInfo = fmtDate(getCardDate?.(item));
+  
+  return (
+    <motion.div
+      layout
+      layoutId={getCardId(item)}
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      whileHover={!disableDrag ? { y: -5, scale: 1.01 } : {}}
+      whileDrag={{ 
+        scale: 1.02, 
+        boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+        zIndex: 50
+      }}
+      transition={shouldReduceMotion ? { duration: 0.1 } : { 
+        duration: 0.2,
+        layout: { type: "spring", stiffness: 300, damping: 30 }
+      }}
+      draggable={!disableDrag}
+      onDragStart={(e) => !disableDrag && handleDragStart(e, item.id)}
+      onDragEnd={handleDragEnd}
+      onDragOver={(e) => !disableDrag && handleDragOver(e, true, item.id)}
+      onDrop={(e) => !disableDrag && handleDrop(e, columnId, item.id)}
+      className={`
+        bg-gradient-to-br from-white/60 to-white/30 dark:from-gray-800/80 dark:to-gray-900/50
+        backdrop-blur-md rounded-lg border border-white/20 dark:border-white/10 p-3 
+        shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]
+        transition-all relative
+        ${!disableDrag ? 'hover:shadow-xl hover:border-teal-500/50 cursor-grab active:cursor-grabbing' : 'cursor-default'}
+        ${draggedId === item.id ? 'ring-2 ring-teal-500 border-transparent opacity-50' : ''}
+        ${dropTargetId === item.id ? 'border-t-4 border-t-teal-500' : ''}
+      `}
+    >
+      {/* Card Header */}
+      <div className="flex justify-between items-start mb-2">
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+            <HighlightText text={getCardTitle(item)} query={columnSearch} />
+          </h4>
+          {getCardSubtitle && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+              <HighlightText text={getCardSubtitle(item)} query={columnSearch} />
+            </p>
+          )}
+        </div>
+        {!disableDrag && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); onDeleteItem(item); }}
+            className="p-1 text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors pointer-events-auto"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Card Badges */}
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {renderSourceBadge && renderSourceBadge(item)}
+        {isFloorplanItem(item) && !renderSourceBadge && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+            <Layout className="h-2.5 w-2.5 mr-1" />
+            Floorplan
+          </span>
+        )}
+        {getCardDate && (
+          <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
+            dateInfo.isStale 
+              ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/30' 
+              : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
+          }`}>
+            {dateInfo.isStale ? <AlertCircle className="h-2.5 w-2.5 mr-1 animate-pulse" /> : <Clock className="h-2.5 w-2.5 mr-1" />}
+            {dateInfo.text}
+            {dateInfo.isStale && <span className="ml-1 font-bold uppercase tracking-tighter text-[8px]">Stale</span>}
+          </span>
+        )}
+      </div>
+
+      {/* Card Actions */}
+      <div className="flex flex-col gap-2 mt-auto pt-2 border-t border-gray-100 dark:border-gray-700/50">
+        <div className="flex items-center justify-between">
+          <button
+            onClick={(e) => { e.stopPropagation(); setExpandedId(expandedId === item.id ? null : item.id); }}
+            className="text-[10px] font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
+          >
+            {expandedId === item.id ? 'Hide details' : 'View details'}
+          </button>
+          
+          {renderActions && (
+            <div className="flex gap-2">
+              {renderActions(item)}
+            </div>
+          )}
+        </div>
+
+        {/* Expanded Details */}
+        {expandedId === item.id && (
+          <div className="mt-1 pt-3 border-t border-gray-100 dark:border-gray-700/50 animate-in fade-in slide-in-from-top-1">
+            {renderCardDetails(item)}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+});
 
 export function KanbanBoard<T extends { id: string }>({
   items,
@@ -90,16 +254,57 @@ export function KanbanBoard<T extends { id: string }>({
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+
+  // Filtering States
   const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
+  const [localSearch, setLocalSearch] = useState<Record<string, string>>({});
+  const [debouncedSearch, setDebouncedSearch] = useState<Record<string, string>>({});
   const [columnDateRange, setColumnDateRange] = useState<Record<string, string>>({});
   const [columnStartDate, setColumnStartDate] = useState<Record<string, string>>({});
   const [columnEndDate, setColumnEndDate] = useState<Record<string, string>>({});
   const [columnSource, setColumnSource] = useState<Record<string, string>>({});
   const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({});
 
+  const [isPending, startTransition] = useTransition();
+
+  // Optimized Item Pre-processing - Only happens when raw items change
+  const processedItems = useMemo(() => {
+    return items.map(item => {
+      const timestamp = getCardDate?.(item);
+      let date: Date | null = null;
+      if (timestamp) {
+        date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+      }
+      return {
+        ...item,
+        _searchTitle: getCardTitle(item).toLowerCase(),
+        _searchSubtitle: getCardSubtitle?.(item)?.toLowerCase() || '',
+        _date: date,
+        _dateTime: date?.getTime() || 0,
+        _status: (getCardStatus(item) || 'new').toLowerCase().replace(/\s+/g, '_')
+      };
+    });
+  }, [items, getCardTitle, getCardSubtitle, getCardDate, getCardStatus]);
+
+  // Sync localSearch to debouncedSearch with a small debounce
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      startTransition(() => {
+        setDebouncedSearch(localSearch);
+      });
+    }, 150);
+    return () => clearTimeout(handler);
+  }, [localSearch]);
+
+  // Sync localSearch when external columnSearch changes
+  useEffect(() => {
+    setLocalSearch(columnSearch);
+  }, [columnSearch]);
+
   useEffect(() => {
     if (clearFiltersTrigger > 0) {
       setColumnSearch({});
+      setDebouncedSearch({});
       setColumnDateRange({});
       setColumnStartDate({});
       setColumnEndDate({});
@@ -108,22 +313,17 @@ export function KanbanBoard<T extends { id: string }>({
     }
   }, [clearFiltersTrigger]);
 
-  // Group and sort items by status and dragIndex
-  const boardData = React.useMemo(() => {
+  const boardData = useMemo(() => {
     return columns.reduce((acc, col) => {
-      let colItems = items.filter(item => {
-        const status = getCardStatus(item)?.toLowerCase();
-        const normalizedStatus = status?.replace(/\s+/g, '_');
-        const normalizedColId = col.id.toLowerCase().replace(/\s+/g, '_');
-        return normalizedStatus === normalizedColId || status === col.id.toLowerCase();
-      });
+      const normalizedColId = col.id.toLowerCase().replace(/\s+/g, '_');
+      
+      let colItems = processedItems.filter(item => item._status === normalizedColId);
 
-      // Apply Column-level Search
-      const search = columnSearch[col.id]?.toLowerCase();
+      // Apply Column-level Search (using debounced state)
+      const search = debouncedSearch[col.id]?.toLowerCase();
       if (search) {
         colItems = colItems.filter(item => 
-          getCardTitle(item).toLowerCase().includes(search) || 
-          getCardSubtitle?.(item).toLowerCase().includes(search)
+          item._searchTitle.includes(search) || item._searchSubtitle.includes(search)
         );
       }
 
@@ -131,10 +331,12 @@ export function KanbanBoard<T extends { id: string }>({
       const range = columnDateRange[col.id] || 'all';
       if (range !== 'all') {
         const now = new Date();
+        const nowTime = now.getTime();
+        const nowDateStr = now.toDateString();
+
         colItems = colItems.filter(item => {
-          const timestamp = getCardDate?.(item);
-          if (!timestamp) return false;
-          const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+          const date = item._date;
+          if (!date) return false;
           
           if (range === 'custom') {
             const startStr = columnStartDate[col.id];
@@ -152,9 +354,9 @@ export function KanbanBoard<T extends { id: string }>({
             return true;
           }
 
-          if (range === 'today') return date.toDateString() === now.toDateString();
-          if (range === 'week') return (now.getTime() - date.getTime()) < 7 * 24 * 60 * 60 * 1000;
-          if (range === 'month') return (now.getTime() - date.getTime()) < 30 * 24 * 60 * 60 * 1000;
+          if (range === 'today') return date.toDateString() === nowDateStr;
+          if (range === 'week') return (nowTime - item._dateTime) < 7 * 24 * 60 * 60 * 1000;
+          if (range === 'month') return (nowTime - item._dateTime) < 30 * 24 * 60 * 60 * 1000;
           return true;
         });
       }
@@ -169,30 +371,14 @@ export function KanbanBoard<T extends { id: string }>({
       }
 
       acc[col.id] = colItems.sort((a, b) => {
-        // 1. Sort by Date Descending (Latest First)
-        const dateA = getCardDate?.(a);
-        const dateB = getCardDate?.(b);
-        
-        const getTime = (d: any) => {
-          if (!d) return 0;
-          if (d.toDate) return d.toDate().getTime();
-          if (d.seconds) return d.seconds * 1000;
-          return new Date(d).getTime();
-        };
-        
-        const valA = getTime(dateA);
-        const valB = getTime(dateB);
-        
-        if (valB !== valA) return valB - valA;
-
-        // 2. Fallback to dragIndex
+        if (b._dateTime !== a._dateTime) return b._dateTime - a._dateTime;
         const idxA = getCardIndex?.(a) ?? 0;
         const idxB = getCardIndex?.(b) ?? 0;
         return idxA - idxB;
       });
       return acc;
     }, {} as Record<string, T[]>);
-  }, [items, columns, getCardStatus, getCardIndex, getCardDate, getCardSource, columnSearch, columnDateRange, columnStartDate, columnEndDate, columnSource]);
+  }, [processedItems, columns, debouncedSearch, columnDateRange, columnStartDate, columnEndDate, columnSource, getCardSource, getCardIndex]);
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedId(id);
@@ -265,11 +451,18 @@ export function KanbanBoard<T extends { id: string }>({
     setDropTargetId(null);
   };
 
-  const fmtDate = (val: any) => {
-    if (!val) return 'No date';
+  // Optimized date formatting
+  const fmtDate = React.useCallback((val: any) => {
+    if (!val) return { text: 'No date', isStale: false };
     const d = val.toDate ? val.toDate() : new Date(val);
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  };
+    const dTime = d.getTime();
+    const isStale = (Date.now() - dTime) > 48 * 60 * 60 * 1000;
+    
+    return {
+      text: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      isStale
+    };
+  }, []);
 
   return (
     <div className="flex gap-4 overflow-x-auto pb-4 min-h-[calc(100vh-250px)]">
@@ -360,7 +553,7 @@ export function KanbanBoard<T extends { id: string }>({
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  transition={shouldReduceMotion ? { duration: 0.05 } : { type: "spring", stiffness: 300, damping: 30 }}
+                  transition={shouldReduceMotion ? { duration: 0.05 } : { type: "tween", ease: "easeInOut", duration: 0.15 }}
                   className="space-y-2 pt-2 overflow-hidden"
                 >
                   <div className="relative">
@@ -368,22 +561,22 @@ export function KanbanBoard<T extends { id: string }>({
                     <input
                       type="text"
                       placeholder="Search in this box..."
-                      value={columnSearch[column.id] || ''}
-                      onChange={(e) => setColumnSearch(prev => ({ ...prev, [column.id]: e.target.value }))}
+                      value={localSearch[column.id] || ''}
+                      onChange={(e) => setLocalSearch(prev => ({ ...prev, [column.id]: e.target.value }))}
                       className="w-full pl-7 pr-2 py-1.5 text-[11px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-1 focus:ring-teal-500/30"
                     />
                   </div>
                   <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-1">
-                    {['all', 'today', 'week', 'month', 'custom'].map(r => (
-                      <button
-                        key={r}
-                        onClick={() => setColumnDateRange(prev => ({ ...prev, [column.id]: r }))}
-                        className={`flex-shrink-0 px-2 py-1 rounded-md text-[10px] font-medium transition-all flex items-center gap-1 ${
-                          (columnDateRange[column.id] || 'all') === r
-                            ? 'bg-teal-600 text-white'
-                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
-                        }`}
-                      >
+                      {['all', 'today', 'week', 'month', 'custom'].map(r => (
+                        <button
+                          key={r}
+                          onClick={() => startTransition(() => setColumnDateRange(prev => ({ ...prev, [column.id]: r })))}
+                          className={`flex-shrink-0 px-2 py-1 rounded-md text-[10px] font-medium transition-all flex items-center gap-1 ${
+                            (columnDateRange[column.id] || 'all') === r
+                              ? 'bg-teal-600 text-white shadow-sm'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
+                          }`}
+                        >
                         {r === 'custom' && <Calendar className="h-2.5 w-2.5" />}
                         {r.charAt(0).toUpperCase() + r.slice(1)}
                       </button>
@@ -433,10 +626,10 @@ export function KanbanBoard<T extends { id: string }>({
                       ].map(s => (
                         <button
                           key={s.id}
-                          onClick={() => setColumnSource(prev => ({ ...prev, [column.id]: s.id }))}
+                          onClick={() => startTransition(() => setColumnSource(prev => ({ ...prev, [column.id]: s.id })))}
                           className={`px-2 py-0.5 rounded text-[9px] font-medium transition-all ${
                             (columnSource[column.id] || 'all') === s.id
-                              ? 'bg-blue-600 text-white'
+                              ? 'bg-blue-600 text-white shadow-sm'
                               : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
                           }`}
                         >
@@ -460,108 +653,36 @@ export function KanbanBoard<T extends { id: string }>({
             }}
           >
             {boardData[column.id]?.map(item => (
-              <motion.div
+              <KanbanCard
                 key={getCardId(item)}
-                layout
-                layoutId={getCardId(item)}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                whileDrag={{ 
-                  scale: 1.02, 
-                  boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-                  zIndex: 50
-                }}
-                transition={shouldReduceMotion ? { duration: 0.1 } : { 
-                  duration: 0.2,
-                  layout: { type: "spring", stiffness: 300, damping: 30 }
-                }}
-                draggable={!disableDrag}
-                onDragStart={(e) => !disableDrag && handleDragStart(e, item.id)}
-                onDragEnd={handleDragEnd}
-                onDragOver={(e) => !disableDrag && handleDragOver(e, true, item.id)}
-                onDrop={(e) => !disableDrag && handleDrop(e, column.id, item.id)}
-                className={`
-                  bg-gradient-to-br from-white/60 to-white/30 dark:from-gray-800/80 dark:to-gray-900/50
-                  backdrop-blur-md rounded-lg border border-white/20 dark:border-white/10 p-3 
-                  shadow-[0_4px_12px_-2px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.4)]
-                  dark:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.2),inset_0_1px_1px_rgba(255,255,255,0.05)]
-                  transition-all relative
-                  ${!disableDrag ? 'hover:shadow-lg hover:border-teal-500/30 cursor-grab active:cursor-grabbing' : 'cursor-default'}
-                  ${draggedId === item.id ? 'ring-2 ring-teal-500 border-transparent opacity-50' : ''}
-                  ${dropTargetId === item.id ? 'border-t-4 border-t-teal-500' : ''}
-                `}
-              >
-                {/* Card Header */}
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                      <HighlightText text={getCardTitle(item)} query={columnSearch[column.id]} />
-                    </h4>
-                    {getCardSubtitle && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
-                        <HighlightText text={getCardSubtitle(item)} query={columnSearch[column.id]} />
-                      </p>
-                    )}
-                  </div>
-                  {!disableDrag && (
-                    <button 
-                      onClick={(e) => { e.stopPropagation(); onDeleteItem(item); }}
-                      className="p-1 text-gray-400 hover:text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors pointer-events-auto"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Card Badges */}
-                <div className="flex flex-wrap gap-1.5 mb-3">
-                  {renderSourceBadge && renderSourceBadge(item)}
-                  {isFloorplanItem(item) && !renderSourceBadge && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                      <Layout className="h-2.5 w-2.5 mr-1" />
-                      Floorplan
-                    </span>
-                  )}
-                  {getCardDate && (
-                    <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                      <Clock className="h-2.5 w-2.5 mr-1" />
-                      {fmtDate(getCardDate(item))}
-                    </span>
-                  )}
-                </div>
-
-                {/* Card Actions */}
-                <div className="flex flex-col gap-2 mt-auto pt-2 border-t border-gray-100 dark:border-gray-700/50">
-                  <div className="flex items-center justify-between">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setExpandedId(expandedId === item.id ? null : item.id); }}
-                      className="text-[10px] font-medium text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300"
-                    >
-                      {expandedId === item.id ? 'Hide details' : 'View details'}
-                    </button>
-                    
-                    {renderActions && (
-                      <div className="flex gap-2">
-                        {renderActions(item)}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Expanded Details */}
-                  {expandedId === item.id && (
-                    <div className="mt-1 pt-3 border-t border-gray-100 dark:border-gray-700/50 animate-in fade-in slide-in-from-top-1">
-                      {renderCardDetails(item)}
-                    </div>
-                  )}
-                </div>
-              </motion.div>
+                item={item}
+                columnId={column.id}
+                draggedId={draggedId}
+                dropTargetId={dropTargetId}
+                expandedId={expandedId}
+                setExpandedId={setExpandedId}
+                handleDragStart={handleDragStart}
+                handleDragEnd={handleDragEnd}
+                handleDragOver={handleDragOver}
+                handleDrop={handleDrop}
+                disableDrag={disableDrag}
+                getCardId={getCardId}
+                getCardTitle={getCardTitle}
+                getCardSubtitle={getCardSubtitle}
+                getCardDate={getCardDate}
+                renderCardDetails={renderCardDetails}
+                onDeleteItem={onDeleteItem}
+                renderSourceBadge={renderSourceBadge}
+                renderActions={renderActions}
+                isFloorplanItem={isFloorplanItem}
+                fmtDate={fmtDate}
+                columnSearch={debouncedSearch[column.id]}
+                shouldReduceMotion={shouldReduceMotion}
+              />
             ))}
             
             {boardData[column.id]?.length === 0 && (
-              <div className="h-24 border-2 border-dashed border-gray-200 dark:border-gray-800 rounded-lg flex items-center justify-center p-4">
-                <p className="text-xs text-gray-400 text-center italic">Drop items here</p>
-              </div>
+              <ColumnEmptyState />
             )}
           </div>
         </div>
