@@ -9,6 +9,40 @@ interface KanbanColumn {
   color: string;
 }
 
+/**
+ * Helper to highlight matching search terms within a string.
+ * Returns an array of React nodes (fragments/marks) for safe rendering.
+ */
+function HighlightText({ text, query }: { text: any; query?: string }) {
+  const strText = String(text || '');
+  if (!query || !query.trim()) return <>{strText}</>;
+  
+  // Escape regex special characters to prevent crashes (e.g., if user types '(' or '[')
+  const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  
+  try {
+    // Use a case-insensitive regex to find the query within the text
+    // Using parentheses in split keeps the separator in the results array
+    const parts = strText.split(new RegExp(`(${escapedQuery})`, 'gi'));
+    
+    return (
+      <>
+        {parts.map((part, i) => (
+          part.toLowerCase() === query.toLowerCase() ? (
+            <mark key={i} className="bg-yellow-200 dark:bg-yellow-900/50 text-gray-900 dark:text-yellow-100 rounded-sm px-0.5">
+              {part}
+            </mark>
+          ) : (
+            <span key={i}>{part}</span>
+          )
+        ))}
+      </>
+    );
+  } catch (e) {
+    return <>{strText}</>;
+  }
+}
+
 interface KanbanBoardProps<T> {
   items: T[];
   columns: KanbanColumn[];
@@ -246,8 +280,8 @@ export function KanbanBoard<T extends { id: string }>({
           onDragOver={(e) => handleDragOver(e)}
           onDrop={(e) => handleDrop(e, column.id)}
         >
-          {/* Column Header */}
-          <div className="p-3 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm sticky top-0 z-10">
+          {/* Column Header - Enhanced Glassmorphism */}
+          <div className="p-3 border-b border-gray-200 dark:border-gray-800 bg-white/40 dark:bg-gray-800/40 backdrop-blur-lg sticky top-0 z-10">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full ${column.color}`} />
@@ -448,9 +482,12 @@ export function KanbanBoard<T extends { id: string }>({
                 onDragOver={(e) => !disableDrag && handleDragOver(e, true, item.id)}
                 onDrop={(e) => !disableDrag && handleDrop(e, column.id, item.id)}
                 className={`
-                  bg-white dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm 
+                  bg-gradient-to-br from-white/60 to-white/30 dark:from-gray-800/80 dark:to-gray-900/50
+                  backdrop-blur-md rounded-lg border border-white/20 dark:border-white/10 p-3 
+                  shadow-[0_4px_12px_-2px_rgba(0,0,0,0.05),inset_0_1px_1px_rgba(255,255,255,0.4)]
+                  dark:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.2),inset_0_1px_1px_rgba(255,255,255,0.05)]
                   transition-all relative
-                  ${!disableDrag ? 'hover:shadow-md hover:border-teal-500/50 cursor-grab active:cursor-grabbing' : 'cursor-default'}
+                  ${!disableDrag ? 'hover:shadow-lg hover:border-teal-500/30 cursor-grab active:cursor-grabbing' : 'cursor-default'}
                   ${draggedId === item.id ? 'ring-2 ring-teal-500 border-transparent opacity-50' : ''}
                   ${dropTargetId === item.id ? 'border-t-4 border-t-teal-500' : ''}
                 `}
@@ -458,12 +495,12 @@ export function KanbanBoard<T extends { id: string }>({
                 {/* Card Header */}
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex-1 min-w-0">
-                    <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                      {getCardTitle(item)}
+                    <h4 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                      <HighlightText text={getCardTitle(item)} query={columnSearch[column.id]} />
                     </h4>
                     {getCardSubtitle && (
-                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                        {getCardSubtitle(item)}
+                      <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                        <HighlightText text={getCardSubtitle(item)} query={columnSearch[column.id]} />
                       </p>
                     )}
                   </div>
