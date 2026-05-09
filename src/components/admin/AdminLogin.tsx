@@ -29,6 +29,12 @@ export default function AdminLogin({ requiredRole }: AdminLoginProps) {
         const data = snap.exists() ? (snap.data() as any) : undefined;
         const role = data?.Role as Role | undefined;
 
+        // Sync to localStorage so dashboard guards recognize the session
+        try {
+          if (user.email) localStorage.setItem('userEmail', user.email);
+          if (role) localStorage.setItem('userRole', role || '');
+        } catch {}
+
         // Enforce requiredRole if provided
         if (requiredRole && role !== requiredRole) {
           return; // stay on page; user can sign out or switch account
