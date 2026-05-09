@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDevices } from '../../../contexts/DevicesContext';
 import { Layout, Search, Filter, Loader2, MoreVertical, Calendar, User, Mail, MessageSquare, AlertCircle, Trash2, Clock } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface KanbanColumn {
   id: string;
@@ -292,102 +293,120 @@ export function KanbanBoard<T extends { id: string }>({
                 >
                   <Layout className="h-3.5 w-3.5" />
                 </button>
-                <button 
-                  onClick={() => setActiveFilters(prev => ({ ...prev, [column.id]: !prev[column.id] }))}
-                  className={`p-1 rounded-md transition-colors ${activeFilters[column.id] ? 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400' : 'text-gray-400 hover:text-gray-600'}`}
-                >
-                  <Filter className="h-3.5 w-3.5" />
-                </button>
+                
+                <div className="relative">
+                  <button 
+                    onClick={() => setActiveFilters(prev => ({ ...prev, [column.id]: !prev[column.id] }))}
+                    className={`p-1 rounded-md transition-colors ${activeFilters[column.id] ? 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400' : 'text-gray-400 hover:text-gray-600'}`}
+                  >
+                    <Filter className="h-3.5 w-3.5" />
+                  </button>
+                  
+                  {/* Active Filter Indicator */}
+                  {(columnSearch[column.id] || 
+                    (columnDateRange[column.id] && columnDateRange[column.id] !== 'all') || 
+                    (columnSource[column.id] && columnSource[column.id] !== 'all')) && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-teal-500 rounded-full border border-white dark:border-gray-800 animate-pulse" />
+                  )}
+                </div>
               </div>
             </div>
 
             {/* Inline Column Filters */}
-            {activeFilters[column.id] && (
-              <div className="space-y-2 pt-2 animate-in fade-in slide-in-from-top-1">
-                <div className="relative">
-                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search in this box..."
-                    value={columnSearch[column.id] || ''}
-                    onChange={(e) => setColumnSearch(prev => ({ ...prev, [column.id]: e.target.value }))}
-                    className="w-full pl-7 pr-2 py-1.5 text-[11px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-1 focus:ring-teal-500/30"
-                  />
-                </div>
-                <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-1">
-                  {['all', 'today', 'week', 'month', 'custom'].map(r => (
-                    <button
-                      key={r}
-                      onClick={() => setColumnDateRange(prev => ({ ...prev, [column.id]: r }))}
-                      className={`flex-shrink-0 px-2 py-1 rounded-md text-[10px] font-medium transition-all flex items-center gap-1 ${
-                        (columnDateRange[column.id] || 'all') === r
-                          ? 'bg-teal-600 text-white'
-                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {r === 'custom' && <Calendar className="h-2.5 w-2.5" />}
-                      {r.charAt(0).toUpperCase() + r.slice(1)}
-                    </button>
-                  ))}
-                </div>
-
-                {columnDateRange[column.id] === 'custom' && (
-                  <div className="flex flex-col gap-1.5 p-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg animate-in fade-in slide-in-from-left-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[9px] text-gray-400 font-semibold uppercase">Range Selection</span>
-                      <button 
-                        onClick={() => {
-                          setColumnStartDate(prev => ({ ...prev, [column.id]: '' }));
-                          setColumnEndDate(prev => ({ ...prev, [column.id]: '' }));
-                        }}
-                        className="text-[9px] text-teal-600 hover:text-teal-700"
-                      >
-                        Reset
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <input
-                        type="date"
-                        value={columnStartDate[column.id] || ''}
-                        onChange={(e) => setColumnStartDate(prev => ({ ...prev, [column.id]: e.target.value }))}
-                        className="w-full px-1.5 py-1 text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded outline-none"
-                      />
-                      <span className="text-gray-400 text-[10px]">-</span>
-                      <input
-                        type="date"
-                        value={columnEndDate[column.id] || ''}
-                        onChange={(e) => setColumnEndDate(prev => ({ ...prev, [column.id]: e.target.value }))}
-                        className="w-full px-1.5 py-1 text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded outline-none"
-                      />
-                    </div>
+            <AnimatePresence>
+              {activeFilters[column.id] && (
+                <motion.div 
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  className="space-y-2 pt-2 overflow-hidden"
+                >
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search in this box..."
+                      value={columnSearch[column.id] || ''}
+                      onChange={(e) => setColumnSearch(prev => ({ ...prev, [column.id]: e.target.value }))}
+                      className="w-full pl-7 pr-2 py-1.5 text-[11px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-1 focus:ring-teal-500/30"
+                    />
                   </div>
-                )}
-
-                <div className="pt-1">
-                  <div className="text-[9px] text-gray-400 font-semibold uppercase mb-1">Source</div>
-                  <div className="flex flex-wrap gap-1">
-                    {[
-                      { id: 'all', label: 'All' },
-                      { id: 'ai_consultant', label: 'AI Consultant' },
-                      { id: 'floorplan', label: 'Floorplan' },
-                      { id: 'smart_home_planner', label: 'Home Planner' }
-                    ].map(s => (
+                  <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-1">
+                    {['all', 'today', 'week', 'month', 'custom'].map(r => (
                       <button
-                        key={s.id}
-                        onClick={() => setColumnSource(prev => ({ ...prev, [column.id]: s.id }))}
-                        className={`px-2 py-0.5 rounded text-[9px] font-medium transition-all ${
-                          (columnSource[column.id] || 'all') === s.id
-                            ? 'bg-blue-600 text-white'
+                        key={r}
+                        onClick={() => setColumnDateRange(prev => ({ ...prev, [column.id]: r }))}
+                        className={`flex-shrink-0 px-2 py-1 rounded-md text-[10px] font-medium transition-all flex items-center gap-1 ${
+                          (columnDateRange[column.id] || 'all') === r
+                            ? 'bg-teal-600 text-white'
                             : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
                         }`}
                       >
-                        {s.label}
+                        {r === 'custom' && <Calendar className="h-2.5 w-2.5" />}
+                        {r.charAt(0).toUpperCase() + r.slice(1)}
                       </button>
                     ))}
                   </div>
-                </div>
-              </div>
-            )}
+
+                  {columnDateRange[column.id] === 'custom' && (
+                    <div className="flex flex-col gap-1.5 p-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[9px] text-gray-400 font-semibold uppercase">Range Selection</span>
+                        <button 
+                          onClick={() => {
+                            setColumnStartDate(prev => ({ ...prev, [column.id]: '' }));
+                            setColumnEndDate(prev => ({ ...prev, [column.id]: '' }));
+                          }}
+                          className="text-[9px] text-teal-600 hover:text-teal-700"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="date"
+                          value={columnStartDate[column.id] || ''}
+                          onChange={(e) => setColumnStartDate(prev => ({ ...prev, [column.id]: e.target.value }))}
+                          className="w-full px-1.5 py-1 text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded outline-none"
+                        />
+                        <span className="text-gray-400 text-[10px]">-</span>
+                        <input
+                          type="date"
+                          value={columnEndDate[column.id] || ''}
+                          onChange={(e) => setColumnEndDate(prev => ({ ...prev, [column.id]: e.target.value }))}
+                          className="w-full px-1.5 py-1 text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded outline-none"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="pt-1">
+                    <div className="text-[9px] text-gray-400 font-semibold uppercase mb-1">Source</div>
+                    <div className="flex flex-wrap gap-1">
+                      {[
+                        { id: 'all', label: 'All' },
+                        { id: 'ai_consultant', label: 'AI Consultant' },
+                        { id: 'floorplan', label: 'Floorplan' },
+                        { id: 'smart_home_planner', label: 'Home Planner' }
+                      ].map(s => (
+                        <button
+                          key={s.id}
+                          onClick={() => setColumnSource(prev => ({ ...prev, [column.id]: s.id }))}
+                          className={`px-2 py-0.5 rounded text-[9px] font-medium transition-all ${
+                            (columnSource[column.id] || 'all') === s.id
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          {s.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
 
           {/* Column Body */}
@@ -400,8 +419,13 @@ export function KanbanBoard<T extends { id: string }>({
             }}
           >
             {boardData[column.id]?.map(item => (
-              <div
+              <motion.div
                 key={item.id}
+                layout
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.2 }}
                 draggable={!disableDrag}
                 onDragStart={(e) => !disableDrag && handleDragStart(e, item.id)}
                 onDragEnd={handleDragEnd}
@@ -411,7 +435,7 @@ export function KanbanBoard<T extends { id: string }>({
                   bg-white dark:bg-gray-800/80 rounded-lg border border-gray-200 dark:border-gray-700 p-3 shadow-sm 
                   transition-all relative
                   ${!disableDrag ? 'hover:shadow-md hover:border-teal-500/50 cursor-grab active:cursor-grabbing' : 'cursor-default'}
-                  ${draggedId === item.id ? 'ring-2 ring-teal-500 border-transparent opacity-50' : ''}
+                  ${draggedId === item.id ? 'ring-2 ring-teal-500 border-transparent opacity-50 shadow-2xl scale-[1.02] z-50' : ''}
                   ${dropTargetId === item.id ? 'border-t-4 border-t-teal-500' : ''}
                 `}
               >
@@ -478,7 +502,7 @@ export function KanbanBoard<T extends { id: string }>({
                     </div>
                   )}
                 </div>
-              </div>
+              </motion.div>
             ))}
             
             {boardData[column.id]?.length === 0 && (
