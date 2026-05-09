@@ -21,6 +21,34 @@ import ReviewAnalytics from '@/components/ReviewAnalytics';
 
 // --- Components ---
 
+const ExpandableText = ({ text, limit = 300 }: { text: string; limit?: number }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
+  if (text.length <= limit) {
+    return <p className="text-slate-700 dark:text-gray-200 text-lg leading-relaxed pl-8 italic font-medium break-words relative z-10">{text}</p>;
+  }
+
+  return (
+    <div className="relative z-10">
+      <p className="text-slate-700 dark:text-gray-200 text-lg leading-relaxed pl-8 italic font-medium break-words">
+        {isExpanded ? text : `${text.slice(0, limit)}...`}
+      </p>
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="ml-8 mt-2 text-sm font-black text-teal hover:text-teal-600 transition-colors uppercase tracking-widest flex items-center gap-1 group"
+      >
+        {isExpanded ? 'Show Less' : 'Read Full Review'}
+        <motion.span
+          animate={{ x: isExpanded ? 0 : 3 }}
+          transition={{ repeat: Infinity, duration: 1, repeatType: 'reverse' }}
+        >
+          {isExpanded ? '↑' : '→'}
+        </motion.span>
+      </button>
+    </div>
+  );
+};
+
 // Safe date formatting helper
 const formatDate = (dateValue: any): string => {
   if (!dateValue) return 'Just now';
@@ -183,8 +211,8 @@ const ReviewsRatingsPage = () => {
 
       try {
         const reviewsQuery = query(
-          collection(db, 'reviews'),
-          where('userId', '==', user.uid),
+          collection(db, 'Reviews'),
+          where('uid', '==', user.uid),
           orderBy('createdAt', 'desc'),
           limitFn(1)
         );
@@ -284,26 +312,38 @@ const ReviewsRatingsPage = () => {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="p-8 rounded-3xl glass-surface border border-slate-100 dark:border-white/10 shadow-soft text-center"
+                className={`
+                  p-8 rounded-[2rem] transition-all relative overflow-hidden group
+                  bg-white/90 dark:bg-[#1e293b]/40 
+                  backdrop-blur-xl border border-gray-100 dark:border-white/5
+                  shadow-[0_20px_50px_rgba(0,0,0,0.05)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.3)]
+                  hover:shadow-[0_30px_60px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_30px_60px_rgba(0,0,0,0.5)]
+                  text-center
+                `}
               >
-                <div className="w-16 h-16 bg-teal/10 text-teal rounded-full flex items-center justify-center mx-auto mb-6">
-                  <User size={32} />
+                {/* Decorative Gradient Glow (Dark mode only) */}
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-teal/20 via-blue-500/10 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700 blur-2xl pointer-events-none" />
+                
+                <div className="relative z-10">
+                  <div className="w-16 h-16 bg-teal/10 text-teal rounded-full flex items-center justify-center mx-auto mb-6">
+                    <User size={32} />
+                  </div>
+                  <h2 className="text-xl font-black mb-2 dark:text-white">Share Your Experience</h2>
+                  <p className="text-slate-500 dark:text-gray-400 mb-6 font-medium">
+                    Please log in to submit a review and upload photos of your installation.
+                  </p>
+                  <button
+                    type="button"
+                    data-open-auth="login"
+                    onClick={() => {
+                      sessionStorage.setItem('authReturnTo', '/reviews');
+                      (window as any).__authOpen?.('login');
+                    }}
+                    className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-teal to-blue-500 text-white font-black rounded-xl hover:scale-[1.02] transition-all w-full shadow-lg shadow-teal/20"
+                  >
+                    Log In to Review
+                  </button>
                 </div>
-                <h2 className="text-xl font-black mb-2 dark:text-white">Share Your Experience</h2>
-                <p className="text-slate-500 dark:text-gray-400 mb-6">
-                  Please log in to submit a review and upload photos of your installation.
-                </p>
-                <button
-                  type="button"
-                  data-open-auth="login"
-                  onClick={() => {
-                    sessionStorage.setItem('authReturnTo', '/reviews');
-                    (window as any).__authOpen?.('login');
-                  }}
-                  className="inline-flex items-center justify-center px-6 py-3 bg-gradient-to-r from-teal to-blue-500 text-white font-black rounded-xl hover:scale-[1.02] transition-all w-full shadow-lg shadow-teal/20"
-                >
-                  Log In to Review
-                </button>
               </motion.div>
             ) : isSuccess ? (
               <motion.div
@@ -330,73 +370,93 @@ const ReviewsRatingsPage = () => {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 onSubmit={handleSubmit}
-                className="p-8 rounded-3xl glass-surface border border-slate-100 dark:border-white/10 shadow-soft"
+                className={`
+                  p-8 rounded-[2rem] transition-all relative overflow-hidden group
+                  bg-white/90 dark:bg-[#1e293b]/40 
+                  backdrop-blur-xl border border-gray-100 dark:border-white/5
+                  shadow-[0_20px_50px_rgba(0,0,0,0.05)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.3)]
+                  hover:shadow-[0_30px_60px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_30px_60px_rgba(0,0,0,0.5)]
+                `}
               >
-                <h2 className="text-2xl font-black mb-6 flex items-center gap-3 dark:text-white">
-                  <span className="w-8 h-8 rounded-lg bg-teal/10 text-teal flex items-center justify-center">
-                    <MessageSquare size={18} />
-                  </span>
-                  Leave a Review
-                </h2>
+                {/* Decorative Gradient Glow (Dark mode only) */}
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-teal/20 via-blue-500/10 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700 blur-2xl pointer-events-none" />
 
-                <div className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-black text-slate-600 dark:text-gray-400 uppercase tracking-wide mb-2">How would you rate our service?</label>
-                    <StarRating rating={rating} setRating={setRating} interactive={!hasUserRated} />
-                  </div>
+                <div className="relative z-10">
+                  <h2 className="text-2xl font-black mb-6 flex items-center gap-3 dark:text-white">
+                    <span className="w-10 h-10 rounded-xl bg-teal/10 text-teal flex items-center justify-center shadow-inner">
+                      <MessageSquare size={20} />
+                    </span>
+                    Leave a Review
+                  </h2>
 
-                  <div>
-                    <label className="block text-sm font-black text-slate-600 dark:text-gray-400 uppercase tracking-wide mb-2">Detailed Review</label>
-                    <textarea
-                      value={comment}
-                      onChange={(e) => setComment(e.target.value)}
-                      placeholder="Tell us about the installation, the technician, and how your new smart home devices are working..."
-                      className="pill-textarea w-full"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-black text-slate-600 dark:text-gray-400 uppercase tracking-wide mb-2">Add Photos or Videos</label>
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      className="group cursor-pointer border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl p-6 text-center hover:border-teal hover:bg-teal/5 transition-all"
-                    >
-                      <input
-                        type="file"
-                        ref={fileInputRef}
-                        onChange={handleFileChange}
-                        multiple
-                        accept="image/*,video/*"
-                        className="hidden"
-                      />
-                      <div className="w-12 h-12 bg-slate-50 dark:bg-white/5 text-slate-400 group-hover:text-teal group-hover:bg-teal/10 rounded-xl flex items-center justify-center mx-auto mb-4 transition-colors">
-                        <Upload size={24} />
-                      </div>
-                      <p className="text-sm font-black dark:text-gray-300">Click to upload or drag and drop</p>
-                      <p className="text-xs text-slate-400 mt-1 font-medium">Up to 8 files (images or videos)</p>
+                  <div className="space-y-6">
+                    <div>
+                      <label className="block text-sm font-black text-slate-600 dark:text-gray-400 uppercase tracking-widest mb-3 ml-1">How would you rate our service?</label>
+                      <StarRating rating={rating} setRating={setRating} interactive={!hasUserRated} />
                     </div>
 
-                    {files.length > 0 && (
-                      <MediaPreview
-                        files={files}
-                        onRemove={(idx) => setFiles(prev => prev.filter((_, i) => i !== idx))}
+                    <div>
+                      <label className="block text-sm font-black text-slate-600 dark:text-gray-400 uppercase tracking-widest mb-3 ml-1">Detailed Review</label>
+                      <textarea
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        placeholder="Tell us about the installation, the technician, and how your new smart home devices are working..."
+                        className="pill-textarea w-full bg-white/50 dark:bg-black/20 border-gray-100 dark:border-white/5 focus:ring-teal/30 focus:border-teal rounded-2xl p-5 text-sm font-medium transition-all min-h-[150px]"
                       />
-                    )}
-                  </div>
+                    </div>
 
-                  <button
-                    disabled={isSubmitting}
-                    className="w-full py-4 bg-gradient-to-r from-teal to-blue-500 text-white font-black rounded-xl hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-teal/20 flex items-center justify-center gap-2"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="animate-spin" size={20} />
-                        Uploading...
-                      </>
-                    ) : (
-                      'Post Review'
-                    )}
-                  </button>
+                    <div>
+                      <label className="block text-sm font-black text-slate-600 dark:text-gray-400 uppercase tracking-widest mb-3 ml-1">Add Photos or Videos</label>
+                      <div
+                        onClick={() => fileInputRef.current?.click()}
+                        className="group/upload cursor-pointer border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl p-8 text-center hover:border-teal hover:bg-teal/5 transition-all duration-300"
+                      >
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          onChange={handleFileChange}
+                          multiple
+                          accept="image/*,video/*"
+                          className="hidden"
+                        />
+                        <div className="w-14 h-14 bg-slate-50 dark:bg-white/5 text-slate-400 group-hover/upload:text-teal group-hover/upload:bg-teal/10 group-hover/upload:scale-110 rounded-2xl flex items-center justify-center mx-auto mb-4 transition-all duration-500">
+                          <Upload size={28} />
+                        </div>
+                        <p className="text-sm font-black dark:text-gray-200 group-hover/upload:text-teal transition-colors">Click to upload or drag and drop</p>
+                        <p className="text-[11px] text-slate-400 mt-2 font-bold uppercase tracking-wider">Up to 8 files (images or videos)</p>
+                      </div>
+
+                      {files.length > 0 && (
+                        <MediaPreview
+                          files={files}
+                          onRemove={(idx) => setFiles(prev => prev.filter((_, i) => i !== idx))}
+                        />
+                      )}
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full py-4 bg-gradient-to-r from-teal to-blue-500 text-white font-black rounded-2xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-teal/20 flex items-center justify-center gap-3 group/btn"
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="animate-spin" size={20} />
+                          <span>Processing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Post Review</span>
+                          <motion.div
+                            animate={{ x: [0, 5, 0] }}
+                            transition={{ repeat: Infinity, duration: 1.5 }}
+                          >
+                            <CheckCircle2 size={18} />
+                          </motion.div>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </motion.form>
             )}
@@ -456,83 +516,119 @@ const ReviewsRatingsPage = () => {
                     key={review.id}
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="p-5 rounded-2xl glass-surface border border-slate-100 dark:border-white/10 shadow-sm"
+                    whileHover={{ y: -5, transition: { duration: 0.2 } }}
+                    className={`
+                      p-8 rounded-[2rem] transition-all relative overflow-hidden group
+                      bg-white/90 dark:bg-[#1e293b]/40 
+                      backdrop-blur-xl border border-gray-100 dark:border-white/5
+                      shadow-[0_20px_50px_rgba(0,0,0,0.05)] dark:shadow-[0_20px_50px_rgba(0,0,0,0.3)]
+                      hover:shadow-[0_30px_60px_rgba(0,0,0,0.1)] dark:hover:shadow-[0_30px_60px_rgba(0,0,0,0.5)]
+                    `}
                   >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-teal text-white flex items-center justify-center font-black text-sm shadow-md shadow-teal/20">
-                          {review.userName.charAt(0).toUpperCase()}
+                    {/* Decorative Gradient Glow (Dark mode only) */}
+                    <div className="absolute -inset-0.5 bg-gradient-to-r from-teal/20 via-blue-500/10 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700 blur-2xl pointer-events-none" />
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-8 relative z-10">
+                      <div className="flex items-center gap-5">
+                        <div className="relative">
+                          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-teal to-blue-500 text-white flex items-center justify-center font-black text-2xl shadow-xl shadow-teal/20 transform -rotate-3 group-hover:rotate-0 transition-transform duration-500">
+                            {review.userName.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 border-4 border-white dark:border-[#1e293b] rounded-full shadow-lg" />
                         </div>
                         <div>
-                          <h4 className="font-black text-sm dark:text-white">{review.userName}</h4>
-                          <StarRating rating={review.rating} interactive={false} />
+                          <h4 className="font-black text-xl dark:text-white tracking-tight group-hover:text-teal transition-colors">{review.userName}</h4>
+                          <div className="mt-1 flex flex-col gap-1">
+                            <StarRating rating={review.rating} interactive={false} />
+                            <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-widest">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                              Verified Customer
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex flex-col items-end gap-1.5">
-                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 bg-slate-50 dark:bg-white/5 px-2 py-1 rounded-full border border-slate-100 dark:border-white/10">
-                          <Calendar size={10} className="text-teal" />
+                      
+                      <div className="flex items-center gap-3">
+                        <div className="text-[11px] font-black text-slate-400 dark:text-gray-400 uppercase tracking-widest flex items-center gap-2 bg-slate-50 dark:bg-white/5 px-4 py-2 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm">
+                          <Calendar size={14} className="text-teal" />
                           {formatDate(review.createdAt)}
                         </div>
+                        
                         <button
                           onClick={() => toggleLike(review.id!)}
-                          className={`group flex items-center gap-1.5 px-2.5 py-1 rounded-full transition-all border ${auth.currentUser && review.likedBy?.includes(auth.currentUser.uid)
-                            ? 'bg-red-50 border-red-100 text-red-500 dark:bg-red-900/20 dark:border-red-800'
-                            : 'bg-slate-50 border-slate-100 text-slate-400 dark:bg-white/5 dark:border-white/10 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 shadow-sm'
+                          className={`group flex items-center gap-2 px-4 py-2 rounded-2xl transition-all border ${user && review.likedBy?.includes(user.uid)
+                            ? 'bg-red-500 text-white border-red-500 shadow-xl shadow-red-500/30'
+                            : 'bg-white/80 dark:bg-white/5 border-gray-100 dark:border-white/10 text-slate-400 dark:text-gray-500 hover:text-red-500 hover:border-red-500/50 hover:bg-red-50/50 shadow-sm'
                             }`}
                         >
                           <Heart
-                            size={10}
-                            className={`transition-transform group-hover:scale-125 ${auth.currentUser && review.likedBy?.includes(auth.currentUser.uid) ? 'fill-current' : ''
+                            size={16}
+                            className={`transition-transform duration-300 group-hover:scale-125 ${user && review.likedBy?.includes(user.uid) ? 'fill-current animate-pulse' : ''
                               }`}
                           />
-                          <span className="text-[10px] font-black tabular-nums">{review.likes || 0}</span>
+                          <span className="text-xs font-black tabular-nums">{review.likes || 0}</span>
                         </button>
                       </div>
                     </div>
 
-                    <p className="text-slate-700 dark:text-gray-300 text-sm leading-relaxed mb-4 italic font-medium break-words">
-                      "{review.comment}"
-                    </p>
+                    <div className="relative z-10 mb-8">
+                      <div className="absolute -top-6 -left-4 text-teal/5 dark:text-teal/10 select-none">
+                        <svg className="w-20 h-20" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C19.5693 16 20.017 15.5523 20.017 15V9C20.017 8.44772 19.5693 8 19.017 8H15.017C14.4647 8 14.017 8.44772 14.017 9V12C14.017 12.5523 13.5693 13 13.017 13H11.017V21H14.017ZM5.017 21L5.017 18C5.017 16.8954 5.91243 16 7.017 16H10.017C10.5693 16 11.017 15.5523 11.017 15V9C11.017 8.44772 10.5693 8 10.017 8H6.017C5.46472 8 5.017 8.44772 5.017 9V12C5.017 12.5523 4.56929 13 4.017 13H2.017V21H5.017Z" />
+                        </svg>
+                      </div>
+                      <ExpandableText text={review.comment} limit={300} />
+                    </div>
 
                     {review.media && review.media.length > 0 && (
-                      <div className="flex flex-wrap justify-end gap-2 mb-6">
+                      <div className="flex flex-wrap gap-4 mb-8 relative z-10">
                         {review.media.map((item, mIdx) => (
-                          <div
+                          <motion.div
                             key={mIdx}
-                            className="relative group w-20 h-20 sm:w-24 sm:h-24 rounded-xl overflow-hidden cursor-pointer border border-slate-100 dark:border-white/10"
+                            whileHover={{ scale: 1.05, y: -5 }}
+                            className="relative group/media w-28 h-28 rounded-3xl overflow-hidden cursor-pointer border-4 border-white dark:border-white/10 shadow-xl shadow-black/10"
                             onClick={() => window.open(item.url, '_blank')}
                           >
                             <img
                               src={item.type === 'video' ? 'https://via.placeholder.com/150/000000/FFFFFF?text=PLAY+VIDEO' : item.url}
                               alt="review media"
-                              className="w-full h-full object-cover transition-transform group-hover:scale-110"
+                              className="w-full h-full object-cover transition-transform duration-700 group-hover/media:scale-110"
                             />
                             {item.type === 'video' && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
-                                <Video size={20} className="text-white drop-shadow-lg" />
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+                                <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center backdrop-blur-md border border-white/30">
+                                  <Video size={20} className="text-white fill-current" />
+                                </div>
                               </div>
                             )}
-                          </div>
+                            <div className="absolute inset-0 bg-teal/20 opacity-0 group-hover/media:opacity-100 transition-opacity duration-300" />
+                          </motion.div>
                         ))}
                       </div>
                     )}
 
-
                     {review.adminReply && (
-                      <div className="mb-6 p-5 rounded-2xl bg-teal/5 dark:bg-teal-900/20 border border-teal-100 dark:border-teal-800/30 relative">
-                        <div className="absolute -top-3 left-6 px-3 py-1 bg-teal text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg shadow-teal/20">
-                          Team Response
-                        </div>
-                        <p className="text-sm text-slate-700 dark:text-gray-300 font-medium italic mb-2 break-words">
-                          "{review.adminReply.text}"
-                        </p>
-                        <div className="text-[10px] font-black text-teal-600/60 dark:text-teal-400/60 uppercase tracking-widest">
-                          — {review.adminReply.author}, {formatDate(review.adminReply.createdAt)}
+                      <div className="mt-4 p-8 rounded-[2.5rem] bg-gradient-to-br from-teal/5 to-blue-500/5 dark:from-teal-900/20 dark:to-blue-900/20 border border-teal-100/50 dark:border-teal-800/30 relative overflow-hidden group/reply z-10">
+                        <div className="absolute top-0 right-0 w-48 h-48 bg-teal/10 dark:bg-teal-500/10 rounded-full -mr-24 -mt-24 blur-3xl transition-transform duration-700 group-hover/reply:scale-150" />
+                        <div className="relative z-10">
+                          <div className="flex items-center gap-3 mb-4">
+                            <span className="w-2 h-2 rounded-full bg-teal animate-pulse" />
+                            <span className="px-3 py-1 bg-teal text-white text-[11px] font-black rounded-xl uppercase tracking-widest shadow-lg shadow-teal/30">
+                              Official Response
+                            </span>
+                          </div>
+                          <p className="text-[15px] text-slate-700 dark:text-gray-200 font-bold italic mb-6 leading-relaxed">
+                            "{review.adminReply.text}"
+                          </p>
+                          <div className="flex items-center gap-3 text-[11px] font-black text-teal-600 dark:text-teal-400 uppercase tracking-widest">
+                            <div className="w-8 h-[2px] bg-teal/20 rounded-full" />
+                            <span className="hover:text-teal transition-colors">{review.adminReply.author}</span>
+                            <span className="text-slate-300 dark:text-gray-700">•</span>
+                            <span className="text-slate-400 dark:text-gray-500">{formatDate(review.adminReply.createdAt)}</span>
+                          </div>
                         </div>
                       </div>
                     )}
-
-
                   </motion.div>
                 ))}
 

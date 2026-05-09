@@ -11,7 +11,8 @@ import {
   doc,
   serverTimestamp,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  increment
 } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth, uploadReviewMedia, db } from '@/lib/firebase';
@@ -153,15 +154,27 @@ export function useReviews() {
         : r
     ));
 
+    // Perform Atomic Firestore Update
     try {
       await updateDoc(doc(db, COLLECTION_REVIEWS, reviewId), {
-        likes: newLikes,
+        likes: isCurrentlyLiked ? increment(-1) : increment(1),
         likedBy: isCurrentlyLiked ? arrayRemove(uid) : arrayUnion(uid)
       });
-    } catch (err) {
-      console.error("Error toggling like:", err);
+    } catch (err: any) {
+      console.error("Error toggling like in Firestore:", err);
       // Revert optimistic update on error
-      setError("Failed to update like. Please try again.");
+      setReviews(prev => prev.map(r => 
+        r.id === reviewId 
+          ? { 
+              ...r, 
+              likes: isCurrentlyLiked ? (r.likes || 0) + 1 : Math.max(0, (r.likes || 0) - 1), 
+              likedBy: isCurrentlyLiked 
+                ? [...(r.likedBy || []), uid]
+                : (r.likedBy || []).filter(id => id !== uid)
+            } 
+          : r
+      ));
+      setError("Failed to sync like with server.");
     }
   };
 

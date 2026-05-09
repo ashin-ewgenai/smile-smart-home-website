@@ -295,7 +295,11 @@ service cloud.firestore {
     match /Reviews/{docId} {
       allow read: if true; // Everyone can see public reviews
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow update: if isSignedIn() && (
+        isAdmin() || 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy'])
+      );
+      allow delete: if isAdmin();
     }
   }
 }
