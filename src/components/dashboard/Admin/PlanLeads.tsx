@@ -33,14 +33,11 @@ const PlanLeads: React.FC = () => {
     filteredPlanLeads, 
     updateItemStatus, 
     updateItemDragIndex, 
-    adminLoading,
-    filterCriteria,
-    setFilterCriteria,
-    searchQuery,
-    setSearchQuery 
+    adminLoading 
   } = useDevices();
+  
   const [error, setError] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const [clearFiltersTrigger, setClearFiltersTrigger] = useState(0);
 
   const columns = [
     { id: 'new', title: 'New', color: 'bg-yellow-400' },
@@ -189,6 +186,14 @@ const PlanLeads: React.FC = () => {
           </h1>
           <div className="mt-1 text-sm text-gray-700 dark:text-gray-400">{filteredPlanLeads.length} total leads</div>
         </div>
+        
+        <button
+          onClick={() => setClearFiltersTrigger(prev => prev + 1)}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-500 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10 rounded-xl transition-all border border-transparent hover:border-red-200 dark:hover:border-red-900/30"
+        >
+          <X className="h-4 w-4" />
+          Clear All Filters
+        </button>
       </div>
       
       {error && (
@@ -216,9 +221,11 @@ const PlanLeads: React.FC = () => {
           getCardSubtitle={(l) => `${l.complexity || 'Standard'} Plan`}
           getCardIndex={(l) => l.dragIndex ?? 0}
           getCardDate={(l) => l.updatedAt || l.createdAt}
+          getCardSource={(l) => l.source || 'smart_home_planner'}
           renderCardDetails={renderPlan}
           renderSourceBadge={renderSourceBadge}
           renderActions={renderActions}
+          clearFiltersTrigger={clearFiltersTrigger}
         />
       )}
     </div>

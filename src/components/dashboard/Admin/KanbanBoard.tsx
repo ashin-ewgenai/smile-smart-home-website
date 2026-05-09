@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDevices } from '../../../contexts/DevicesContext';
 import { Layout, Search, Filter, Loader2, MoreVertical, Calendar, User, Mail, MessageSquare, AlertCircle, Trash2, Clock } from 'lucide-react';
 
@@ -25,6 +25,8 @@ interface KanbanBoardProps<T> {
   disableDrag?: boolean;
   renderActions?: (item: T) => React.ReactNode;
   renderSourceBadge?: (item: T) => React.ReactNode;
+  getCardSource?: (item: T) => string;
+  clearFiltersTrigger?: number;
 }
 
 export function KanbanBoard<T extends { id: string }>({
@@ -43,7 +45,9 @@ export function KanbanBoard<T extends { id: string }>({
   itemType,
   disableDrag = false,
   renderActions,
-  renderSourceBadge
+  renderSourceBadge,
+  getCardSource,
+  clearFiltersTrigger = 0
 }: KanbanBoardProps<T>) {
   const { isFloorplanItem } = useDevices();
   const [draggedId, setDraggedId] = useState<string | null>(null);
@@ -53,7 +57,19 @@ export function KanbanBoard<T extends { id: string }>({
   const [columnDateRange, setColumnDateRange] = useState<Record<string, string>>({});
   const [columnStartDate, setColumnStartDate] = useState<Record<string, string>>({});
   const [columnEndDate, setColumnEndDate] = useState<Record<string, string>>({});
+  const [columnSource, setColumnSource] = useState<Record<string, string>>({});
   const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (clearFiltersTrigger > 0) {
+      setColumnSearch({});
+      setColumnDateRange({});
+      setColumnStartDate({});
+      setColumnEndDate({});
+      setColumnSource({});
+      setActiveFilters({});
+    }
+  }, [clearFiltersTrigger]);
 
   // Group and sort items by status and dragIndex
   const boardData = React.useMemo(() => {
@@ -106,6 +122,15 @@ export function KanbanBoard<T extends { id: string }>({
         });
       }
 
+      // Apply Column-level Source Filter
+      const sourceFilter = columnSource[col.id] || 'all';
+      if (sourceFilter !== 'all' && getCardSource) {
+        colItems = colItems.filter(item => {
+          const source = getCardSource(item);
+          return source === sourceFilter;
+        });
+      }
+
       acc[col.id] = colItems.sort((a, b) => {
         // 1. Sort by Date Descending (Latest First)
         const dateA = getCardDate?.(a);
@@ -130,7 +155,7 @@ export function KanbanBoard<T extends { id: string }>({
       });
       return acc;
     }, {} as Record<string, T[]>);
-  }, [items, columns, getCardStatus, getCardIndex, getCardDate, columnSearch, columnDateRange, columnStartDate, columnEndDate]);
+  }, [items, columns, getCardStatus, getCardIndex, getCardDate, getCardSource, columnSearch, columnDateRange, columnStartDate, columnEndDate, columnSource]);
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedId(id);
@@ -232,6 +257,42 @@ export function KanbanBoard<T extends { id: string }>({
               </div>
               <div className="flex items-center gap-1">
                 <button 
+                  onClick={() => {
+                    const currentSearch = columnSearch[column.id] || '';
+                    const currentDateRange = columnDateRange[column.id] || 'all';
+                    const currentStart = columnStartDate[column.id] || '';
+                    const currentEnd = columnEndDate[column.id] || '';
+                    const currentSource = columnSource[column.id] || 'all';
+                    
+                    const newSearch: Record<string, string> = {};
+                    const newRange: Record<string, string> = {};
+                    const newStart: Record<string, string> = {};
+                    const newEnd: Record<string, string> = {};
+                    const newSource: Record<string, string> = {};
+                    const newActive: Record<string, boolean> = {};
+
+                    columns.forEach(col => {
+                      newSearch[col.id] = currentSearch;
+                      newRange[col.id] = currentDateRange;
+                      newStart[col.id] = currentStart;
+                      newEnd[col.id] = currentEnd;
+                      newSource[col.id] = currentSource;
+                      newActive[col.id] = true;
+                    });
+
+                    setColumnSearch(newSearch);
+                    setColumnDateRange(newRange);
+                    setColumnStartDate(newStart);
+                    setColumnEndDate(newEnd);
+                    setColumnSource(newSource);
+                    setActiveFilters(newActive);
+                  }}
+                  title="Sync these filters to all boxes"
+                  className="p-1 text-gray-400 hover:text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-md transition-colors"
+                >
+                  <Layout className="h-3.5 w-3.5" />
+                </button>
+                <button 
                   onClick={() => setActiveFilters(prev => ({ ...prev, [column.id]: !prev[column.id] }))}
                   className={`p-1 rounded-md transition-colors ${activeFilters[column.id] ? 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400' : 'text-gray-400 hover:text-gray-600'}`}
                 >
@@ -301,6 +362,30 @@ export function KanbanBoard<T extends { id: string }>({
                     </div>
                   </div>
                 )}
+
+                <div className="pt-1">
+                  <div className="text-[9px] text-gray-400 font-semibold uppercase mb-1">Source</div>
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      { id: 'all', label: 'All' },
+                      { id: 'ai_consultant', label: 'AI Consultant' },
+                      { id: 'floorplan', label: 'Floorplan' },
+                      { id: 'smart_home_planner', label: 'Home Planner' }
+                    ].map(s => (
+                      <button
+                        key={s.id}
+                        onClick={() => setColumnSource(prev => ({ ...prev, [column.id]: s.id }))}
+                        className={`px-2 py-0.5 rounded text-[9px] font-medium transition-all ${
+                          (columnSource[column.id] || 'all') === s.id
+                            ? 'bg-blue-600 text-white'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
             )}
           </div>

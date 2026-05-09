@@ -27,6 +27,7 @@
     scroll-behavior: auto;
     scrollbar-width: var(--scrollbar-width);
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    scrollbar-gutter: stable;
     /* Prevent white flash during View Transitions */
     background-color: theme('colors.white');
   }
