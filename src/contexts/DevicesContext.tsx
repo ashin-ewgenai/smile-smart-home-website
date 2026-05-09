@@ -775,7 +775,13 @@ const Snackbar: React.FC<{
 export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
   const [uid, setUid] = useState<string | null>(auth.currentUser?.uid ?? null);
-  const [role, setRole] = useState<string | null>(null);
+  const [role, setRole] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const storedRole = localStorage.getItem('userRole');
+      return storedRole || null;
+    }
+    return null;
+  });
   const isAdmin = useMemo(() => {
     if (!role) return false;
     const r = role.toLowerCase();
@@ -793,7 +799,14 @@ export const DevicesProvider: React.FC<{ children: React.ReactNode }> = ({ child
     endDate: null as Date | null
   });
   const [loading, setLoading] = useState<boolean>(false);
-  const [adminLoading, setAdminLoading] = useState<boolean>(true);
+  const [adminLoading, setAdminLoading] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const userRole = localStorage.getItem('userRole');
+      const roleNorm = (userRole || '').toLowerCase().replace(/[_-]+/g, ' ').trim();
+      return roleNorm === 'admin' || roleNorm === 'super admin';
+    }
+    return true;
+  });
   const [error, setError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<DeviceRecommendation[]>([]);
   const [recommendationLoading, setRecommendationLoading] = useState<boolean>(false);

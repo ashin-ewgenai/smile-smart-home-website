@@ -29,6 +29,19 @@ try {
 export const db = initializeFirestore(firebaseApp, {
   experimentalAutoDetectLongPolling: true,
 });
+
+// Enable persistence for instant data on reload
+if (typeof window !== 'undefined') {
+  import('firebase/firestore').then(({ enableIndexedDbPersistence }) => {
+    enableIndexedDbPersistence(db).catch((err) => {
+      if (err.code === 'failed-precondition') {
+        console.warn('Firestore persistence failed: Multiple tabs open');
+      } else if (err.code === 'unimplemented') {
+        console.warn('Firestore persistence failed: Browser not supported');
+      }
+    });
+  });
+}
 export const storage = getStorage(firebaseApp);
 // Explicit region to match deployed Cloud Functions
 export const functions = getFunctions(firebaseApp, 'us-central1');

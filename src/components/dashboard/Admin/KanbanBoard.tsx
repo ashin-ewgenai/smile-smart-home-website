@@ -48,41 +48,89 @@ export function KanbanBoard<T extends { id: string }>({
   const { isFloorplanItem } = useDevices();
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [dropTargetId, setDropTargetId] = useState<string | null>(null); // Visual feedback for reordering
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [columnSearch, setColumnSearch] = useState<Record<string, string>>({});
+  const [columnDateRange, setColumnDateRange] = useState<Record<string, string>>({});
+  const [columnStartDate, setColumnStartDate] = useState<Record<string, string>>({});
+  const [columnEndDate, setColumnEndDate] = useState<Record<string, string>>({});
+  const [activeFilters, setActiveFilters] = useState<Record<string, boolean>>({});
 
   // Group and sort items by status and dragIndex
-  const boardData = columns.reduce((acc, col) => {
-    const colItems = items.filter(item => {
-      const status = getCardStatus(item)?.toLowerCase();
-      const normalizedStatus = status?.replace(/\s+/g, '_');
-      const normalizedColId = col.id.toLowerCase().replace(/\s+/g, '_');
-      return normalizedStatus === normalizedColId || status === col.id.toLowerCase();
-    });
+  const boardData = React.useMemo(() => {
+    return columns.reduce((acc, col) => {
+      let colItems = items.filter(item => {
+        const status = getCardStatus(item)?.toLowerCase();
+        const normalizedStatus = status?.replace(/\s+/g, '_');
+        const normalizedColId = col.id.toLowerCase().replace(/\s+/g, '_');
+        return normalizedStatus === normalizedColId || status === col.id.toLowerCase();
+      });
 
-    acc[col.id] = colItems.sort((a, b) => {
-      // 1. Sort by Date Descending (Latest First)
-      const dateA = getCardDate?.(a);
-      const dateB = getCardDate?.(b);
-      
-      const getTime = (d: any) => {
-        if (!d) return 0;
-        if (d.toDate) return d.toDate().getTime();
-        if (d.seconds) return d.seconds * 1000;
-        return new Date(d).getTime();
-      };
-      
-      const valA = getTime(dateA);
-      const valB = getTime(dateB);
-      
-      if (valB !== valA) return valB - valA;
+      // Apply Column-level Search
+      const search = columnSearch[col.id]?.toLowerCase();
+      if (search) {
+        colItems = colItems.filter(item => 
+          getCardTitle(item).toLowerCase().includes(search) || 
+          getCardSubtitle?.(item).toLowerCase().includes(search)
+        );
+      }
 
-      // 2. Fallback to dragIndex
-      const idxA = getCardIndex?.(a) ?? 0;
-      const idxB = getCardIndex?.(b) ?? 0;
-      return idxA - idxB;
-    });
-    return acc;
-  }, {} as Record<string, T[]>);
+      // Apply Column-level Date Range
+      const range = columnDateRange[col.id] || 'all';
+      if (range !== 'all') {
+        const now = new Date();
+        colItems = colItems.filter(item => {
+          const timestamp = getCardDate?.(item);
+          if (!timestamp) return false;
+          const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+          
+          if (range === 'custom') {
+            const startStr = columnStartDate[col.id];
+            const endStr = columnEndDate[col.id];
+            if (startStr) {
+              const start = new Date(startStr);
+              start.setHours(0, 0, 0, 0);
+              if (date < start) return false;
+            }
+            if (endStr) {
+              const end = new Date(endStr);
+              end.setHours(23, 59, 59, 999);
+              if (date > end) return false;
+            }
+            return true;
+          }
+
+          if (range === 'today') return date.toDateString() === now.toDateString();
+          if (range === 'week') return (now.getTime() - date.getTime()) < 7 * 24 * 60 * 60 * 1000;
+          if (range === 'month') return (now.getTime() - date.getTime()) < 30 * 24 * 60 * 60 * 1000;
+          return true;
+        });
+      }
+
+      acc[col.id] = colItems.sort((a, b) => {
+        // 1. Sort by Date Descending (Latest First)
+        const dateA = getCardDate?.(a);
+        const dateB = getCardDate?.(b);
+        
+        const getTime = (d: any) => {
+          if (!d) return 0;
+          if (d.toDate) return d.toDate().getTime();
+          if (d.seconds) return d.seconds * 1000;
+          return new Date(d).getTime();
+        };
+        
+        const valA = getTime(dateA);
+        const valB = getTime(dateB);
+        
+        if (valB !== valA) return valB - valA;
+
+        // 2. Fallback to dragIndex
+        const idxA = getCardIndex?.(a) ?? 0;
+        const idxB = getCardIndex?.(b) ?? 0;
+        return idxA - idxB;
+      });
+      return acc;
+    }, {} as Record<string, T[]>);
+  }, [items, columns, getCardStatus, getCardIndex, getCardDate, columnSearch, columnDateRange, columnStartDate, columnEndDate]);
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     setDraggedId(id);
@@ -171,17 +219,90 @@ export function KanbanBoard<T extends { id: string }>({
           onDrop={(e) => handleDrop(e, column.id)}
         >
           {/* Column Header */}
-          <div className="p-3 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${column.color}`} />
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                {column.title}
-              </h3>
-              <span className="text-xs text-gray-500 bg-gray-200 dark:bg-gray-800 px-2 py-0.5 rounded-full">
-                {boardData[column.id]?.length || 0}
-              </span>
+          <div className="p-3 border-b border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-800/50 backdrop-blur-sm sticky top-0 z-10">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${column.color}`} />
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  {column.title}
+                </h3>
+                <span className="text-xs text-gray-500 bg-gray-200 dark:bg-gray-800 px-2 py-0.5 rounded-full">
+                  {boardData[column.id]?.length || 0}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button 
+                  onClick={() => setActiveFilters(prev => ({ ...prev, [column.id]: !prev[column.id] }))}
+                  className={`p-1 rounded-md transition-colors ${activeFilters[column.id] ? 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  <Filter className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
-            <MoreVertical className="h-4 w-4 text-gray-400 cursor-pointer" />
+
+            {/* Inline Column Filters */}
+            {activeFilters[column.id] && (
+              <div className="space-y-2 pt-2 animate-in fade-in slide-in-from-top-1">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search in this box..."
+                    value={columnSearch[column.id] || ''}
+                    onChange={(e) => setColumnSearch(prev => ({ ...prev, [column.id]: e.target.value }))}
+                    className="w-full pl-7 pr-2 py-1.5 text-[11px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg outline-none focus:ring-1 focus:ring-teal-500/30"
+                  />
+                </div>
+                <div className="flex items-center gap-1 overflow-x-auto scrollbar-none pb-1">
+                  {['all', 'today', 'week', 'month', 'custom'].map(r => (
+                    <button
+                      key={r}
+                      onClick={() => setColumnDateRange(prev => ({ ...prev, [column.id]: r }))}
+                      className={`flex-shrink-0 px-2 py-1 rounded-md text-[10px] font-medium transition-all flex items-center gap-1 ${
+                        (columnDateRange[column.id] || 'all') === r
+                          ? 'bg-teal-600 text-white'
+                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {r === 'custom' && <Calendar className="h-2.5 w-2.5" />}
+                      {r.charAt(0).toUpperCase() + r.slice(1)}
+                    </button>
+                  ))}
+                </div>
+
+                {columnDateRange[column.id] === 'custom' && (
+                  <div className="flex flex-col gap-1.5 p-2 bg-gray-100 dark:bg-gray-800/50 rounded-lg animate-in fade-in slide-in-from-left-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] text-gray-400 font-semibold uppercase">Range Selection</span>
+                      <button 
+                        onClick={() => {
+                          setColumnStartDate(prev => ({ ...prev, [column.id]: '' }));
+                          setColumnEndDate(prev => ({ ...prev, [column.id]: '' }));
+                        }}
+                        className="text-[9px] text-teal-600 hover:text-teal-700"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="date"
+                        value={columnStartDate[column.id] || ''}
+                        onChange={(e) => setColumnStartDate(prev => ({ ...prev, [column.id]: e.target.value }))}
+                        className="w-full px-1.5 py-1 text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded outline-none"
+                      />
+                      <span className="text-gray-400 text-[10px]">-</span>
+                      <input
+                        type="date"
+                        value={columnEndDate[column.id] || ''}
+                        onChange={(e) => setColumnEndDate(prev => ({ ...prev, [column.id]: e.target.value }))}
+                        className="w-full px-1.5 py-1 text-[10px] bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded outline-none"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Column Body */}
