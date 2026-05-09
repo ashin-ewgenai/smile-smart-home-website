@@ -2,7 +2,7 @@ import React, { useEffect, useRef, createContext, useContext, useState } from 'r
 import { DevicesProvider, useDevices } from '../contexts/DevicesContext';
 import { DeviceRecommendationsForm } from './DeviceRecommendationsForm';
 import { PersonalityQuiz } from './PersonalityQuiz';
-import { TrendingUp, Sparkles, CheckCircle, Info, AlertCircle, X, Heart, Zap, ChevronRight } from 'lucide-react';
+import { TrendingUp, Sparkles, CheckCircle, Info, AlertCircle, AlertTriangle, X, Heart, Zap, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { AuthModeProvider, useAuthMode } from '../contexts/AuthModeContext';
@@ -27,36 +27,36 @@ const WrapperContent: React.FC = () => {
       };
     }
   }, [notification.isOpen, notification.mode]);
-  
+
   useEffect(() => {
     if (error) {
-       showNotification({
-         message: error,
-         type: 'error'
-       });
+      showNotification({
+        message: error,
+        type: 'error'
+      });
     }
   }, [error, showNotification]);
 
   // Standardized Variants (Inlined)
   const snackbarVariants = {
     hidden: { opacity: 0, x: 60, scale: 0.8, rotate: 5 },
-    visible: { 
-      opacity: 1, 
-      x: 0, 
+    visible: {
+      opacity: 1,
+      x: 0,
       scale: 1,
       rotate: 0,
-      transition: { 
-        type: 'spring', 
-        damping: 16, 
+      transition: {
+        type: 'spring',
+        damping: 16,
         stiffness: 280,
         mass: 0.8
       }
     },
-    exit: { 
-      opacity: 0, 
-      scale: 0.85, 
-      x: 30, 
-      transition: { duration: 0.25, ease: 'easeIn' } 
+    exit: {
+      opacity: 0,
+      scale: 0.85,
+      x: 30,
+      transition: { duration: 0.25, ease: 'easeIn' }
     }
   };
 
@@ -70,7 +70,7 @@ const WrapperContent: React.FC = () => {
     <div className="relative">
 
       {selectedTemplateId && activeTab === 'consultant' && (
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           className="max-w-4xl mx-auto px-4 mb-4"
@@ -89,7 +89,7 @@ const WrapperContent: React.FC = () => {
                 </p>
               </div>
             </div>
-            <button 
+            <button
               onClick={() => applyTemplate('')}
               className="px-3 py-1.5 bg-white dark:bg-charcoal text-teal-600 rounded-lg text-xs font-bold border border-teal-500/20 hover:bg-teal-50 transition-colors"
             >
@@ -104,23 +104,21 @@ const WrapperContent: React.FC = () => {
         <div className="flex flex-wrap gap-2 md:flex-nowrap rounded-2xl bg-white dark:bg-charcoal p-1.5 shadow-lg border border-gray-200 dark:border-gray-800">
           <button
             onClick={() => setActiveTab('personality-quiz')}
-            className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-              activeTab === 'personality-quiz'
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'personality-quiz'
                 ? 'bg-teal text-white shadow-md'
                 : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-            }`}
+              }`}
           >
             <Heart size={18} />
             Personality Quiz
           </button>
-          
+
           <button
             onClick={() => setActiveTab('consultant')}
-            className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-              activeTab === 'consultant'
+            className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'consultant'
                 ? 'bg-teal text-white shadow-md'
                 : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-            }`}
+              }`}
           >
             <Sparkles size={18} />
             AI Consultant
@@ -130,11 +128,10 @@ const WrapperContent: React.FC = () => {
           {isAdmin && (
             <button
               onClick={() => setActiveTab('revenue')}
-              className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
-                activeTab === 'revenue'
+              className={`flex-1 py-3 px-4 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${activeTab === 'revenue'
                   ? 'bg-teal text-white shadow-md'
                   : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 border-l border-slate-100 dark:border-gray-800'
-              }`}
+                }`}
             >
               <TrendingUp size={18} />
               Revenue Analytics
@@ -165,7 +162,7 @@ const WrapperContent: React.FC = () => {
               exit={{ opacity: 0, scale: 0.98 }}
               transition={{ duration: 0.2 }}
             >
-              <DeviceRecommendationsForm forcedTab="consultant" />
+              <DeviceRecommendationsForm />
             </motion.div>
           )}
 
@@ -185,22 +182,22 @@ const WrapperContent: React.FC = () => {
           )}
         </AnimatePresence>
       </div>
-      
+
       {/* Promotional Banner for Savings Calculator */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ delay: 0.5 }}
         className="max-w-4xl mx-auto px-4 mt-6 mb-12"
       >
-        <a 
+        <a
           href="/energy-calculator"
           className="block group relative overflow-hidden rounded-[2rem] p-8 bg-slate-900 text-white shadow-2xl transition-all hover:scale-[1.01]"
         >
           <div className="absolute top-0 right-0 p-8 text-teal opacity-10 group-hover:opacity-20 transition-opacity transform group-hover:scale-110">
             <Zap size={100} />
           </div>
-          
+
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="text-center md:text-left">
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-teal/20 text-teal border border-teal/20 text-[10px] font-black uppercase tracking-widest mb-4">
@@ -215,7 +212,7 @@ const WrapperContent: React.FC = () => {
                 Find out exactly how much you can save on your annual bills with Smile's AI auto-optimization.
               </p>
             </div>
-            
+
             <div className="shrink-0 flex items-center justify-center w-20 h-20 rounded-2xl bg-teal text-white shadow-lg shadow-teal/20 group-hover:rotate-12 transition-transform">
               <TrendingUp size={40} />
             </div>
@@ -239,11 +236,10 @@ const WrapperContent: React.FC = () => {
                   ${notification.type === 'error' ? 'border-red-500/20' : 'border-teal/20'}
                 `}
               >
-                <div className={`p-2 rounded-xl ${
-                  notification.type === 'error' ? 'bg-red-500/10 text-red-500' :
-                  notification.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' :
-                  'bg-teal/10 text-teal'
-                }`}>
+                <div className={`p-2 rounded-xl ${notification.type === 'error' ? 'bg-red-500/10 text-red-500' :
+                    notification.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' :
+                      'bg-teal/10 text-teal'
+                  }`}>
                   {notification.type === 'error' && <AlertCircle size={20} />}
                   {notification.type === 'success' && <CheckCircle size={20} />}
                   {notification.type === 'info' && <Info size={20} />}
@@ -277,18 +273,16 @@ const WrapperContent: React.FC = () => {
                   exit="exit"
                   className="relative w-full max-w-sm bg-white dark:bg-charcoal border border-gray-200 dark:border-gray-800 rounded-3xl shadow-2xl overflow-hidden mt-16 mr-0 pointer-events-auto focus:outline-none"
                 >
-                  <div className={`h-1.5 w-full ${
-                    notification.type === 'error' ? 'bg-red-500' :
-                    notification.type === 'success' ? 'bg-emerald-500' :
-                    'bg-teal'
-                  }`} />
+                  <div className={`h-1.5 w-full ${notification.type === 'error' ? 'bg-red-500' :
+                      notification.type === 'success' ? 'bg-emerald-500' :
+                        'bg-teal'
+                    }`} />
                   <div className="p-8">
                     <div className="flex items-center gap-4 mb-6">
-                      <div className={`p-3 rounded-2xl ${
-                        notification.type === 'error' ? 'bg-red-500/10 text-red-500' :
-                        notification.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' :
-                        'bg-teal/10 text-teal'
-                      }`}>
+                      <div className={`p-3 rounded-2xl ${notification.type === 'error' ? 'bg-red-500/10 text-red-500' :
+                          notification.type === 'success' ? 'bg-emerald-500/10 text-emerald-500' :
+                            'bg-teal/10 text-teal'
+                        }`}>
                         {notification.type === 'error' && <AlertCircle className="w-8 h-8" />}
                         {notification.type === 'success' && <CheckCircle className="w-8 h-8" />}
                       </div>

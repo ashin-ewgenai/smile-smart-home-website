@@ -8,8 +8,7 @@ import {
 } from 'lucide-react';
 import { submitSpaceRequest, useQuoteRequest, type SpaceRequestPayload } from '../../hooks/useQuoteRequest';
 
-// Redefine SpaceType locally to include 'custom' without modifying the shared hook
-type LocalSpaceType = 'home' | 'office' | 'apartment' | 'custom';
+type LocalSpaceType = 'home' | 'office' | 'apartment';
 import { useDevices, type CustomFloorplanHotspot } from '../../contexts/DevicesContext';
 import { hotspotReveal } from '../../lib/animate';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -51,7 +50,7 @@ interface ModalState {
 }
 
 // ─── Space Config Data ─────────────────────────────────────────────────────────
-const SPACES: Record<SpaceType, SpaceConfig> = {
+const SPACES: Record<LocalSpaceType, SpaceConfig> = {
   home: {
     label: 'Home',
     sublabel: 'Residential Installation',
@@ -239,18 +238,9 @@ const SPACES: Record<SpaceType, SpaceConfig> = {
     ],
   },
 
-  custom: {
-    label: 'Custom',
-    sublabel: 'Upload Your Floorplan',
-    icon: Upload,
-    svgWalls: [],
-    svgDoors: [],
-    svgRooms: [],
-    hotspots: [],
-  },
 };
 
-const SPACE_TYPES: SpaceType[] = ['home', 'office', 'apartment', 'custom'];
+const SPACE_TYPES: LocalSpaceType[] = ['home', 'office', 'apartment'];
 
 // ─── SVG Blueprint ─────────────────────────────────────────────────────────────
 const BlueprintSVG: React.FC<{ config: SpaceConfig }> = ({ config }) => (
@@ -281,13 +271,13 @@ export default function InteractiveFloorplan() {
     open: false, submitting: false, success: false,
     email: '', phone: '',
   });
-  
+
   // Local UI state
   const [isDragging, setIsDragging] = useState(false);
   const [draggingHotspotId, setDraggingHotspotId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const floorplanContainerRef = useRef<HTMLDivElement>(null);
-  
+
   // Custom Hotspot Editing state
   const [isEditingHotspot, setIsEditingHotspot] = useState(false);
   const [isGeneratingDescription, setIsGeneratingDescription] = useState(false);
@@ -336,10 +326,8 @@ export default function InteractiveFloorplan() {
       icon: getIconByName(h.icon)
     }));
   }, [customFloorplanHotspots]);
-  
-  const currentHotspot = activeSpace === 'custom' 
-    ? customHotspots.find(h => h.id === activeSpot) ?? null
-    : config.hotspots.find(h => h.id === activeSpot) ?? null;
+
+  const currentHotspot = config.hotspots.find(h => h.id === activeSpot) ?? null;
 
   const handleSpaceChange = (space: LocalSpaceType) => {
     setActiveSpace(space);
@@ -405,7 +393,7 @@ export default function InteractiveFloorplan() {
   };
 
   // --- Hotspot Customization ---
-  
+
   const handleStartEdit = () => {
     if (!currentHotspot) return;
     setEditFields({
@@ -428,8 +416,8 @@ export default function InteractiveFloorplan() {
     setIsGeneratingDescription(true);
     try {
       const { description, tags } = await generateRoomDetailsWithAI(editFields.title);
-      setEditFields(prev => ({ 
-        ...prev, 
+      setEditFields(prev => ({
+        ...prev,
         description,
         tags: tags.join(', ')
       }));
@@ -443,8 +431,8 @@ export default function InteractiveFloorplan() {
   };
 
   const handleSaveEdit = () => {
-    if (!activeSpot || activeSpace !== 'custom') return;
-    
+    if (!activeSpot) return;
+
     const updatedTags = editFields.tags
       .split(',')
       .map(tag => tag.trim())
@@ -455,7 +443,7 @@ export default function InteractiveFloorplan() {
       description: editFields.description || 'No description provided.',
       tags: updatedTags
     });
-    
+
     setIsEditingHotspot(false);
     showNotification({ message: 'Hotspot updated successfully', type: 'success' });
   };
@@ -508,8 +496,8 @@ export default function InteractiveFloorplan() {
     if (!currentHotspot) return;
 
     if (!window.navigator.onLine) {
-      showNotification({ 
-        message: 'No internet connection. Please check your network and try again.', 
+      showNotification({
+        message: 'No internet connection. Please check your network and try again.',
         type: 'error',
         mode: 'snackbar'
       });
@@ -574,7 +562,7 @@ export default function InteractiveFloorplan() {
   }, [modal.submitting]);
 
   return (
-    <section 
+    <section
       className="py-24 pb-16 bg-soft-gray dark:bg-gray-900 border-t border-gray-200 dark:border-white/5 relative overflow-hidden"
       id="interactive-tour"
       aria-label="Interactive Smart Home Tour"
@@ -610,11 +598,10 @@ export default function InteractiveFloorplan() {
                   role="tab"
                   aria-selected={isActive}
                   onClick={() => handleSpaceChange(space)}
-                  className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${
-                    isActive
+                  className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 ${isActive
                       ? 'bg-teal text-white shadow-lg shadow-teal/30'
                       : 'text-gray-600 dark:text-gray-400 hover:text-charcoal dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5'
-                  }`}
+                    }`}
                 >
                   <Icon className="w-4 h-4" />
                   <span className="hidden sm:inline">{SPACES[space].label}</span>
@@ -643,162 +630,13 @@ export default function InteractiveFloorplan() {
         <div className="flex flex-col lg:flex-row gap-8 items-start justify-center px-4 sm:px-6 lg:px-12">
 
           {/* Floorplan Display - SVG or Custom Image */}
-          <div 
+          <div
             ref={floorplanContainerRef}
             className="relative w-full max-w-3xl aspect-[4/3] bg-white/80 dark:bg-gray-800/20 border border-gray-200 dark:border-white/10 rounded-[2.5rem] overflow-hidden backdrop-blur-xl shadow-2xl transition-all duration-700 flex-shrink-0"
           >
             {/* Ambient Background Gradient for the Container */}
             <div className="absolute inset-0 bg-gradient-to-tr from-teal-500/5 to-indigo-500/5 pointer-events-none" />
 
-            {activeSpace === 'custom' ? (
-              // Custom Floorplan View
-              customFloorplanImage ? (
-                <>
-                  {/* Uploaded Floorplan Image */}
-                  <img 
-                    src={customFloorplanImage}
-                    alt="Custom Floorplan"
-                    className={`w-full h-full object-contain bg-gray-100 dark:bg-gray-900 transition-opacity duration-500 ${isAnalyzingFloorplan ? 'opacity-30 blur-sm' : 'opacity-100'}`}
-                  />
-                  
-                  {/* AI Analysis Loading Overlay */}
-                  <AnimatePresence>
-                    {isAnalyzingFloorplan && (
-                      <motion.div 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 z-40 bg-white/40 dark:bg-black/40 backdrop-blur-md flex flex-col items-center justify-center gap-6"
-                      >
-                        <div className="relative">
-                           <div className="w-20 h-20 rounded-full border-4 border-teal/20 border-t-teal animate-spin" />
-                           <Sparkles className="absolute inset-0 m-auto w-8 h-8 text-teal animate-pulse" />
-                        </div>
-                        <div className="text-center">
-                          <h4 className="text-xl font-bold text-charcoal dark:text-white mb-1">AI analyzing your space...</h4>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">Identifying rooms and suggesting smart automations</p>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {/* Custom Hotspots */}
-                  {customHotspots.map((spot) => {
-                    const isActive = activeSpot === spot.id;
-                    const IconComponent = spot.icon;
-                    return (
-                      <div
-                        key={spot.id}
-                        className="absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer z-20 group/spot"
-                        style={{ left: `${spot.x}%`, top: `${spot.y}%` }}
-                        onClick={() => !isDragging && setActiveSpot(isActive ? null : spot.id)}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          setIsDragging(false);
-                          setDraggingHotspotId(spot.id);
-                        }}
-                        onMouseMove={(e) => {
-                          if (draggingHotspotId === spot.id && floorplanContainerRef.current) {
-                            setIsDragging(true);
-                            const rect = floorplanContainerRef.current.getBoundingClientRect();
-                            const newX = ((e.clientX - rect.left) / rect.width) * 100;
-                            const newY = ((e.clientY - rect.top) / rect.height) * 100;
-                            handleHotspotDrag(spot.id, newX, newY);
-                          }
-                        }}
-                        onMouseUp={() => {
-                          setDraggingHotspotId(null);
-                          setTimeout(() => setIsDragging(false), 50);
-                        }}
-                        onMouseLeave={() => {
-                          if (draggingHotspotId === spot.id) {
-                            setDraggingHotspotId(null);
-                            setTimeout(() => setIsDragging(false), 50);
-                          }
-                        }}
-                        tabIndex={0}
-                        role="button"
-                        aria-pressed={isActive}
-                        aria-label={`${isActive ? 'Close' : 'View details for'} ${spot.title}`}
-                      >
-                        <div className={`relative flex items-center justify-center transition-all duration-300 ${isActive ? 'scale-125' : 'hover:scale-110'} ${isDragging && draggingHotspotId === spot.id ? 'cursor-grabbing' : 'cursor-grab'}`}>
-                          {/* Ping ring — only for AI generated, hidden when active */}
-                          {spot.isAiGenerated && !isActive && (
-                            <div className="absolute inset-0 rounded-full bg-teal-400 animate-ping opacity-75" />
-                          )}
-                          {/* Core dot with icon */}
-                          <div className={`relative w-10 h-10 rounded-full flex items-center justify-center border-[3px] transition-all duration-300 ${
-                            isActive
-                              ? 'bg-teal border-teal-200 shadow-[0_0_30px_rgba(0,150,136,1)]'
-                              : spot.isAiGenerated
-                                ? 'bg-white dark:bg-gray-900 border-teal/70 shadow-[0_0_15px_rgba(0,150,136,0.5)] group-hover/spot:bg-teal-50 dark:group-hover/spot:bg-teal-900 group-hover/spot:border-teal'
-                                : 'bg-amber-100 dark:bg-amber-900 border-amber/70 shadow-[0_0_15px_rgba(245,158,11,0.5)] group-hover/spot:bg-amber-50 dark:group-hover/spot:bg-amber-900 group-hover/spot:border-amber'
-                          }`}>
-                            <IconComponent className={`w-5 h-5 ${isActive ? 'text-white' : spot.isAiGenerated ? 'text-teal' : 'text-amber-600'}`} />
-                          </div>
-                          
-                          {/* Delete button on hover/active */}
-                          {(isActive || draggingHotspotId === spot.id) && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteHotspot(spot.id);
-                              }}
-                              className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600 transition-colors shadow-lg z-30"
-                              aria-label="Delete hotspot"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </>
-              ) : (
-                // Upload Prompt for Custom Tab
-                <div className="w-full h-full flex flex-col items-center justify-center p-12 bg-gray-50/50 dark:bg-gray-900/30">
-                  <div 
-                    className="w-full max-w-lg border-2 border-dashed border-teal/20 hover:border-teal/50 dark:border-white/10 dark:hover:border-teal/30 rounded-[2.5rem] p-16 flex flex-col items-center justify-center gap-6 cursor-pointer hover:bg-white/40 dark:hover:bg-white/5 transition-all duration-500 group-upload relative overflow-hidden"
-                    onClick={() => fileInputRef.current?.click()}
-
-                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      const file = e.dataTransfer.files?.[0];
-                      if (file) {
-                        const fakeEvent = { target: { files: e.dataTransfer.files } } as React.ChangeEvent<HTMLInputElement>;
-                        handleFileSelect(fakeEvent);
-                      }
-                    }}
-                  >
-                      <div className="w-20 h-20 rounded-3xl bg-teal/5 border border-teal/10 flex items-center justify-center group-hover-upload:scale-110 group-hover-upload:rotate-3 transition-transform duration-500">
-                        <ImagePlus size={32} className="text-teal" />
-                      </div>
-                      <div className="text-center relative z-10">
-                        <p className="text-charcoal dark:text-white font-bold text-xl mb-1">
-                          Upload your floorplan
-                        </p>
-                        <p className="text-gray-500 dark:text-gray-400 text-sm font-light">
-                          Drag & drop your architectural drawing or <span className="text-teal font-semibold">browse files</span>
-                        </p>
-                        <div className="flex items-center justify-center gap-4 mt-6">
-                           <span className="px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-full text-[10px] font-bold tracking-widest uppercase text-gray-400">JPG</span>
-                           <span className="px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-full text-[10px] font-bold tracking-widest uppercase text-gray-400">PNG</span>
-                           <span className="px-3 py-1 bg-gray-100 dark:bg-white/5 rounded-full text-[10px] font-bold tracking-widest uppercase text-gray-400">WEBP</span>
-                        </div>
-                      </div>
-                      
-                      {/* Decorative elements */}
-                      <div className="absolute -bottom-12 -right-12 w-32 h-32 bg-teal-500/10 rounded-full blur-2xl group-hover-upload:bg-teal-500/20 transition-all duration-500" />
-                      <div className="absolute -top-12 -left-12 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl group-hover-upload:bg-indigo-500/20 transition-all duration-500" />
-                  </div>
-                </div>
-              )
-
-            ) : (
-              // Default SVG Blueprint for Home, Office, Apartment
               <>
                 <BlueprintSVG config={config} />
 
@@ -828,11 +666,10 @@ export default function InteractiveFloorplan() {
                           <div className="absolute inset-0 rounded-full bg-teal-400 animate-ping opacity-75" />
                         )}
                         {/* Core dot */}
-                        <div className={`relative w-10 h-10 rounded-full flex items-center justify-center border-[3px] transition-all duration-300 ${
-                          isActive
+                        <div className={`relative w-10 h-10 rounded-full flex items-center justify-center border-[3px] transition-all duration-300 ${isActive
                             ? 'bg-teal border-teal-200 shadow-[0_0_30px_rgba(0,150,136,1)]'
                             : 'bg-white dark:bg-gray-900 border-teal/70 shadow-[0_0_15px_rgba(0,150,136,0.5)] group-hover/spot:bg-teal-50 dark:group-hover/spot:bg-teal-900 group-hover/spot:border-teal'
-                        }`}>
+                          }`}>
                           <div className={`w-2.5 h-2.5 rounded-full transition-colors duration-300 ${isActive ? 'bg-white' : 'bg-teal'}`} />
                         </div>
                       </div>
@@ -840,280 +677,166 @@ export default function InteractiveFloorplan() {
                   );
                 })}
               </>
-            )}
           </div>
 
           {/* Right Sidebar Column (Controls + Info) */}
           <div className="w-full lg:w-[380px] flex-shrink-0 lg:sticky lg:top-8 self-start space-y-6">
-            
-            {/* Custom Floorplan Controls - Only show for custom tab */}
-            {activeSpace === 'custom' && customFloorplanImage && (
-              <div className="space-y-4">
-              {/* Analysis Error */}
-              {floorplanAnalysisError && !isAnalyzingFloorplan && (
-                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-6">
-                  <div className="flex items-center gap-2 text-red-600 dark:text-red-400 mb-2">
-                    <X className="w-5 h-5" />
-                    <span className="font-semibold">Analysis failed</span>
-                  </div>
-                  <p className="text-sm text-red-500 dark:text-red-400 mb-3">{floorplanAnalysisError}</p>
-                  <button
-                    type="button"
-                    onClick={handleAnalyzeFloorplan}
-                    className="text-sm bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 px-4 py-2 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/60 transition-colors"
-                  >
-                    Try Again
-                  </button>
-                </div>
-              )}
 
-              {/* Control Buttons */}
-              <div className="bg-white dark:bg-gray-800/60 border border-gray-200 dark:border-white/10 rounded-2xl p-6 shadow-lg">
-                <h4 className="font-semibold text-charcoal dark:text-white mb-4 flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-teal" />
-                  Floorplan Controls
-                </h4>
+            {/* Custom Floorplan Controls removed */}
 
-                <div className="space-y-3">
-                  {/* Analyze Button — only when no hotspots yet */}
-                  {customHotspots.length === 0 && (
-                    <button
-                      type="button"
-                      onClick={handleAnalyzeFloorplan}
-                      disabled={isAnalyzingFloorplan}
-                      className="w-full py-3 px-4 bg-teal hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-semibold transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal/20"
-                    >
-                      {isAnalyzingFloorplan ? (
-                        <><Loader2 className="w-4 h-4 animate-spin" /> Analyzing…</>
-                      ) : (
-                        <><Sparkles className="w-4 h-4" /> Analyze with AI</>
-                      )}
-                    </button>
-                  )}
-
-                  {/* Re-analyze when hotspots already exist */}
-                  {customHotspots.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={handleAnalyzeFloorplan}
-                      disabled={isAnalyzingFloorplan}
-                      className="w-full py-2 px-4 bg-teal/10 hover:bg-teal/20 disabled:opacity-50 disabled:cursor-not-allowed text-teal rounded-xl font-semibold transition-all flex items-center justify-center gap-2 text-sm border border-teal/20"
-                    >
-                      {isAnalyzingFloorplan ? (
-                        <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Re-analyzing…</>
-                      ) : (
-                        <><Sparkles className="w-3.5 h-3.5" /> Re-analyze with AI</>
-                      )}
-                    </button>
-                  )}
-
-                  {/* Add Custom Hotspot */}
-                  <button
-                    type="button"
-                    onClick={handleAddCustomHotspot}
-                    disabled={isAnalyzingFloorplan}
-                    className="w-full py-3 px-4 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed text-charcoal dark:text-white rounded-xl font-semibold transition-all flex items-center justify-center gap-2"
-                  >
-                    <Plus className="w-4 h-4" /> Add Custom Hotspot
-                  </button>
-
-                  {/* Hotspot Count Badge */}
-                  {customHotspots.length > 0 && (
-                    <div className="text-center text-sm text-gray-500 dark:text-gray-400 py-1">
-                      {customHotspots.length} hotspot{customHotspots.length !== 1 ? 's' : ''}
-                      {' · '}
-                      {customHotspots.filter(h => h.isAiGenerated).length} AI-generated
-                    </div>
-                  )}
-
-                  {/* Remove Floorplan */}
-                  <button
-                    type="button"
-                    onClick={handleClearFloorplan}
-                    disabled={isAnalyzingFloorplan}
-                    className="w-full py-2 px-4 border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-medium transition-all flex items-center justify-center gap-2 text-sm"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Remove Floorplan
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-            {/* Info Panel - for non-custom tabs or when custom hotspot selected */}
-            {(activeSpace !== 'custom' || (activeSpace === 'custom' && activeSpot)) && (
-              currentHotspot ? (
-              <div
-                ref={panelRef}
-                key={currentHotspot.id}
-                className={`relative bg-white dark:bg-white/5 backdrop-blur-2xl border border-gray-200 dark:border-white/10 rounded-[2.5rem] shadow-2xl max-h-[80vh] flex flex-col transition-all duration-300 ${isEditingHotspot ? 'p-6' : 'p-8'}`}
-              >
-                {/* Scrollable Content Area */}
-                <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-6">
-                {/* Close button */}
-                <button
-                  onClick={() => setActiveSpot(null)}
-                  className="absolute top-5 right-5 text-gray-400 hover:text-charcoal dark:hover:text-white bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 p-2 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                  aria-label="Close panel"
+            {/* Info Panel - for when a hotspot is selected */}
+            {currentHotspot ? (
+                <div
+                  ref={panelRef}
+                  key={currentHotspot.id}
+                  className={`relative bg-white dark:bg-white/5 backdrop-blur-2xl border border-gray-200 dark:border-white/10 rounded-[2.5rem] shadow-2xl max-h-[80vh] flex flex-col transition-all duration-300 ${isEditingHotspot ? 'p-6' : 'p-8'}`}
                 >
-                  <X className="w-4 h-4" />
-                </button>
-
-                {/* Info Panel Content */}
-                {isEditingHotspot ? (
-                  /* EDIT MODE */
-                  <div className="space-y-4">
-                    <h4 className="text-lg font-bold text-teal flex items-center gap-2 mb-2">
-                      <Pencil className="w-4 h-4" /> Edit Hotspot
-                    </h4>
-                    
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Room Title</label>
-                      </div>
-                      <input 
-                        type="text"
-                        value={editFields.title}
-                        onChange={e => setEditFields({ ...editFields, title: e.target.value })}
-                        className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-charcoal dark:text-white focus:outline-none focus:ring-2 focus:ring-teal/50"
-                        placeholder="e.g. Living Room"
-                      />
-                    </div>
-
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</label>
-                        <button
-                          type="button"
-                          onClick={handleGenerateAIDescription}
-                          disabled={isGeneratingDescription}
-                          className="flex items-center gap-1.5 text-[10px] font-bold text-teal hover:text-teal-600 transition-colors uppercase tracking-widest disabled:opacity-50"
-                        >
-                          {isGeneratingDescription ? (
-                            <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Thinking...</>
-                          ) : (
-                            <><Sparkles className="w-2.5 h-2.5" /> Generate with AI</>
-                          )}
-                        </button>
-                      </div>
-                      <div className="relative">
-                        <textarea 
-                          value={editFields.description}
-                          onChange={e => setEditFields({ ...editFields, description: e.target.value })}
-                          className={`w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-charcoal dark:text-white focus:outline-none focus:ring-2 focus:ring-teal/50 h-28 resize-none transition-all ${isGeneratingDescription ? 'opacity-50 blur-[1px]' : ''}`}
-                          placeholder="What happens in this space?"
-                        />
-                        {isGeneratingDescription && (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="flex flex-col items-center gap-2">
-                               <Sparkles className="w-5 h-5 text-teal animate-pulse" />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Tags (comma separated)</label>
-                      <input 
-                        type="text"
-                        value={editFields.tags}
-                        onChange={e => setEditFields({ ...editFields, tags: e.target.value })}
-                        className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-charcoal dark:text-white focus:outline-none focus:ring-2 focus:ring-teal/50"
-                        placeholder="Smart TV, Motion Sensor..."
-                      />
-                    </div>
-
-                    <div className="flex gap-3 pt-2">
-                      <button
-                        onClick={handleSaveEdit}
-                        className="flex-1 py-3 bg-teal text-white rounded-xl font-bold hover:bg-teal-600 transition-all shadow-lg shadow-teal/20"
-                      >
-                        Save Changes
-                      </button>
-                      <button
-                        onClick={handleCancelEdit}
-                        className="px-6 py-3 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  /* VIEW MODE */
-                  <>
-                    {/* Icon */}
-                    <div className="flex items-start justify-between mb-5">
-                      <div className="w-14 h-14 bg-gradient-to-br from-teal/20 to-teal/5 text-teal rounded-2xl flex items-center justify-center border border-teal/30 shadow-[0_0_20px_rgba(0,150,136,0.2)]">
-                        <currentHotspot.icon className="w-7 h-7" />
-                      </div>
-                      
-                      {activeSpace === 'custom' && (
-                        <button 
-                          onClick={handleStartEdit}
-                          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 dark:bg-white/5 hover:bg-teal/10 hover:text-teal text-gray-500 dark:text-gray-400 rounded-lg text-xs font-bold transition-all"
-                          title="Edit this room"
-                        >
-                          <Pencil className="w-3.5 h-3.5" /> Edit
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Title + accent */}
-                    <h3 className="text-2xl font-extrabold text-charcoal dark:text-white mb-2 leading-tight">{currentHotspot.title}</h3>
-                    <div className="h-1 w-10 bg-teal rounded-full mb-4" />
-
-                    {/* Description */}
-                    <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-5 font-light">{currentHotspot.description}</p>
-
-                    {/* Feature tags */}
-                    <div className="flex flex-wrap gap-2 mb-7">
-                      {currentHotspot.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-3 py-1 bg-teal/10 border border-teal/20 text-teal-700 dark:text-teal-300 text-xs font-semibold rounded-full"
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* CTA */}
+                  {/* Scrollable Content Area */}
+                  <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-6">
+                    {/* Close button */}
                     <button
-                      onClick={openModal}
-                      className="inline-flex items-center gap-2 text-teal font-semibold hover:text-teal-700 dark:hover:text-teal-300 group/link transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded-lg"
+                      onClick={() => setActiveSpot(null)}
+                      className="absolute top-5 right-5 text-gray-400 hover:text-charcoal dark:hover:text-white bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 p-2 rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                      aria-label="Close panel"
                     >
-                      Plan this space
-                      <ArrowRight className="w-4 h-4 transform group-hover/link:translate-x-1.5 transition-transform" />
+                      <X className="w-4 h-4" />
                     </button>
-                  </>)}
-                </div>
-              </div>)
-            : (
-              /* Placeholder when no hotspot is selected & Not custom floorplan */
-              activeSpace !== 'custom' && (
-                <div className="relative overflow-hidden bg-gray-50/50 dark:bg-gray-800/20 border border-gray-200 dark:border-white/5 p-10 rounded-[2.5rem] flex flex-col items-center justify-center text-center backdrop-blur-md shadow-inner min-h-[360px] group-placeholder">
-                  <div className="relative mb-6">
-                    <div className="absolute inset-0 bg-teal/20 rounded-full blur-2xl group-hover-placeholder:scale-150 transition-transform duration-1000" />
-                    <div className="relative w-20 h-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-[1.5rem] flex items-center justify-center shadow-2xl transform group-hover-placeholder:rotate-12 transition-transform duration-500">
-                      <Zap className="w-10 h-10 text-teal animate-pulse" />
-                    </div>
+
+                    {/* Info Panel Content */}
+                    {isEditingHotspot ? (
+                      /* EDIT MODE */
+                      <div className="space-y-4">
+                        <h4 className="text-lg font-bold text-teal flex items-center gap-2 mb-2">
+                          <Pencil className="w-4 h-4" /> Edit Hotspot
+                        </h4>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Room Title</label>
+                          </div>
+                          <input
+                            type="text"
+                            value={editFields.title}
+                            onChange={e => setEditFields({ ...editFields, title: e.target.value })}
+                            className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-charcoal dark:text-white focus:outline-none focus:ring-2 focus:ring-teal/50"
+                            placeholder="e.g. Living Room"
+                          />
+                        </div>
+
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider">Description</label>
+                            <button
+                              type="button"
+                              onClick={handleGenerateAIDescription}
+                              disabled={isGeneratingDescription}
+                              className="flex items-center gap-1.5 text-[10px] font-bold text-teal hover:text-teal-600 transition-colors uppercase tracking-widest disabled:opacity-50"
+                            >
+                              {isGeneratingDescription ? (
+                                <><Loader2 className="w-2.5 h-2.5 animate-spin" /> Thinking...</>
+                              ) : (
+                                <><Sparkles className="w-2.5 h-2.5" /> Generate with AI</>
+                              )}
+                            </button>
+                          </div>
+                          <div className="relative">
+                            <textarea
+                              value={editFields.description}
+                              onChange={e => setEditFields({ ...editFields, description: e.target.value })}
+                              className={`w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-charcoal dark:text-white focus:outline-none focus:ring-2 focus:ring-teal/50 h-28 resize-none transition-all ${isGeneratingDescription ? 'opacity-50 blur-[1px]' : ''}`}
+                              placeholder="What happens in this space?"
+                            />
+                            {isGeneratingDescription && (
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="flex flex-col items-center gap-2">
+                                  <Sparkles className="w-5 h-5 text-teal animate-pulse" />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">Tags (comma separated)</label>
+                          <input
+                            type="text"
+                            value={editFields.tags}
+                            onChange={e => setEditFields({ ...editFields, tags: e.target.value })}
+                            className="w-full bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-charcoal dark:text-white focus:outline-none focus:ring-2 focus:ring-teal/50"
+                            placeholder="Smart TV, Motion Sensor..."
+                          />
+                        </div>
+
+                        <div className="flex gap-3 pt-2">
+                          <button
+                            onClick={handleSaveEdit}
+                            className="flex-1 py-3 bg-teal text-white rounded-xl font-bold hover:bg-teal-600 transition-all shadow-lg shadow-teal/20"
+                          >
+                            Save Changes
+                          </button>
+                          <button
+                            onClick={handleCancelEdit}
+                            className="px-6 py-3 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* VIEW MODE */
+                      <>
+                        {/* Icon */}
+                        <div className="flex items-start justify-between mb-5">
+                          <div className="w-14 h-14 bg-gradient-to-br from-teal/20 to-teal/5 text-teal rounded-2xl flex items-center justify-center border border-teal/30 shadow-[0_0_20px_rgba(0,150,136,0.2)]">
+                            <currentHotspot.icon className="w-7 h-7" />
+                          </div>
+                        </div>
+
+                        {/* Title + accent */}
+                        <h3 className="text-2xl font-extrabold text-charcoal dark:text-white mb-2 leading-tight">{currentHotspot.title}</h3>
+                        <div className="h-1 w-10 bg-teal rounded-full mb-4" />
+
+                        {/* Description */}
+                        <p className="text-gray-600 dark:text-gray-300 leading-relaxed mb-5 font-light">{currentHotspot.description}</p>
+
+                        {/* Feature tags */}
+                        <div className="flex flex-wrap gap-2 mb-7">
+                          {currentHotspot.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="px-3 py-1 bg-teal/10 border border-teal/20 text-teal-700 dark:text-teal-300 text-xs font-semibold rounded-full"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* CTA */}
+                        <button
+                          onClick={openModal}
+                          className="inline-flex items-center gap-2 text-teal font-semibold hover:text-teal-700 dark:hover:text-teal-300 group/link transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 rounded-lg"
+                        >
+                          Plan this space
+                          <ArrowRight className="w-4 h-4 transform group-hover/link:translate-x-1.5 transition-transform" />
+                        </button>
+                      </>)}
                   </div>
-                  <h3 className="text-2xl font-bold text-charcoal dark:text-white mb-3">Explore Your Space</h3>
-                  <p className="text-gray-500 dark:text-gray-400 font-light leading-relaxed max-w-[280px]">
-                    Select a pulsing hotspot on the floorplan to discover how <span className="text-teal font-medium">Smile Smart Home</span> enhances your lifestyle.
-                  </p>
-                  {activeSpace === 'custom' && !customFloorplanImage && (
-                    <button 
-                      onClick={() => fileInputRef.current?.click()}
-                      className="mt-8 px-6 py-2.5 bg-teal/10 hover:bg-teal/20 text-teal text-sm font-bold rounded-xl transition-all"
-                    >
-                      Upload Floorplan First
-                    </button>
-                  )}
                 </div>
-              )
-            ))}
+              ) : (
+                  /* Placeholder when no hotspot is selected */
+                  <div className="relative overflow-hidden bg-gray-50/50 dark:bg-gray-800/20 border border-gray-200 dark:border-white/5 p-10 rounded-[2.5rem] flex flex-col items-center justify-center text-center backdrop-blur-md shadow-inner min-h-[360px] group-placeholder">
+                    <div className="relative mb-6">
+                      <div className="absolute inset-0 bg-teal/20 rounded-full blur-2xl group-hover-placeholder:scale-150 transition-transform duration-1000" />
+                      <div className="relative w-20 h-20 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700/60 rounded-[1.5rem] flex items-center justify-center shadow-2xl transform group-hover-placeholder:rotate-12 transition-transform duration-500">
+                        <Zap className="w-10 h-10 text-teal animate-pulse" />
+                      </div>
+                    </div>
+                    <h3 className="text-2xl font-bold text-charcoal dark:text-white mb-3">Explore Your Space</h3>
+                    <p className="text-gray-500 dark:text-gray-400 font-light leading-relaxed max-w-[280px]">
+                      Select a pulsing hotspot on the floorplan to discover how <span className="text-teal font-medium">Smile Smart Home</span> enhances your lifestyle.
+                    </p>
+                  </div>
+              )}
           </div>
         </div>
       </div>

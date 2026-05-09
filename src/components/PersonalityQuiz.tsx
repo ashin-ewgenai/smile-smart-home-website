@@ -97,7 +97,7 @@ const itemVariants: any = {
 // Typewriter Component for Manifesto
 const TypewriterText: React.FC<{ text: string; delay?: number }> = ({ text, delay = 0 }) => {
   const [displayedText, setDisplayedText] = useState('');
-  
+
   useEffect(() => {
     let i = 0;
     const timer = setTimeout(() => {
@@ -339,17 +339,15 @@ export const PersonalityQuiz: React.FC = () => {
                       <button
                         key={answer.value}
                         onClick={() => handleAnswer(question.id, answer.value)}
-                        className={`flex items-start gap-4 p-5 rounded-2xl border-2 text-left transition-all hover:shadow-lg ${
-                          answers[question.id] === answer.value
+                        className={`flex items-start gap-4 p-5 rounded-2xl border-2 text-left transition-all hover:shadow-lg ${answers[question.id] === answer.value
                             ? 'border-teal bg-teal-50 dark:bg-teal-900/20 text-teal dark:text-teal-300'
                             : 'border-slate-100 dark:border-gray-800 hover:border-teal/30 dark:hover:border-gray-700 bg-slate-50/50 dark:bg-gray-800/30'
-                        }`}
+                          }`}
                       >
-                        <div className={`p-3 rounded-xl ${
-                          answers[question.id] === answer.value
+                        <div className={`p-3 rounded-xl ${answers[question.id] === answer.value
                             ? 'bg-teal text-white'
                             : 'bg-white dark:bg-gray-700 text-slate-400'
-                        }`}>
+                          }`}>
                           {ANSWER_ICONS[question.question]?.[answer.value] || <Zap size={24} />}
                         </div>
                         <div className="flex-1">
@@ -484,7 +482,7 @@ export const PersonalityQuiz: React.FC = () => {
                   <div className="absolute top-0 right-0 p-6 opacity-[0.03] dark:opacity-[0.05] group-hover:scale-110 transition-transform duration-1000">
                     <Sparkles size={200} />
                   </div>
-                  
+
                   <div className="flex items-center gap-3 mb-8">
                     <div className="h-px flex-1 bg-gradient-to-r from-transparent to-slate-200 dark:to-slate-800" />
                     <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 dark:text-slate-500">
@@ -555,11 +553,10 @@ export const PersonalityQuiz: React.FC = () => {
                           <button
                             onClick={() => handleSaveDevice(device)}
                             disabled={savedDevices.has(device.name)}
-                            className={`p-2 rounded-full transition-all ${
-                              savedDevices.has(device.name)
+                            className={`p-2 rounded-full transition-all ${savedDevices.has(device.name)
                                 ? 'bg-emerald-100 text-emerald-600'
                                 : 'bg-slate-100 dark:bg-gray-700 text-slate-400 hover:text-teal'
-                            }`}
+                              }`}
                           >
                             <Heart
                               size={18}
