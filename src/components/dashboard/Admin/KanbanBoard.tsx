@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useDevices } from '../../../contexts/DevicesContext';
 import { Layout, Search, Filter, Loader2, MoreVertical, Calendar, User, Mail, MessageSquare, AlertCircle, Trash2, Clock } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 
 interface KanbanColumn {
   id: string;
@@ -51,6 +51,8 @@ export function KanbanBoard<T extends { id: string }>({
   clearFiltersTrigger = 0
 }: KanbanBoardProps<T>) {
   const { isFloorplanItem } = useDevices();
+  const shouldReduceMotion = useReducedMotion();
+  
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -302,12 +304,17 @@ export function KanbanBoard<T extends { id: string }>({
                     <Filter className="h-3.5 w-3.5" />
                   </button>
                   
-                  {/* Active Filter Indicator */}
-                  {(columnSearch[column.id] || 
-                    (columnDateRange[column.id] && columnDateRange[column.id] !== 'all') || 
-                    (columnSource[column.id] && columnSource[column.id] !== 'all')) && (
-                    <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-teal-500 rounded-full border border-white dark:border-gray-800 animate-pulse" />
-                  )}
+                  {/* Active Filter Indicator Dot Logic */}
+                  {(() => {
+                    const hasActiveFilter = Boolean(
+                      columnSearch[column.id] || 
+                      (columnDateRange[column.id] && columnDateRange[column.id] !== 'all') || 
+                      (columnSource[column.id] && columnSource[column.id] !== 'all')
+                    );
+                    return hasActiveFilter && (
+                      <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-teal-500 rounded-full border border-white dark:border-gray-800 animate-pulse indicator-dot" />
+                    );
+                  })()}
                 </div>
               </div>
             </div>
@@ -319,7 +326,7 @@ export function KanbanBoard<T extends { id: string }>({
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                  transition={shouldReduceMotion ? { duration: 0.05 } : { type: "spring", stiffness: 300, damping: 30 }}
                   className="space-y-2 pt-2 overflow-hidden"
                 >
                   <div className="relative">
@@ -431,7 +438,7 @@ export function KanbanBoard<T extends { id: string }>({
                   boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
                   zIndex: 50
                 }}
-                transition={{ 
+                transition={shouldReduceMotion ? { duration: 0.1 } : { 
                   duration: 0.2,
                   layout: { type: "spring", stiffness: 300, damping: 30 }
                 }}
