@@ -186,8 +186,9 @@ export default function AuthModal() {
           } catch (error) {
             console.error('Error storing user data in localStorage:', error);
           }
-          // Redirect to return URL or user dashboard
-          window.location.href = returnTo || '/dashboard/user';
+          // Success: Close modal and stay on home page
+          setOpen(null);
+          showNotification({ message: 'Welcome back!', type: 'success', mode: 'snackbar' });
           return;
         }
 
@@ -273,8 +274,8 @@ export default function AuthModal() {
 
         showNotification({ message: 'Account created successfully!', type: 'success', mode: 'snackbar' });
 
-        // Redirect to return URL or user dashboard
-        window.location.href = returnTo || '/dashboard/user';
+        // Success: Close modal and stay on home page
+        setOpen(null);
         return;
       }
     } catch (err: any) {
@@ -343,8 +344,9 @@ export default function AuthModal() {
           if (user.displayName) localStorage.setItem('userName', user.displayName);
         }
 
-        // Redirect to return URL or user dashboard
-        window.location.href = returnTo || '/dashboard/user';
+        // Success: Close modal and stay on home page
+        setOpen(null);
+        showNotification({ message: 'Signed in with Google successfully!', type: 'success', mode: 'snackbar' });
       }
     } catch (err: any) {
       console.error('Google Sign-In Error details:', err);

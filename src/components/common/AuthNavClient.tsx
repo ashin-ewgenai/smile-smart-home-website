@@ -211,6 +211,11 @@ export default function AuthNavClient() {
       show(els.mUserBtn, isAuthed);
       show(els.mLogout, isAuthed);
       if (isAuthed) setText(els.mUserBtn, usernameFrom(user));
+
+      // Explicitly sync data-auth attribute so CSS visibility rules apply immediately
+      if (typeof window !== 'undefined') {
+        document.documentElement.setAttribute('data-auth', isAuthed ? '1' : '0');
+      }
     }
 
     try {
