@@ -171,6 +171,7 @@ const ReviewsRatingsPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [hasUserRated, setHasUserRated] = useState(false);
+  const [userExistingRating, setUserExistingRating] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { reviews, loading, error, submitReview, toggleLike } = useReviews();
@@ -206,12 +207,17 @@ const ReviewsRatingsPage = () => {
     const checkUserRating = async () => {
       if (!user) {
         setHasUserRated(false);
+        setUserExistingRating(0);
         return;
       }
 
       try {
         const reviewsQuery = query(
+<<<<<<< Updated upstream
           collection(db, 'Reviews'),
+=======
+          collection(db, 'reviews'),
+>>>>>>> Stashed changes
           where('uid', '==', user.uid),
           orderBy('createdAt', 'desc'),
           limitFn(1)
@@ -220,9 +226,17 @@ const ReviewsRatingsPage = () => {
         const querySnapshot = await getDocs(reviewsQuery);
         const hasExistingRating = !querySnapshot.empty;
         setHasUserRated(hasExistingRating);
+
+        // Store the actual rating value
+        if (hasExistingRating && !querySnapshot.empty) {
+          const userReview = querySnapshot.docs[0]?.data();
+          const savedRating = userReview?.rating || 0;
+          setUserExistingRating(savedRating);
+        }
       } catch (error) {
         console.error('Error checking user rating:', error);
         setHasUserRated(false);
+        setUserExistingRating(0);
       }
     };
 
@@ -381,6 +395,7 @@ const ReviewsRatingsPage = () => {
                 {/* Decorative Gradient Glow (Dark mode only) */}
                 <div className="absolute -inset-0.5 bg-gradient-to-r from-teal/20 via-blue-500/10 to-purple-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-700 blur-2xl pointer-events-none" />
 
+<<<<<<< Updated upstream
                 <div className="relative z-10">
                   <h2 className="text-2xl font-black mb-6 flex items-center gap-3 dark:text-white">
                     <span className="w-10 h-10 rounded-xl bg-teal/10 text-teal flex items-center justify-center shadow-inner">
@@ -388,6 +403,13 @@ const ReviewsRatingsPage = () => {
                     </span>
                     Leave a Review
                   </h2>
+=======
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-black text-slate-600 dark:text-gray-400 uppercase tracking-wide mb-2">How would you rate our service?</label>
+                    <StarRating rating={hasUserRated ? userExistingRating : rating} setRating={setRating} interactive={!hasUserRated} />
+                  </div>
+>>>>>>> Stashed changes
 
                   <div className="space-y-6">
                     <div>
