@@ -165,7 +165,7 @@ const MediaPreview = ({ files, onRemove }: { files: File[], onRemove: (index: nu
 
 const ReviewsRatingsPage = () => {
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [rating, setRating] = useState(0);
+  const [rating, setRating] = useState(1);
   const [comment, setComment] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -179,6 +179,17 @@ const ReviewsRatingsPage = () => {
   // Pagination & Sorting states
   const [visibleCount, setVisibleCount] = useState(5);
   const [sortBy, setSortBy] = useState<'latest' | 'highest' | 'lowest' | 'engagement'>('latest');
+
+  // User rating map to track original saved rating for each user
+  const userRatingMap = React.useMemo(() => {
+    const map = new Map<string, number>();
+    reviews.forEach(review => {
+      if (review.uid && review.rating > 0 && !map.has(review.uid)) {
+        map.set(review.uid, review.rating);
+      }
+    });
+    return map;
+  }, [reviews]);
 
   // Sorted reviews
   const sortedReviews = React.useMemo(() => {
@@ -215,6 +226,7 @@ const ReviewsRatingsPage = () => {
         const reviewsQuery = query(
           collection(db, 'reviews'),
           where('uid', '==', user.uid),
+          where('rating', '>', 0),
           orderBy('createdAt', 'desc'),
           limitFn(1)
         );
@@ -228,6 +240,12 @@ const ReviewsRatingsPage = () => {
           const userReview = querySnapshot.docs[0]?.data();
           const savedRating = userReview?.rating || 0;
           setUserExistingRating(savedRating);
+          // Ensure hasUserRated is set to true when rating is found
+          setHasUserRated(true);
+        } else {
+          // Ensure hasUserRated is set to false when no rating is found
+          setHasUserRated(false);
+          setUserExistingRating(0);
         }
       } catch (error) {
         console.error('Error checking user rating:', error);
@@ -268,9 +286,13 @@ const ReviewsRatingsPage = () => {
       // Update hasUserRated state immediately after successful rating submission
       if (!hasUserRated && rating > 0) {
         setHasUserRated(true);
+        setUserExistingRating(rating); // Store the submitted rating
       }
       
-      setRating(0);
+      // Only reset rating for new users, preserve for existing users
+      if (!hasUserRated) {
+        setRating(1); // Reset to default for new users
+      }
       setComment('');
       setFiles([]);
 
@@ -403,6 +425,7 @@ const ReviewsRatingsPage = () => {
                     <div>
                       <label className="block text-sm font-black text-slate-600 dark:text-gray-400 uppercase tracking-widest mb-3 ml-1">How would you rate our service?</label>
                       <StarRating rating={hasUserRated ? userExistingRating : rating} setRating={setRating} interactive={!hasUserRated} />
+                      {/* Debug: {hasUserRated ? 'User has rated - non-interactive' : 'User can rate - interactive'} */}
                     </div>
 
                     <div>
@@ -549,7 +572,7 @@ const ReviewsRatingsPage = () => {
                         <div>
                           <h4 className="font-black text-xl dark:text-white tracking-tight group-hover:text-teal transition-colors">{review.userName}</h4>
                           <div className="mt-1 flex flex-col gap-1">
-                            <StarRating rating={review.rating} interactive={false} />
+                            <StarRating rating={review.rating > 0 ? review.rating : (review.uid ? userRatingMap.get(review.uid) || 0 : 0)} interactive={false} />
                             <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 dark:text-gray-500 uppercase tracking-widest">
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                               Verified Customer
