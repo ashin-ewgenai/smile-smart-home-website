@@ -17,6 +17,7 @@ import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth';
 import { collection, query, where, getDocs, orderBy, limit as limitFn } from 'firebase/firestore';
 import { useReviews } from '@/hooks/useReviews';
+import { COLLECTION_REVIEWS } from '@/models/Collections';
 import ReviewAnalytics from '@/components/ReviewAnalytics';
 
 // --- Components ---
@@ -224,7 +225,7 @@ const ReviewsRatingsPage = () => {
 
       try {
         const reviewsQuery = query(
-          collection(db, 'reviews'),
+          collection(db, COLLECTION_REVIEWS),
           where('uid', '==', user.uid),
           where('rating', '>', 0),
           orderBy('createdAt', 'desc'),

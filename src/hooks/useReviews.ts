@@ -24,6 +24,8 @@ export function useReviews() {
   const [error, setError] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const [likingIds, setLikingIds] = useState<Set<string>>(new Set());
+
   // Check admin role
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -126,11 +128,14 @@ export function useReviews() {
     }
   };
 
-  const toggleLike = async (reviewId: string) => {
+  const toggleLike = useCallback(async (reviewId: string) => {
     if (!auth.currentUser) {
       alert("Please log in to like reviews.");
       return;
     }
+
+    // Prevent duplicate clicks while processing
+    if (likingIds.has(reviewId)) return;
 
     const uid = auth.currentUser.uid;
     const review = reviews.find(r => r.id === reviewId);
@@ -140,6 +145,9 @@ export function useReviews() {
     const newLikes = isCurrentlyLiked 
       ? Math.max(0, (review.likes || 0) - 1)
       : (review.likes || 0) + 1;
+
+    // Track this ID as being processed
+    setLikingIds(prev => new Set(prev).add(reviewId));
 
     // Optimistic Update
     setReviews(prev => prev.map(r => 
@@ -167,16 +175,21 @@ export function useReviews() {
         r.id === reviewId 
           ? { 
               ...r, 
-              likes: isCurrentlyLiked ? (r.likes || 0) + 1 : Math.max(0, (r.likes || 0) - 1), 
-              likedBy: isCurrentlyLiked 
-                ? [...(r.likedBy || []), uid]
-                : (r.likedBy || []).filter(id => id !== uid)
+              likes: isCurrentlyLiked ? (review.likes || 0) : Math.max(0, (review.likes || 0)), 
+              likedBy: review.likedBy || []
             } 
           : r
       ));
       setError("Failed to sync like with server.");
+    } finally {
+      // Remove from processing set
+      setLikingIds(prev => {
+        const next = new Set(prev);
+        next.delete(reviewId);
+        return next;
+      });
     }
-  };
+  }, [reviews, likingIds]);
 
   const postAdminReply = async (reviewId: string, text: string) => {
     if (!isAdmin || !auth.currentUser) {
@@ -206,4 +219,5 @@ export function useReviews() {
     toggleLike,
     postAdminReply
   };
+
 }
