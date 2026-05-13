@@ -28,8 +28,8 @@ const EMAILJS_TEMPLATE_ID = 'template_d6hadva';
 const EMAILJS_PUBLIC_KEY = 'R0tIXRXubwM-BqDDW';
 
 // UltraMsg Client-Side Config (PUBLIC_ prefix makes them safe to expose in Astro)
-const ULTRAMSG_INSTANCE_ID = import.meta.env.PUBLIC_ULTRAMSG_INSTANCE_ID || 'instance12345';
-const ULTRAMSG_TOKEN = import.meta.env.PUBLIC_ULTRAMSG_TOKEN || '1234567890abcdef';
+const ULTRAMSG_INSTANCE_ID = import.meta.env.PUBLIC_ULTRAMSG_INSTANCE_ID;
+const ULTRAMSG_TOKEN = import.meta.env.PUBLIC_ULTRAMSG_TOKEN;
 
 
 export type SpaceType = 'home' | 'office' | 'apartment';
@@ -118,28 +118,30 @@ async function sendWhatsAppViaUltraMsg(params: {
 }): Promise<void> {
   const { phone, type, quoteId, name, details } = params;
 
-  // Clean phone: digits only, ensure country code is included without '+' prefix
+  if (!ULTRAMSG_INSTANCE_ID || !ULTRAMSG_TOKEN) {
+    console.error('[sendWhatsAppViaUltraMsg] UltraMsg API keys are missing. Please define PUBLIC_ULTRAMSG_INSTANCE_ID and PUBLIC_ULTRAMSG_TOKEN in your .env file.');
+    throw new Error('UltraMsg credentials not configured in environment variables.');
+  }
+
+  // Complete phone number formatting logic: strip all non-numeric characters
   let cleanPhone = phone.replace(/[^0-9]/g, '');
   
-  // If user provided a standard 10-digit number without country code, automatically append default country code '91' (India)
+  // Ensure country code without '+' prefix is always sent
   if (cleanPhone.length === 10) {
-    cleanPhone = '91' + cleanPhone;
+    cleanPhone = '91' + cleanPhone; // Automatically append India country code if 10 digits
+  } else if (cleanPhone.length > 10 && cleanPhone.startsWith('0')) {
+    cleanPhone = cleanPhone.replace(/^0+/, ''); // Remove leading zeroes
+    if (cleanPhone.length === 10) {
+      cleanPhone = '91' + cleanPhone;
+    }
   }
 
   if (cleanPhone.length < 10) {
-    console.error('[sendWhatsAppViaUltraMsg] Invalid phone number provided:', phone);
-    throw new Error('Invalid phone number format. Please include a valid country code and mobile number.');
+    console.error('[sendWhatsAppViaUltraMsg] Invalid phone number provided after cleaning:', phone);
+    throw new Error('Invalid phone number format. Please include a valid mobile number.');
   }
 
-  console.log(`[sendWhatsAppViaUltraMsg] Attempting WhatsApp delivery to: ${cleanPhone} for quote: ${quoteId}`);
-
-  // If using placeholder credentials, gracefully simulate a successful delivery for local testing and demonstration purposes
-  if (ULTRAMSG_INSTANCE_ID.startsWith('instance') || ULTRAMSG_TOKEN.startsWith('12345')) {
-    console.log('[sendWhatsAppViaUltraMsg] Placeholder/demo credentials detected. Simulating successful WhatsApp delivery.');
-    await new Promise(resolve => setTimeout(resolve, 1200));
-    console.log('[sendWhatsAppViaUltraMsg] Simulated WhatsApp message successfully delivered to:', cleanPhone);
-    return;
-  }
+  console.log(`[sendWhatsAppViaUltraMsg] Attempting actual WhatsApp delivery to: ${cleanPhone} for quote: ${quoteId}`);
 
   const firstName = name?.split(' ')[0] || 'there';
   const isSubmitted = type === 'quote_submitted';
@@ -182,23 +184,28 @@ async function sendWhatsAppViaUltraMsg(params: {
     body: messageBody,
   });
 
-  const response = await fetch(
-    `https://api.ultramsg.com/${ULTRAMSG_INSTANCE_ID}/messages/chat`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: formData.toString(),
+  try {
+    const response = await fetch(
+      `https://api.ultramsg.com/${ULTRAMSG_INSTANCE_ID}/messages/chat`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData.toString(),
+      }
+    );
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok || result?.sent === false || result?.error) {
+      console.error('[sendWhatsAppViaUltraMsg] Failed delivery via UltraMsg API:', result, 'HTTP Status:', response.status);
+      throw new Error(result?.error || `UltraMsg API delivery failed with HTTP status ${response.status}`);
     }
-  );
 
-  const result = await response.json().catch(() => ({}));
-
-  if (!response.ok || result?.sent === false || result?.error) {
-    console.error('[sendWhatsAppViaUltraMsg] Failed delivery via UltraMsg API:', result);
-    throw new Error(result?.error || `UltraMsg error: HTTP ${response.status}`);
+    console.log('[sendWhatsAppViaUltraMsg] Successfully delivered message via UltraMsg API. Confirmation response:', result);
+  } catch (apiErr: any) {
+    console.error('[sendWhatsAppViaUltraMsg] Exception during WhatsApp delivery API call:', apiErr);
+    throw new Error(`WhatsApp delivery failed: ${apiErr?.message || 'Network or API error'}`);
   }
-
-  console.log('[sendWhatsAppViaUltraMsg] Successfully delivered message via UltraMsg API:', result);
 }
 
 
@@ -367,7 +374,7 @@ export function useQuoteRequest() {
         ? ' WhatsApp message sent successfully!'
         : result.whatsappSkipped
           ? ''
-          : ' (WhatsApp delivery failed — check your phone number)';
+          : ' (WhatsApp delivery failed, but email was sent.)';
 
       showNotification({
         message: `Quote sent to your email.${waMsg}`,
