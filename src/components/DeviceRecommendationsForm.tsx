@@ -734,7 +734,7 @@ export const DeviceRecommendationsForm: React.FC = () => {
                               WhatsApp Confirmation Delivered
                             </div>
                           )}
-                          {whatsappStatus === 'failed' && <p className="text-xs text-red-500 mt-2 font-medium">WhatsApp delivery failed, but email was sent.</p>}
+                          {whatsappStatus === 'failed' && <p className="text-xs text-red-500 mt-2 font-medium">WhatsApp delivery failure</p>}
                         </div>
                       ) : (
                         <div className="space-y-4 max-w-lg">

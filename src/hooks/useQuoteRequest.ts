@@ -367,7 +367,7 @@ export function useQuoteRequest() {
           setWhatsappStatus('sent');
           result.whatsappSent = true;
         } catch (waErr: any) {
-          console.warn('[notifyQuoteAction] WhatsApp delivery failed (non-fatal):', waErr);
+          console.error('[notifyQuoteAction] WhatsApp delivery failed (non-fatal):', waErr);
           setWhatsappStatus('failed');
           result.whatsappSent = false;
           result.whatsappError = waErr?.message || 'WhatsApp delivery failed';
