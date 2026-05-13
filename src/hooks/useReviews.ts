@@ -69,10 +69,15 @@ export function useReviews() {
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Review[];
+      const docs = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ...data,
+          id: doc.id, // Ensure Firestore ID is not overwritten by data
+          likes: typeof data.likes === 'number' ? data.likes : 0,
+          likedBy: Array.isArray(data.likedBy) ? data.likedBy : []
+        };
+      }) as Review[];
       setReviews(docs);
       setLoading(false);
     }, (err) => {
@@ -141,10 +146,18 @@ export function useReviews() {
     const review = reviews.find(r => r.id === reviewId);
     if (!review) return;
 
-    const isCurrentlyLiked = Array.isArray(review.likedBy) && review.likedBy.includes(uid);
+    // Use guaranteed defaults from our mapping
+    const currentLikes = review.likes || 0;
+    const currentLikedBy = review.likedBy || [];
+    const isCurrentlyLiked = currentLikedBy.includes(uid);
+    
     const newLikes = isCurrentlyLiked 
-      ? Math.max(0, (review.likes || 0) - 1)
-      : (review.likes || 0) + 1;
+      ? Math.max(0, currentLikes - 1)
+      : currentLikes + 1;
+    
+    const newLikedBy = isCurrentlyLiked 
+      ? currentLikedBy.filter(id => id !== uid)
+      : [...currentLikedBy, uid];
 
     // Track this ID as being processed
     setLikingIds(prev => new Set(prev).add(reviewId));
@@ -152,13 +165,7 @@ export function useReviews() {
     // Optimistic Update
     setReviews(prev => prev.map(r => 
       r.id === reviewId 
-        ? { 
-            ...r, 
-            likes: newLikes, 
-            likedBy: isCurrentlyLiked 
-              ? (r.likedBy || []).filter(id => id !== uid)
-              : [...(r.likedBy || []), uid]
-          } 
+        ? { ...r, likes: newLikes, likedBy: newLikedBy } 
         : r
     ));
 
@@ -173,11 +180,7 @@ export function useReviews() {
       // Revert optimistic update on error
       setReviews(prev => prev.map(r => 
         r.id === reviewId 
-          ? { 
-              ...r, 
-              likes: isCurrentlyLiked ? (review.likes || 0) : Math.max(0, (review.likes || 0)), 
-              likedBy: review.likedBy || []
-            } 
+          ? { ...r, likes: currentLikes, likedBy: currentLikedBy } 
           : r
       ));
       setError("Failed to sync like with server.");
