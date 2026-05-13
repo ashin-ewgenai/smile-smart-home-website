@@ -884,9 +884,9 @@ export default function InteractiveFloorplan() {
                     </div>
                   )}
                   {whatsappStatus === 'failed' && (
-                    <div className="flex items-center gap-2 text-amber-400 text-xs justify-center bg-amber-400/5 py-2 rounded-xl border border-amber-400/10">
+                    <div className="flex items-center gap-2 text-red-500 text-xs justify-center bg-red-500/5 py-2 rounded-xl border border-red-500/10 font-medium">
                       <MessageSquare className="w-3.5 h-3.5" />
-                      WhatsApp delivery failed. Check your number.
+                      WhatsApp delivery failed, but email was sent.
                     </div>
                   )}
                 </div>
