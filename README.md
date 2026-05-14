@@ -101,6 +101,19 @@ Set via `firebase functions:secrets:set`:
 Create a `.env` file in the project root:
 
 ```bash
+# ==============================================================================
+# UltraMsg API Configuration for Client-Side WhatsApp Notification Delivery
+# ==============================================================================
+# usage notes for PUBLIC_ULTRAMSG_INSTANCE_ID and PUBLIC_ULTRAMSG_TOKEN:
+# - These environment variables must be prefixed with PUBLIC_ to be exposed to client-side
+#   browser code in Astro / Vite environments.
+# - The values are utilized in src/hooks/useQuoteRequest.ts to dispatch WhatsApp quote summaries.
+# - Phone numbers provided to the API must include the country code without the '+' prefix (e.g., 919876543210).
+
+# explicit example entries:
+PUBLIC_ULTRAMSG_INSTANCE_ID=instance12345
+PUBLIC_ULTRAMSG_TOKEN=1234567890abcdef
+
 # Optional: Enable reCAPTCHA v3 App Check
 PUBLIC_RECAPTCHA_V3_SITE_KEY=your_recaptcha_site_key
 
